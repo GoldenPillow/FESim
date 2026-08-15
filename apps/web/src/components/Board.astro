@@ -4,6 +4,7 @@ import {
   tileColorAt,
   tileName,
   isBlocked,
+  phaseOfGroup,
   unitsFor,
   forceStyle,
   FLIP_X,
@@ -50,6 +51,7 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
         units.map((u) => (
           <span
             class="cell"
+            data-phase={phaseOfGroup(u.group)}
             style={`grid-column:${gridCol(u.unit.x)};grid-row:${gridRow(u.unit.y)};--force:${forceStyle(u.unit.force).ring}`}
           >
             {u.icon ? (

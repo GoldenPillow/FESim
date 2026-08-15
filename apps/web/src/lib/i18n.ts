@@ -25,6 +25,9 @@ interface Strings {
   tagline: string;
   recommended: string;
   size: string;
+  phase: string;
+  phase1: string;
+  phase2: string;
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -47,6 +50,9 @@ export const UI: Record<Locale, Strings> = {
     tagline: "Fire Emblem Engage",
     recommended: "Recommended",
     size: "Size",
+    phase: "Phase",
+    phase1: "Turn 1",
+    phase2: "After Lumera falls",
   },
   ko: {
     localeName: "KO",
@@ -67,6 +73,9 @@ export const UI: Record<Locale, Strings> = {
     tagline: "파이어 엠블렘 인게이지",
     recommended: "권장 레벨",
     size: "크기",
+    phase: "국면",
+    phase1: "1회전",
+    phase2: "뤼미에르 격파 후",
   },
 };
 

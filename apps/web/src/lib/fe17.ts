@@ -254,6 +254,21 @@ export function toView(unit: DisposUnit, group: string, locale: Locale): UnitVie
   };
 }
 
+/** M002 국면 — 챕터별 명시(범용 규칙 추측 금지). 정식 트리거(격파 이벤트)는 M2 엔진 몫. */
+export const PHASES = [
+  { id: "1", groups: ["Player", "Enemy", "EnemyIllusion"] },
+  {
+    id: "2",
+    groups: ["Player", "Enemy2", "EnemyIllusion2_1", "EnemyIllusion2_2", "EnemyIllusion2_3"],
+  },
+] as const;
+
+/** 한 국면에만 속하면 그 국면 id, 여러 국면(또는 미분류)이면 undefined = 항상 표시. */
+export const phaseOfGroup = (group: string): string | undefined => {
+  const ids = PHASES.filter((p) => (p.groups as readonly string[]).includes(group)).map((p) => p.id);
+  return ids.length === 1 ? ids[0] : undefined;
+};
+
 export const unitsFor = (locale: Locale): UnitView[] =>
   chapter.groups.flatMap((g) => g.units.map((u) => toView(u, g.name, locale)));
 

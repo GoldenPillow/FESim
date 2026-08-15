@@ -1,5 +1,5 @@
 ---
-import { chapter, tileColor, tileName, unitsFor } from "../lib/fe17";
+import { PHASES, chapter, phaseOfGroup, tileColor, tileName, unitsFor } from "../lib/fe17";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
@@ -17,9 +17,17 @@ for (const tid of new Set(map.terrain.flat())) {
   legend.set(name, [...(legend.get(name) ?? []), tileColor(tid)]);
 }
 
+const enemies = units.filter((u) => u.unit.force !== 0);
 const counts = [
-  { label: t.player, n: units.filter((u) => u.unit.force === 0).length },
-  { label: t.enemy, n: units.filter((u) => u.unit.force !== 0).length },
+  { label: t.player, byPhase: [] as { id: string; n: number }[], n: units.length - enemies.length },
+  {
+    label: t.enemy,
+    n: 0,
+    byPhase: PHASES.map((p) => ({
+      id: p.id,
+      n: enemies.filter((u) => (phaseOfGroup(u.group) ?? p.id) === p.id).length,
+    })),
+  },
 ];
 ---
 
@@ -42,7 +50,17 @@ const counts = [
         <>
           <dt>{c.label}</dt>
           <dd class="text-ink">
-            {c.n} {t.units}
+            {c.byPhase.length > 0 ? (
+              c.byPhase.map((p) => (
+                <span data-phase={p.id}>
+                  {p.n} {t.units}
+                </span>
+              ))
+            ) : (
+              <>
+                {c.n} {t.units}
+              </>
+            )}
           </dd>
         </>
       ))

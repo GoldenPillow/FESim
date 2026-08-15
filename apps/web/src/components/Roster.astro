@@ -1,5 +1,5 @@
 ---
-import { unitsFor, forceStyle, type UnitView } from "../lib/fe17";
+import { PHASES, phaseOfGroup, unitsFor, forceStyle, type UnitView } from "../lib/fe17";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
@@ -8,16 +8,18 @@ interface Props {
 const { locale } = Astro.props;
 const t = UI[locale];
 const units = unitsFor(locale);
-const sections: { title: string; accent: string; list: UnitView[] }[] = [
+const sections: { title: string; accent: string; list: UnitView[]; byPhase: boolean }[] = [
   {
     title: t.player,
     accent: forceStyle(0).ring,
     list: units.filter((u) => u.unit.force === 0),
+    byPhase: false,
   },
   {
     title: t.enemy,
     accent: forceStyle(1).ring,
     list: units.filter((u) => u.unit.force !== 0),
+    byPhase: true,
   },
 ];
 ---
@@ -29,12 +31,20 @@ const sections: { title: string; accent: string; list: UnitView[] }[] = [
         <h2 class="mb-2 flex items-baseline gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
           <span style={`color:${s.accent}`}>{s.title}</span>
           <span class="h-px flex-1" style={`background:${s.accent};opacity:.35`} />
-          <span class="text-muted">{s.list.length}</span>
+          {s.byPhase ? (
+            PHASES.map((p) => (
+              <span class="text-muted" data-phase={p.id}>
+                {s.list.filter((u) => (phaseOfGroup(u.group) ?? p.id) === p.id).length}
+              </span>
+            ))
+          ) : (
+            <span class="text-muted">{s.list.length}</span>
+          )}
         </h2>
 
         <ul class="flex flex-col gap-1">
           {s.list.map((u) => (
-            <li>
+            <li data-phase={phaseOfGroup(u.group)}>
               <details class="card" style={`--force:${forceStyle(u.unit.force).ring}`}>
                 <summary>
                   {u.face ? (
