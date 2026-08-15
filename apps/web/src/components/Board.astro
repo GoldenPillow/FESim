@@ -156,8 +156,14 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
     display: grid;
     place-items: center;
   }
+  /* 발밑 앵커 — 48px 캔버스의 접지선(하단 여백 약 0.19)이 타일 바닥에 오도록 고정해
+     확대해도 위로만 자란다(FE 맵 스프라이트 문법). */
   .icon {
-    position: relative;
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--tile) * -0.29);
+    transform: translateX(-50%);
+    transform-origin: bottom center;
     width: calc(var(--tile) * 2);
     height: calc(var(--tile) * 2);
     object-fit: contain;

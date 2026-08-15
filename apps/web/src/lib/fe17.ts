@@ -216,10 +216,23 @@ const abbreviate = (job: string): string => {
   return words.length > 1 ? words.map((w) => w[0]).join("").slice(0, 3) : job.slice(0, 2);
 };
 
+/** 여러 PID가 같은 얼굴 파일을 쓰면 대표 초상이 아니라 플레이스홀더다(환영병 = Phantom). */
+const sharedFaces = new Set(
+  Object.entries(
+    Object.values(manifest.faces ?? {}).reduce<Record<string, number>>((acc, path) => {
+      acc[path] = (acc[path] ?? 0) + 1;
+      return acc;
+    }, {}),
+  )
+    .filter(([, n]) => n > 1)
+    .map(([path]) => path),
+);
+
 export function toView(unit: DisposUnit, group: string, locale: Locale): UnitView {
   const person = persons[unit.pid];
   const job = jobs[unit.jid];
   const jobName = label(locale, job?.Name) ?? unit.jid.replace(/^JID_/, "");
+  const facePath = manifest.faces?.[unit.pid];
   const iconEntry = manifest.mapicons?.byPid?.[unit.pid];
   const iconPath =
     iconEntry === undefined
@@ -231,7 +244,9 @@ export function toView(unit: DisposUnit, group: string, locale: Locale): UnitVie
     name: label(locale, person?.Name) ?? unit.pid.replace(/^PID_/, ""),
     job: jobName,
     level: unit.level.n > 0 ? unit.level.n : (person?.Level ?? 1),
-    face: assetHref(manifest.faces?.[unit.pid]),
+    face: facePath === undefined || (sharedFaces.has(facePath) && iconPath !== undefined)
+      ? undefined
+      : assetHref(facePath),
     icon: assetHref(iconPath),
     abbr: abbreviate(jobName),
     items: unit.items.map((i) => namedOr(items, locale, i.iid)),
