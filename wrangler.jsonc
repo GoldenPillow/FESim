@@ -1,0 +1,8 @@
+{
+  // fesim Worker — 정적 에셋 서빙(assets-only). 빌드: pnpm run build → 배포: npx wrangler deploy
+  "name": "fesim",
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": "./apps/web/dist"
+  }
+}

@@ -12,7 +12,7 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 |---|---|
 | 표기 | 항상 `FESim` (FEsim·FE Sim 금지) · UI 라벨은 기능명(시뮬레이터), 천체 코드네임은 내부용 |
 | 스택 | Astro SSG + React 아일랜드 + Tailwind v4 + TS strict + Zustand/Immer + pnpm + Vitest |
-| 백엔드 | CF Pages(현행 배포) → Workers+KV/R2/D1+Turnstile (M3~) · 서버 LLM ☠금지 |
+| 백엔드 | CF Workers 정적 에셋(현행 배포, wrangler.jsonc) → +KV/R2/D1+Turnstile (M3~) · 서버 LLM ☠금지 |
 | 성능 | ★열람 경로만 릴리즈 게이트: LCP<1s(4G)·INP<100ms·포커스모드 JS≤100KB — 제작 경로는 관대 |
 | 데이터 | data/ = 파이프라인 산출물(git 포함) · romfs 원본은 data/staging(git 제외) |
 | 타이틀 중립 | URL·데이터·기보에 게임ID(fe17) 네임스페이스 — 전 시리즈 확장 전제 |

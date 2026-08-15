@@ -13,3 +13,4 @@
 - 2026-08-15 [미룸] workers/api 생성 — 선행 조건: M3(공유 킷) 착수
 - 2026-08-15 Astro 7.2로 init(계획서 표기 v5는 작성 시점 최신 — 버전은 문서에 박제하지 않음, CLAUDE.md 표기 중립화)
 - 2026-08-15 TS 이원화: apps/web은 TS6 핀(astro check가 TS7 네이티브 API 미지원), packages/tools는 TS7
+- 2026-08-15 배포 = CF Workers 정적 에셋(Pages 대신 — 대시보드 신규 연결의 현행 경로이자 CF 공식 권장). 정본 = 루트 wrangler.jsonc, URL = fesim.goldenpillow7.workers.dev
