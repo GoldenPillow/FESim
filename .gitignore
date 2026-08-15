@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 data/staging/
 coverage/
+.serena/
