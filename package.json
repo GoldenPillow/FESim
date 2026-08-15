@@ -1,0 +1,8 @@
+{
+  "name": "fesim",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -C apps/web build"
+  }
+}

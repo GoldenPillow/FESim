@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# FESim 단일 러너 — ./dev done|test|check|doccheck|gc
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+cmd="${1:-}"
+
+check() { pnpm -r --if-present run typecheck; }
+test_all() { pnpm -r --if-present run test; }
+doccheck() { pnpm -C tools/doccheck run test; }
+
+gc() {
+  # design/에서 status: done 문서를 archive/로 이송 (문서 수명 규칙)
+  local moved=0
+  for f in design/*.md; do
+    [ -e "$f" ] || continue
+    if awk '/^---$/{n++; next} n==1 && /^status:[[:space:]]*done[[:space:]]*$/{found=1} n>=2{exit} END{exit !found}' "$f"; then
+      mv "$f" archive/
+      echo "gc: $f -> archive/"
+      moved=1
+    fi
+  done
+  [ "$moved" = 1 ] || echo "gc: 이송할 done 문서 없음"
+}
+
+case "$cmd" in
+  check)    check ;;
+  test)     test_all ;;
+  doccheck) doccheck ;;
+  gc)       gc ;;
+  done)     check && test_all && echo "== ./dev done: ALL GREEN ==" ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc"; exit 2 ;;
+esac

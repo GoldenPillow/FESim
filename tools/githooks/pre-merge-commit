@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# main 머지 = ./dev done 강제, 작업 브랜치 머지 = 경고만 ("작업대는 넓게, 머지는 정리")
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+BRANCH="$(git -C "$ROOT" symbolic-ref --short HEAD 2>/dev/null || echo detached)"
+
+if [ "$BRANCH" = "main" ]; then
+  "$ROOT/dev" done || { echo "☠ main 머지 차단: ./dev done 레드"; exit 1; }
+else
+  "$ROOT/dev" done || echo "⚠ 경고($BRANCH): ./dev done 레드 — 머지는 진행됨"
+fi
+exit 0
