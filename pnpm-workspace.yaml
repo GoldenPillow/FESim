@@ -5,3 +5,4 @@ packages:
   - tools/doccheck
 allowBuilds:
   esbuild: true
+  sharp: true
