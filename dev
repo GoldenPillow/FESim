@@ -35,5 +35,6 @@ case "$cmd" in
   extract)  shift; "$PY" tools/pipeline/extract.py "$@" ;;
   transform) shift; "$PY" tools/pipeline/transform.py "$@" ;;
   verify)   shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify"; exit 2 ;;
+  bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify|bake"; exit 2 ;;
 esac

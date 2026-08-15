@@ -1,0 +1,229 @@
+---
+import "../../../styles/global.css";
+import { chapter, units, tileColor, tileName, forceStyle, FLIP_Y } from "../../../lib/fe17";
+
+const map = chapter.map;
+const gridRow = (y: number) => (FLIP_Y ? map.height - y : y + 1);
+const playerUnits = units.filter((u) => u.unit.force === 0);
+const otherUnits = units.filter((u) => u.unit.force !== 0);
+const legend = [...new Set(map.terrain.flat())];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Chapter 2 — FESim</title>
+  </head>
+  <body class="min-h-screen bg-[#0a0d12] text-slate-200 antialiased">
+    <div class="mx-auto flex max-w-5xl flex-col gap-6 p-6 md:flex-row">
+      <aside class="w-full shrink-0 md:w-72">
+        <h1 class="text-lg font-semibold tracking-wide text-slate-100">Chapter 2</h1>
+        <p class="mb-4 text-xs text-slate-500">
+          {chapter.cid} · {map.width}×{map.height}
+          {chapter.recommendedLevel ? ` · Lv ${chapter.recommendedLevel}` : ""}
+        </p>
+
+        <section class="mb-5">
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-widest text-blue-400">
+            Player · {playerUnits.length}
+          </h2>
+          <ul class="flex flex-col gap-1">
+            {
+              playerUnits.map((u) => (
+                <li>
+                  <details class="group rounded border border-slate-800 bg-slate-900/60 open:bg-slate-900">
+                    <summary class="flex cursor-pointer list-none items-center gap-2 p-1.5">
+                      {u.face ? (
+                        <img
+                          src={u.face}
+                          alt=""
+                          width="36"
+                          height="36"
+                          class="size-9 shrink-0 rounded-full object-cover ring-2"
+                          style={`--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                        />
+                      ) : (
+                        <span
+                          class="flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2"
+                          style={`background:${forceStyle(u.unit.force).chip};--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                        >
+                          {u.name.slice(0, 2)}
+                        </span>
+                      )}
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm text-slate-100">{u.name}</span>
+                        <span class="block truncate text-[11px] text-slate-500">{u.job}</span>
+                      </span>
+                      <span class="shrink-0 text-[11px] tabular-nums text-slate-400">
+                        Lv {u.level}
+                      </span>
+                    </summary>
+                    <div class="space-y-1 border-t border-slate-800 px-2 py-1.5 text-[11px] text-slate-400">
+                      <p>
+                        <span class="text-slate-500">Class</span> {u.job}
+                      </p>
+                      <p>
+                        <span class="text-slate-500">Pos</span> ({u.unit.x}, {u.unit.y})
+                      </p>
+                      {u.items.length > 0 && (
+                        <p>
+                          <span class="text-slate-500">Items</span> {u.items.join(" · ")}
+                        </p>
+                      )}
+                      {u.skills.length > 0 && (
+                        <p>
+                          <span class="text-slate-500">Skills</span> {u.skills.join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                </li>
+              ))
+            }
+          </ul>
+        </section>
+
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-widest text-red-400">
+            Enemy · {otherUnits.length}
+          </h2>
+          <ul class="flex flex-col gap-1">
+            {
+              otherUnits.map((u) => (
+                <li>
+                  <details class="group rounded border border-slate-800 bg-slate-900/60 open:bg-slate-900">
+                    <summary class="flex cursor-pointer list-none items-center gap-2 p-1.5">
+                      {u.face ? (
+                        <img
+                          src={u.face}
+                          alt=""
+                          width="36"
+                          height="36"
+                          class="size-9 shrink-0 rounded-full object-cover ring-2"
+                          style={`--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                        />
+                      ) : (
+                        <span
+                          class="flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2"
+                          style={`background:${forceStyle(u.unit.force).chip};--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                        >
+                          {u.abbr}
+                        </span>
+                      )}
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm text-slate-100">{u.name}</span>
+                        <span class="block truncate text-[11px] text-slate-500">{u.job}</span>
+                      </span>
+                      <span class="shrink-0 text-[11px] tabular-nums text-slate-400">
+                        Lv {u.level}
+                      </span>
+                    </summary>
+                    <div class="space-y-1 border-t border-slate-800 px-2 py-1.5 text-[11px] text-slate-400">
+                      <p>
+                        <span class="text-slate-500">Group</span> {u.group}
+                      </p>
+                      <p>
+                        <span class="text-slate-500">Pos</span> ({u.unit.x}, {u.unit.y})
+                      </p>
+                      {u.items.length > 0 && (
+                        <p>
+                          <span class="text-slate-500">Items</span> {u.items.join(" · ")}
+                        </p>
+                      )}
+                      {u.skills.length > 0 && (
+                        <p>
+                          <span class="text-slate-500">Skills</span> {u.skills.join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                </li>
+              ))
+            }
+          </ul>
+        </section>
+      </aside>
+
+      <main class="flex min-w-0 flex-1 flex-col items-center gap-4">
+        <div
+          class="board relative rounded-md bg-black p-1 shadow-[0_0_0_1px_rgba(148,163,184,0.25)]"
+          style={`--tile:34px;--cols:${map.width};--rows:${map.height}`}
+        >
+          <div class="board-grid">
+            {
+              map.terrain.map((line, y) =>
+                line.map((tid, x) => (
+                  <div
+                    title={`(${x}, ${y}) ${tileName(tid)}`}
+                    style={`grid-column:${x + 1};grid-row:${gridRow(y)};background:${tileColor(tid)}`}
+                    class="outline outline-black/15 -outline-offset-1"
+                  />
+                )),
+              )
+            }
+          </div>
+          <div class="board-grid pointer-events-none absolute inset-1">
+            {
+              units.map((u) => (
+                <div
+                  class="flex items-center justify-center"
+                  style={`grid-column:${u.unit.x + 1};grid-row:${gridRow(u.unit.y)}`}
+                >
+                  {u.icon ? (
+                    <img
+                      src={u.icon}
+                      alt={u.name}
+                      class="size-[30px] rounded-full object-cover ring-2 ring-white/70"
+                      style={`--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                    />
+                  ) : (
+                    <span
+                      class="flex size-[26px] items-center justify-center rounded-full text-[9px] font-bold text-white ring-2 ring-white/80"
+                      style={`background:${forceStyle(u.unit.force).chip};--tw-ring-color:${forceStyle(u.unit.force).ring}`}
+                      title={`${u.name} — ${u.job}`}
+                    >
+                      {u.abbr}
+                    </span>
+                  )}
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+          {
+            legend.map((tid) => (
+              <span class="flex items-center gap-1.5">
+                <span
+                  class="inline-block size-3 rounded-sm ring-1 ring-black/40"
+                  style={`background:${tileColor(tid)}`}
+                />
+                {tileName(tid)}
+              </span>
+            ))
+          }
+        </div>
+        <p class="text-[11px] text-slate-600">
+          x 0–{map.width - 1} → right · y 0–{map.height - 1}
+          {FLIP_Y ? " → up" : " → down"} · blue = player, red = enemy, green = other
+        </p>
+      </main>
+    </div>
+
+    <style>
+      .board-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--cols), var(--tile));
+        grid-template-rows: repeat(var(--rows), var(--tile));
+      }
+      @media (max-width: 640px) {
+        .board {
+          --tile: 22px;
+        }
+      }
+    </style>
+  </body>
+</html>
