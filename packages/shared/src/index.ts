@@ -11,7 +11,8 @@ export interface EphemerisHeader {
 /**
  * 챕터 데이터 JSON 스키마 — 파이프라인(tools/pipeline) 산출물의 계약.
  * 좌표계(실측 전수 검증됨): 0-based, index = y*width + x, 32×32 패딩은 제거하고
- * 실맵(m_Width×m_Height)만 담는다. terrain[y][x] = Tid. 화면상 Y축 방향은 미확정(M1 과제).
+ * 실맵(m_Width×m_Height)만 담는다. terrain[y][x] = Tid. 실기 화면 = 데이터 기준 180도 회전:
+ * 데이터 (0,0) = 화면 우하단(실기 대조 확정). 뷰는 FLIP_X=true, FLIP_Y=true로 그린다.
  */
 export type Fe17Force = 0 | 1 | 2;
 

@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = Path.home() / "fesim_data" / "extracted"
 DEFAULT_OUT = REPO / "data" / "fe17"
 
-NAME_FILES = ("person", "item", "skill", "job", "god", "gamedata")
+NAME_FILES = ("person", "item", "skill", "job", "god", "gamedata", "patch0", "patch1", "patch2", "patch3")
 LOCALES = {"en": "us/usen", "ko": "kr/krko"}
 INT_TYPES = {"s8", "u8", "s16", "u16", "s32", "u32", "int", "b8", "b16", "b32", "flag"}
 FLOAT_TYPES = {"f32", "float"}
@@ -60,6 +60,10 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "jobs.json", keyed(jobs, "Jid"))
     _, persons = load_sheet(src / "gamedata" / "person.xml")
     write_json(out / "tables" / "persons.json", keyed(persons, "Pid"))
+    _, items = load_sheet(src / "gamedata" / "item.xml")
+    write_json(out / "tables" / "items.json", keyed(items, "Iid"))
+    _, skills = load_sheet(src / "gamedata" / "skill.xml")
+    write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
 
 
 def build_names(src: Path, out: Path) -> None:

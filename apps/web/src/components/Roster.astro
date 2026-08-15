@@ -1,0 +1,140 @@
+---
+import { unitsFor, forceStyle, type UnitView } from "../lib/fe17";
+import { UI, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = UI[locale];
+const units = unitsFor(locale);
+const sections: { title: string; accent: string; list: UnitView[] }[] = [
+  {
+    title: t.player,
+    accent: forceStyle(0).ring,
+    list: units.filter((u) => u.unit.force === 0),
+  },
+  {
+    title: t.enemy,
+    accent: forceStyle(1).ring,
+    list: units.filter((u) => u.unit.force !== 0),
+  },
+];
+---
+
+<div class="flex flex-col gap-5">
+  {
+    sections.map((s) => (
+      <section>
+        <h2 class="mb-2 flex items-baseline gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
+          <span style={`color:${s.accent}`}>{s.title}</span>
+          <span class="h-px flex-1" style={`background:${s.accent};opacity:.35`} />
+          <span class="text-muted">{s.list.length}</span>
+        </h2>
+
+        <ul class="flex flex-col gap-1">
+          {s.list.map((u) => (
+            <li>
+              <details class="card" style={`--force:${forceStyle(u.unit.force).ring}`}>
+                <summary>
+                  {u.face ? (
+                    <img src={u.face} alt="" class="portrait" width="46" height="34" />
+                  ) : (
+                    <span class="portrait initials">{u.abbr}</span>
+                  )}
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] leading-tight text-ink">{u.name}</span>
+                    <span class="block truncate text-[11px] leading-tight text-muted">{u.job}</span>
+                  </span>
+                  <span class="shrink-0 text-right text-[11px] leading-tight text-muted">
+                    <span class="block">
+                      {t.level} {u.level}
+                    </span>
+                    <span class="block opacity-70">
+                      {u.unit.x}, {u.unit.y}
+                    </span>
+                  </span>
+                </summary>
+
+                <dl class="detail">
+                  {u.items.length > 0 && (
+                    <>
+                      <dt>{t.items}</dt>
+                      <dd>{u.items.join(" · ")}</dd>
+                    </>
+                  )}
+                  {u.skills.length > 0 && (
+                    <>
+                      <dt>{t.skills}</dt>
+                      <dd>{u.skills.join(" · ")}</dd>
+                    </>
+                  )}
+                  <dt>{t.group}</dt>
+                  <dd>{u.group}</dd>
+                </dl>
+              </details>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .card {
+    border: 1px solid var(--rule);
+    border-left: 2px solid var(--force);
+    border-radius: 3px;
+    background: var(--panel);
+    transition: border-color 160ms ease;
+  }
+  .card:hover {
+    border-color: color-mix(in srgb, var(--force) 45%, var(--rule));
+    border-left-color: var(--force);
+  }
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.45rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .portrait {
+    width: 46px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    object-fit: cover;
+    object-position: 50% 32%;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .initials {
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .detail {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.6rem;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+    padding: 0.4rem 0.5rem;
+    font-size: 11px;
+  }
+  .detail dt {
+    color: var(--muted);
+  }
+  .detail dd {
+    margin: 0;
+    color: var(--ink);
+  }
+</style>

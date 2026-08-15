@@ -1,0 +1,35 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import TopBar from "../../../../components/TopBar.astro";
+import Board from "../../../../components/Board.astro";
+import Roster from "../../../../components/Roster.astro";
+import Brief from "../../../../components/Brief.astro";
+import { chapterTitle } from "../../../../lib/fe17";
+import { DEFAULT_LOCALE, LOCALES, isLocale } from "../../../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const title = chapterTitle(locale);
+const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
+---
+
+<Base locale={locale} title={`${heading} — FESim`}>
+  <TopBar locale={locale} context={heading} sub={title.place} />
+
+  <div
+    class="mx-auto grid max-w-[1400px] items-start gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[19rem_auto_19rem]"
+  >
+    <main class="order-1 min-w-0 justify-self-center lg:order-2 lg:col-start-2">
+      <Board locale={locale} />
+    </main>
+    <aside class="order-2 lg:order-1 lg:col-start-1 lg:row-start-1">
+      <Roster locale={locale} />
+    </aside>
+    <aside class="order-3 lg:col-start-3 lg:row-start-1">
+      <Brief locale={locale} />
+    </aside>
+  </div>
+</Base>
