@@ -16,3 +16,5 @@
 - 2026-08-15 배포 = CF Workers 정적 에셋(Pages 대신 — 대시보드 신규 연결의 현행 경로이자 CF 공식 권장). 정본 = 루트 wrangler.jsonc, URL = fesim.goldenpillow7.workers.dev
 - 2026-08-15 좌표계 확정: terrain 32×32 고정배열, index=y*32+x, 0-based, 오프셋 0, 패딩=TID_無し (dispos 전수 9,756유닛 통행타일 검증 + TA 대조 13/13 일치) · 화면상 Y방향만 미확정(M1 스크린샷 과제)
 - 2026-08-15 dispos c###_N = 챌린지 배틀 CID(챕터 아님) — 본편은 m###. 조우전 = m###e (M004 이상만 존재)
+- 2026-08-15 M0 완료 판정 충족: M002 챕터 JSON + 테이블(terrain/jobs/persons) + 언어사전(en/ko) 산출, TA 대조군 검증 일치 156·부분일치 3(표시명 세분화 차이)·불일치 0 (리포트: ~/fesim_data/extracted/VERIFY_M002.md)
+- 2026-08-15 [미룸→이월] 아이콘·팔레트 베이크는 M1(보드 가시화)에서 — 선행 조건: unitindexes.bundle 서브셋 복사
