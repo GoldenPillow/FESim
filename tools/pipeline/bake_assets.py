@@ -20,6 +20,12 @@ FORCE_PALETTE = {
     "e": ("800SoldierMR", "850SoldierFR"),
 }
 
+# items.json Kind -> map icon weapon token (Kind >= 10 is not a weapon)
+KIND_WEAPON = {
+    1: "Sword", 2: "Lance", 3: "Ax", 4: "Bow", 5: "Knife",
+    6: "MagicBook", 7: "Staff", 8: "Scroll", 9: "Special",
+}
+
 
 def load_sprites(bundle: Path) -> dict:
     env = UnityPy.load(str(bundle))
@@ -52,6 +58,15 @@ def job_icon(job: dict, gender: int) -> str:
     return primary or fallback
 
 
+def equipped_weapon(iids, items: dict, available) -> tuple[str | None, str | None]:
+    """첫 무기 아이템의 Kind -> 토큰. 해당 병과에 없는 토큰이면 건너뛴다."""
+    for iid in iids:
+        token = KIND_WEAPON.get(items.get(iid, {}).get("Kind", 0))
+        if token and token in available:
+            return token, iid
+    return None, None
+
+
 def chapter_units(chapter: dict, persons: dict, jobs: dict):
     seen = {}
     for group in chapter["groups"]:
@@ -68,6 +83,7 @@ def chapter_units(chapter: dict, persons: dict, jobs: dict):
                 "palette": person.get("UnitIconID") or "",
                 "jobIcon": job_icon(job, person.get("Gender", 1)),
                 "weapon": job.get("UnitIconWeaponID") or "NoWeapon",
+                "iids": [i["iid"] for i in unit.get("items", [])],
                 "gender": "m" if person.get("Gender", 1) == 1 else "f",
                 "face": (person.get("Name") or "").removeprefix("MPID_"),
             }
@@ -84,6 +100,7 @@ def bake(args) -> int:
     chapter = json.loads(chapter_path.read_text(encoding="utf-8"))
     persons = json.loads((data / "tables" / "persons.json").read_text(encoding="utf-8"))
     jobs = json.loads((data / "tables" / "jobs.json").read_text(encoding="utf-8"))
+    items = json.loads((data / "tables" / "items.json").read_text(encoding="utf-8"))
 
     unit_root = args.romfs / "ui_icon" / "unit"
     indexes = load_sprites(unit_root / "unitindexes.bundle")
@@ -120,10 +137,16 @@ def bake(args) -> int:
         variants = by_pair.get((unit["palette"], unit["jobIcon"]), {})
         if not variants:
             manifest["missing"]["mapicons"].append(f'{unit["pid"]}/{unit["jid"]}')
+        token, iid = equipped_weapon(unit["iids"], items, variants)
+        source = "equipped"
+        if token is None:
+            token, source = (unit["weapon"], "job") if unit["weapon"] in variants else (next(iter(sorted(variants)), None), "fallback")
         entry = {
             "palette": unit["palette"],
             "jobIcon": unit["jobIcon"],
-            "defaultWeapon": unit["weapon"] if unit["weapon"] in variants else next(iter(variants), None),
+            "defaultWeapon": token,
+            "defaultWeaponSource": source,
+            "equippedIid": iid,
             "forceTinted": False,
             "weapons": {},
         }

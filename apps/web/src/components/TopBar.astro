@@ -1,0 +1,50 @@
+---
+import ThemeToggle from "./ThemeToggle.astro";
+import { LOCALES, UI, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+  context?: string;
+  sub?: string;
+}
+const { locale, context, sub } = Astro.props;
+const t = UI[locale];
+const path = Astro.url.pathname.replace(/^\/(en|ko)(?=\/|$)/, "");
+---
+
+<header class="sticky top-0 z-10 border-b border-rule bg-ground/85 backdrop-blur">
+  <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
+    <a href={`/${locale}${path}`} class="group shrink-0">
+      <span class="block text-[15px] font-semibold tracking-[0.14em] text-ink">FESim</span>
+      <span class="block h-px w-full bg-gold opacity-70 transition-opacity group-hover:opacity-100"
+      ></span>
+    </a>
+
+    {
+      context && (
+        <div class="min-w-0 flex-1 border-l border-rule pl-4">
+          <p class="truncate text-[13px] text-ink">{context}</p>
+          {sub && <p class="truncate text-[11px] text-muted">{sub}</p>}
+        </div>
+      )
+    }
+
+    <nav aria-label={t.language} class="ml-auto flex items-center gap-1">
+      {
+        LOCALES.map((l) => (
+          <a
+            href={`/${l}${path}`}
+            aria-current={l === locale ? "true" : undefined}
+            class:list={[
+              "rounded px-2 py-1 text-[11px] font-medium tracking-widest transition-colors",
+              l === locale ? "text-gold" : "text-muted hover:text-ink",
+            ]}
+          >
+            {UI[l].localeName}
+          </a>
+        ))
+      }
+      <ThemeToggle label={t.themeToggle} />
+    </nav>
+  </div>
+</header>

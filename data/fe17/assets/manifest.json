@@ -10,6 +10,8 @@
     "palette": "001Lueur",
     "jobIcon": "600DragonLord",
     "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の剣",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/001Lueur_600DragonLord_NoWeapon.webp",
@@ -19,7 +21,9 @@
    "PID_ヴァンドレ": {
     "palette": "500Vandre",
     "jobIcon": "640Paladin",
-    "defaultWeapon": "Lance",
+    "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/500Vandre_640Paladin_Ax.webp",
@@ -32,6 +36,8 @@
     "palette": "501Clan",
     "jobIcon": "660Mage",
     "defaultWeapon": "MagicBook",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_ファイアー",
     "forceTinted": false,
     "weapons": {
      "MagicBook": "assets/mapicons/501Clan_660Mage_MagicBook.webp",
@@ -41,7 +47,9 @@
    "PID_フラン": {
     "palette": "550Fram",
     "jobIcon": "668Monk",
-    "defaultWeapon": "Staff",
+    "defaultWeapon": "Scroll",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄身の法",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/550Fram_668Monk_NoWeapon.webp",
@@ -53,6 +61,8 @@
     "palette": "555Lumiere",
     "jobIcon": "603DragonKing",
     "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_リベラシオン",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/555Lumiere_603DragonKing_NoWeapon.webp",
@@ -63,6 +73,8 @@
     "palette": "713Phantom",
     "jobIcon": "617AxFighter",
     "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/713Phantom_617AxFighter_Ax.webp",
@@ -73,6 +85,8 @@
     "palette": "713Phantom",
     "jobIcon": "624Archer",
     "defaultWeapon": "Bow",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の弓",
     "forceTinted": false,
     "weapons": {
      "Bow": "assets/mapicons/713Phantom_624Archer_Bow.webp",
@@ -83,6 +97,8 @@
     "palette": "713Phantom",
     "jobIcon": "638SwordKnight",
     "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の剣",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/713Phantom_638SwordKnight_NoWeapon.webp",
@@ -93,6 +109,8 @@
     "palette": "713Phantom",
     "jobIcon": "610LanceFighter",
     "defaultWeapon": "Lance",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/713Phantom_610LanceFighter_Lance.webp",
@@ -103,6 +121,8 @@
     "palette": "713Phantom",
     "jobIcon": "624Archer",
     "defaultWeapon": "Bow",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の弓",
     "forceTinted": false,
     "weapons": {
      "Bow": "assets/mapicons/713Phantom_624Archer_Bow.webp",
@@ -113,6 +133,8 @@
     "palette": "713Phantom",
     "jobIcon": "617AxFighter",
     "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/713Phantom_617AxFighter_Ax.webp",

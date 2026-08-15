@@ -1,0 +1,99 @@
+---
+import { PHASES, chapter, phaseOfGroup, tileColor, tileName, unitsFor } from "../lib/fe17";
+import { UI, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = UI[locale];
+const map = chapter.map;
+const units = unitsFor(locale);
+
+/** 平地·道는 공식 표시명이 같다(둘 다 Ground) — 이름으로 묶고 스와치만 나열한다. */
+const legend = new Map<string, string[]>();
+for (const tid of new Set(map.terrain.flat())) {
+  const name = tileName(locale, tid);
+  legend.set(name, [...(legend.get(name) ?? []), tileColor(tid)]);
+}
+
+const enemies = units.filter((u) => u.unit.force !== 0);
+const counts = [
+  { label: t.player, byPhase: [] as { id: string; n: number }[], n: units.length - enemies.length },
+  {
+    label: t.enemy,
+    n: 0,
+    byPhase: PHASES.map((p) => ({
+      id: p.id,
+      n: enemies.filter((u) => (phaseOfGroup(u.group) ?? p.id) === p.id).length,
+    })),
+  },
+];
+---
+
+<div class="text-[11px] text-muted">
+  <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+    {
+      chapter.recommendedLevel !== undefined && (
+        <>
+          <dt>{t.recommended}</dt>
+          <dd class="text-ink">
+            {t.level} {chapter.recommendedLevel}
+          </dd>
+        </>
+      )
+    }
+    <dt>{t.size}</dt>
+    <dd class="text-ink">{map.width} × {map.height}</dd>
+    {
+      counts.map((c) => (
+        <>
+          <dt>{c.label}</dt>
+          <dd class="text-ink">
+            {c.byPhase.length > 0 ? (
+              c.byPhase.map((p) => (
+                <span data-phase={p.id}>
+                  {p.n} {t.units}
+                </span>
+              ))
+            ) : (
+              <>
+                {c.n} {t.units}
+              </>
+            )}
+          </dd>
+        </>
+      ))
+    }
+  </dl>
+
+  <h2 class="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+    {t.terrain}
+  </h2>
+  <ul class="flex flex-col gap-1">
+    {
+      [...legend].map(([name, colors]) => (
+        <li class="flex items-center gap-2">
+          <span class="flex gap-0.5">
+            {colors.map((c) => (
+              <i class="swatch" style={`background:${c}`} />
+            ))}
+          </span>
+          <span class="text-ink">{name}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <p class="mt-4 border-t border-rule pt-2 tracking-wide">{t.axis}</p>
+</div>
+
+<style>
+  .swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 2px;
+    outline: 1px solid var(--rule);
+    outline-offset: -1px;
+  }
+</style>
