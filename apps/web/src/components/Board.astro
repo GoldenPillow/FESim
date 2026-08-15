@@ -43,6 +43,8 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
       }
     </div>
 
+    <div class="vignette"></div>
+
     <div class="layer units">
       {
         units.map((u) => (
@@ -73,20 +75,17 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
         ))
       }
     </div>
-
-    <div class="vignette"></div>
   </div>
 
 </figure>
 
 <style>
+  /* 좌표 레일은 절대 배치 — 플레이트 박스 = 보드 박스여야 보드가 정확히 화면 중앙에 온다. */
   .plate {
     --tile: 36px;
-    --gutter: 1.1rem;
-    display: grid;
-    grid-template-columns: var(--gutter) calc(var(--cols) * var(--tile));
-    grid-template-rows: var(--gutter) calc(var(--rows) * var(--tile));
-    gap: 0.25rem;
+    position: relative;
+    width: calc(var(--cols) * var(--tile));
+    margin: 0;
   }
 
   .rail {
@@ -97,25 +96,33 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
     letter-spacing: 0.04em;
   }
   .rail-x {
-    grid-column: 2;
-    grid-row: 1;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
     grid-template-columns: repeat(var(--cols), var(--tile));
-    align-items: end;
     justify-items: center;
+    padding-bottom: 0.35rem;
+  }
+  .rail-x span {
+    grid-row: 1;
   }
   .rail-y {
-    grid-column: 1;
-    grid-row: 2;
+    position: absolute;
+    right: 100%;
+    top: 0;
+    bottom: 0;
     grid-template-rows: repeat(var(--rows), var(--tile));
     align-items: center;
     justify-items: end;
-    padding-right: 0.3rem;
+    padding-right: 0.35rem;
+  }
+  .rail-y span {
+    grid-column: 1;
   }
 
   .board {
     position: relative;
-    grid-column: 2;
-    grid-row: 2;
     box-shadow:
       0 0 0 1px var(--board-frame),
       0 0 0 4px var(--ground),
@@ -132,6 +139,7 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
     position: absolute;
     inset: 0;
     pointer-events: none;
+    overflow: visible;
   }
 
   .tile {
@@ -148,23 +156,12 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
     display: grid;
     place-items: center;
   }
-  /* 군 색 발판 — 인게임 문법(아군 파랑 / 적 빨강)을 톤다운 보드 위에서 읽히게 */
-  .cell::before {
-    content: "";
-    position: absolute;
-    bottom: 8%;
-    width: calc(var(--tile) * 0.62);
-    height: calc(var(--tile) * 0.26);
-    border-radius: 9999px;
-    background: var(--force);
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
-    opacity: 0.9;
-  }
   .icon {
     position: relative;
-    width: calc(var(--tile) * 1.33);
-    height: calc(var(--tile) * 1.33);
+    width: calc(var(--tile) * 2);
+    height: calc(var(--tile) * 2);
     object-fit: contain;
+    image-rendering: pixelated;
     filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
   }
   .chip {
@@ -197,7 +194,6 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
   @media (max-width: 640px) {
     .plate {
       --tile: 22px;
-      --gutter: 0.85rem;
     }
   }
 </style>

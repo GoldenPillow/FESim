@@ -7,8 +7,8 @@ import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
 import type { Locale } from "./i18n";
 
-/** 데이터 기준 180도 회전이 화면 정본(실기 대조 확정) — 데이터 (0,0) = 화면 우하단. */
-export const FLIP_X = true;
+/** 상하 반전이 화면 정본(실기 대조 확정) — 데이터 (0,0) = 화면 좌하단. */
+export const FLIP_X = false;
 export const FLIP_Y = true;
 
 export interface TerrainRow {

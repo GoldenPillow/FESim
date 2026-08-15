@@ -19,17 +19,32 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
 <Base locale={locale} title={`${heading} — FESim`}>
   <TopBar locale={locale} context={heading} sub={title.place} />
 
-  <div
-    class="mx-auto grid max-w-[1400px] items-start gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[19rem_auto_19rem]"
-  >
+  <div class="board-frame">
     <main class="order-1 min-w-0 justify-self-center lg:order-2 lg:col-start-2">
       <Board locale={locale} />
     </main>
-    <aside class="order-2 lg:order-1 lg:col-start-1 lg:row-start-1">
+    <aside class="order-2 w-full lg:order-1 lg:col-start-1 lg:row-start-1 lg:w-[19rem]">
       <Roster locale={locale} />
     </aside>
-    <aside class="order-3 lg:col-start-3 lg:row-start-1">
+    <aside class="order-3 w-full lg:col-start-3 lg:row-start-1 lg:w-[19rem] lg:justify-self-end">
       <Brief locale={locale} />
     </aside>
   </div>
+
+  <style>
+    /* 양쪽 사이드를 동일한 minmax(19rem,1fr)로 두면 가운데 auto 열이 뷰포트 정중앙에 온다. */
+    .board-frame {
+      display: grid;
+      gap: 2rem;
+      padding: 1.5rem 1rem;
+    }
+    @media (min-width: 1024px) {
+      .board-frame {
+        grid-template-columns: minmax(19rem, 1fr) auto minmax(19rem, 1fr);
+        align-items: center;
+        min-height: calc(100vh - 3.5rem);
+        padding: 1.5rem;
+      }
+    }
+  </style>
 </Base>
