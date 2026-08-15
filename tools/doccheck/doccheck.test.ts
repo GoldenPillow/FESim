@@ -43,6 +43,28 @@ describe("문서 수명 규칙 (design/)", () => {
   });
 });
 
+describe("워크스페이스 정의 단일성", () => {
+  /**
+   * 루트 외의 pnpm-workspace.yaml 금지 — astro add가 apps/web에 allowBuilds만 담긴
+   * 파일을 생성하면, CF 빌드의 `pnpm -C apps/web`이 그걸 워크스페이스 루트로 오인해
+   * "packages field missing or empty"로 배포가 전부 깨진다(2026-08-16 실제 장애).
+   */
+  it("pnpm-workspace.yaml은 저장소 루트에만 존재한다", () => {
+    const nested: string[] = [];
+    const scan = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue;
+        const p = join(dir, e.name);
+        if (e.isDirectory()) scan(p);
+        else if (e.name === "pnpm-workspace.yaml" && p !== join(ROOT, "pnpm-workspace.yaml"))
+          nested.push(p);
+      }
+    };
+    scan(ROOT);
+    expect(nested, `루트 밖 pnpm-workspace.yaml: ${nested.join(", ")} — 내용을 루트로 옮기고 삭제하라`).toEqual([]);
+  });
+});
+
 describe("CLAUDE.md 비대화 차단", () => {
   it("CLAUDE.md는 100줄 이하 — 초과는 레드", () => {
     const lines = readFileSync(join(ROOT, "CLAUDE.md"), "utf8").trimEnd().split("\n").length;
