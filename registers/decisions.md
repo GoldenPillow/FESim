@@ -14,3 +14,5 @@
 - 2026-08-15 Astro 7.2로 init(계획서 표기 v5는 작성 시점 최신 — 버전은 문서에 박제하지 않음, CLAUDE.md 표기 중립화)
 - 2026-08-15 TS 이원화: apps/web은 TS6 핀(astro check가 TS7 네이티브 API 미지원), packages/tools는 TS7
 - 2026-08-15 배포 = CF Workers 정적 에셋(Pages 대신 — 대시보드 신규 연결의 현행 경로이자 CF 공식 권장). 정본 = 루트 wrangler.jsonc, URL = fesim.goldenpillow7.workers.dev
+- 2026-08-15 좌표계 확정: terrain 32×32 고정배열, index=y*32+x, 0-based, 오프셋 0, 패딩=TID_無し (dispos 전수 9,756유닛 통행타일 검증 + TA 대조 13/13 일치) · 화면상 Y방향만 미확정(M1 스크린샷 과제)
+- 2026-08-15 dispos c###_N = 챌린지 배틀 CID(챕터 아님) — 본편은 m###. 조우전 = m###e (M004 이상만 존재)
