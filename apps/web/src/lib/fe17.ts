@@ -18,6 +18,8 @@ export interface TerrainRow {
   ColorG: number;
   ColorB: number;
   Prohibition: number;
+  Avoid?: number;
+  Defense?: number;
   /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
   cost?: Record<MoveType, number>;
 }
@@ -360,6 +362,21 @@ export interface BoardTileProp {
   color: string;
   name: string;
   blocked: boolean;
+  /** 지형 회피/방어 보정 — 전투 공식의 地形回避/地形防御 입력. */
+  avoid: number;
+  def: number;
+}
+
+export interface BoardWeaponProp {
+  name: string;
+  might: number;
+  hit: number;
+  crit: number;
+  weight: number;
+  avoid: number;
+  magic: boolean;
+  rangeMin: number;
+  rangeMax: number;
 }
 
 export interface BoardUnitProp {
@@ -378,6 +395,10 @@ export interface BoardUnitProp {
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
+  /** 실스탯(선택 난이도 반영, 스탯 모델 v1). */
+  stats?: StatBlock;
+  /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
+  weapon?: BoardWeaponProp;
 }
 
 export interface BoardProps {
@@ -390,7 +411,14 @@ export interface BoardProps {
   costs: Partial<Record<MoveType, number[][]>>;
   objects: { x: number; y: number; name: string }[];
   units: BoardUnitProp[];
-  labels: { board: string };
+  labels: {
+    board: string;
+    forecast: string;
+    hit: string;
+    crit: string;
+    damage: string;
+    currentPosNote: string;
+  };
 }
 
 /** 공격 사거리를 갖는 무기 분류(Kind 실측) — 7 = 지팡이는 공격이 아니다. */
@@ -410,7 +438,35 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
   return max > 0 ? { rangeMin: min, rangeMax: max } : { rangeMin: 0, rangeMax: 0 };
 };
 
-export function boardProps(chapter: ChapterData, mapId: string, locale: Locale, boardLabel: string): BoardProps {
+/** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
+const MAGIC_FLAG = 0x10000;
+
+const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | undefined => {
+  for (const entry of unit.items) {
+    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+    if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) continue;
+    return {
+      name: namedOr(items, locale, entry.iid),
+      might: Number(row["Power"] ?? 0),
+      hit: Number(row["Hit"] ?? 0),
+      crit: Number(row["Critical"] ?? 0),
+      weight: Number(row["Weight"] ?? 0),
+      avoid: Number(row["Avoid"] ?? 0),
+      magic: row.Kind === 6 || (Number(row["Flag"] ?? 0) & MAGIC_FLAG) !== 0,
+      rangeMin: row.RangeI ?? 1,
+      rangeMax: row.RangeO ?? 1,
+    };
+  }
+  return undefined;
+};
+
+export function boardProps(
+  chapter: ChapterData,
+  mapId: string,
+  locale: Locale,
+  labels: BoardProps["labels"],
+  difficulty: Difficulty = "n",
+): BoardProps {
   const map = chapter.map;
   const views = unitsFor(chapter, locale);
   const moveTypes = new Set<MoveType>();
@@ -433,6 +489,8 @@ export function boardProps(chapter: ChapterData, mapId: string, locale: Locale, 
       movePoints: job?.["Base.Move"] ?? 0,
       moveType,
       ...weaponRange(v.unit),
+      stats: unitStats(v.unit, difficulty),
+      weapon: equippedWeapon(v.unit, locale),
     };
   });
   // 베이스 지형 코스트만 — 구조물(m_Layers) 통행 반영은 구조물 렌더와 함께 미룸(M005 실재 맵 시점).
@@ -449,11 +507,13 @@ export function boardProps(chapter: ChapterData, mapId: string, locale: Locale, 
         color: tileColorAt(tid, x, y),
         name: tileName(locale, tid),
         blocked: isBlocked(tid),
+        avoid: terrain[tid]?.Avoid ?? 0,
+        def: terrain[tid]?.Defense ?? 0,
       })),
     ),
     costs,
     objects: (map.objects ?? []).map((o) => ({ x: o.x, y: o.y, name: objectName(locale, o) })),
     units,
-    labels: { board: boardLabel },
+    labels,
   };
 }

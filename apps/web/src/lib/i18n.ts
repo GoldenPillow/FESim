@@ -28,6 +28,11 @@ interface Strings {
   size: string;
   phase: string;
   objects: string;
+  forecast: string;
+  hit: string;
+  crit: string;
+  damage: string;
+  currentPosNote: string;
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -53,6 +58,11 @@ export const UI: Record<Locale, Strings> = {
     size: "Size",
     phase: "Phase",
     objects: "Objects",
+    forecast: "Battle forecast",
+    hit: "Hit",
+    crit: "Crit",
+    damage: "Dmg",
+    currentPosNote: "Assumes attack at max weapon range",
   },
   ko: {
     localeName: "KO",
@@ -76,6 +86,11 @@ export const UI: Record<Locale, Strings> = {
     size: "크기",
     phase: "국면",
     objects: "오브젝트",
+    forecast: "전투 예보",
+    hit: "명중",
+    crit: "필살",
+    damage: "위력",
+    currentPosNote: "공격측 최대 사거리 교전 기준 근사",
   },
 };
 

@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   attackRange,
+  combatEnv,
+  createCalculator,
+  forecastSide,
   movementPath,
   movementRange,
+  type Combatant,
   type MoveQuery,
   type ReachableTile,
+  type SideForecast,
   type Tile,
 } from "@fesim/engine";
+import type { CalculatorData } from "@fesim/shared";
+import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
 import { gridCol, gridRow } from "../lib/grid";
-import type { BoardProps, BoardUnitProp } from "../lib/fe17";
+import type { BoardProps, BoardTileProp, BoardUnitProp } from "../lib/fe17";
 import "./board.css";
+
+/** 전투 계산기 — 원문 DSL(17KB)을 아일랜드 청크에 동봉한다(제작 경로라 예산 관대). */
+const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
 
 /**
  * 보드 아일랜드 — 이 프로젝트의 첫 hydrate 경계.
@@ -42,13 +52,36 @@ interface RangeView {
   move: ReachableTile[];
   moveSet: Set<string>;
   attack: Tile[];
+  /** 사거리 링 전체(이동 타일 겹침 포함) — 공격 대상 판정용. */
+  attackAll: Set<string>;
+}
+
+const toCombatant = (u: BoardUnitProp, tiles: BoardTileProp[][]): Combatant | undefined =>
+  u.stats === undefined
+    ? undefined
+    : {
+        stats: { ...u.stats, maxHp: u.stats.hp },
+        weapon: u.weapon,
+        terrain: { avoid: tiles[u.y]?.[u.x]?.avoid ?? 0, def: tiles[u.y]?.[u.x]?.def ?? 0 },
+      };
+
+interface ForecastView {
+  attacker: BoardUnitProp;
+  defender: BoardUnitProp;
+  attack?: SideForecast;
+  counter?: SideForecast;
 }
 
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, costs, objects, units, labels } = props;
   const phase = usePhase();
   const [selectedAt, setSelectedAt] = useState<string | undefined>(undefined);
+  const [targetAt, setTargetAt] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
+  useEffect(() => {
+    setSelectedAt(undefined);
+    setTargetAt(undefined);
+  }, [phase]);
 
   const active = useMemo(
     () => units.filter((u) => u.phase === undefined || phase === undefined || u.phase === phase),
@@ -84,14 +117,36 @@ export default function BoardIsland(props: BoardProps) {
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
-    const attack =
+    const ring =
       selected.rangeMax > 0
-        ? attackRange(move, selected.rangeMin, selected.rangeMax, width, height).filter(
-            (t) => !moveSet.has(tileKey(t.x, t.y)),
-          )
+        ? attackRange(move, selected.rangeMin, selected.rangeMax, width, height)
         : [];
-    return { unit: selected, query, move, moveSet, attack };
+    const attackAll = new Set(ring.map((t) => tileKey(t.x, t.y)));
+    const attack = ring.filter((t) => !moveSet.has(tileKey(t.x, t.y)));
+    return { unit: selected, query, move, moveSet, attack, attackAll };
   }, [selected, byTile, costs, width, height]);
+
+  const target = targetAt === undefined ? undefined : byTile.get(targetAt);
+
+  const forecast = useMemo<ForecastView | undefined>(() => {
+    if (selected === undefined || target === undefined) return undefined;
+    const attackerC = toCombatant(selected, tiles);
+    const defenderC = toCombatant(target, tiles);
+    if (attackerC === undefined || defenderC === undefined) return undefined;
+    // 교전 거리 근사 = 공격측 장비 무기의 최대 사거리(활 2 → 반격 불가, 검 1 → 반격) — 이동 후
+    // 실제 위치 선택은 전투 해결 단계 몫. 반격 = 방어측 장비 사거리가 그 거리를 덮을 때.
+    const distance = selected.weapon?.rangeMax ?? 1;
+    const canCounter =
+      target.weapon !== undefined &&
+      distance >= target.weapon.rangeMin &&
+      distance <= target.weapon.rangeMax;
+    return {
+      attacker: selected,
+      defender: target,
+      attack: selected.weapon ? forecastSide(calculator, attackerC, defenderC) : undefined,
+      counter: canCounter ? forecastSide(calculator, defenderC, attackerC) : undefined,
+    };
+  }, [selected, target, tiles]);
 
   const path = useMemo(() => {
     if (range === undefined || hover === undefined) return undefined;
@@ -108,7 +163,19 @@ export default function BoardIsland(props: BoardProps) {
 
   const onTileClick = (x: number, y: number) => {
     const key = tileKey(x, y);
-    setSelectedAt(byTile.has(key) && key !== selectedAt ? key : undefined);
+    const clicked = byTile.get(key);
+    // 선택 중 사거리 안의 타군 클릭 = 전투 예보 (인게임: 공격 대상 지정 문법)
+    if (
+      clicked !== undefined &&
+      selected !== undefined &&
+      clicked.force !== selected.force &&
+      range?.attackAll.has(key) === true
+    ) {
+      setTargetAt(key === targetAt ? undefined : key);
+      return;
+    }
+    setSelectedAt(clicked !== undefined && key !== selectedAt ? key : undefined);
+    setTargetAt(undefined);
   };
 
   return (
@@ -205,7 +272,7 @@ export default function BoardIsland(props: BoardProps) {
           {units.map((u, i) => (
             <span
               key={i}
-              className={selected === u ? "cell sel" : "cell"}
+              className={selected === u ? "cell sel" : target === u ? "cell tgt" : "cell"}
               data-phase={u.phase}
               style={{ gridColumn: col(u.x), gridRow: row(u.y), "--force": u.ring } as React.CSSProperties}
             >
@@ -228,7 +295,50 @@ export default function BoardIsland(props: BoardProps) {
           ))}
         </div>
       </div>
+
+      {forecast !== undefined && (
+        <div className="forecast" role="status" aria-label={labels.forecast}>
+          <ForecastSide unit={forecast.attacker} side={forecast.attack} labels={labels} />
+          <span className="fc-vs" aria-hidden="true">
+            ⚔
+          </span>
+          <ForecastSide unit={forecast.defender} side={forecast.counter} labels={labels} />
+          <small className="fc-note">{labels.currentPosNote}</small>
+        </div>
+      )}
     </figure>
+  );
+}
+
+function ForecastSide({
+  unit,
+  side,
+  labels,
+}: {
+  unit: BoardUnitProp;
+  side?: SideForecast;
+  labels: BoardProps["labels"];
+}) {
+  const value = (v: number | undefined) => (v === undefined ? "—" : v);
+  return (
+    <div className="fc-side" style={{ "--force": unit.ring } as React.CSSProperties}>
+      <strong className="fc-name">{unit.name}</strong>
+      <span className="fc-weapon">{unit.weapon?.name ?? "—"}</span>
+      <span className="fc-hp">
+        HP {unit.stats?.hp ?? "—"}
+      </span>
+      <dl className="fc-rows">
+        <dt>{labels.damage}</dt>
+        <dd>
+          {value(side?.damage)}
+          {side?.followUp === true && <em className="fc-x2">×2</em>}
+        </dd>
+        <dt>{labels.hit}</dt>
+        <dd>{value(side?.hitRate)}</dd>
+        <dt>{labels.crit}</dt>
+        <dd>{value(side?.critRate)}</dd>
+      </dl>
+    </div>
   );
 }
 

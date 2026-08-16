@@ -14,7 +14,15 @@ interface Props {
   chapter: ChapterData;
 }
 const { locale, mapId, chapter } = Astro.props;
-const props = boardProps(chapter, mapId, locale, UI[locale].board);
+const t = UI[locale];
+const props = boardProps(chapter, mapId, locale, {
+  board: t.board,
+  forecast: t.forecast,
+  hit: t.hit,
+  crit: t.crit,
+  damage: t.damage,
+  currentPosNote: t.currentPosNote,
+});
 ---
 
 <BoardIsland {...props} client:load />
