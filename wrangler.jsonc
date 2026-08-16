@@ -1,8 +1,16 @@
 {
-  // fesim Worker — 정적 에셋 서빙(assets-only). main 머지 = 버전 업로드(베타 별칭) · 스테이블 = ./dev promote (rules/deploy.md)
+  // fesim Worker — 정적 에셋 + 온디맨드 라우트(/s/). main 머지 = 버전 업로드(베타 별칭) · 스테이블 = ./dev promote (rules/deploy.md)
+  // ☠버전 = 코드+에셋+바인딩의 스냅숏 — 바인딩(KV)을 바꾸면 새 버전을 올려야 반영된다.
   "name": "fesim",
+  "account_id": "0d2796e950b4298cb27c3079d5081eae",
+  "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // 빌드가 이 설정을 흡수해 배포용 정본을 apps/web/dist/server/wrangler.json으로 산출한다(main·assets 경로를 다시 씀).
   "assets": {
-    "directory": "./apps/web/dist"
-  }
+    "directory": "./apps/web/dist/client",
+    "binding": "ASSETS"
+  },
+  // 공유 링크 레코드(.eph 원문) — 베타/스테이블 공유(구조적 제약, 링크 레코드는 불변이라 무해)
+  "kv_namespaces": [{ "binding": "LINKS", "id": "7e9aa0f0cbce4a709c8d291edc2d91bf" }]
 }

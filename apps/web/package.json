@@ -14,6 +14,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.2.1",
     "@astrojs/react": "^6.0.2",
     "@fesim/engine": "workspace:*",
     "@fesim/shared": "workspace:*",
@@ -30,6 +31,7 @@
     "@astrojs/check": "^0.9.10",
     "@types/node": "^26.2.0",
     "typescript": "^6.0.3",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "^4.123.0"
   }
 }

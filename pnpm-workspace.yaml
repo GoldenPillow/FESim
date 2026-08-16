@@ -1,9 +1,10 @@
 packages:
   - apps/*
   - packages/*
-  - workers/*   # M3 시점 생성 예정 — 현재 미존재가 정상
-
+  - workers/*
   - tools/doccheck
 allowBuilds:
   esbuild: true
   sharp: true
+  # workerd = Cloudflare 런타임 바이너리(어댑터·wrangler dev가 실행). 설치 스크립트 없이는 로컬 실행 불가.
+  workerd: true
