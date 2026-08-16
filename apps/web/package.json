@@ -16,6 +16,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.1",
     "@astrojs/react": "^6.0.2",
+    "@fesim/api": "workspace:*",
     "@fesim/engine": "workspace:*",
     "@fesim/shared": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

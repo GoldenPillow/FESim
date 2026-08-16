@@ -1,0 +1,163 @@
+---
+export const prerender = false;
+
+import { env } from "cloudflare:workers";
+import { getReplay, statusFor } from "@fesim/api";
+import { toCursor, type GameState } from "@fesim/engine";
+import type { EphemerisFile } from "@fesim/shared";
+import Base from "../../layouts/Base.astro";
+import ReplayIsland from "../../components/ReplayIsland";
+import { boardsJsonPath } from "../../lib/boards";
+import { initGame, replayer } from "../../lib/boardStore";
+import { readAddress } from "../../lib/replayQuery";
+import { DEFAULT_LOCALE, UI, isLocale } from "../../lib/i18n";
+import type { BoardProps } from "../../lib/fe17";
+
+/**
+ * 공유 열람(포커스 모드) — 링크 하나로 남의 전략을 연다.
+ * ☠이 라우트만 온디맨드다(나머지는 전부 SSG). 워커에 테이블을 반입하지 않기 위해
+ * 보드는 빌드 산출물(/fe17/boards/*.json)을 에셋 바인딩으로 읽는다.
+ */
+const query = Astro.url.searchParams;
+const raw = query.get("l") ?? undefined;
+const locale = isLocale(raw) ? raw : DEFAULT_LOCALE;
+const t = UI[locale];
+
+let failure: string | undefined;
+let file: EphemerisFile | undefined;
+let board: BoardProps | undefined;
+let cursor = 0;
+let state: GameState | undefined;
+/** 등장(생존) 유닛 아이콘만 preload — LCP는 보드 위 아이콘이 결정한다. */
+let icons: string[] = [];
+
+if (env.LINKS === undefined) {
+  Astro.response.status = 503;
+  failure = t.focus.notFound;
+} else {
+  const link = await getReplay(env.LINKS, Astro.params.id);
+  if (!link.ok) {
+    Astro.response.status = statusFor(link.reason);
+    failure = link.reason === "corrupt" ? t.focus.broken : t.focus.notFound;
+  } else {
+    file = link.file;
+    // 프로덕션 = ASSETS 바인딩(자기 오리진 재요청 없음) · astro dev = 자기 오리진 폴백.
+    const url = new URL(boardsJsonPath(file.chapter.cid, locale), Astro.url);
+    const res = env.ASSETS === undefined ? await fetch(url) : await env.ASSETS.fetch(url);
+    if (!res.ok) {
+      Astro.response.status = 404;
+      failure = t.focus.notFound;
+      file = undefined;
+    } else {
+      board = (await res.json()) as BoardProps;
+      const base = initGame(board, file.chapter.difficulty, file.chapter.scenario);
+      const timeline = replayer.buildTimeline(base.game, file.log);
+      const address = readAddress(query);
+      cursor = address === undefined ? 0 : toCursor(timeline, address);
+      state = replayer.stateAt(timeline, cursor);
+      // 유닛 id = props.units 인덱스(initGame 계약) — 살아있는 유닛의 아이콘만 모은다.
+      const props = board;
+      icons = [
+        ...new Set(
+          state.units
+            .filter((u) => !u.dead)
+            .map((u) => props.units[Number(u.id.slice(1))]?.icon)
+            .filter((src): src is string => src !== undefined),
+        ),
+      ];
+    }
+  }
+}
+
+const heading =
+  board === undefined
+    ? "FESim"
+    : file?.meta?.title ??
+      (board.title.name === "" ? board.title.prefix : `${board.title.prefix} · ${board.title.name}`);
+const difficulty = board === undefined || file === undefined ? "" : board.labels.diffNames[file.chapter.difficulty];
+const description = board === undefined ? t.focus.shared : `${t.focus.shared} — ${heading} · ${difficulty}`;
+---
+
+<Base locale={locale} title={`${heading} — FESim`}>
+  <Fragment slot="head">
+    <meta name="description" content={description} />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content={heading} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta name="twitter:card" content="summary" />
+    {icons.map((src) => <link rel="preload" as="image" href={src} />)}
+  </Fragment>
+
+  {
+    failure !== undefined || board === undefined || file === undefined ? (
+      <main class="focus focus-fail">
+        <p class="fail-note">{failure ?? t.focus.notFound}</p>
+        <a class="focus-cta" href={`/${locale}/fe17/maps`}>
+          FESim
+        </a>
+      </main>
+    ) : (
+      <main class="focus">
+        <header class="focus-head">
+          <h1>{heading}</h1>
+          <p>
+            {board.title.place}
+            {board.title.place === "" ? "" : " · "}
+            {difficulty}
+          </p>
+        </header>
+
+        <ReplayIsland board={board} file={file} cursor={cursor} unit={query.get("u") ?? undefined} labels={t.focus} client:load />
+
+        <a class="focus-cta" href={`/${locale}/fe17/maps/${file.chapter.cid}`}>{t.focus.edit}</a>
+      </main>
+    )
+  }
+
+  <style>
+    /* 포커스 모드 = 보드와 스테퍼만. 로스터·브리프는 없다(열람 경로의 예산이 곧 릴리즈 게이트다). */
+    .focus {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.75rem;
+      min-height: 100vh;
+      padding: 5.5rem 1rem 3rem;
+    }
+    .focus-head {
+      text-align: center;
+    }
+    .focus-head h1 {
+      font-size: 1.1rem;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .focus-head p {
+      margin-top: 0.35rem;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .focus-cta {
+      padding: 0.55rem 1.4rem;
+      border: 1px solid var(--gold);
+      border-radius: 9999px;
+      font-size: 12px;
+      color: var(--gold);
+      transition:
+        background 150ms ease,
+        color 150ms ease;
+    }
+    .focus-cta:hover {
+      background: var(--gold);
+      color: var(--ground);
+    }
+    .focus-fail {
+      justify-content: center;
+    }
+    .fail-note {
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</Base>

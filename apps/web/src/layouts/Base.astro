@@ -21,6 +21,7 @@ const { locale, title } = Astro.props;
         document.documentElement.dataset.theme = "light";
       }
     </script>
+    <slot name="head" />
   </head>
   <body class="min-h-screen antialiased">
     <slot />
