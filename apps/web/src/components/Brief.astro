@@ -1,5 +1,5 @@
 ---
-import type { ChapterData } from "@fesim/shared";
+import { fidelitySummary, type ChapterData } from "@fesim/shared";
 import EmblemMark from "./EmblemMark.astro";
 import { objectName, tileColor, tileName, unitsFor } from "../lib/fe17";
 import { phasesFor, phaseOfGroup } from "../lib/phases";
@@ -24,6 +24,7 @@ for (const tid of new Set(map.terrain.flat())) {
   legend.set(name, [...(legend.get(name) ?? []), tileColor(tid)]);
 }
 
+const fid = fidelitySummary();
 const counts = [
   { label: t.player, force: 0 },
   { label: t.ally, force: 2 },
@@ -119,9 +120,41 @@ const counts = [
   }
 
   <p class="mt-4 border-t border-rule pt-2 tracking-wide">{t.axis}</p>
+
+  <a
+    class="fid-badge"
+    href={`/${locale}/fe17/fidelity`}
+    title={`${t.fidelity.statusNames.assumed} ${fid.assumed} · ${t.fidelity.statusNames.absent} ${fid.absent} · ${t.fidelity.statusNames.deferred} ${fid.deferred}`}
+  >
+    <span class="fid-word">{t.fidelity.badge}</span>
+    <span class="fid-counts">
+      {t.fidelity.statusNames.anchored} {fid.anchored} /{" "}
+      {fid.anchored + fid.implemented + fid.assumed + fid.absent + fid.deferred}
+    </span>
+  </a>
 </div>
 
 <style>
+  .fid-badge {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    transition: border-color 150ms ease;
+  }
+  .fid-badge:hover {
+    border-color: var(--gold);
+  }
+  .fid-word {
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .fid-counts {
+    color: var(--muted);
+  }
   .swatch {
     width: 0.7rem;
     height: 0.7rem;

@@ -84,7 +84,20 @@ const sections = [
                   {u.skills.length > 0 && (
                     <>
                       <dt>{t.skills}</dt>
-                      <dd>{u.skills.join(" · ")}</dd>
+                      <dd>
+                        {u.skills.map((sk, i) => (
+                          <>
+                            {i > 0 && " · "}
+                            {sk.deferred ? (
+                              <span class="skill-deferred" title={t.fidelity.unsupportedSkill}>
+                                {sk.name}
+                              </span>
+                            ) : (
+                              sk.name
+                            )}
+                          </>
+                        ))}
+                      </dd>
                     </>
                   )}
                   <dt>{t.group}</dt>
@@ -173,5 +186,12 @@ const sections = [
   .detail dd {
     margin: 0;
     color: var(--ink);
+  }
+  /* 미재현 기전이 화면에 드러나는 지점의 정직 표기(verification.md §2-1) — 점선 + 툴팁. */
+  .skill-deferred {
+    color: var(--muted);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: help;
   }
 </style>

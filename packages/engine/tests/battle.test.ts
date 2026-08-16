@@ -4,6 +4,7 @@ import type { CalculatorData } from "@fesim/shared";
 import {
   createCalculator,
   createReducer,
+  moveBudget,
   weaponAdvantage,
   type BattleAction,
   type GameState,
@@ -114,6 +115,30 @@ describe("이동", () => {
     const s2 = state([unit({ id: "b", force: 0, x: 0, y: 0, weapon: sword, skills: plus })]);
     const acted2 = reduce(s2, { type: "wait", unit: "b" }, alwaysHit);
     expect(reduce(acted2, { type: "move", unit: "b", x: 3, y: 0 }, alwaysHit).units[0]).toMatchObject({ x: 3, y: 0 });
+  });
+});
+
+describe("이동 예산(moveBudget) — UI가 소비하는 단일 정본", () => {
+  it("행동 전 = 이동력 · 이동 후 = 0 · 행동 후 = 재이동 Power 또는 불가", () => {
+    // 왜 위험한가: 이 판정이 UI에 중복 구현돼 있던 것이 C4(UI-엔진 표류)의 실존 사례였다
+    // (2026-08-16 베타 이동 결함의 근본 원인 — design/verification.md §2-3). 엔진 수출 함수가 유일 정본이다.
+    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+    const fresh = unit({ id: "a", force: 0, x: 0, y: 0 });
+    expect(moveBudget(fresh)).toBe(4);
+    expect(moveBudget({ ...fresh, moved: true })).toBe(0); // 행동 전 이동 소진 = 제자리 행동만
+    expect(moveBudget({ ...fresh, acted: true })).toBeUndefined(); // 재이동 스킬 없음
+    expect(moveBudget({ ...fresh, acted: true, skills: canter })).toBe(2);
+    expect(moveBudget({ ...fresh, acted: true, moved: true, skills: canter })).toBeUndefined(); // 재이동도 1회
+  });
+
+  it("reduce의 이동 수락 = moveBudget과 일치한다", () => {
+    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+    const s = state([unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: canter })]);
+    const acted = reduce(s, { type: "wait", unit: "a" }, alwaysHit);
+    const u = acted.units[0];
+    expect(moveBudget(u)).toBe(2);
+    expect(reduce(acted, { type: "move", unit: "a", x: 2, y: 0 }, alwaysHit).units[0].x).toBe(2);
+    expect(() => reduce(acted, { type: "move", unit: "a", x: 3, y: 0 }, alwaysHit)).toThrow();
   });
 });
 
