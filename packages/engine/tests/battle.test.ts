@@ -12,6 +12,7 @@ import {
   type BattleAction,
   type GameState,
   type RandomSource,
+  type SkillRow,
   type SupportEffects,
   type UnitState,
 } from "@fesim/engine";
@@ -500,5 +501,48 @@ describe("명중 난수 — sin 곡선 배선(인게임 정본)", () => {
 
   it("필살률 0이면 필살 롤을 아예 소비하지 않는다(게임도 percent<=0이면 난수 미소모)", () => {
     expect(consumedBounds(0)[1]).not.toBe(100000);
+  });
+});
+
+/**
+ * 발동 필터가 실전투 수치를 가른다 — 필터의 의미론은 skills.test.ts가 소유하고,
+ * 여기서는 "전투를 누가 걸었는가"가 reduce 경로로 제대로 전달되는지만 본다.
+ * 이게 끊기면 필터를 구현해도 예보는 그대로 틀린다(C4류 표류와 같은 결함 형태).
+ */
+describe("발동 필터 배선 — Stand는 전투 주도권을 따른다", () => {
+  /** 자기가 건 전투에서만 위력 +10 — 효과를 데미지로 관측하려고 큰 값을 쓴다. */
+  const offensive: SkillRow = {
+    Sid: "SID_鬼神の一撃",
+    Timing: 5,
+    Stand: 1,
+    ActNames: ["威力"],
+    ActOperations: ["+"],
+    ActValues: ["10"],
+  };
+  const holderDamage = (holderInitiates: boolean): number => {
+    const s = state(
+      [
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [offensive] }),
+        unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+      ],
+      holderInitiates ? 0 : 1,
+    );
+    const next = reduce(
+      s,
+      holderInitiates
+        ? { type: "attack", unit: "a", target: "e" }
+        : { type: "attack", unit: "e", target: "a" },
+      alwaysHit,
+    );
+    const strike = next.events.find((ev) => ev.type === "strike" && ev.attacker === "a");
+    return strike !== undefined && strike.type === "strike" ? strike.damage : -1;
+  };
+
+  it("보유자가 걸면 보정이 붙고, 걸린 쪽이면 반격에도 붙지 않는다", () => {
+    const attacking = holderDamage(true);
+    const countering = holderDamage(false);
+    expect(attacking).toBeGreaterThan(0);
+    expect(countering).toBeGreaterThan(0); // 반격 자체는 성립한다
+    expect(attacking - countering).toBe(10); // 차이는 정확히 스킬 보정분
   });
 });

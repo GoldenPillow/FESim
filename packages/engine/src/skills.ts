@@ -11,6 +11,10 @@ import { STAT_KEYS, type StatBlock } from "./stats.js";
 export interface SkillRow {
   Sid: string;
   Timing?: number;
+  /** 발동 필터 — 이 전투를 건 쪽에서만(1) / 걸린 쪽에서만(2) / 무관(0). */
+  Stand?: number;
+  /** 발동 필터 — 이번 타격에서 때리는 쪽만(1) / 맞는 쪽만(2) / 무관(0). */
+  Action?: number;
   Condition?: string;
   ActNames?: string[];
   ActOperations?: string[];
@@ -62,6 +66,21 @@ const node = (source: string): FormulaNode => {
 
 const truthy = (v: FormulaValue): boolean => (typeof v === "number" ? v !== 0 : v !== "");
 
+/** 스킬이 이 국면에서 발동 자격이 있는지 — 전투 주도권(Stand)과 타격 역할(Action)은 서로 독립인 축이다. */
+export interface BattleRole {
+  /** 이 전투를 건 쪽인가. 미지정 = 문맥 없음이라 Stand를 검사하지 않는다. */
+  initiator?: boolean;
+  /** 이번 타격에서 때리는 쪽인가. 미지정 = Action을 검사하지 않는다. */
+  striking?: boolean;
+}
+
+/** 1 = Offence, 2 = Defence, 0/미지정 = 무관 (SkillData.Stands·Actions 열거 그대로). */
+const passesFilter = (skill: SkillRow, role: BattleRole): boolean => {
+  if (skill.Stand && role.initiator !== undefined && (skill.Stand === 1) !== role.initiator) return false;
+  if (skill.Action && role.striking !== undefined && (skill.Action === 1) !== role.striking) return false;
+  return true;
+};
+
 /** 조건식이 비교 대상으로 쓰는 열거 상수 — env 변수(攻撃属性)가 실제로 취하는 값이다. */
 const ENUM_SYMBOLS = new Set(["物理属性", "魔法属性"]);
 
@@ -91,11 +110,13 @@ function strictIdents(env: FormulaEnv): FormulaEnv {
 export function makeSkillModifier(
   skills: readonly SkillRow[],
   env: FormulaEnv,
+  role: BattleRole = {},
 ): (valueName: string, value: number) => number {
   const condEnv = strictIdents(env);
+  const active = skills.filter((skill) => passesFilter(skill, role));
   return (valueName, value) => {
     let out = value;
-    for (const skill of skills) {
+    for (const skill of active) {
       const names = skill.ActNames;
       if (names === undefined) continue;
       for (let i = 0; i < names.length; i++) {

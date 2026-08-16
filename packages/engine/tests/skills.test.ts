@@ -126,3 +126,53 @@ describe("값 보정 Acts — 실기 코퍼스 재현", () => {
     expect(calc.eval("回避値計算", combatEnv(conditional))).toBe(40);
   });
 });
+
+/**
+ * 발동 필터(Stand·Action) — 인게임 정본(IL2CPP 판독, BattleInfoSide.IsEnableSkill RVA 0x1E8CDCC~0x1E8CE24).
+ *
+ * 왜 위험했나: 엔진이 이 필드를 아예 읽지 않아 한쪽 입장에서만 켜져야 할 큰 보정이 반대 입장에서도 켜졌다.
+ * 간파(회피 +15+속도*0.25)·달의 팔찌(위력 +상대수비*0.3) 등 8종이 과대 적용 = 예보 수치가 조용히 틀어졌다.
+ *
+ * 두 필드는 축이 다르다:
+ *   Stand  = 이 전투를 건 쪽인가(전투 단위, BattleSide.Type: Offense=0 / Defense=1)
+ *   Action = 이번 타격에서 때리는 쪽인가(타격 단위)
+ * ☠실기 실측("선공 예보와 피격 예보의 적 명중 동일")은 Stand를 반증하지 않는다 —
+ *   그 둘은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 코퍼스도 같은 구조다).
+ */
+describe("발동 필터 — Stand(전투 주도권)·Action(타격 역할)", () => {
+  const migiriStand: SkillRow = { ...MIGIRI, Stand: 1 }; // 실데이터의 SID_見切り가 Stand=1이다
+  const avoid = (c: Combatant) => calc.eval("回避値計算", combatEnv(c));
+
+  it("Stand=1(내가 건 전투)은 걸린 쪽일 때 발동하지 않는다", () => {
+    expect(avoid({ ...alear, skills: [migiriStand], initiator: true })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [migiriStand], initiator: false })).toBe(40);
+  });
+
+  it("Stand=2(내가 걸린 전투)는 반대다", () => {
+    const guard: SkillRow = { ...MIGIRI, Sid: "SID_明鏡の構え", Stand: 2 };
+    expect(avoid({ ...alear, skills: [guard], initiator: false })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [guard], initiator: true })).toBe(40);
+  });
+
+  it("Action=1(때리는 타격)은 맞는 타격에서 발동하지 않는다", () => {
+    const offence: SkillRow = { ...MIGIRI, Sid: "SID_命中１００", Action: 1 };
+    expect(avoid({ ...alear, skills: [offence], striking: true })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [offence], striking: false })).toBe(40);
+  });
+
+  it("Stand·Action이 0이면 어느 입장에서도 발동한다(독처럼 Stand=0인 스킬)", () => {
+    expect(avoid({ ...alear, skills: [MIGIRI], initiator: false, striking: false })).toBe(57.25);
+  });
+
+  it("두 축은 독립이다 — 하나라도 어긋나면 발동하지 않는다", () => {
+    const both: SkillRow = { ...MIGIRI, Sid: "SID_必殺０_オフェンス時", Stand: 1, Action: 1 };
+    const on = { ...alear, skills: [both], initiator: true, striking: true };
+    expect(avoid(on)).toBe(57.25);
+    expect(avoid({ ...on, striking: false })).toBe(40);
+    expect(avoid({ ...on, initiator: false })).toBe(40);
+  });
+
+  it("역할이 미지정이면 게이트를 걸지 않는다(예보 밖 단독 평가 무회귀)", () => {
+    expect(avoid({ ...alear, skills: [migiriStand] })).toBe(57.25);
+  });
+});

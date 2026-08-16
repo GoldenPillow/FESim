@@ -39,6 +39,10 @@ export interface Combatant {
   terrain?: { avoid?: number; def?: number };
   /** 전투 시 계산값 보정 스킬(간파 등). 정적 보정(EnhanceValue)은 stats에 이미 반영돼 있어야 한다. */
   skills?: readonly SkillRow[];
+  /** 이 전투를 건 쪽인가 — 스킬 Stand 게이트. 전투 내내 고정이다. */
+  initiator?: boolean;
+  /** 이번 타격에서 때리는 쪽인가 — 스킬 Action 게이트. 공격·반격마다 뒤집힌다. */
+  striking?: boolean;
 }
 
 export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
@@ -74,7 +78,13 @@ export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
     opponent: foe ? () => combatEnv(foe, self) : undefined,
   };
   if (self.skills === undefined || self.skills.length === 0) return plain;
-  return { ...plain, modify: makeSkillModifier(self.skills, plain) };
+  return {
+    ...plain,
+    modify: makeSkillModifier(self.skills, plain, {
+      initiator: self.initiator,
+      striking: self.striking,
+    }),
+  };
 }
 
 export interface SideForecast {

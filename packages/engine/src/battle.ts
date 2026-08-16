@@ -281,10 +281,12 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const distance = manhattan(attacker, defender);
         if (!inWeaponRange(attacker, distance)) throw new Error("사거리 밖 공격");
 
-        const attackerC = toCombatant(attacker, state.map, units, supportEffects);
-        const defenderC = toCombatant(defender, state.map, units, supportEffects);
-        const atkF = forecastSide(calc, attackerC, defenderC);
-        const defF = forecastSide(calc, defenderC, attackerC);
+        // 스킬 발동 필터: 전투를 건 쪽(Stand)은 전투 내내 고정이고, 때리는 쪽(Action)은 타격마다 뒤집힌다.
+        const attackerC = { ...toCombatant(attacker, state.map, units, supportEffects), initiator: true };
+        const defenderC = { ...toCombatant(defender, state.map, units, supportEffects), initiator: false };
+        const striking = (c: Combatant, value: boolean): Combatant => ({ ...c, striking: value });
+        const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
+        const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
         const advantage =
           attacker.weapon !== undefined && defender.weapon !== undefined
             ? weaponAdvantage(attacker.weapon.kind, defender.weapon.kind)
