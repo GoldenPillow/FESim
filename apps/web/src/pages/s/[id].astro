@@ -140,6 +140,7 @@ const description = board === undefined ? t.focus.shared : `${t.focus.shared} �
         />
 
         <a class="focus-cta" href={`/${locale}/fe17/maps/${file.chapter.cid}`}>{t.focus.edit}</a>
+        <a class="focus-fidelity" href={`/${locale}/fe17/fidelity`}>{t.fidelity.badge}</a>
       </main>
     )
   }
@@ -180,6 +181,16 @@ const description = board === undefined ? t.focus.shared : `${t.focus.shared} �
     .focus-cta:hover {
       background: var(--gold);
       color: var(--ground);
+    }
+    /* 재현 상태 진입점 — 정직 표기의 요약 배지(verification.md §2-1). 정적 앵커라 열람 예산 영향 0. */
+    .focus-fidelity {
+      font-size: 11px;
+      color: var(--muted);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+    }
+    .focus-fidelity:hover {
+      color: var(--ink);
     }
     .focus-fail {
       justify-content: center;

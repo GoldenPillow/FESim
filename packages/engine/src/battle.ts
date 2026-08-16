@@ -68,6 +68,17 @@ export function canterPower(u: UnitState): number | undefined {
   return best;
 }
 
+/**
+ * 이 창에서 남은 이동 예산 — 행동 전 = 이동력(이동 후 0 = 제자리 행동만) ·
+ * 행동 후 = 재이동 Power 1회 · 불가 = undefined. ☠UI 중복 구현 금지 — reduce와 UI가 이 함수만 소비한다
+ * (중복이 2026-08-16 베타 이동 결함의 원인 — design/verification.md C4).
+ */
+export function moveBudget(u: UnitState): number | undefined {
+  if (!u.acted) return u.moved === true ? 0 : u.movePoints;
+  if (u.moved === true) return undefined;
+  return canterPower(u);
+}
+
 export interface BattleMap {
   width: number;
   height: number;
@@ -154,13 +165,8 @@ export function createReducer(calc: Calculator) {
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
         if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
-        // 이동 예산: 행동 전 = 이동력 1회 · 행동 후 = 재이동(시구르드) 보유 시 Power칸 1회.
-        let budget = u.movePoints;
-        if (u.acted) {
-          const canter = canterPower(u);
-          if (canter === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
-          budget = canter;
-        }
+        const budget = moveBudget(u);
+        if (budget === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
         const grid = state.map.costs[u.moveType];
         if (grid === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
         const reachable = movementRange({

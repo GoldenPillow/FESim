@@ -9,6 +9,16 @@ export {
 } from "./battle.js";
 
 export {
+  FIDELITY,
+  FIDELITY_CATEGORIES,
+  fidelityCategoryOf,
+  fidelitySummary,
+  type FidelityCategory,
+  type FidelityEntry,
+  type FidelityStatus,
+} from "./fidelity.js";
+
+export {
   parseEphemeris,
   serializeEphemeris,
   type EphemerisFile,

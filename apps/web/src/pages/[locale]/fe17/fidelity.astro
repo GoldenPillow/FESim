@@ -1,0 +1,145 @@
+---
+import { FIDELITY, FIDELITY_CATEGORIES, fidelityCategoryOf, fidelitySummary } from "@fesim/shared";
+import Base from "../../../layouts/Base.astro";
+import TopBar from "../../../components/TopBar.astro";
+import { DEFAULT_LOCALE, LOCALES, UI, isLocale } from "../../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const t = UI[locale];
+const f = t.fidelity;
+const summary = fidelitySummary();
+const groups = FIDELITY_CATEGORIES.map((c) => ({
+  label: c.label[locale],
+  entries: FIDELITY.filter((e) => fidelityCategoryOf(e) === c.id),
+})).filter((g) => g.entries.length > 0);
+const STATUSES = ["anchored", "implemented", "assumed", "absent", "deferred"] as const;
+---
+
+<Base locale={locale} title={`${f.title} — FESim`}>
+  <TopBar locale={locale} context={f.title} />
+
+  <main class="wrap">
+    <p class="intro">{f.intro}</p>
+
+    <ul class="legend">
+      {
+        STATUSES.map((s) => (
+          <li>
+            <i class={`dot ${s}`} />
+            <b>{f.statusNames[s]}</b>
+            <span>{summary[s]}</span>
+            <small>{f.legend[s]}</small>
+          </li>
+        ))
+      }
+    </ul>
+
+    {
+      groups.map((g) => (
+        <section>
+          <h2>{g.label}</h2>
+          <ul class="entries">
+            {g.entries.map((e) => (
+              <li title={e.evidence}>
+                <i class={`dot ${e.status}`} />
+                <span class="name">{e.label[locale]}</span>
+                <span class={`chip ${e.status}`}>{f.statusNames[e.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </main>
+
+  <style>
+    .wrap {
+      max-width: 44rem;
+      margin: 0 auto;
+      padding: 5.5rem 1rem 3rem;
+    }
+    .intro {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+    }
+    .legend {
+      display: grid;
+      gap: 0.35rem;
+      margin-bottom: 2rem;
+      padding: 0.8rem 1rem;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      background: var(--panel);
+      font-size: 11px;
+    }
+    .legend li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    .legend b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .legend span {
+      color: var(--muted);
+    }
+    .legend small {
+      color: var(--muted);
+      opacity: 0.8;
+    }
+    h2 {
+      margin: 1.6rem 0 0.5rem;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .entries {
+      display: flex;
+      flex-direction: column;
+    }
+    .entries li {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.3rem 0.2rem;
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+    }
+    .name {
+      flex: 1;
+      color: var(--ink);
+    }
+    .dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .chip {
+      font-size: 10px;
+      padding: 0.1rem 0.5rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    /* 상태색 — 라이트/다크 공통으로 읽히는 중간 톤. */
+    .dot.anchored { background: #3f9e62; }
+    .dot.implemented { background: #4f83c2; }
+    .dot.assumed { background: #c9973a; }
+    .dot.absent { background: #b0554f; }
+    .dot.deferred { background: #8a8578; }
+    .chip.anchored { color: #3f9e62; border-color: color-mix(in srgb, #3f9e62 45%, var(--rule)); }
+    .chip.implemented { color: #4f83c2; border-color: color-mix(in srgb, #4f83c2 45%, var(--rule)); }
+    .chip.assumed { color: #c9973a; border-color: color-mix(in srgb, #c9973a 45%, var(--rule)); }
+    .chip.absent { color: #b0554f; border-color: color-mix(in srgb, #b0554f 45%, var(--rule)); }
+  </style>
+</Base>

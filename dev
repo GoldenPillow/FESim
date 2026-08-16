@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote|link:put|perf
+# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|fuzz|extract|transform|verify-m002|bake|promote|link:put|perf
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -34,6 +34,11 @@ case "$cmd" in
   doccheck) doccheck ;;
   gc)       gc ;;
   done)     check && test_all && doccheck && echo "== ./dev done: ALL GREEN ==" ;;
+  fuzz)     shift
+            # 속성 테스트 대케이스(무작위 시드) — 소케이스는 done이 상시 돌린다. 실패 시 출력된 seed로 재현.
+            RUNS="${1:-2000}"
+            FESIM_FUZZ="$RUNS" pnpm -C packages/engine run test tests/property.test.ts \
+              && echo "== ./dev fuzz: GREEN (numRuns=$RUNS) ==" ;;
   extract)  shift; "$PY" tools/pipeline/extract.py "$@" ;;
   transform) shift; "$PY" tools/pipeline/transform.py "$@" ;;
   verify-m002) shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
@@ -66,5 +71,5 @@ case "$cmd" in
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>"; exit 2 ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|fuzz [runs]|extract|transform|verify-m002|bake|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>"; exit 2 ;;
 esac

@@ -6,6 +6,7 @@
 export {
   createReducer,
   canterPower,
+  moveBudget,
   weaponAdvantage,
   type Advantage,
   type BattleAction,

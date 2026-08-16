@@ -1,3 +1,5 @@
+import type { FidelityStatus } from "@fesim/shared";
+
 export const LOCALES = ["en", "ko"] as const;
 export type Locale = (typeof LOCALES)[number];
 
@@ -52,6 +54,17 @@ interface Strings {
   comingSoon: string;
   categories: { main: string; paralogue: string; divine: string; fell: string };
   focus: FocusLabels;
+  fidelity: FidelityLabels;
+}
+
+/** 기전 장부(재현 상태) 라벨 — 데이터 정본은 shared/fidelity.ts, 여기는 UI 문자열만. */
+export interface FidelityLabels {
+  badge: string;
+  title: string;
+  intro: string;
+  statusNames: Record<FidelityStatus, string>;
+  legend: Record<FidelityStatus, string>;
+  unsupportedSkill: string;
 }
 
 /** 포커스 모드(공유 열람 /s/) 전용 라벨 — 셸(Astro)과 아일랜드가 같은 묶음을 쓴다. */
@@ -124,6 +137,27 @@ export const UI: Record<Locale, Strings> = {
       broken: "This record could not be read.",
       shared: "Shared record",
     },
+    fidelity: {
+      badge: "Engine fidelity",
+      title: "Reproduction status",
+      intro:
+        "Every in-game mechanic FESim tracks, and how faithfully each one is reproduced. Nothing is claimed without a source.",
+      statusNames: {
+        anchored: "Anchored",
+        implemented: "Implemented",
+        assumed: "Assumed",
+        absent: "Not simulated",
+        deferred: "Planned",
+      },
+      legend: {
+        anchored: "verified against the real game or source data",
+        implemented: "implemented, not yet verified in-game",
+        assumed: "implemented with stated assumptions",
+        absent: "not reproduced yet — shown honestly",
+        deferred: "scheduled, with prerequisites",
+      },
+      unsupportedSkill: "Grant effect (GiveSids) not simulated yet",
+    },
   },
   ko: {
     localeName: "KO",
@@ -180,6 +214,26 @@ export const UI: Record<Locale, Strings> = {
       notFound: "그런 링크가 없습니다.",
       broken: "기보를 읽을 수 없습니다.",
       shared: "공유된 기보",
+    },
+    fidelity: {
+      badge: "재현 상태",
+      title: "재현 상태",
+      intro: "FESim이 추적하는 인게임 기전 전수와 각각의 재현 충실도입니다. 근거 없는 수치는 표시하지 않습니다.",
+      statusNames: {
+        anchored: "실측 검증",
+        implemented: "구현됨",
+        assumed: "가정 포함",
+        absent: "미재현",
+        deferred: "예정",
+      },
+      legend: {
+        anchored: "실기·정본 데이터로 검증됨",
+        implemented: "구현됨, 실기 검증 전",
+        assumed: "구현됐으나 명시된 가정 포함",
+        absent: "아직 재현 안 됨 — 정직 표기",
+        deferred: "선행 조건과 함께 예정",
+      },
+      unsupportedSkill: "부여 효과(GiveSids) 미재현",
     },
   },
 };

@@ -3,6 +3,7 @@ import {
   attackRange,
   canterPower,
   forecastSide,
+  moveBudget,
   movementPath,
   movementRange,
   type BattleAction,
@@ -136,12 +137,9 @@ export default function BoardIsland(props: BoardProps) {
 
   const range = useMemo(() => {
     if (selected === undefined) return undefined;
-    // 이동 예산 = 엔진과 동일 규칙: 행동 전 = 이동력 1회(이동 후엔 0 — 제자리 공격만) ·
-    // 행동 후 = 재이동(시구르드) Power 1회, 없으면 범위 없음.
-    let budget: number;
-    if (!selected.acted) budget = selected.moved === true ? 0 : selected.movePoints;
-    else if (selected.moved !== true && canterPower(selected) !== undefined) budget = canterPower(selected)!;
-    else return undefined;
+    // 이동 예산의 정본은 엔진 moveBudget — UI 중복 구현 금지(C4 표류 방지, verification.md §2-3).
+    const budget = moveBudget(selected);
+    if (budget === undefined) return undefined;
     const grid = game.map.costs[selected.moveType];
     if (grid === undefined) return undefined;
     const query: MoveQuery = {
@@ -301,8 +299,8 @@ export default function BoardIsland(props: BoardProps) {
           return;
         }
       }
-      // 행동 완료 유닛도 재이동 창이 남아 있으면 선택 가능(범위 계산이 예산을 판정).
-      const canterReady = clicked.acted && clicked.moved !== true && canterPower(clicked) !== undefined;
+      // 행동 완료 유닛도 재이동 창이 남아 있으면 선택 가능(예산 판정 = 엔진 moveBudget).
+      const canterReady = clicked.acted && moveBudget(clicked) !== undefined;
       setSelectedId(clicked.force === game.phase && (!clicked.acted || canterReady) ? clicked.id : undefined);
       setTargetId(undefined);
       return;

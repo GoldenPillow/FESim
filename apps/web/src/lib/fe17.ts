@@ -257,7 +257,8 @@ export interface UnitView {
   icon?: string;
   abbr: string;
   items: string[];
-  skills: string[];
+  /** deferred = 부여 체계(GiveSids) 미재현 스킬 — 화면에서 점선 표기(기전 장부 skills.give-sids). */
+  skills: { name: string; deferred: boolean }[];
 }
 
 const abbreviate = (job: string): string => {
@@ -299,7 +300,10 @@ export function toView(unit: DisposUnit, group: string, locale: Locale): UnitVie
     icon: assetHref(iconPath),
     abbr: abbreviate(jobName),
     items: unit.items.map((i) => namedOr(items, locale, i.iid)),
-    skills: unit.sids.map((sid) => namedOr(skills, locale, sid)),
+    skills: unit.sids.map((sid) => {
+      const give = (skills[sid] as Record<string, unknown> | undefined)?.["GiveSids"];
+      return { name: namedOr(skills, locale, sid), deferred: Array.isArray(give) && give.length > 0 };
+    }),
   };
 }
 
