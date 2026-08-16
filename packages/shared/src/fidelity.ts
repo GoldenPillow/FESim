@@ -293,7 +293,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 디버프+단검 누적(DoT 아님 — tutorial.msbt, gaps/N) · 사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: 1스택 = +3(reference/screens poison_damage_1~2, 사용자 실측 2026-08-17 — skill.xml '+1' 스택당 해석 반증) ·사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
   },
   {
     id: "combat.staff-hit",
