@@ -1,0 +1,142 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import TopBar from "../../../../components/TopBar.astro";
+import { chapterList, chapterMapId, chapterTitleById, chapters } from "../../../../lib/fe17";
+import { DEFAULT_LOCALE, LOCALES, UI, isLocale, type Locale } from "../../../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const t = UI[locale];
+
+/** 전 챕터 플레이스홀더 — 구현(챕터 JSON 존재)된 것만 링크가 열린다. */
+const sections = (["main", "paralogue", "divine", "fell"] as const)
+  .map((category) => ({
+    title: t.categories[category],
+    entries: chapterList
+      .filter((e) => e.category === category)
+      .map((e) => {
+        const mapId = chapterMapId(e.cid);
+        return {
+          mapId,
+          title: chapterTitleById(e.cid, locale),
+          recommendedLevel: e.recommendedLevel,
+          implemented: mapId in chapters,
+        };
+      }),
+  }))
+  .filter((s) => s.entries.length > 0);
+---
+
+<Base locale={locale} title={`${t.chapterSelect} — FESim`}>
+  <TopBar locale={locale} context={t.chapterSelect} />
+
+  <main class="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+    {
+      sections.map((s) => (
+        <section class="mb-9">
+          <h2 class="mb-3 flex items-baseline gap-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-gold">
+            {s.title}
+            <span class="h-px flex-1 bg-gold opacity-30" />
+            <span class="text-muted normal-case tracking-normal">
+              {s.entries.filter((e) => e.implemented).length} / {s.entries.length}
+            </span>
+          </h2>
+          <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {s.entries.map((e) =>
+              e.implemented ? (
+                <li>
+                  <a href={`/${locale}/fe17/maps/${e.mapId}`} class="chapter-card open">
+                    <span class="cc-prefix">{e.title.prefix}</span>
+                    <span class="cc-name">{e.title.name}</span>
+                    {e.title.place && <span class="cc-place">{e.title.place}</span>}
+                    {e.recommendedLevel && (
+                      <span class="cc-level">
+                        {t.recommended} Lv {e.recommendedLevel}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              ) : (
+                <li>
+                  <div class="chapter-card locked" aria-disabled="true">
+                    <span class="cc-prefix">{e.title.prefix}</span>
+                    <span class="cc-name">{e.title.name}</span>
+                    {e.title.place && <span class="cc-place">{e.title.place}</span>}
+                    <span class="cc-soon">{t.comingSoon}</span>
+                  </div>
+                </li>
+              ),
+            )}
+          </ul>
+        </section>
+      ))
+    }
+  </main>
+
+  <style>
+    .chapter-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: baseline;
+      gap: 0.2rem 0.6rem;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      background: var(--panel);
+    }
+    .cc-prefix {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .cc-name {
+      font-size: 13.5px;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cc-place {
+      grid-column: 1 / 3;
+      font-size: 11px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cc-level,
+    .cc-soon {
+      grid-column: 3;
+      grid-row: 1 / 3;
+      align-self: center;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .cc-level {
+      color: var(--muted);
+    }
+    .cc-soon {
+      padding: 0.15rem 0.5rem;
+      border: 1px solid var(--rule);
+      border-radius: 9999px;
+      color: var(--muted);
+      opacity: 0.85;
+    }
+    .chapter-card.open {
+      border-left: 2px solid var(--gold);
+      transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+    .chapter-card.open:hover {
+      border-color: var(--gold);
+      transform: translateY(-1px);
+    }
+    .chapter-card.locked {
+      opacity: 0.45;
+    }
+  </style>
+</Base>

@@ -46,6 +46,9 @@ interface Strings {
   defeat: string;
   reset: string;
   logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
+  chapterSelect: string;
+  comingSoon: string;
+  categories: { main: string; paralogue: string; divine: string; fell: string };
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -89,6 +92,9 @@ export const UI: Record<Locale, Strings> = {
     defeat: "Defeat...",
     reset: "Reset",
     logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
+    chapterSelect: "Chapters",
+    comingSoon: "Coming soon",
+    categories: { main: "Main Story", paralogue: "Paralogues", divine: "Divine Paralogues", fell: "Fell Xenologue" },
   },
   ko: {
     localeName: "KO",
@@ -130,6 +136,9 @@ export const UI: Record<Locale, Strings> = {
     defeat: "패배...",
     reset: "초기화",
     logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },
+    chapterSelect: "챕터 선택",
+    comingSoon: "준비 중",
+    categories: { main: "본편", paralogue: "외전", divine: "신룡의 장", fell: "사룡의 장" },
   },
 };
 

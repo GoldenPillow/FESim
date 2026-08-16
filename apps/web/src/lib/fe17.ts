@@ -8,6 +8,7 @@ import {
   type StatBlock,
 } from "@fesim/engine";
 import godsRaw from "../../../../data/fe17/tables/gods.json?raw";
+import chapterlistRaw from "../../../../data/fe17/tables/chapterlist.json?raw";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -316,14 +317,30 @@ export interface ChapterTitle {
   place: string;
 }
 
-export const chapterTitle = (chapter: ChapterData, locale: Locale): ChapterTitle => {
-  const key = chapter.cid.replace(/^CID_/, "");
+export const chapterTitleById = (cid: string, locale: Locale): ChapterTitle => {
+  const key = cid.replace(/^CID_/, "");
   return {
-    prefix: label(locale, `MCID_${key}_PREFIX`) ?? chapter.cid,
+    prefix: label(locale, `MCID_${key}_PREFIX`) ?? cid,
     name: label(locale, `MCID_${key}`) ?? "",
     place: label(locale, `MCID_${key}_PLACE`) ?? "",
   };
 };
+
+export const chapterTitle = (chapter: ChapterData, locale: Locale): ChapterTitle =>
+  chapterTitleById(chapter.cid, locale);
+
+/** 챕터 선택기용 전 챕터 목록 — 구현 여부는 chapters(빌드된 챕터 JSON) 존재로 판정. */
+export type ChapterCategory = "main" | "paralogue" | "divine" | "fell";
+
+export interface ChapterListEntry {
+  cid: string;
+  category: ChapterCategory;
+  recommendedLevel?: number;
+}
+
+export const chapterList = parse<ChapterListEntry[]>(chapterlistRaw);
+
+export const chapterMapId = (cid: string): string => cid.replace(/^CID_/, "").toLowerCase();
 
 /* ── 스탯 산출 ───────────────────────────────────────────────
    공식·검증 근거는 packages/engine/src/stats.ts가 소유. 여기는 테이블 필드 → 입력 사상만. */

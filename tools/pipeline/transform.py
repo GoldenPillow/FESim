@@ -81,6 +81,28 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
     build_gods(src, out)
     build_calculator(src, out)
+    build_chapterlist(src, out)
+
+
+CHAPTER_CATEGORIES = {"M": "main", "S": "paralogue", "G": "divine", "E": "fell"}
+
+
+def build_chapterlist(src: Path, out: Path) -> None:
+    """chapter.xml → 챕터 선택기용 전 챕터 목록(본편 M·외전 S·신룡의 장 G·사룡의 장 E)."""
+    import re
+    _, rows = load_sheet(src / "gamedata" / "chapter.xml")
+    entries = []
+    for row in rows:
+        m = re.fullmatch(r"CID_([MSGE])(\d{3})", row.get("Cid", "") or "")
+        if not m:
+            continue
+        entry = {"cid": row["Cid"], "category": CHAPTER_CATEGORIES[m.group(1)]}
+        if row.get("RecommendedLevel"):
+            entry["recommendedLevel"] = row["RecommendedLevel"]
+        entries.append(entry)
+    order = {"main": 0, "paralogue": 1, "divine": 2, "fell": 3}
+    entries.sort(key=lambda e: (order[e["category"]], e["cid"]))
+    write_json(out / "tables" / "chapterlist.json", entries)
 
 
 def build_gods(src: Path, out: Path) -> None:

@@ -14,7 +14,7 @@ const path = Astro.url.pathname.replace(/^\/(en|ko)(?=\/|$)/, "");
 
 <header class="sticky top-0 z-10 border-b border-rule bg-ground/85 backdrop-blur">
   <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
-    <a href={`/${locale}${path}`} class="group shrink-0">
+    <a href={`/${locale}/fe17/maps`} class="group shrink-0" title={t.chapterSelect}>
       <span class="block text-[15px] font-semibold tracking-[0.14em] text-ink">FESim</span>
       <span class="block h-px w-full bg-gold opacity-70 transition-opacity group-hover:opacity-100"
       ></span>
