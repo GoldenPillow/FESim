@@ -5,6 +5,7 @@ import {
   createCalculator,
   createReducer,
   forecastSide,
+  hitThreshold10000,
   moveBudget,
   toCombatant,
   weaponAdvantage,
@@ -33,9 +34,9 @@ const supportEffects: SupportEffects = (
   ) as SupportsTable
 ).effects;
 
-const seq = (...rolls: number[]): RandomSource => ({ roll: () => rolls.shift() ?? 0 });
-const alwaysHit: RandomSource = { roll: () => 0 };
-const alwaysMiss: RandomSource = { roll: () => 99 };
+const seq = (...rolls: number[]): RandomSource => ({ next: () => rolls.shift() ?? 0 });
+const alwaysHit: RandomSource = { next: () => 0 };
+const alwaysMiss: RandomSource = { next: (bound) => bound - 1 };
 
 const baseStats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
 const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
@@ -222,7 +223,8 @@ describe("전투 해결", () => {
         unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, hit: 10, crit: 100 } }),
         unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 30, weapon: sword }),
       ]);
-    const missed = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(99, 99, 99, 99));
+    // 롤은 판정별 해상도를 따른다: 명중 [0,10000) · 필살 [0,100000).
+    const missed = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(9999, 9999, 9999, 9999));
     expect(missed.units.find((u) => u.id === "e")!.hp).toBe(30);
     // 명중(0)·필살(0) → 13*3 = 39 → 즉사
     const crit = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 0));
@@ -431,10 +433,72 @@ describe("지원(絆) 보정", () => {
       allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })],
     });
     const action: BattleAction = { type: "attack", unit: "a", target: "d" };
-    // 롤 44 < 45(지원 후 명중률) → 명중 · 지원이 없으면 30이라 빗나간다.
-    const hit = createReducer(calc, supportEffects)(s, action, seq(44));
+    // 롤 4400 < 4500(지원 후 명중 45%의 임계) → 명중 · 지원이 없으면 30%(3000)이라 빗나간다.
+    const hit = createReducer(calc, supportEffects)(s, action, seq(4400));
     expect(hit.events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
-    const miss = reduce(s, action, seq(44));
+    const miss = reduce(s, action, seq(4400));
     expect(miss.events.find((e) => e.type === "strike")).toMatchObject({ hit: false });
+  });
+});
+
+describe("명중 난수 — sin 곡선 배선(인게임 정본)", () => {
+  /**
+   * 왜 위험했나: 예보 수치가 같아도 결과 분포가 달랐다. 표시 명중 51~99는 실제로 더 잘 맞는데
+   * 엔진은 표시값을 그대로 굴려 과소 명중을 냈다 — 전략 조언 자체가 틀어지는 구간이다.
+   * 정본 = App.BattleMath.GetHitRatio10000 (RVA 0x1E8D200), 곡선 자체의 검증은 probability.test.ts.
+   */
+  const scene = () =>
+    state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, hit: 55 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: { ...baseStats, spd: 0, lck: 0 } }),
+    ]);
+  const duel = (hitRoll: number): GameState =>
+    reduce(scene(), { type: "attack", unit: "a", target: "e" }, seq(hitRoll, 99999));
+
+  it("표시 명중과 임계 사이의 굴림이 명중이 된다(선형 모델이면 빗나갔을 구간)", () => {
+    const s = scene();
+    const rate = forecastSide(
+      calc,
+      toCombatant(s.units.find((u) => u.id === "a")!, s.map, s.units),
+      toCombatant(s.units.find((u) => u.id === "e")!, s.map, s.units),
+    ).hitRate;
+    expect(rate).toBeGreaterThan(50); // 곡선 구간이라야 의미 있는 검사다
+    expect(rate).toBeLessThan(100);
+
+    const linearOnly = rate * 100; // 옛 모델이 쓰던 임계
+    const curved = hitThreshold10000(rate);
+    expect(curved).toBeGreaterThan(linearOnly);
+
+    expect(duel(linearOnly).events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
+    expect(duel(curved - 1).events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
+    expect(duel(curved).events.find((e) => e.type === "strike")).toMatchObject({ hit: false });
+  });
+
+  /** 판정마다 해상도가 다르다 — 상한이 곧 리플레이 계약이라 소비 순서·개수와 함께 박제한다. */
+  const consumedBounds = (crit: number): number[] => {
+    const bounds: number[] = [];
+    const spy: RandomSource = {
+      next(bound) {
+        bounds.push(bound);
+        return 0;
+      },
+    };
+    reduce(
+      state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, crit } }),
+        unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+      ]),
+      { type: "attack", unit: "a", target: "e" },
+      spy,
+    );
+    return bounds;
+  };
+
+  it("명중은 [0,10000)·필살은 [0,100000)에서 뽑는다", () => {
+    expect(consumedBounds(50).slice(0, 2)).toEqual([10000, 100000]);
+  });
+
+  it("필살률 0이면 필살 롤을 아예 소비하지 않는다(게임도 percent<=0이면 난수 미소모)", () => {
+    expect(consumedBounds(0)[1]).not.toBe(100000);
   });
 });

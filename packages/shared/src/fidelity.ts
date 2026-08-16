@@ -166,14 +166,32 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.true-hit",
     label: { en: "True hit model (displayed 50+ = sin hybrid)", ko: "명중 실확률(표시 50 이상 = sin 하이브리드)" },
-    status: "assumed",
-    evidence: "현행 = 표시값 1RN 근사 · calculator에 난수 모델 없음(命中率計算 = 命中値-回避値, gaps/A §2-2) — 실행파일 영역, 실측만이 경로(§0 M2 이월)",
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(5.0.0, 2026-08-17) — 굴림은 1회다: App.BattleMath._IsProbabilityHit(RVA 0x1E8D0E0)가 Random.Game.GetValue(10000) 한 번을 GetHitRatio10000(RVA 0x1E8D200) 임계와 < 비교(2RN 아님). 임계 = 표시<51 또는 =100이면 ratio*100 선형, 51~99면 ratio*100 + sin(pi*(ratio-50)/50)*ratio*13.333333 절삭(상수 0x42480000=50.0·0x3C8EFA35=pi/180·0x42C80000=100.0·0x41555555=40/3, 전 연산 float32) · 하한 페널티 없는 비대칭 상향 곡선 = 최대 편차 표시 78에서 +10.21%p · 엔진 배선 = formula/probability.ts(RULE_VERSION fe17-3에서 선형 1RN 반증 정정) · 상세 = extracted/il2cpp/HIT_RANDOM.md",
   },
   {
     id: "combat.crit-multiplier",
     label: { en: "Critical = 3x damage", ko: "필살 = 데미지 3배" },
     status: "anchored",
-    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) — calculator엔 배수 없음(적용은 실행파일, gaps/A §6-4) · 3회차 간접 방증: patch2.msbt MSID_H_SenerioEngage_Dragon '필살이 2배'(us 'Critical rate is doubled')는 필살률 2배이지 대미지 3배와 층위가 다름 — 혼동 방지 주석(gaps/N §4-2)",
+    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) · 3회차 간접 방증: patch2.msbt MSID_H_SenerioEngage_Dragon '필살이 2배'는 필살률 2배로 층위가 다름(gaps/N §4-2) · ★IL2CPP 코드 확정(2026-08-17): BattleCalculator.CalcAttackHit(RVA 0x24723A0) 0x024726E8 `add w9,w8,w8,lsl #1` + `csel`(Result.Critical 비트) = 정수 상수 3배, 테이블 아님 · 적용 순서 = SimplePower를 Clamp(0,999)한 뒤 3배(필살 데미지는 999 초과 가능, 상한 2997) · 필살 판정 자체는 sin 곡선을 쓰지 않는 선형(combat.crit-rng) · 미조사 = 체인/인게이지 등 타 경로의 별도 배수 유무(HIT_RANDOM.md §4)",
+  },
+  {
+    id: "combat.rng-source",
+    label: { en: "RNG source (xorshift128, per-stream)", ko: "난수원(xorshift128·스트림별)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — App.Random 자체 구현: t=s1^(s1<<11); t^=t>>8; t^=s4^(s4>>19); GetValue(n)=(t&0x7FFFFFFF)%n(RVA 0x2375170). UnityEngine.Random 아님 · 스트림 7종(System/Game/Spot/Hub/HubItem/KillBonus/Combat) 중 전투 판정은 전부 Game(get_Game RVA 0x2374C70) · IsSave(type)=type!=0 → System 외 전 스트림이 세이브에 직렬화 = 로드 후에도 난수열 재현 · ☠모듈로 편향 존재(2^31%10000=3648) — 비트 단위 재현 시 나눗셈까지 이식 필요 · 엔진 현행 = 주입식 RandomSource.next(bound)로 추상화(실굴림 분포는 미이식)",
+  },
+  {
+    id: "combat.crit-rng",
+    label: { en: "General probability check (linear, 0.001% step)", ko: "일반 확률 판정(필살·발동 — 선형·0.001% 해상도)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleMath.RandomCheck100 → App.Random.IsProbability100(RVA 0x23754B0): percent*1000 > (xorshift&0x7FFFFFFF)%100000. 명중과 달리 sin 보정 없는 선형이고 해상도가 0.001%다 · percent<=0이면 난수를 소모하지 않는다(롤 소비 순서 계약에 직결) · 필살·격추·스킬 발동이 전부 이 경로 · 엔진 배선 = formula/probability.ts isProbability100, battle.ts가 next(100000)으로 소비",
+  },
+  {
+    id: "combat.forecast-determinism",
+    label: { en: "Forecast/AI simulation is deterministic (RNG bypass)", ko: "예보·AI 시뮬은 결정론(난수 우회)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleMath는 확률 판정을 델리게이트 슬롯(s_CurrentProbability100/Hit)으로 들고, PushSimulation/PopSimulation이 _IsProbabilityTrue(ratio>0)/_IsProbabilityFalse로 스왑한다(SetSimulation RVA 0x1E8D2E0, s_Simulationed 카운터로 중첩 관리) · 호출처 2곳 = BattleInfo.CalcParam(전투 예보)·BattleCalculator.CalcSimulation(AI 시뮬, PushRandomSeed/PopRandomSeed로 RNG 상태까지 저장·복원해 실난수열을 소모하지 않음) · 시사 = 예보는 '명중률 0 초과면 명중'인 결정론 경로 · 난이도·모드별 확률 분기는 없음(바인딩 후보 4종뿐)",
   },
   {
     id: "combat.follow-up",

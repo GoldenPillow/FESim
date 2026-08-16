@@ -9,6 +9,7 @@ import type {
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
+import { isHit, isProbability100 } from "./formula/probability.js";
 import { movementRange, type MoveType } from "./range.js";
 import type { SkillRow } from "./skills.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
@@ -20,8 +21,12 @@ import { STAT_KEYS, type StatBlock } from "./stats.js";
  * 타격 순서 = 본공격 → 체인어택 → 반격 → 공격측 추격 → 방어측 추격 (체인 위치는 가정 — 실기 반증 시 갱신).
  */
 export interface RandomSource {
-  /** [0, 100) 정수 — FE 판정 문법. */
-  roll(): number;
+  /**
+   * `[0, bound)` 정수 — 게임의 `Random.GetValue(bound)`에 대응한다.
+   * 판정마다 해상도가 다르다(명중 10000 · 일반 확률 100000 · 성장 100)는 것이 인게임 사실이라
+   * 상한을 호출부가 넘긴다. 기보에는 굴린 값이 그대로 박히므로 이 상한 규약이 곧 리플레이 계약이다.
+   */
+  next(bound: number): number;
 }
 
 export interface BattleWeapon extends CombatantWeapon {
@@ -302,9 +307,9 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           numbers: { damage: number; hitRate: number; critRate: number },
         ): void => {
           if (from.dead || to.dead) return;
-          const hit = rng.roll() < numbers.hitRate;
+          const hit = isHit(numbers.hitRate, rng.next(10000));
           // 명중 시에만 필살 롤 — 롤 소비 순서는 리플레이 계약.
-          const crit = hit && numbers.critRate > 0 ? rng.roll() < numbers.critRate : false;
+          const crit = hit && numbers.critRate > 0 ? isProbability100(numbers.critRate, rng.next(100000)) : false;
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
           to.hp = Math.max(to.hp - damage, 0);
           events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit, crit, damage, hpAfter: to.hp });
@@ -369,7 +374,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
                 // 성장률 100 초과(person.Grow 실측 최대 105)는 확정 가산 + 잔여 1롤 —
                 // 롤 소비는 스탯당 항상 1회로 고정한다(리플레이 재현 계약).
                 const grow = Math.max(attacker.growth?.[key] ?? 0, 0);
-                const gain = Math.floor(grow / 100) + (rng.roll() < grow % 100 ? 1 : 0);
+                const gain = Math.floor(grow / 100) + (rng.next(100) < grow % 100 ? 1 : 0);
                 if (gain > 0) {
                   stats[key] += gain;
                   gains[key] = gain;
