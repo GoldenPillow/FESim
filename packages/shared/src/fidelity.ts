@@ -173,13 +173,25 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.crit-multiplier",
     label: { en: "Critical = 3x damage", ko: "필살 = 데미지 3배" },
     status: "anchored",
-    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) — calculator엔 배수 없음(적용은 실행파일, gaps/A §6-4)",
+    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) — calculator엔 배수 없음(적용은 실행파일, gaps/A §6-4) · 3회차 간접 방증: patch2.msbt MSID_H_SenerioEngage_Dragon '필살이 2배'(us 'Critical rate is doubled')는 필살률 2배이지 대미지 3배와 층위가 다름 — 혼동 방지 주석(gaps/N §4-2)",
   },
   {
     id: "combat.follow-up",
     label: { en: "Follow-up attack from calculator formula", ko: "추격 판정 = calculator 공식" },
     status: "anchored",
     evidence: "corpus.test.ts 예보 일치 · 追撃条件 원문 = 攻撃速度差 >= 5(gaps/A §2-2)",
+  },
+  {
+    id: "combat.chain-attack-accuracy",
+    label: { en: "Chain attack accuracy: base 80, skills override via '='", ko: "체인 어택 명중률 = 기본 80 고정, 스킬이 = 연산으로 덮어씀" },
+    status: "anchored",
+    evidence: "calculator.xml チェインアタック命中率計算=80 + skill.xml SID_チェインアタック命中率(90/100/30/10)% + patch2.msbt MSID_H_Charisma(us 'to 90%', kr은 수치 생략 — 모순 아님, gaps/N §3-1) · 상대에게 강제 30/10%는 Condition=相手の立場==援護 게이트",
+  },
+  {
+    id: "combat.chain-attack-damage-cut",
+    label: { en: "Chain attack damage taken cut to 20%", ko: "체인 어택 받는 대미지 = 20%로 감쇠" },
+    status: "anchored",
+    evidence: "skill.xml SID_チェインアタック威力軽減(＋) ActValues=0.2(ダメージ*0.2) — 텍스트(인연을 가르는 자)는 수치 생략, 데이터 전용 수치(gaps/N §3-1)",
   },
   {
     id: "combat.strike-order",
@@ -197,7 +209,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.turn-count",
     label: { en: "Engagement turn count model", ko: "手番回数(교전 턴 수) 모델" },
     status: "absent",
-    evidence: "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약",
+    evidence: "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약 · 3회차 재확인: skill.xml SID_切り返し가 Condition=手番回数==1 게이트 하에 手番回数=2를 직접 대입 — 추격이 手番回数 스칼라 대입으로 구현됨을 실물로 확인(gaps/N §3-4, 제안 id combat.followup-representation 병합)",
   },
   {
     id: "combat.order-flow-skills",
@@ -233,7 +245,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.break-recovery",
     label: { en: "Break recovery: after one defended combat, or own phase start", ko: "브레이크 해제 = 피격 전투 1회 직후 또는 자기 군 페이즈 시작" },
     status: "anchored",
-    evidence: "사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소)",
+    evidence: "사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소) · 3회차 patch0-3 전수 후에도 브레이크 자동 해제 타이밍 서술 0건 재확인 — 텍스트 축 경로 종결(gaps/N §4-2)",
   },
   {
     id: "combat.chain-attack",
@@ -254,22 +266,34 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "エンゲージガードダメージ = 0(가드 측 HP 손실 없음 — 체인가드 HP*0.2와 대비, gaps/A §0-2)",
   },
   {
+    id: "combat.engage-attack-damage-type",
+    label: { en: "Engage-technique damage is a distinct type (separately mitigable)", ko: "인게이지 기술 대미지 = 독립 유형(별도 감쇠 대상)" },
+    status: "assumed",
+    evidence: "patch3.msbt MSID_H_JobSkill_ShadowPrincessR '인게이지 기술로 공격받았을 때 받는 대미지-20%' — 데이터 교차 대조 미실시, 텍스트 단서만(gaps/N §4-1 #9)",
+  },
+  {
     id: "combat.smash",
     label: { en: "Smash weapons (knockback, no first strike)", ko: "스매시 무기(밀치기·선공 불가)" },
     status: "absent",
     evidence: "정식화 — SID_スマッシュ 28건 ActNames(넉백100%·거리1)+SID_追撃不可 동시 부여(gaps/B §5) · 규칙 원문 4종(gaps/E §1-5)",
   },
   {
+    id: "combat.weight-build-overflow",
+    label: { en: "Weight-over-build damage bonus (physical, cap +5)", ko: "무게 초과 대미지 = min(무기 무게-체격, 5), 물리 한정" },
+    status: "anchored",
+    evidence: "skill.xml SID_重撃 威力 += min(武器の重さ-体格,5), Condition=攻撃属性==物理属性 && 武器の重さ>体格 + patch1.msbt MSID_H_HeavyAttack(중격, kr/us 일치, gaps/N §3-4)",
+  },
+  {
     id: "combat.effectiveness",
     label: { en: "Effectiveness (armored, cavalry, flying, dragon)", ko: "특효(중장·기병·비병·용족 등)" },
     status: "absent",
-    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손",
+    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2)",
   },
   {
     id: "combat.terrain-bonus",
     label: { en: "Terrain avoid/defense bonuses", ko: "지형 회피·방어 보정" },
     status: "anchored",
-    evidence: "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일)",
+    evidence: "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유 — 지형 보정이 온/오프 가능한 별도 레이어임을 확인(gaps/N §4-2)",
   },
   {
     id: "combat.effectiveness-ignore",
@@ -287,19 +311,31 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.support-bonus",
     label: { en: "Support (bond) bonuses (adjacent only)", ko: "지원(인연) 보정 — 인접 1타일" },
     status: "assumed",
-    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · 가정 3 = 합산·4방 인접·archetype 소유자(파트너 기준, 수혜자설과 상충 — 실측 1회로 결정) · 예보 패널 표시는 §0 미룸",
+    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · 가정 3 = 합산·4방 인접·archetype 소유자(파트너 기준, 수혜자설과 상충 — 실측 1회로 결정) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
   },
   {
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) ·사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) · 3회차 재해석으로 '데미지식 해석 모호' 해소(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 그중 이름이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減·確率被ダメ半減이 동일하게 '相手の威力*0.5' — 반전 표기 가설 기각 · ★승격(중첩 아닌 치환) = 원문 확정: scripts/g002_gimmick.txt 毒ガスによる状態異常を付与する()가 解除(하위)→装備(상위) 사슬을 그대로 구현하고 개발자 주석이 '1つ上の状態にする'·'上書きする' — 劇毒에서 포화(위 분기 없음) · 남는 결손은 미실측 = 猛毒 +3·劇毒 +5(1스택 실측 + 동일 필드 구조의 연역)·Power 필드 의미(3단 전부 5로 동일해 효과 크기와 무관)·단검 연타 승격의 구현 위치(덤프 전무 = 엔진 내부, 2회 명중 실측이 유일한 판별자: 승격 +3 vs 중첩 +2) · ☠猛毒 부여 경로 = XML GiveSids 0건·Lua 1건(g002 승격 사슬)뿐 · Life=0 무제한(해제 = デトックス/毒消し) · 蛇毒은 BadState=0 별계통(%HP DoT) · 사룡 전용 송곳니의 저주는 별도 정식화 완결(combat.status-fang-curse, 3회차 — gaps/N §3-3) · 위 전부 실행 검증 = engine/tests/statusPoison.test.ts(13) + 스크래치 verify_poison_lua.mjs · status는 배선 부재로 absent 유지(선행 = skills.opponent-act)",
+  },
+  {
+    id: "combat.status-fang-curse",
+    label: { en: "Fang curse: max HP -5 per stack, 4 discrete tiers", ko: "송곳니의 저주 — 최대 HP -5씩 4단(-5/-10/-15/-20)" },
+    status: "anchored",
+    evidence: "item.xml IID_牙 + skill.xml SID_牙呪 / SID_牙呪_発動(Condition=相手のMaxHP>5 && 相手の生存) / SID_牙呪_効果_最大HP_-5..-20(4단 이산 SID, EnhanceValue.Hp, BadState=512, Cycle=7/Life=1) + patch2.msbt MIID_H_Fang(kr '최대 -20' = 연속 누적 아닌 4티어 승격) — combat.status-effects §7 언급분의 정식화 완결(gaps/N §3-3)",
   },
   {
     id: "combat.staff-hit",
     label: { en: "Offensive staff hit/avoid", ko: "방해 지팡이 명중·회피" },
     status: "absent",
     evidence: "妨害杖命中値 = 魔力+技+武器命中 · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避(gaps/A §2-5)",
+  },
+  {
+    id: "combat.range-hit-falloff",
+    label: { en: "Range-based hit falloff (-10 per tile from range 4)", ko: "원거리 명중 감쇠(4칸부터 칸당 -10)" },
+    status: "assumed",
+    evidence: "SID_弾丸命中의 cond(戦闘距離>=4,(戦闘距離-3)*10,0) 항 — 현재 확인된 유일 적용처 = weapons.cannon-hit-model(포탄) · 범용 룰인지 포탄 한정인지 미판정, 다른 무기군에서 동일 항 미발견(gaps/N §4-1)",
   },
   {
     id: "combat.hp-stock",
@@ -323,7 +359,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.exp",
     label: { en: "EXP from calculator formulas and tables", ko: "경험치 = calculator 원문 공식+테이블" },
     status: "assumed",
-    evidence: "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) — 잔여 = 戦闘経験倍率 1.2(실체 후보 = 스승의 인도 120% 스킬, 전역 룰 아닐 가능성 — gaps/N)·루나틱 반복 감쇠 누적(gaps/A §6-2·3)",
+    evidence: "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) — 잔여 = 戦闘経験倍率 1.2(실체 후보 = 스승의 인도 120% 스킬, 전역 룰 아닐 가능성 — gaps/N)·루나틱 반복 감쇠 누적(gaps/A §6-2·3) · 3회차 두 번째 실물 확인: SID_血統(혈통, DLC) = 取得経験*=1.2 — 독립 소재에서 동일 배율 재확인(방증 1건→2건), 적용 위치·반올림은 여전히 미상(gaps/N §4-2)",
   },
   {
     id: "combat.exp-table-clamp",
@@ -451,7 +487,13 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.difficulty-scaling",
     label: { en: "Per-difficulty levels and stats from dispos", ko: "난이도별 레벨·스탯(dispos·Offset)" },
     status: "anchored",
-    evidence: "VERIFY_M002 대조 일치 156·불일치 0",
+    evidence: "VERIFY_M002 대조 일치 156·불일치 0 · 3회차 재확인: dispos LevelN/LevelH/LevelL은 140파일 10,951행 전수 동일값(난이도 분기 데이터 없음, gaps/O §10-1-4) — 실제 난이도별 스탯 스케일링은 Offset 경로 소관, 본 앵커의 근거가 LevelN/H/L이라면 오해 소지 있어 재확인 요망",
+  },
+  {
+    id: "units.chapter-preset-roster",
+    label: { en: "Per-chapter preset party state (level, promotion, inventory, sync)", ko: "챕터별 프리셋 파티 상태(레벨·승급·소지품·싱크로)" },
+    status: "absent",
+    evidence: "chart.xml 加入 1510행(챕터 54 + QA 3) — dispos Force=0 1415행은 레벨 0·Jid/Gid/Sid 공란으로 아군 스탯 미소유, 교집합 60건 실값 일치 0셀, 전역 시그니처 대조 0/1510(gaps/O §10-1) · units.difficulty-scaling·units.promotion과 별개 소스(dispos·encount에 중복 0건)",
   },
   {
     id: "units.equipped-weapon",
@@ -483,7 +525,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.opponent-act",
     label: { en: "Opponent-side value modifiers", ko: "상대측 계산값 보정(相手の~ ActName)" },
     status: "absent",
-    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건",
+    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건",
   },
   {
     id: "skills.raw-stat-act",
@@ -548,10 +590,16 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "絆3 실측 정합(fe17.test.ts 技+2·ブレイク時追撃 — gaps/C §4-3) · 동계열 판별 = SID 명명 규칙 가정 · 레벨값은 편집기(M4) 소유(기본 = god Level)",
   },
   {
+    id: "emblem.chapter-bond-level",
+    label: { en: "Per-chapter emblem bond level baseline", ko: "챕터별 엠블렘 絆 레벨 기본값" },
+    status: "absent",
+    evidence: "chart.xml 神将 42행×12열 = 504셀 전수(비영 275셀·비영행 39, 상한 20, M011 전열 0 = 반지 상실 구간 정합) — gamedata 60개 XML 헤더 전수 파싱 결과 유일 소유(gaps/O §10-2) · emblem.sync-bond-level(싱크로 스킬 합집합 규칙)과 별개 기전 — 챕터 선택 시 絆 레벨 기본값 소스로 소비",
+  },
+  {
     id: "emblem.engage-activation",
     label: { en: "Engage activation, meter, duration", ko: "인게이지 발동·카운트·지속" },
     status: "deferred",
-    evidence: "지속(실측 표본 3) = 정규 반지 3턴, 외전 클리어 시 4(마르스 인연10=3이 레벨 가설 기각) · DLC 팔찌 = 4(클로에&디미트리 12 — 조건 미상, 저인연 표본 필요) · 연장 필드 덤프 전무(継続ターン=3뿐) · 한계 EngageCount(7/ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 실측, 常時 해석 반증) · 설계 선행(§0 미룸)",
+    evidence: "지속(실측 표본 3) = 정규 반지 3턴, 외전 클리어 시 4(마르스 인연10=3이 레벨 가설 기각) · DLC 팔찌 = 4(클로에&디미트리 12 — 조건 미상, 저인연 표본 필요) · 연장 필드 덤프 전무(継続ターン=3뿐) · 한계 EngageCount(7/ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 실측, 常時 해석 반증) · 3회차 재확인: 지속 턴은 1턴 단위로 소비되는 자원(전투 기술 소비 1·3 실례 — patch0.msbt ClassPresidentsEngage_*_CMD) · 정수 증감 사례 = TikiEngageAtk+(카운트+3)·JobSkill_ShadowLordR(카운트+1, patch3.msbt)·MIID_HE_Medicine(카운트+2, patch1.msbt) — 턴당 자연 증가량은 여전히 텍스트 축에 부재(gaps/N §2-2, §4-1 #8 병합) · 설계 선행(§0 미룸)",
   },
   {
     id: "emblem.engage-kit",
@@ -604,10 +652,34 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "item.xml 661건 전수 — Kind=6/Flag bit16 상호배타·반례 0(gaps/B §2, 2026-08-17)",
   },
   {
+    id: "weapons.cannon-hit-model",
+    label: { en: "Cannon (bullet) weapons: dedicated hit formula and range falloff", ko: "포탄 무기 전용 명중식과 거리 감쇠" },
+    status: "anchored",
+    evidence: "skill.xml SID_弾丸命中 = max(技+力+体格+int(幸運/2)+武器命中+支援命中 − cond(거리>=4,(거리-3)*10,0), 0) — 표준 命中値計算(技*2+...)을 대체 · SID_弾丸攻撃力 = ユニット攻撃力(技) 대체 · 텍스트 유도 = patch1~3 MIID_H_Bullet_*(상대가 멀수록 명중 감소, gaps/N §3-2) · A축 calculator 52식 전수에는 없던 skill.xml 전용 항",
+  },
+  {
     id: "weapons.equip-sids",
     label: { en: "Weapon/item granted skills (EquipSids)", ko: "무기·아이템 부여 스킬(EquipSids)" },
     status: "absent",
     evidence: "수집 결손 85행(items.json에 EquipSids 259행 이미 산출 — 배선만 없음, gaps/I 투자 2위)",
+  },
+  {
+    id: "weapons.add-effect-schema",
+    label: { en: "Item add-effect schema (AddTarget x AddRange x AddType x AddPower x AddSids)", ko: "아이템 부가효과 스키마(AddTarget×AddRange×AddType×AddPower×AddSids)" },
+    status: "anchored",
+    evidence: "item.xml IID_傷薬/特効薬/たいまつ/お弁当 4건 1:1 대조 + patch1.msbt MIID_HE_* 24건(§2-7) — AddType 정의역={0,2,7,18,19,31}, AddType=7=인게이지 카운트 증가·2=HP 회복·19=시야(횃불)·31=생존 보장, 0=AddSids 위임(인챈트)(gaps/N §3-5) · AddType=7+AddPower가 인게이지 카운트 정수 증감의 데이터측 정본",
+  },
+  {
+    id: "weapons.enchant-by-weapon-name",
+    label: { en: "Enchant applies to all weapons sharing a name, lasts until map end", ko: "인챈트 = 동명(同名) 무기 전체 적용, 맵 종료까지 지속" },
+    status: "anchored",
+    evidence: "patch1.msbt MIID_HE_Weapon{Atk,Hit,Avo,Crit,Def}/_Short + item.xml AddTarget=3/AddSids + skill.xml SID_EN_威力上昇(武器攻撃力+=5, Timing=3, Life=0) — 개별 인스턴스가 아닌 무기 이름 단위 강화(gaps/N §2-7, §3-5)",
+  },
+  {
+    id: "weapons.tonic-level-scaling",
+    label: { en: "Tonic items scale stat gain by unit level", ko: "토닉류 아이템 = 유닛 레벨에 비례한 스탯 상승" },
+    status: "absent",
+    evidence: "patch1.msbt MIID_HE_{Hp,Str,Tec,Spd,Mag}Tonic kr/us 일치('레벨에 따라 상승'/'relative to level') — 수치는 텍스트·item.xml AddPower 어디에도 없음, 실행부 또는 미확인 테이블 소관(gaps/N §4-1 #12)",
   },
   {
     id: "weapons.forge-engrave",
