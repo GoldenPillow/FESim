@@ -103,7 +103,9 @@ const displayClamp = (value: FormulaValue): number =>
 export function forecastSide(calc: Calculator, self: Combatant, foe: Combatant): SideForecast {
   const env = combatEnv(self, foe);
   return {
-    damage: calc.eval("威力計算", env) as number,
+    // 威力는 [0,999] 클램프 후 **정수 절사**가 정본이다(SimplePowerParam). 필살 3배는 이 정수에 곱해진다 —
+    // 소수를 들고 가면 trunc(x)*3 과 trunc(x*3) 이 갈려 보정 스킬이 붙는 순간 대미지가 어긋난다.
+    damage: Math.trunc(Math.min(Math.max(calc.eval("威力計算", env) as number, 0), 999)),
     hitRate: displayClamp(calc.eval("命中率計算", env)),
     critRate: displayClamp(calc.eval("必殺率計算", env)),
     attackSpeed: calc.eval("攻撃速度計算", env) as number,

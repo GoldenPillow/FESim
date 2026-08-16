@@ -224,3 +224,30 @@ describe("보정 합성 — (base + add) * scale, 순서 무관", () => {
     expect(apply([times, plus], "力", 10)).toBe(25); // 순서 의존이 정본이다
   });
 });
+
+/**
+ * 대미지 정수화 — 인게임 정본(SimplePowerParam + BattleCalculator.CalcAttackHit 0x24726E4).
+ * 게임은 威力를 [0,999]로 클램프하고 **정수로 절사한 뒤** 필살 3배를 곱한다.
+ * 엔진은 소수를 그대로 들고 있다가 3배를 곱해서, 보정 스킬이 붙는 순간 HP에서 소수가 빠지고
+ * `trunc(x)*3`과 `trunc(x*3)`이 갈렸다(威力 10.6 → 정본 30 · 현행 31.8).
+ */
+describe("威力 정수화", () => {
+  it("소수 위력은 절사된 뒤에 필살 배수가 곱해진다", () => {
+    const attacker: Combatant = {
+      ...alear,
+      stats: { ...alear.stats, str: 10 },
+      weapon: { might: 0, hit: 100, crit: 0, weight: 0 },
+      skills: [{ Sid: "SID_소수", ActNames: ["威力"], ActOperations: ["+"], ActValues: ["0.6"] }],
+    };
+    const foe: Combatant = { ...swordFighter, stats: { ...swordFighter.stats, def: 0 } };
+    expect(forecastSide(calc, attacker, foe).damage).toBe(10); // 10.6 → 10
+  });
+
+  it("위력은 0..999로 클램프된다", () => {
+    const attacker: Combatant = {
+      ...alear,
+      skills: [{ Sid: "SID_감산", ActNames: ["威力"], ActOperations: ["-"], ActValues: ["999"] }],
+    };
+    expect(forecastSide(calc, attacker, swordFighter).damage).toBe(0); // 음수 위력 금지
+  });
+});
