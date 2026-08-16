@@ -22,6 +22,16 @@ export function reduce(state: GameState, _action: Action, _rng: RandomSource): G
   return { ...state };
 }
 
+export {
+  attackRange,
+  movementRange,
+  IMPASSABLE,
+  MOVE_TYPES,
+  type MoveQuery,
+  type MoveType,
+  type ReachableTile,
+  type Tile,
+} from "./range.js";
 export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.js";
 export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 export { createCalculator, type Calculator } from "./formula/calculator.js";
