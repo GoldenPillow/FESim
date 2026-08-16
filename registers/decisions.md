@@ -36,3 +36,4 @@
 - 2026-08-16 rules/ 폴더 신설(상주 규약 문서 층 — design/ 수명 체계와 별개) · 첫 문서 rules/deploy.md = 배포 채널·승격 프로세스 정본, CLAUDE.md 배선
 - 2026-08-16 플랜 §0 진행 체크리스트 = todo 정본(M0·M1·M1.5·배포체계 체크 완료, 다음 = M2) · 마감(clear 준비) 절차 CLAUDE.md 등재
 - 2026-08-16 rules/design-lifecycle.md 신설 — 설계 문서 = todo, 완료 시 코드 흡수 후 design/에서 삭제(gc가 archive 이송), doccheck 집행
+- 2026-08-16 게이트 운용: 커밋은 자유(상시), ./dev done은 큰 작업(M단위) 마감과 main 병합에만 — 소커밋마다 풀게이트 금지
