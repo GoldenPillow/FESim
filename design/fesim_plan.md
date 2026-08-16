@@ -22,7 +22,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
   - [x] 전투 예보 패널 + 실기 회귀 1차 (2026-08-16 — M003 3종 세트 corpus.test.ts, 코퍼스 노트 = `~/fesim_data/reference/screens/NOTES.md`)
   - [x] 스킬 엔진 1층 — EnhanceValue 정적 보정 + Act 계산값 보정(소수 유지·표시 내림, 간파 실기 재현) (2026-08-16)
   - [x] 전투 해결(reduce) → 회색화 → 턴/페이즈 진행(배너) → 승패 판정 + 브레이크·체인어택·경험치/레벨업 (2026-08-16)
-- [ ] **M3 리플레이·포커스 모드** — 로그 재생·2단 스테핑·딥링크·LCP<1s 게이트·workers/api. 경계 확정(2026-08-16): 짧은 링크 읽기 경로만 M3(발급 = ./dev link:put 수동), 발급 API·Turnstile·발급 UX = M4
+- [x] **M3 리플레이·포커스 모드** (2026-08-16) — 로그 재생·2단 스테핑·딥링크·LCP<1s 게이트·workers/api. 경계 확정(2026-08-16): 짧은 링크 읽기 경로만 M3(발급 = ./dev link:put 수동), 발급 API·Turnstile·발급 UX = M4
   - [x] .eph 본문 스키마 + 전투 타입 이사 (packages/shared) (2026-08-16)
   - [x] 엔진 기록·재생·스냅숏·스텝 주소 (packages/engine/src/replay.ts, TDD — replay 8종+계약 1종 그린) (2026-08-16)
   - [x] 웹 상태 재편(boardStore) + BoardView 분해 + 기보 복사 버튼 + 맵 페이지 ?p/?d 딥링크 + 게스트 자동 저장 최소형(localStorage 이어하기 — 보관함 다중 슬롯 UI는 M4) (2026-08-16 — 웹 테스트 20건, 번들 74.9KB gzip. 육안 무회귀 확인은 베타 게시 후)
