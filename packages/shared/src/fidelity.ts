@@ -97,7 +97,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "movement.warp",
     label: { en: "Warp and other staff/item movement", ko: "지팡이·아이템 이동(워프 등)" },
     status: "absent",
-    evidence: "지형측 워프 금지 Flag는 비트 범례 부재로 미특정(gaps/D 부록)",
+    evidence: "지형측 워프 금지 Flag 비트 범례 미특정 — groundattribute는 배제 확정(발소리 매핑뿐, gaps/J) · 잔여 후보 = terrain.xml Flag/Prohibition",
   },
 
   // ── 행동 ──
@@ -289,6 +289,24 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "妨害杖命中値 = 魔力+技+武器命中 · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避(gaps/A §2-5)",
   },
   {
+    id: "combat.hp-stock",
+    label: { en: "Boss HP stocks (multi-phase revival)", ko: "보스 HP 스톡(다단부활)" },
+    status: "absent",
+    evidence: "dispos HpStockCount 0~5(343건 — 신룡의장 6보스·M017 등) 스키마·파이프라인 사영 탈락 · Lua ReviveBefore/After 훅 실재(gaps/L·M) · State1 = 부활 상태전환 추정(범례 없음)",
+  },
+  {
+    id: "combat.scripted-modifiers",
+    label: { en: "Script-injected combat modifiers", ko: "스크립트 주입 전투 보정" },
+    status: "absent",
+    evidence: "Lua UnitCommandPrepare 명중 보정 주입(m000/m001) · BattleAfter 보스 AI 전환(m017)(gaps/M §3)",
+  },
+  {
+    id: "combat.kill-bonus",
+    label: { en: "Kill bonus drops", ko: "격파 보너스 드롭" },
+    status: "absent",
+    evidence: "killbonus.xml 격파/피격파 드롭 확률 테이블 — 파이프라인·엔진 소비 0, dispos Item.Drop과 별개 계층(gaps/L)",
+  },
+  {
     id: "combat.exp",
     label: { en: "EXP from calculator formulas and tables", ko: "경험치 = calculator 원문 공식+테이블" },
     status: "assumed",
@@ -373,6 +391,12 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Per-difficulty skill sets (Normal/Hard/LunaticSids)", ko: "난이도별 스킬(Normal/Hard/LunaticSids)" },
     status: "absent",
     evidence: "수집 자체 안 함 — 루나틱 23종/162인(gaps/G) · 브레이크 면역 41인물 실배선 포함(§0 등재)",
+  },
+  {
+    id: "units.meal-buff",
+    label: { en: "Meal stat buffs (Somniel cooking)", ko: "식사 버프(요리 스탯 보정)" },
+    status: "absent",
+    evidence: "cook.xml 出来栄え/料理 Enhance 필드(Str~Mdef s8) — 출격 전 보정 기전, 장부 밖이었음(gaps/O)",
   },
   {
     id: "units.difficulty-scaling",
@@ -493,6 +517,12 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "skill.xml InheritanceCost/Sort 필드 확인 · 리유르만 계승 불가(InheritanceSkills 21행 공란, gaps/F)",
   },
   {
+    id: "emblem.doubles-multiplier",
+    label: { en: "Doubles/afterimage stat multiplier", ko: "잔상(분신) 능력 배율" },
+    status: "absent",
+    evidence: "残像能力倍率 = 1(params GameRule) — effect 残像コマンド와 명칭 일치, 소재 스킬 ID 미확정(gaps/J)",
+  },
+  {
     id: "emblem.crest-tile",
     label: { en: "Emblem energy tile effect", ko: "紋章氣(문장기) 효과" },
     status: "absent",
@@ -545,6 +575,24 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3)",
   },
   {
+    id: "turn.chapter-hold-level",
+    label: { en: "Chapter hold level (Fell Xenologue)", ko: "챕터 고정 레벨(사룡의 장 HoldLevel)" },
+    status: "absent",
+    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28 — E시리즈 미변환이라 무발현(gaps/L)",
+  },
+  {
+    id: "turn.rewind",
+    label: { en: "Time crystal rewind (limits, script gating)", ko: "되감기(시간의 수정 — 한도·스크립트 통제)" },
+    status: "absent",
+    evidence: "한도 = Normal 무제한/Hard·Lunatic 10(params) · Lua MapHistory* 훅 9종 — 챕터·시점별 스크립트 통제(M4 언두 설계 참조, gaps/J·M)",
+  },
+  {
+    id: "turn.map-gimmicks",
+    label: { en: "Map gimmicks (spread, hazards, collapse)", ko: "맵 기믹(확산·위험타일·붕괴 등)" },
+    status: "absent",
+    evidence: "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴 — 전투 RNG 스트림 공유 여부 실측 필요(gaps/M §4) · 안개 기믹은 원문 0건",
+  },
+  {
     id: "turn.victory-rout",
     label: { en: "Rout victory / player wipe defeat", ko: "적 전멸 = 승리 · 자군 전멸 = 패배" },
     status: "implemented",
@@ -554,19 +602,19 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.victory-objectives",
     label: { en: "Chapter-specific objectives", ko: "챕터 고유 승리 조건" },
     status: "deferred",
-    evidence: "Lua 이벤트 엔진(M4 이후, §0 미룸) — 승리조건 4함수+WinRule() 정식화(gaps/E §2-2)",
+    evidence: "Lua 이벤트 엔진(M4 이후, §0 미룸) — 2계층 모델 확정: 표준 4함수+WinRule() 및 Die/Destroy→勝利/敗北 콜백 오버라이드 18건(gaps/E §2-2, M §5)",
   },
   {
     id: "turn.reinforcements",
     label: { en: "Reinforcements (turn/condition spawns)", ko: "증원(턴·조건 등장)" },
     status: "deferred",
-    evidence: "Lua 이벤트 엔진(§0 미룸) — 증원 5패턴 정식화(gaps/E §2-1)",
+    evidence: "Lua 이벤트 엔진(§0 미룸) — 증원 5패턴, Dispos() 단일 원시함수 363회 전량·반례 0(gaps/E §2-1, M §5)",
   },
   {
     id: "turn.enemy-ai",
     label: { en: "Automatic enemy phase AI", ko: "적턴 AI 자동 진행" },
     status: "deferred",
-    evidence: "M5 — AI 파라미터 정본·평가함수 실측 보정(§10-4)",
+    evidence: "M5 — AI 파라미터 정본·평가함수 실측 보정(§10-4) · dispos AI 10필드 파이프라인 사영 완료(소비처만 없음, gaps/L) · 지원 선택 스코어 상수 支援値加算 3/2/1(gaps/J)",
   },
   {
     id: "turn.delegate",
