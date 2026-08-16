@@ -101,7 +101,13 @@ export const jobs = parse<Record<string, JobRow>>(jobsRaw);
 
 interface GodsTable {
   gods: Record<string, Record<string, unknown>>;
-  growth: Record<string, Record<string, { SynchroSkills?: string[]; EngageSkills?: string[]; EngageItems?: string[] }>>;
+  growth: Record<
+    string,
+    Record<
+      string,
+      { SynchroSkills?: string[]; EngageSkills?: string[]; EngageItems?: string[]; InheritanceSkills?: string[] }
+    >
+  >;
 }
 const godsTable = parse<GodsTable>(godsRaw);
 

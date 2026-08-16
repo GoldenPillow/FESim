@@ -73,6 +73,7 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "terrain.json", keyed(terrain, "Tid"))
     _, jobs = load_sheet(src / "gamedata" / "job.xml")
     write_json(out / "tables" / "jobs.json", keyed(jobs, "Jid"))
+    build_styles(src, out)
     _, persons = load_sheet(src / "gamedata" / "person.xml")
     write_json(out / "tables" / "persons.json", keyed(persons, "Pid"))
     _, items = load_sheet(src / "gamedata" / "item.xml")
@@ -82,6 +83,12 @@ def build_tables(src: Path, out: Path) -> None:
     build_gods(src, out)
     build_calculator(src, out)
     build_chapterlist(src, out)
+
+
+def build_styles(src: Path, out: Path) -> None:
+    """job.xml 戦闘スタイル 시트(9행) → 스타일별 부여 스킬 정본. jobs.StyleName이 이 표의 Style을 가리킨다."""
+    _, rows = load_sheet(src / "gamedata" / "job.xml", index=1)
+    write_json(out / "tables" / "styles.json", keyed(rows, "Style"))
 
 
 CHAPTER_CATEGORIES = {"M": "main", "S": "paralogue", "G": "divine", "E": "fell"}
@@ -117,7 +124,8 @@ def build_gods(src: Path, out: Path) -> None:
             growth[current] = {}
         elif current and row.get("Level"):
             growth[current][str(row["Level"])] = {
-                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems") if row.get(k)
+                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems", "InheritanceSkills")
+                if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})
 
@@ -200,6 +208,11 @@ def dispos_unit(row: dict, persons: dict) -> dict:
     for key, field in (("Gid", "gid"), ("Bid", "bid"), ("Flag", "flag")):
         if row.get(key):
             unit[field] = row[key]
+    # 다단 부활(HP 스톡)과 동반 관측되는 State1은 원문에 범례가 없다 — 해석하지 않고 원값만 보존한다(-1 = 미사용).
+    if row.get("HpStockCount"):
+        unit["hpStock"] = row["HpStockCount"]
+    if row.get("State1", -1) != -1:
+        unit["state1"] = row["State1"]
     if row.get("AppearX") or row.get("AppearY"):
         unit["appear"] = {"x": row.get("AppearX", 0), "y": row.get("AppearY", 0)}
     ai_map = {
@@ -211,6 +224,11 @@ def dispos_unit(row: dict, persons: dict) -> dict:
     }
     for key, field in ai_map.items():
         if row.get(key):
+            unit["ai"][field] = row[key]
+    # HealRate 기본값은 0이 아니라 75/50이고 AI_Flag 0도 "플래그 없음"이라는 정보다 — 존재 여부로 사영한다.
+    for key, field in (("AI_HealRateA", "healRateA"), ("AI_HealRateB", "healRateB"),
+                       ("AI_MoveLimit", "moveLimit"), ("AI_Flag", "flag")):
+        if key in row:
             unit["ai"][field] = row[key]
     return unit
 

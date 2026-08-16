@@ -119,6 +119,10 @@ export interface DisposUnit {
   bid?: string;
   /** 등장 좌표 원본값 — (0,0)이 sentinel인지 실좌표인지 미확정이라 원본 보존 */
   appear?: { x: number; y: number };
+  /** HP 스톡(HP0 도달 시 남은 스톡만큼 부활하는 다단 보스) 원값. 0이면 생략 — 엔진 부활 거동은 미구현. */
+  hpStock?: number;
+  /** dispos State1 원값(-1 = 미사용이면 생략). 부활 시 상태 전환 슬롯 추정이나 범례가 없어 해석 금지. */
+  state1?: number;
   ai: {
     action?: string;
     actionVal?: string;
@@ -128,9 +132,17 @@ export interface DisposUnit {
     attackVal?: string;
     move?: string;
     moveVal?: string;
-    battleRate?: number;
+    /** 원문이 문자열(突撃 등) — number로 오기돼 있던 타입 거짓 정정(2026-08-17, 소비처 0 시점). */
+    battleRate?: string;
     priority?: number;
     bandNo?: number;
+    /** 회복 행동 임계 A/B(원문 기본 75/50) — 0도 유효값이라 없으면 없는 것이지 기본값이 아니다. */
+    healRateA?: number;
+    healRateB?: number;
+    /** 이동 가능 영역 하드 제약 원문 `(x1,z1),(x2,z2)` — 파싱은 소비처(M5) 몫. */
+    moveLimit?: string;
+    /** AI 행동 비트플래그 원값. 비트 범례가 덤프에 없어 해석 금지(유닛의 dispos flag와 별개). */
+    flag?: number;
   };
   flag?: number;
 }
@@ -146,6 +158,19 @@ export interface ChapterData {
   recommendedLevel?: number;
   map: ChapterMap;
   groups: DisposGroup[];
+}
+
+/**
+ * styles.json 스키마 — job.xml 戦闘スタイル 시트의 사영. 키 = Style(jobs.StyleName과 같은 값).
+ * ☠스타일 특성의 정본은 이 표의 Skills다 — 엔진이 스타일 이름을 문자열로 하드코딩하는 경로와 이중화하지 말 것.
+ */
+export interface StyleRow {
+  Style: string;
+  /** MBSID_* 라벨(표시명은 names 사전) */
+  Name: string;
+  Help: string;
+  /** 스타일이 부여하는 SID. 부여 스킬이 없는 스타일은 키 자체가 없다. */
+  Skills?: string[];
 }
 
 /**

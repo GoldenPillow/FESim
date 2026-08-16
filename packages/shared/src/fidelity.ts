@@ -305,7 +305,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.hp-stock",
     label: { en: "Boss HP stocks (multi-phase revival)", ko: "보스 HP 스톡(다단부활)" },
     status: "absent",
-    evidence: "dispos HpStockCount 0~5(343건 — 신룡의장 6보스·M017 등) 스키마·파이프라인 사영 탈락 · Lua ReviveBefore/After 훅 실재(gaps/L·M) · State1 = 부활 상태전환 추정(범례 없음)",
+    evidence: "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 부활 거동은 미구현(부활 후 HP·상태 규칙 덤프에 없음) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열)",
   },
   {
     id: "combat.scripted-modifiers",
@@ -409,7 +409,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.style-grant-skills",
     label: { en: "Battle-style granted skills", ko: "전투 스타일 부여 스킬(은밀·마법 등)" },
     status: "absent",
-    evidence: "job.xml 戦闘スタイル 시트(9행) 파이프라인 전면 탈락(transform 시트0만 로드 — gaps/H) · 隠密 = 지형회피 2배(battlestyle.msbt 교차 확인, gaps/N)·魔法 = 상대 지형회피 무시",
+    evidence: "사영 복원 완료(styles.json 9행 — projection.test.ts) · 배선 보류 = 地形回避가 훅 미노출(평문 env)·실측 케이스 부재(프로브 실측 88=88, FIX_NOTES_2 P2 게이트) · 해제 조건 = 훅 노출 + 은밀/마법 실측",
   },
   {
     id: "units.job-skills",
@@ -569,7 +569,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.inheritance",
     label: { en: "Skill inheritance (cost, availability)", ko: "스킬 계승(비용·가능 여부)" },
     status: "absent",
-    evidence: "skill.xml InheritanceCost/Sort 확인 · 리유르만 계승 불가(gaps/F) · ★수집 최대 결손 — transform.py가 InheritanceSkills 폐기(요구 189행 중 183행이 ENH 정적 보정 = 저비용 고수익, gaps/I)",
+    evidence: "skill.xml InheritanceCost/Sort 확인 · 리유르만 계승 불가(gaps/F) · 사영 복원 완료(growth 255행 레벨별 보존 — projection.test.ts) · 수집·소비 = M4 편집기(요구 189행 중 183행이 ENH 정적 보정, gaps/I)",
   },
   {
     id: "emblem.doubles-multiplier",
@@ -694,8 +694,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "ai.data-projection",
     label: { en: "AI field projection completeness", ko: "AI 필드 사영 완결성" },
-    status: "absent",
-    evidence: "transform.py ai_map 15필드 중 4 누락 — AI_HealRateA/B·AI_MoveLimit·AI_Flag(gaps/K §7) · ★수정구간 후보(MoveLimit은 하드 제약, 본편 4맵)",
+    status: "implemented",
+    evidence: "15필드 전수 사영 복원(존재 여부 기준 — 기본값 75/50 보존, projection.test.ts · FIX_NOTES_2 P4) · battleRate 타입 거짓 정정(문자열) · 소비는 M5",
   },
   {
     id: "ai.move-limit",
