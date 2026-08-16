@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData } from "@fesim/shared";
+import type { EphemerisStep } from "@fesim/shared";
 import {
   createCalculator,
   createReducer,
+  createReplayer,
   type BattleAction,
   type GameState,
   type RandomSource,
@@ -57,5 +59,27 @@ describe("엔진 계약", () => {
     const a = reduce(mkState(), action, { roll: () => 7 });
     const b = reduce(mkState(), action, { roll: () => 7 });
     expect(a).toEqual(b);
+  });
+
+  it("stateAt은 타임라인·초기 국면을 변이하지 않는다 (되감기가 원본을 갉으면 재생이 발산한다)", () => {
+    const replayer = createReplayer(reduce);
+    const steps: EphemerisStep[] = [
+      { action },
+      { action: { type: "wait", unit: "a" } },
+      { action: { type: "endPhase" } },
+    ];
+    const initial = mkState();
+    const timeline = replayer.buildTimeline(initial, steps);
+    const before = JSON.stringify(timeline);
+    Object.freeze(initial);
+    Object.freeze(initial.units);
+    initial.units.forEach(Object.freeze);
+
+    for (let cursor = timeline.steps.length; cursor >= 0; cursor--) {
+      expect(() => replayer.stateAt(timeline, cursor)).not.toThrow();
+    }
+    expect(JSON.stringify(timeline)).toBe(before);
+    expect(replayer.stateAt(timeline, 0).units[0].x).toBe(0);
+    expect(replayer.stateAt(timeline, 1).units[0].x).toBe(1);
   });
 });
