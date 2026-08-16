@@ -68,6 +68,7 @@ export function boardFixture(mapId = "m999"): BoardProps {
   const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => 1));
   return {
     mapId,
+    title: { prefix: "Chapter 999", name: "fixture", place: "nowhere" },
     width: size,
     height: size,
     tiles: Array.from({ length: size }, () =>
