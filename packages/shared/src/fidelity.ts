@@ -518,8 +518,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "skills.timing-filter",
     label: { en: "Skill activation filters (Stand/Action/Timing/Order)", ko: "스킬 발동 필터(Stand/Action/Timing/Order) 준수" },
-    status: "absent",
-    evidence: "미준수 — 8종이 필터 무시 항상 적용(과대 방향: 月の腕輪 4종 Stand=1·血讐＋ Action=1 포함, gaps/G) · 필터 의미 범례 덤프에 없음 = 실기 표본 선행(§0 등재)",
+    status: "assumed",
+    evidence: "★Stand 축 실기 기각(2026-08-17): 見切り(Stand=1, 回避値+15+速さ*0.25) 선공 예보 vs 피격 예보의 적 명중 동일 — Stand는 자세 발동 게이트가 아님. 현행 '필터 무시 항상 적용'이 실기 정합 = 8종 과대 적용 후보(月の腕輪 4종·見切り＋ 등, gaps/G §3 G4) 기각, 엔진 무수정 · 適用 자체는 M003 간파 코퍼스로 기확증(act-values) = '양쪽 다 미적용' 배제 · Action 축은 간접 방증만 — Action=2 코호트 52행 전수 피격측 어휘(statusPoison.test.ts) = 발동 게이트가 아니라 계산 문맥 표지 해석, 직접 표본 없음(血讐＋ Action=1류) · Order·Timing 범례 여전히 덤프에 없음 — assumed 사유 = Action·Order 직접 실측 부재",
   },
   {
     id: "skills.opponent-act",
