@@ -1,5 +1,4 @@
-import type { ChapterData, DisposUnit } from "@fesim/shared";
-import chapterRaw from "../../../../data/fe17/chapters/m002.json?raw";
+import type { ChapterData, DisposUnit, MapObject } from "@fesim/shared";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -56,7 +55,22 @@ const optional = <T,>(glob: Record<string, string>): T | undefined =>
     .map((raw) => parse<T>(raw))
     .at(0);
 
-export const chapter = parse<ChapterData>(chapterRaw);
+/** 챕터 JSON은 파일이 곧 라우트다 — 새 챕터를 넣으면 페이지가 자동 생성된다. */
+const chapterGlob = import.meta.glob("../../../../data/fe17/chapters/*.json", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+}) as Record<string, string>;
+
+export const chapters: Record<string, ChapterData> = Object.fromEntries(
+  Object.entries(chapterGlob).map(([path, raw]) => [
+    path.replace(/^.*\//, "").replace(/\.json$/, ""),
+    parse<ChapterData>(raw),
+  ]),
+);
+
+export const mapIds: string[] = Object.keys(chapters).sort();
+
 export const terrain = parse<Record<string, TerrainRow>>(terrainRaw);
 export const persons = parse<Record<string, PersonRow>>(personsRaw);
 export const jobs = parse<Record<string, JobRow>>(jobsRaw);
@@ -122,6 +136,11 @@ const TILE_OVERRIDE: Record<string, string> = {
   TID_階段: "#b4aa95",
   TID_進入不可: "#151a20",
   TID_無し: "#151a20",
+  TID_床: "#a79d8b",
+  TID_壁: "#565049",
+  TID_大柱: "#6e675c",
+  TID_瓦礫: "#4b463f",
+  TID_空: "#151a20",
 };
 
 const hex = (r: number, g: number, b: number): string =>
@@ -254,23 +273,13 @@ export function toView(unit: DisposUnit, group: string, locale: Locale): UnitVie
   };
 }
 
-/** M002 국면 — 챕터별 명시(범용 규칙 추측 금지). 정식 트리거(격파 이벤트)는 M2 엔진 몫. */
-export const PHASES = [
-  { id: "1", groups: ["Player", "Enemy", "EnemyIllusion"] },
-  {
-    id: "2",
-    groups: ["Player", "Enemy2", "EnemyIllusion2_1", "EnemyIllusion2_2", "EnemyIllusion2_3"],
-  },
-] as const;
-
-/** 한 국면에만 속하면 그 국면 id, 여러 국면(또는 미분류)이면 undefined = 항상 표시. */
-export const phaseOfGroup = (group: string): string | undefined => {
-  const ids = PHASES.filter((p) => (p.groups as readonly string[]).includes(group)).map((p) => p.id);
-  return ids.length === 1 ? ids[0] : undefined;
-};
-
-export const unitsFor = (locale: Locale): UnitView[] =>
+export const unitsFor = (chapter: ChapterData, locale: Locale): UnitView[] =>
   chapter.groups.flatMap((g) => g.units.map((u) => toView(u, g.name, locale)));
+
+/** 맵 오브젝트 표시명 — tid의 메시지 라벨(MTID_Engage 등), 없으면 pid 폴백. */
+export const objectName = (locale: Locale, obj: MapObject): string =>
+  label(locale, obj.tid === undefined ? undefined : terrain[obj.tid]?.Name) ??
+  obj.pid.replace(/^PID_/, "");
 
 export interface ChapterTitle {
   prefix: string;
@@ -278,7 +287,7 @@ export interface ChapterTitle {
   place: string;
 }
 
-export const chapterTitle = (locale: Locale): ChapterTitle => {
+export const chapterTitle = (chapter: ChapterData, locale: Locale): ChapterTitle => {
   const key = chapter.cid.replace(/^CID_/, "");
   return {
     prefix: label(locale, `MCID_${key}_PREFIX`) ?? chapter.cid,

@@ -53,8 +53,23 @@ def keyed(rows: list[dict], key: str) -> dict:
     return {row[key]: row for row in rows if row.get(key)}
 
 
+MOVE_TYPES = {"None": "none", "Foot": "foot", "Horse": "horse", "Fly": "fly", "Dragon": "dragon", "Pad": "pad"}
+
+
+def terrain_costs(src: Path) -> dict:
+    """地形コスト 시트 → {CostName: TerrainCost}. 255 = 진입 불가. 통행 판정의 정본."""
+    _, rows = load_sheet(src / "gamedata" / "terrain.xml", index=1)
+    return {row["Name"]: {key: row.get(col, 0) for col, key in MOVE_TYPES.items()}
+            for row in rows if row.get("Name")}
+
+
 def build_tables(src: Path, out: Path) -> None:
+    costs = terrain_costs(src)
     _, terrain = load_sheet(src / "gamedata" / "terrain.xml")
+    for row in terrain:
+        cost = costs.get(row.get("CostName"))
+        if cost:
+            row["cost"] = cost
     write_json(out / "tables" / "terrain.json", keyed(terrain, "Tid"))
     _, jobs = load_sheet(src / "gamedata" / "job.xml")
     write_json(out / "tables" / "jobs.json", keyed(jobs, "Jid"))
@@ -86,6 +101,21 @@ def build_names(src: Path, out: Path) -> None:
 
 def expand(value: str, tail: str) -> str:
     return value.replace("*", tail)
+
+
+OBJECT_GROUP = "Terrain"
+
+
+def dispos_object(row: dict, terrain: dict) -> dict:
+    """dispos Terrain 그룹 행 → MapObject. AI/Level/Item 필드는 유닛 서식 재사용 더미라 버린다."""
+    pid = row["Pid"]
+    obj = {"pid": pid, "x": row.get("DisposX", 0), "y": row.get("DisposY", 0)}
+    tid = "TID_" + pid[len("PID_"):] if pid.startswith("PID_") else None
+    if tid in terrain:
+        obj["tid"] = tid
+    if row.get("Flag"):
+        obj["flag"] = row["Flag"]
+    return obj
 
 
 def dispos_unit(row: dict, persons: dict) -> dict:
@@ -138,24 +168,34 @@ def build_chapter(src: Path, out: Path, chapter: str) -> None:
     width, height = grid["m_Width"], grid["m_Height"]
     cells = grid["m_Terrains"]
     terrain = [[cells[y * 32 + x] for x in range(width)] for y in range(height)]
+    structures = [{"x": L["X"], "y": L["Y"], "w": L["W"], "h": L["H"], "tid": L["Attr"], "group": L["Group"]}
+                  for L in grid["m_Layers"]]
+    overlays = [{"x": O["X"], "y": O["Y"], "tid": O["Attr"]} for O in grid["m_Overlaps"]]
 
+    _, terrain_rows = load_sheet(src / "gamedata" / "terrain.xml")
+    tids = keyed(terrain_rows, "Tid")
     _, persons = load_sheet(src / "gamedata" / "person.xml")
     persons = keyed(persons, "Pid")
     dispos_name = expand(row.get("Dispos", "*"), tail).lower()
-    groups, current = [], None
+    groups, objects, current = [], [], None
     for unit_row in load_sheet(src / "dispos" / f"{dispos_name}.xml")[1]:
         if unit_row.get("Group"):
-            current = {"name": unit_row["Group"], "units": []}
-            groups.append(current)
-        if unit_row.get("Pid") and current is not None:
-            current["units"].append(dispos_unit(unit_row, persons))
+            current = unit_row["Group"]
+            if current != OBJECT_GROUP:
+                groups.append({"name": current, "units": []})
+        if not unit_row.get("Pid") or current is None:
+            continue
+        if current == OBJECT_GROUP:
+            objects.append(dispos_object(unit_row, tids))
+        else:
+            groups[-1]["units"].append(dispos_unit(unit_row, persons))
 
-    data = {
-        "game": "fe17",
-        "cid": cid,
-        "map": {"width": width, "height": height, "terrain": terrain},
-        "groups": groups,
-    }
+    chapter_map = {"width": width, "height": height, "terrain": terrain}
+    for key, value in (("structures", structures), ("overlays", overlays), ("objects", objects)):
+        if value:
+            chapter_map[key] = value
+
+    data = {"game": "fe17", "cid": cid, "map": chapter_map, "groups": groups}
     if row.get("RecommendedLevel"):
         data["recommendedLevel"] = row["RecommendedLevel"]
     write_json(out / "chapters" / f"{tail.lower()}.json", data)

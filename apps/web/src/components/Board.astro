@@ -1,24 +1,29 @@
 ---
+import type { ChapterData } from "@fesim/shared";
+import EmblemMark from "./EmblemMark.astro";
 import {
-  chapter,
   tileColorAt,
   tileName,
+  objectName,
   isBlocked,
-  phaseOfGroup,
   unitsFor,
   forceStyle,
   FLIP_X,
   FLIP_Y,
 } from "../lib/fe17";
+import { phaseOfGroup } from "../lib/phases";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
   locale: Locale;
+  mapId: string;
+  chapter: ChapterData;
 }
-const { locale } = Astro.props;
+const { locale, mapId, chapter } = Astro.props;
 const t = UI[locale];
 const map = chapter.map;
-const units = unitsFor(locale);
+const units = unitsFor(chapter, locale);
+const objects = map.objects ?? [];
 const gridRow = (y: number) => (FLIP_Y ? map.height - y : y + 1);
 const gridCol = (x: number) => (FLIP_X ? map.width - x : x + 1);
 const xs = Array.from({ length: map.width }, (_, i) => i);
@@ -44,6 +49,20 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
       }
     </div>
 
+    <div class="layer objects">
+      {
+        objects.map((o) => (
+          <span
+            class="cell"
+            style={`grid-column:${gridCol(o.x)};grid-row:${gridRow(o.y)}`}
+            title={`(${o.x}, ${o.y}) ${objectName(locale, o)}`}
+          >
+            <EmblemMark class="tile-mark" />
+          </span>
+        ))
+      }
+    </div>
+
     <div class="vignette"></div>
 
     <div class="layer units">
@@ -51,7 +70,7 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
         units.map((u) => (
           <span
             class="cell"
-            data-phase={phaseOfGroup(u.group)}
+            data-phase={phaseOfGroup(mapId, u.group)}
             style={`grid-column:${gridCol(u.unit.x)};grid-row:${gridRow(u.unit.y)};--force:${forceStyle(u.unit.force).ring}`}
           >
             {u.icon ? (
@@ -137,7 +156,8 @@ const ys = Array.from({ length: map.height }, (_, i) => i);
     grid-template-columns: repeat(var(--cols), var(--tile));
     grid-template-rows: repeat(var(--rows), var(--tile));
   }
-  .units {
+  .units,
+  .objects {
     position: absolute;
     inset: 0;
     pointer-events: none;
