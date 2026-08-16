@@ -27,15 +27,32 @@ DEFAULT_NSO = Path.home() / "fesim_data/exefs/main"
 DEFAULT_SCRIPT = Path.home() / "fesim_data/il2cpp_out/script.json"
 
 
-def load_text(nso_path):
-    """NSO0의 .text를 디컴프레스해 (blob, memoff) 반환. RVA - memoff = blob 인덱스."""
+def load_segments(nso_path):
+    """NSO0의 text/rodata/data를 디컴프레스해 [(memoff, blob)] 반환(VA 순)."""
     raw = nso_path.read_bytes()
     flags = struct.unpack_from("<I", raw, 0xC)[0]
-    file_off, mem_off, dec_size = struct.unpack_from("<III", raw, 0x10)
-    comp_size = struct.unpack_from("<I", raw, 0x60)[0]
-    seg = raw[file_off : file_off + comp_size]
-    blob = lz4.block.decompress(seg, uncompressed_size=dec_size) if flags & 1 else seg[:dec_size]
+    segs = []
+    for i in range(3):
+        file_off, mem_off, dec_size = struct.unpack_from("<III", raw, 0x10 + i * 0x10)
+        comp_size = struct.unpack_from("<I", raw, 0x60 + i * 4)[0]
+        chunk = raw[file_off : file_off + comp_size]
+        blob = lz4.block.decompress(chunk, uncompressed_size=dec_size) if flags & (1 << i) else chunk[:dec_size]
+        segs.append((mem_off, blob))
+    return segs
+
+
+def load_text(nso_path):
+    mem_off, blob = load_segments(nso_path)[0]
     return blob, mem_off
+
+
+def read_va(segs, va, length):
+    """VA에서 length 바이트. 상수(계수·테이블) 판독용 — .rodata/.data 포함."""
+    for mem_off, blob in segs:
+        if mem_off <= va < mem_off + len(blob):
+            off = va - mem_off
+            return blob[off : off + length]
+    return None
 
 
 def load_symbols(script_path):
@@ -63,9 +80,27 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("target", help="RVA(0x…) 또는 메서드명 일부")
     ap.add_argument("--count", type=int, default=80, help="최대 명령 수(기본 80)")
+    ap.add_argument("--read", type=int, default=0, metavar="LEN",
+                    help="디스어셈블 대신 그 VA에서 LEN바이트를 상수로 해석(계수·테이블 판독)")
     ap.add_argument("--nso", type=Path, default=DEFAULT_NSO)
     ap.add_argument("--script", type=Path, default=DEFAULT_SCRIPT)
     args = ap.parse_args()
+
+    if args.read:
+        va = int(args.target, 16)
+        data = read_va(load_segments(args.nso), va, args.read)
+        if data is None:
+            sys.exit(f"VA {va:#x}가 어느 세그먼트에도 없다")
+        print(f"{va:#x}  hex={data.hex()}")
+        for off in range(0, len(data) - 3, 4):
+            u32, = struct.unpack_from("<I", data, off)
+            i32, = struct.unpack_from("<i", data, off)
+            f32, = struct.unpack_from("<f", data, off)
+            print(f"  +{off:<4} u32={u32:<12} i32={i32:<12} f32={f32:g}")
+        for off in range(0, len(data) - 7, 8):
+            f64, = struct.unpack_from("<d", data, off)
+            print(f"  +{off:<4} f64={f64:g}")
+        return
 
     symbols = load_symbols(args.script)
 
