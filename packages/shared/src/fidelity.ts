@@ -363,6 +363,18 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "内部レベル計算 = clamp(内部レベル+레벨-1, 0, 난이도별 50/40/30) — 엔진 미호출(gaps/A §0-2)",
   },
   {
+    id: "units.move-enhance",
+    label: { en: "Move stat bonuses (EnhanceValue.Move)", ko: "이동력 보정(EnhanceValue.Move)" },
+    status: "absent",
+    evidence: "6종 — ENHANCE_FIELDS에 move 부재(gaps/G)",
+  },
+  {
+    id: "units.difficulty-skills",
+    label: { en: "Per-difficulty skill sets (Normal/Hard/LunaticSids)", ko: "난이도별 스킬(Normal/Hard/LunaticSids)" },
+    status: "absent",
+    evidence: "수집 자체 안 함 — 루나틱 23종/162인(gaps/G) · 브레이크 면역 41인물 실배선 포함(§0 등재)",
+  },
+  {
     id: "units.difficulty-scaling",
     label: { en: "Per-difficulty levels and stats from dispos", ko: "난이도별 레벨·스탯(dispos·Offset)" },
     status: "anchored",
@@ -386,13 +398,37 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.act-values",
     label: { en: "Combat value modifiers (ActNames DSL)", ko: "계산값 보정(ActNames DSL — 소수 유지·표시 내림)" },
     status: "anchored",
-    evidence: "M003 간파 corpus.test.ts",
+    evidence: "M003 간파 corpus.test.ts · 적용 범위 = 자기 측 calculator 값 이름 훅만(相手の~·원시 스탯·발동 필터는 별건 항목, gaps/G)",
+  },
+  {
+    id: "skills.timing-filter",
+    label: { en: "Skill activation filters (Stand/Action/Timing/Order)", ko: "스킬 발동 필터(Stand/Action/Timing/Order) 준수" },
+    status: "absent",
+    evidence: "미준수 — 8종이 필터 무시 항상 적용(과대 방향: 月の腕輪 4종 Stand=1·血讐＋ Action=1 포함, gaps/G) · 필터 의미 범례 덤프에 없음 = 실기 표본 선행(§0 등재)",
+  },
+  {
+    id: "skills.opponent-act",
+    label: { en: "Opponent-side value modifiers", ko: "상대측 계산값 보정(相手の~ ActName)" },
+    status: "absent",
+    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(gaps/G) · 부호 해석은 gaps/A §7-1과 동건",
+  },
+  {
+    id: "skills.raw-stat-act",
+    label: { en: "Raw-stat ActNames bypass hooks", ko: "원시 스탯 ActName(힘·마력 등 직접 보정)" },
+    status: "absent",
+    evidence: "11종 — vars 즉시 반환 경로라 훅 미도달(gaps/G)",
+  },
+  {
+    id: "skills.sync-sids",
+    label: { en: "SyncSids/SyncConditions expansion", ko: "SyncSids·SyncConditions 전개" },
+    status: "absent",
+    evidence: "28종 미전개 — 브레이크 면역 _効果 실배선도 이 층 소관(gaps/G · FIX_NOTES F2 파생)",
   },
   {
     id: "skills.condition-fallback",
     label: { en: "Unsupported skill conditions safely skip", ko: "평가 불가 조건 = 미적용 안전 강하" },
     status: "implemented",
-    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts, 열거 상수 예외 포함 — gaps/FIX_NOTES F5) · 조건 어휘 전수 = gaps/C §6",
+    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts, 열거 상수 예외 포함 — gaps/FIX_NOTES F5) · 조건 어휘 전수 = gaps/C §6 · 발동 필터 축은 별건 = skills.timing-filter",
   },
   {
     id: "skills.give-sids",
@@ -442,7 +478,19 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.engage-kit",
     label: { en: "Engage weapons and engage skills", ko: "엠블렘 무기·인게이지 기술" },
     status: "deferred",
-    evidence: "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · §0 미룸(M2 이월)",
+    evidence: "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · 스타일 분기 문장사 = ベレト·チキ 2종(相手판은 GrowTable 공유 — gaps/F 정정) · §0 미룸(M2 이월)",
+  },
+  {
+    id: "emblem.bond-ring",
+    label: { en: "Bond rings (stats, S-rank skills)", ko: "絆지환(스탯 보정·S랭크 스킬)" },
+    status: "absent",
+    evidence: "ring.xml 487행 정식화 — 정규 12문장사만 세트 보유(DLC 0건 덤프 확정) · S랭크 EquipSids 28행 전부 Rank=3(gaps/F)",
+  },
+  {
+    id: "emblem.inheritance",
+    label: { en: "Skill inheritance (cost, availability)", ko: "스킬 계승(비용·가능 여부)" },
+    status: "absent",
+    evidence: "skill.xml InheritanceCost/Sort 필드 확인 · 리유르만 계승 불가(InheritanceSkills 21행 공란, gaps/F)",
   },
   {
     id: "emblem.crest-tile",
@@ -474,7 +522,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "weapons.forge-engrave",
     label: { en: "Forging and engraving bonuses", ko: "연성·각인 보정" },
     status: "absent",
-    evidence: "3계통 정식화 — 錬成 552행·進化 114행·エンゲージ武器強化 260행(gaps/B §3) · 각인(刻印) 데이터는 미조사",
+    evidence: "3계통 정식화 — 錬成 552행·進化 114행·エンゲージ武器強化 65종×3단계(gaps/B §3, F) · 각인(刻印) = god.xml 神将 시트 소유(22행 채움, gaps/F)",
   },
 
   // ── 턴 구조 ──
