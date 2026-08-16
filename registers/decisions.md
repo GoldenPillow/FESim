@@ -32,3 +32,4 @@
 - 2026-08-16 ☠통행 판정 정본 = CostName→地形コスト(이동타입별, 255=불가). Prohibition(戦闘禁止)은 통행성 아님(전수 반증) — 엔진 구현 시 필수 준수
 - 2026-08-16 특수 요소 4층 구조 확정: 베이스 TID · m_Layers(구조물) · m_Overlaps(오버레이) · dispos 紋章氣 + Lua 상호작용. 스키마에 4층 전부 반영(shared)
 - 2026-08-16 적용 0단계 범위: M003 검증(紋章氣 1개), structures/overlays/objects 파이프라인 반영. [미룸] Lua 상호작용 추출기·렌더 = M004(민가·상자 실재 맵) 렌더 시점 · [미룸] 미니맵 아이콘 원본 = romfs 전체 덤프 ui/bmap 계열 추가 추출 필요 시
+- 2026-08-16 배포 채널 개편(승인): main 머지 = 버전 업로드만(beta-fesim 별칭 = 관리자 베타, 스테이블 불변) · 스테이블 = ./dev promote 승격(재빌드 없음, 버전ID 선택 가능·생략 시 최신) · 롤백 = 이전 버전 재승격. CF 배포 명령 = versions upload --preview-alias beta

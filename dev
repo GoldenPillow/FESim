@@ -36,5 +36,8 @@ case "$cmd" in
   transform) shift; "$PY" tools/pipeline/transform.py "$@" ;;
   verify)   shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
   bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
+  promote)  shift
+            ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
+            npx wrangler versions deploy "$ID@100%" -y ;;
   *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify|bake"; exit 2 ;;
 esac
