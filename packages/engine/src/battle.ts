@@ -1,3 +1,4 @@
+import type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
@@ -56,7 +57,7 @@ export interface BattleMap {
   terrain?: { avoid: number; def: number }[][];
 }
 
-export type Difficulty = "n" | "h" | "l";
+export type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
 
 export interface GameState {
   turn: number;
@@ -69,23 +70,6 @@ export interface GameState {
   /** 직전 행동의 이벤트(휘발) — 리플레이 정본은 행동 로그다. */
   events: BattleEvent[];
 }
-
-export type StrikeKind = "attack" | "counter" | "followUp" | "counterFollowUp" | "chain";
-
-export type BattleEvent =
-  | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
-  | { type: "break"; unit: string }
-  | { type: "death"; unit: string }
-  | { type: "exp"; unit: string; amount: number; total: number }
-  | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }
-  | { type: "phase"; phase: number; turn: number }
-  | { type: "outcome"; outcome: "victory" | "defeat" };
-
-export type BattleAction =
-  | { type: "move"; unit: string; x: number; y: number }
-  | { type: "attack"; unit: string; target: string }
-  | { type: "wait"; unit: string }
-  | { type: "endPhase" };
 
 export type Advantage = 1 | 0 | -1;
 
