@@ -34,3 +34,5 @@
 - 2026-08-16 적용 0단계 범위: M003 검증(紋章氣 1개), structures/overlays/objects 파이프라인 반영. [미룸] Lua 상호작용 추출기·렌더 = M004(민가·상자 실재 맵) 렌더 시점 · [미룸] 미니맵 아이콘 원본 = romfs 전체 덤프 ui/bmap 계열 추가 추출 필요 시
 - 2026-08-16 배포 채널 개편(승인): main 머지 = 버전 업로드만(beta-fesim 별칭 = 관리자 베타, 스테이블 불변) · 스테이블 = ./dev promote 승격(재빌드 없음, 버전ID 선택 가능·생략 시 최신) · 롤백 = 이전 버전 재승격. CF 배포 명령 = versions upload --preview-alias beta
 - 2026-08-16 rules/ 폴더 신설(상주 규약 문서 층 — design/ 수명 체계와 별개) · 첫 문서 rules/deploy.md = 배포 채널·승격 프로세스 정본, CLAUDE.md 배선
+- 2026-08-16 플랜 §0 진행 체크리스트 = todo 정본(M0·M1·M1.5·배포체계 체크 완료, 다음 = M2) · 마감(clear 준비) 절차 CLAUDE.md 등재
+- 2026-08-16 rules/design-lifecycle.md 신설 — 설계 문서 = todo, 완료 시 코드 흡수 후 design/에서 삭제(gc가 archive 이송), doccheck 집행

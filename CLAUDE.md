@@ -34,6 +34,8 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 - 배포: **main 머지 = 베타 게시(스테이블 불변) · 스테이블 = 명시 지시 시 ./dev promote** —
   ☠채널 주소·흐름·CF 설정의 정본 = `rules/deploy.md` (규약이 커지면 rules/에 주제별 분리)
 - 새 스크립트·워커·cron은 package.json scripts 또는 ./dev에 반드시 등재(고아 금지)
+- 마감(clear 준비) 지시 시: 플랜 §0 체크리스트·decisions 갱신 → ./dev done → main 병합(베타 게시) →
+  beta 브랜치 동기화 → 작업트리 클린 확인 → 보고. 이 상태여야 /clear 안전
 - ★모델 티어링: 설계·계획 문서 작업은 Fable 고정 · 서브에이전트 = Opus(난제 구현)/
   Sonnet(통상·기본값)/Haiku(기계적) — ☠퀄리티 저하 금지, 애매하면 상위. 새 모델 출시 시 표만 갱신(역할 불변)
 
@@ -43,6 +45,6 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 | 룰 엔진·AI | packages/engine/src/ 해당 모듈 · tests/ · design/의 building 문서 |
 | 데이터 파이프라인 | tools/pipeline/ 머리말 · data/ 산출 스키마(shared 타입) |
 | 공유 킷·배포 | rules/deploy.md(채널·승격) · workers/api/ (M3~) · apps/web/src/islands/ |
-| 계획·이력 | design/fesim_plan.md(목차만 열기) · registers/decisions.md(최신부터) |
+| 계획·이력 | design/fesim_plan.md(§0 체크리스트 = todo 정본) · registers/decisions.md(최신부터) · rules/design-lifecycle.md |
 
 *결정 변경 시 이 파일 + registers/decisions.md 동시 갱신. ☠이 파일에 상태·수치 박제 금지.*
