@@ -81,6 +81,100 @@ export function movementRange(query: MoveQuery): ReachableTile[] {
   return tiles;
 }
 
+interface PathState {
+  x: number;
+  y: number;
+  /** NEIGHBORS 인덱스. -1 = 시작(첫걸음은 꺾임이 아니다). */
+  dir: number;
+  cost: number;
+  turns: number;
+}
+
+/**
+ * 시작 → dest 경로 (타일 열, 시작 포함). 도달 불가·정지 불가 목적지는 null.
+ * 최소 코스트가 규칙이고, 동코스트면 꺾임 최소 — 인게임 화살표처럼 직선을 선호해야 오독이 없다.
+ */
+export function movementPath(query: MoveQuery, dest: Tile): Tile[] | null {
+  const { width, height, movePoints, start } = query;
+  if (dest.x < 0 || dest.y < 0 || dest.x >= width || dest.y >= height) return null;
+  if (dest.x === start.x && dest.y === start.y) return [{ x: start.x, y: start.y }];
+  if (query.blocked?.(dest.x, dest.y) || query.occupied?.(dest.x, dest.y)) return null;
+  if (query.costAt(dest.x, dest.y) >= IMPASSABLE) return null;
+
+  const stateKey = (x: number, y: number, dir: number) => (y * width + x) * 5 + dir + 1;
+  const best = new Map<number, [number, number]>();
+  const prev = new Map<number, number>();
+  const heap: PathState[] = [];
+  const less = (a: PathState, b: PathState) => a.cost < b.cost || (a.cost === b.cost && a.turns < b.turns);
+  const push = (s: PathState) => {
+    heap.push(s);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!less(heap[i], heap[parent])) break;
+      [heap[i], heap[parent]] = [heap[parent], heap[i]];
+      i = parent;
+    }
+  };
+  const pop = (): PathState => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        let smallest = i;
+        for (const child of [i * 2 + 1, i * 2 + 2]) {
+          if (child < heap.length && less(heap[child], heap[smallest])) smallest = child;
+        }
+        if (smallest === i) break;
+        [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+        i = smallest;
+      }
+    }
+    return top;
+  };
+
+  const startState: PathState = { x: start.x, y: start.y, dir: -1, cost: 0, turns: 0 };
+  best.set(stateKey(start.x, start.y, -1), [0, 0]);
+  push(startState);
+  while (heap.length > 0) {
+    const s = pop();
+    const k = stateKey(s.x, s.y, s.dir);
+    const record = best.get(k)!;
+    if (record[0] !== s.cost || record[1] !== s.turns) continue;
+    if (s.x === dest.x && s.y === dest.y) {
+      const path: Tile[] = [];
+      let cursor: number | undefined = k;
+      while (cursor !== undefined) {
+        const cell = Math.floor(cursor / 5);
+        path.push({ x: cell % width, y: Math.floor(cell / width) });
+        cursor = prev.get(cursor);
+      }
+      return path.reverse();
+    }
+    for (let i = 0; i < NEIGHBORS.length; i++) {
+      const [dx, dy] = NEIGHBORS[i];
+      const x = s.x + dx;
+      const y = s.y + dy;
+      if (x < 0 || y < 0 || x >= width || y >= height) continue;
+      if (query.blocked?.(x, y)) continue;
+      const enter = query.costAt(x, y);
+      if (enter >= IMPASSABLE) continue;
+      const cost = s.cost + enter;
+      if (cost > movePoints) continue;
+      const turns = s.turns + (s.dir !== -1 && s.dir !== i ? 1 : 0);
+      const nk = stateKey(x, y, i);
+      const known = best.get(nk);
+      if (known && (known[0] < cost || (known[0] === cost && known[1] <= turns))) continue;
+      best.set(nk, [cost, turns]);
+      prev.set(nk, k);
+      push({ x, y, dir: i, cost, turns });
+    }
+  }
+  return null;
+}
+
 /** 정지 가능 타일들에서 맨해튼 사거리 [rangeMin, rangeMax] 링의 합집합. */
 export function attackRange(
   standTiles: readonly Tile[],

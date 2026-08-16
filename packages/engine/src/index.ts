@@ -24,6 +24,7 @@ export function reduce(state: GameState, _action: Action, _rng: RandomSource): G
 
 export {
   attackRange,
+  movementPath,
   movementRange,
   IMPASSABLE,
   MOVE_TYPES,
