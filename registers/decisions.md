@@ -56,3 +56,5 @@
 - 2026-08-16 M3 SSR = @astrojs/cloudflare 어댑터(단일 워커, /s/만 prerender=false, 나머지 SSG 유지) · KV 베타/스테이블 공유 수용(버전 승격 모델의 구조적 제약, 링크 레코드 불변이라 무해) · 배포 흐름(versions upload·promote) 불변 — CF 문서 검증
 - 2026-08-16 리플레이 기록 = rolls+events 병기: 재생 정본 = events 절대값 적용(applyStep — 공식 변경에도 열람 불변), rolls는 verify(reduce 재계산 대조) 전용 · RULE_VERSION = 게임별 시퀀스(fe17-1)
 - 2026-08-16 M3 세부: .eph 내보내기 최소형(기보 복사 버튼) 포함 · Zustand vanilla 도입(Immer는 M4 보류) · 전투 타입(BattleAction/Event 등) shared 이사+engine 재수출 · 리플레이 중 난이도·국면 잠금 · /s/ 로케일 = ?l= 명시(기본 en)
+- 2026-08-16 [변경] 게이트 경계 재확정(사용자): 무계정 = 열람·제작·기보 입출력·로컬 보관함(재방문 심리스 복구·이어 플레이) · 링크 공유(서버 게시·짧은 링크 발급) = 로그인 필요 — 2026-08-15 "무계정 공유+Turnstile 발급" 대체. better-auth+D1은 M4 편입, 발급용 Turnstile 폐기(로그인 계층 어뷰즈 발현 시 재검토)
+- 2026-08-16 게스트 로컬 보관 = localStorage 시작(오리진당 ~5MB급, 기보 설계 목표 수십 KB/챕터 — 실측은 M3 샘플로), 저장 계층 함수 격리로 IndexedDB 승격 여지 · 유실 한계(브라우저 정리·Safari 7일 정책) 정직 표기 = 로그인 가치 근거 · 유저 기보 서버 아카이빙 = T1, 레이트·랭킹 = 미결 유지

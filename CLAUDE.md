@@ -5,14 +5,14 @@
 
 ## 컨셉 한 줄
 FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간판, 종합 공략 허브가 몸체.
-철학 = 게이트 제로: 무계정으로 열람·제작·공유 전부 가능. 로그인(소셜)은 업그레이드.
+철학 = 게이트 제로(열람·제작·로컬 보관은 무계정) · 링크 공유·서버 게시는 로그인(소셜).
 
 ## 확정 (Locked)
 | 항목 | 결정 |
 |---|---|
 | 표기 | 항상 `FESim` (FEsim·FE Sim 금지) · UI 라벨은 기능명(시뮬레이터), 천체 코드네임은 내부용 |
 | 스택 | Astro SSG + React 아일랜드 + Tailwind v4 + TS strict + Zustand/Immer + pnpm + Vitest |
-| 백엔드 | CF Workers 정적 에셋(현행 배포, wrangler.jsonc) → +KV/R2/D1+Turnstile (M3~) · 서버 LLM ☠금지 |
+| 백엔드 | CF Workers 정적 에셋(현행 배포, wrangler.jsonc) → +KV (M3) → +D1/R2+better-auth(공유 게시=로그인) (M4~) · 서버 LLM ☠금지 |
 | 성능 | ★열람 경로만 릴리즈 게이트: LCP<1s(4G)·INP<100ms·포커스모드 JS≤100KB — 제작 경로는 관대 |
 | 데이터 | data/ = 파이프라인 산출물(git 포함) · romfs 원본·추출본 = 저장소 밖 ~/fesim_data (data/staging = 심링크, git 제외) |
 | 타이틀 중립 | URL·데이터·기보에 게임ID(fe17) 네임스페이스 — 전 시리즈 확장 전제 |
