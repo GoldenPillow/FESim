@@ -85,6 +85,36 @@ describe("이동", () => {
     const enemyTurn = state([unit({ id: "a", force: 0, x: 0, y: 0 })], 1);
     expect(() => reduce(enemyTurn, { type: "move", unit: "a", x: 1, y: 0 }, alwaysHit)).toThrow();
   });
+
+  it("활성화당 이동은 1회 — 재이동은 거부하고, 페이즈가 돌아오면 다시 이동한다", () => {
+    // 왜 위험한가: 이동이 moved를 안 남기면 "이동 → 그 자리에서 또 최대사거리 이동"이 합법이 되어
+    // 이동력 제한이 무의미해진다(2026-08-16 베타 실기 발견). 기보에도 불법 수순이 박제된다.
+    const s = state([unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword })]);
+    const moved = reduce(s, { type: "move", unit: "a", x: 2, y: 1 }, alwaysHit);
+    expect(() => reduce(moved, { type: "move", unit: "a", x: 4, y: 1 }, alwaysHit)).toThrow();
+    const waited = reduce(moved, { type: "wait", unit: "a" }, alwaysHit);
+    expect(() => reduce(waited, { type: "move", unit: "a", x: 3, y: 1 }, alwaysHit)).toThrow(); // 재이동 스킬 없음
+    const nextRound = reduce(waited, { type: "endPhase" }, alwaysHit);
+    expect(() => reduce(nextRound, { type: "move", unit: "a", x: 3, y: 1 }, alwaysHit)).not.toThrow();
+  });
+
+  it("재이동(시구르드): 행동 후 Power칸 1회 — 거리 정본 = skills.json Power", () => {
+    // 왜 위험한가: 공식 도움말 "행동 후 2칸(재이동)/3칸(재이동+)" — 남은 이동력이 아니다.
+    // 수기 상수로 박으면 재이동+와 어긋난다(Power가 정본). 행동 전 재이동 금지·창당 1회도 함께 박제.
+    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+    const s = state([unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: canter })]);
+    const moved = reduce(s, { type: "move", unit: "a", x: 2, y: 0 }, alwaysHit);
+    const acted = reduce(moved, { type: "wait", unit: "a" }, alwaysHit);
+    expect(() => reduce(acted, { type: "move", unit: "a", x: 5, y: 0 }, alwaysHit)).toThrow(); // 3칸 > Power 2
+    const canted = reduce(acted, { type: "move", unit: "a", x: 4, y: 0 }, alwaysHit);
+    expect(canted.units[0]).toMatchObject({ x: 4, y: 0 });
+    expect(() => reduce(canted, { type: "move", unit: "a", x: 5, y: 0 }, alwaysHit)).toThrow(); // 재이동은 1회
+    // 재이동+ = Power 3
+    const plus = [{ Sid: "SID_再移動＋", Power: 3 }];
+    const s2 = state([unit({ id: "b", force: 0, x: 0, y: 0, weapon: sword, skills: plus })]);
+    const acted2 = reduce(s2, { type: "wait", unit: "b" }, alwaysHit);
+    expect(reduce(acted2, { type: "move", unit: "b", x: 3, y: 0 }, alwaysHit).units[0]).toMatchObject({ x: 3, y: 0 });
+  });
 });
 
 describe("전투 해결", () => {

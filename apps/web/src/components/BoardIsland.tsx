@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   attackRange,
+  canterPower,
   forecastSide,
   movementPath,
   movementRange,
@@ -114,13 +115,19 @@ export default function BoardIsland(props: BoardProps) {
   const target = targetId === undefined ? undefined : alive.find((u) => u.id === targetId);
 
   const range = useMemo(() => {
-    if (selected === undefined || selected.acted) return undefined;
+    if (selected === undefined) return undefined;
+    // 이동 예산 = 엔진과 동일 규칙: 행동 전 = 이동력 1회(이동 후엔 0 — 제자리 공격만) ·
+    // 행동 후 = 재이동(시구르드) Power 1회, 없으면 범위 없음.
+    let budget: number;
+    if (!selected.acted) budget = selected.moved === true ? 0 : selected.movePoints;
+    else if (selected.moved !== true && canterPower(selected) !== undefined) budget = canterPower(selected)!;
+    else return undefined;
     const grid = game.map.costs[selected.moveType];
     if (grid === undefined) return undefined;
     const query: MoveQuery = {
       width,
       height,
-      movePoints: selected.movePoints,
+      movePoints: budget,
       start: { x: selected.x, y: selected.y },
       costAt: (x, y) => grid[y]?.[x] ?? 255,
       blocked: (x, y) => {
@@ -134,7 +141,7 @@ export default function BoardIsland(props: BoardProps) {
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
-    const rangeMax = selected.weapon?.rangeMax ?? 0;
+    const rangeMax = selected.acted ? 0 : selected.weapon?.rangeMax ?? 0; // 재이동 창엔 공격 없음
     const ring = rangeMax > 0 ? attackRange(move, selected.weapon!.rangeMin, rangeMax, width, height) : [];
     const attackAll = new Set(ring.map((t) => tileKey(t.x, t.y)));
     const attack = ring.filter((t) => !moveSet.has(tileKey(t.x, t.y)));
@@ -238,7 +245,8 @@ export default function BoardIsland(props: BoardProps) {
         if (clicked.id === targetId && canAttack) {
           const next = dispatch({ type: "attack", unit: selected.id, target: clicked.id });
           if (next !== game) {
-            setSelectedId(undefined);
+            // 재이동(시구르드) 보유면 선택을 유지해 행동 후 이동 창을 이어준다.
+            if (canterPower(selected) === undefined) setSelectedId(undefined);
             setTargetId(undefined);
           }
           return;
@@ -250,18 +258,22 @@ export default function BoardIsland(props: BoardProps) {
         // 자기 자신 재클릭 = 대기 (인게임 문법 근사)
         if (!clicked.acted && clicked.force === game.phase) {
           dispatch({ type: "wait", unit: clicked.id });
-          setSelectedId(undefined);
+          if (canterPower(clicked) === undefined) setSelectedId(undefined);
           setTargetId(undefined);
           return;
         }
       }
-      setSelectedId(clicked.force === game.phase && !clicked.acted ? clicked.id : undefined);
+      // 행동 완료 유닛도 재이동 창이 남아 있으면 선택 가능(범위 계산이 예산을 판정).
+      const canterReady = clicked.acted && clicked.moved !== true && canterPower(clicked) !== undefined;
+      setSelectedId(clicked.force === game.phase && (!clicked.acted || canterReady) ? clicked.id : undefined);
       setTargetId(undefined);
       return;
     }
 
     if (selected !== undefined && range?.moveSet.has(key) === true) {
-      dispatch({ type: "move", unit: selected.id, x, y });
+      const next = dispatch({ type: "move", unit: selected.id, x, y });
+      // 재이동 이동을 마치면 이 활성화는 끝 — 선택 해제로 마무리.
+      if (selected.acted && next !== game) setSelectedId(undefined);
       setTargetId(undefined);
       return;
     }

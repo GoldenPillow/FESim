@@ -13,11 +13,11 @@ const props = boardFixture();
 describe("dispatch 기보 누적", () => {
   it("행동마다 스텝 1건 — 이동은 롤 무소비, 공격은 롤·이벤트 병기", () => {
     const store = createBoardStore(props);
-    store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 2 });
+    // 이동은 활성화당 1회(엔진 룰) — 한 번에 공격 인접 위치로 간다.
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
     expect(store.getState().recording).toHaveLength(1);
-    expect(store.getState().recording[0]).toEqual({ action: { type: "move", unit: "u0", x: 1, y: 2 } });
+    expect(store.getState().recording[0]).toEqual({ action: { type: "move", unit: "u0", x: 2, y: 2 } });
 
-    store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 1 });
     const attacked = store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
     const last = store.getState().recording.at(-1)!;
     expect(last.action).toEqual({ type: "attack", unit: "u0", target: "u1" });

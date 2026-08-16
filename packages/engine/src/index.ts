@@ -5,6 +5,7 @@
  */
 export {
   createReducer,
+  canterPower,
   weaponAdvantage,
   type Advantage,
   type BattleAction,

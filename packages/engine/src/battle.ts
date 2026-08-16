@@ -48,6 +48,24 @@ export interface UnitState {
   acted: boolean;
   dead: boolean;
   broken: boolean;
+  /**
+   * 이 창(행동 전/후 각각)에서 이미 이동했는가 — 부재 = false.
+   * 행동(공격·대기)이 false로 리셋해 재이동(시구르드) 창을 열고, 페이즈 복귀 시에도 리셋.
+   */
+  moved?: boolean;
+}
+
+/**
+ * 재이동(시구르드 싱크로) 이동 칸수 — 행동 후에만 유효, 없으면 undefined.
+ * 거리 정본 = skills.json Power(재이동=2·재이동+=3, 공식 도움말 실측 일치). 지형 코스트 적용은 가정(실기 반증 시 갱신).
+ */
+export function canterPower(u: UnitState): number | undefined {
+  let best: number | undefined;
+  for (const s of u.skills ?? []) {
+    if (!s.Sid.startsWith("SID_再移動")) continue;
+    if (typeof s.Power === "number" && (best === undefined || s.Power > best)) best = s.Power;
+  }
+  return best;
 }
 
 export interface BattleMap {
@@ -134,13 +152,21 @@ export function createReducer(calc: Calculator) {
     switch (action.type) {
       case "move": {
         const u = require(action.unit);
-        assertActable(u);
+        if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
+        if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
+        // 이동 예산: 행동 전 = 이동력 1회 · 행동 후 = 재이동(시구르드) 보유 시 Power칸 1회.
+        let budget = u.movePoints;
+        if (u.acted) {
+          const canter = canterPower(u);
+          if (canter === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
+          budget = canter;
+        }
         const grid = state.map.costs[u.moveType];
         if (grid === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
         const reachable = movementRange({
           width: state.map.width,
           height: state.map.height,
-          movePoints: u.movePoints,
+          movePoints: budget,
           start: { x: u.x, y: u.y },
           costAt: (x, y) => grid[y]?.[x] ?? 255,
           blocked: (x, y) => {
@@ -157,6 +183,7 @@ export function createReducer(calc: Calculator) {
         }
         u.x = action.x;
         u.y = action.y;
+        u.moved = true;
         break;
       }
 
@@ -164,6 +191,7 @@ export function createReducer(calc: Calculator) {
         const u = require(action.unit);
         assertActable(u);
         u.acted = true;
+        u.moved = false; // 행동이 재이동(시구르드) 창을 연다
         break;
       }
 
@@ -239,6 +267,7 @@ export function createReducer(calc: Calculator) {
         if (defF.followUp && canCounter()) strike(defender, attacker, "counterFollowUp", defF);
 
         attacker.acted = true;
+        attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
 
         // 경험치: 자군만(적/우군 성장은 재현 대상 아님 — 인게임 문법).
         if (attacker.force === 0 && !attacker.dead) {
@@ -282,7 +311,7 @@ export function createReducer(calc: Calculator) {
             phase: nextForce,
             turn: wrapped && nextForce === forces[0] ? state.turn + 1 : state.turn,
             units: units.map((u) =>
-              u.force === nextForce ? { ...u, acted: false, broken: false } : u,
+              u.force === nextForce ? { ...u, acted: false, broken: false, moved: false } : u,
             ),
             events: [{ type: "phase", phase: nextForce, turn: state.turn }],
           };

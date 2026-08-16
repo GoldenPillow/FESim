@@ -13,7 +13,7 @@ import type { GameState, RandomSource, UnitState } from "./battle.js";
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-1";
+export const RULE_VERSION = "fe17-2";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -160,7 +160,9 @@ function applyEvents(
         break;
     }
   }
-  require(action.unit).acted = true;
+  const actor = require(action.unit);
+  actor.acted = true;
+  actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
   return { ...state, units, events: [...events], outcome };
 }
 

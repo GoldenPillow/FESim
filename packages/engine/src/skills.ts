@@ -17,6 +17,8 @@ export interface SkillRow {
   ActValues?: string[];
   GiveSids?: string[];
   GiveTarget?: number;
+  /** 재이동(SID_再移動*)에서는 이동 칸수 — 공식 도움말 "행동 후 N칸"과 일치(실측). */
+  Power?: number;
   Target?: number;
   RangeI?: number;
   RangeO?: number;
