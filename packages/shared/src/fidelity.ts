@@ -293,7 +293,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: 1스택 = +3(reference/screens poison_damage_1~2, 사용자 실측 2026-08-17 — skill.xml '+1' 스택당 해석 반증) ·사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) ·사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
   },
   {
     id: "combat.staff-hit",
@@ -483,7 +483,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.opponent-act",
     label: { en: "Opponent-side value modifiers", ko: "상대측 계산값 보정(相手の~ ActName)" },
     status: "absent",
-    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(gaps/G) · 부호 해석은 gaps/A §7-1과 동건",
+    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건",
   },
   {
     id: "skills.raw-stat-act",
