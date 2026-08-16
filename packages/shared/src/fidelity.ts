@@ -44,7 +44,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "movement.range-terrain-cost",
     label: { en: "Movement range from terrain cost (255 = impassable)", ko: "지형 코스트 이동 범위(255 = 진입 불가)" },
     status: "anchored",
-    evidence: "정본 = 地形コスト(Prohibition 전수 반증, decisions 2026-08-16) · range.test.ts",
+    evidence:
+      "정본 = 地形コスト(Prohibition 전수 반증, decisions 2026-08-16) · range.test.ts · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A): 진입 불가 = 코스트 255 단독(TerrainCostData.IsNoMove)·이동타입 열 순서 None/Foot/Horse/Fly/Dragon/Pad·파동 BFS·완화·예산 컷 전부 range.ts와 일치(40규칙 대조표 1~9행) · ☠잔여 결손 = TerrainCostData.GetCost(RVA 0x21E2A20)의 오버레이 가산층 `+ (비행·용 ? overlay.FlyCost : overlay.MoveCost)` 미배선(설치물 = movement.overlay 소관은 turn.map-gimmicks MapOverlap) · 코스트 무시 스킬 MoveCostFree(1<<34)도 미배선",
   },
   {
     id: "movement.once-per-activation",
