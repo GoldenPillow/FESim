@@ -35,6 +35,7 @@ export const FIDELITY_CATEGORIES: readonly FidelityCategory[] = [
   { id: "emblem", label: { en: "Emblems & Engage", ko: "엠블렘·인게이지" } },
   { id: "weapons", label: { en: "Weapons & Items", ko: "무기·아이템" } },
   { id: "turn", label: { en: "Turn Structure", ko: "턴 구조" } },
+  { id: "ai", label: { en: "Enemy AI Data", ko: "적 AI 데이터" } },
 ];
 
 export const FIDELITY: readonly FidelityEntry[] = [
@@ -92,6 +93,12 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Structures (doors, walls) affect passability", ko: "구조물(문·벽) 통행 반영" },
     status: "deferred",
     evidence: "M005 구조물 렌더 시점(§0 미룸)",
+  },
+  {
+    id: "movement.multi-tile-unit",
+    label: { en: "Multi-tile units (BmapSize)", ko: "다칸 유닛(BmapSize)" },
+    status: "absent",
+    evidence: "BmapSize != 1 31행(대형 보스) — 단위 범례는 덤프에 없음(gaps/H)",
   },
   {
     id: "movement.warp",
@@ -165,8 +172,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.crit-multiplier",
     label: { en: "Critical = 3x damage", ko: "필살 = 데미지 3배" },
-    status: "assumed",
-    evidence: "calculator 52식 전수에 필살 배수 없음(威力計算 = max(攻撃力-防御力,0), gaps/A §6-4) — 3배는 실행파일 영역 가정",
+    status: "anchored",
+    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) — calculator엔 배수 없음(적용은 실행파일, gaps/A §6-4)",
   },
   {
     id: "combat.follow-up",
@@ -256,13 +263,19 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.effectiveness",
     label: { en: "Effectiveness (armored, cavalry, flying, dragon)", ko: "특효(중장·기병·비병·용족 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml Efficacy 비트 5종·EfficacyValue = 3배(무기 위력에만 곱함, gaps/A §0-1·B §4) — 유닛 카테고리 판별 필드 후속",
+    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손",
   },
   {
     id: "combat.terrain-bonus",
     label: { en: "Terrain avoid/defense bonuses", ko: "지형 회피·방어 보정" },
     status: "anchored",
-    evidence: "corpus.test.ts 예보 일치에 포함",
+    evidence: "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일)",
+  },
+  {
+    id: "combat.effectiveness-ignore",
+    label: { en: "Effectiveness immunity/negation", ko: "특효 무효(가호·배리어)" },
+    status: "absent",
+    evidence: "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H)",
   },
   {
     id: "combat.terrain-asymmetric",
@@ -280,7 +293,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids · 독 데미지식 해석 모호(gaps/B §7, D §2)",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 디버프+단검 누적(DoT 아님 — tutorial.msbt, gaps/N) · 사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
   },
   {
     id: "combat.staff-hit",
@@ -310,7 +323,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.exp",
     label: { en: "EXP from calculator formulas and tables", ko: "경험치 = calculator 원문 공식+테이블" },
     status: "assumed",
-    evidence: "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) — 잔여 미반영 = 戦闘経験倍率 1.2(적용 위치 실행파일)·루나틱 반복 감쇠 누적(gaps/A §6-2·3)",
+    evidence: "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) — 잔여 = 戦闘経験倍率 1.2(실체 후보 = 스승의 인도 120% 스킬, 전역 룰 아닐 가능성 — gaps/N)·루나틱 반복 감쇠 누적(gaps/A §6-2·3)",
   },
   {
     id: "combat.exp-table-clamp",
@@ -393,6 +406,42 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "수집 자체 안 함 — 루나틱 23종/162인(gaps/G) · 브레이크 면역 41인물 실배선 포함(§0 등재)",
   },
   {
+    id: "units.style-grant-skills",
+    label: { en: "Battle-style granted skills", ko: "전투 스타일 부여 스킬(은밀·마법 등)" },
+    status: "absent",
+    evidence: "job.xml 戦闘スタイル 시트(9행) 파이프라인 전면 탈락(transform 시트0만 로드 — gaps/H) · 隠密 = 지형회피 2배(battlestyle.msbt 교차 확인, gaps/N)·魔法 = 상대 지형회피 무시",
+  },
+  {
+    id: "units.job-skills",
+    label: { en: "Job skills (innate/learning/lunatic)", ko: "병과 스킬(Skills·LearningSkill·LunaticSkill)" },
+    status: "absent",
+    evidence: "91건 미소비(踊り·鍵開け 포함, gaps/H) — 수집 요구는 gaps/I 병과 계열 49행",
+  },
+  {
+    id: "units.job-growth",
+    label: { en: "Generic enemy growth from job", ko: "일반 적 성장 소스(job.BaseGrow)" },
+    status: "absent",
+    evidence: "person.Grow 비영은 144/1523(자군 위주) — 일반 적 약 1379행의 성장은 job.BaseGrow(비영 110/111)가 유일한데 deriveStats는 personGrowth만 수용(gaps/H) · 합산 공식은 덤프에 없음",
+  },
+  {
+    id: "units.weapon-proficiency",
+    label: { en: "Weapon aptitude and rank", ko: "무기 적성·랭크(Aptitude)" },
+    status: "absent",
+    evidence: "Aptitude 비트 = 무기 컬럼 순서(교차 일치 2건) — equippedWeapon은 Kind·RangeO만 검사(gaps/H)",
+  },
+  {
+    id: "units.promotion",
+    label: { en: "Class promotion tree", ko: "전직 체계(HighJob/LowJob)" },
+    status: "absent",
+    evidence: "전직 트리 정식화(LowJob은 JID 아닌 MSBT 라벨, gaps/H) · 내부 레벨 상한은 units.internal-level-cap",
+  },
+  {
+    id: "units.skirmish-generation",
+    label: { en: "Skirmish enemy generation", ko: "조우전 적 생성(encount.xml)" },
+    status: "absent",
+    evidence: "진행구간별 무기등급 17·직업풀 25·골드 18 테이블 — AI 열 0(gaps/K §6)",
+  },
+  {
     id: "units.meal-buff",
     label: { en: "Meal stat buffs (Somniel cooking)", ko: "식사 버프(요리 스탯 보정)" },
     status: "absent",
@@ -422,7 +471,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.act-values",
     label: { en: "Combat value modifiers (ActNames DSL)", ko: "계산값 보정(ActNames DSL — 소수 유지·표시 내림)" },
     status: "anchored",
-    evidence: "M003 간파 corpus.test.ts · 적용 범위 = 자기 측 calculator 값 이름 훅만(相手の~·원시 스탯·발동 필터는 별건 항목, gaps/G)",
+    evidence: "M003 간파 corpus.test.ts · ActNames 전수 52종 census — 자기측 훅 13종 305회 소비 / 상대측 90 / 원시 스탯 58 / 어휘 밖 20종 218회(gaps/I) · 별건 항목 = opponent-act·raw-stat-act·timing-filter",
   },
   {
     id: "skills.timing-filter",
@@ -452,7 +501,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.condition-fallback",
     label: { en: "Unsupported skill conditions safely skip", ko: "평가 불가 조건 = 미적용 안전 강하" },
     status: "implemented",
-    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts, 열거 상수 예외 포함 — gaps/FIX_NOTES F5) · 조건 어휘 전수 = gaps/C §6 · 발동 필터 축은 별건 = skills.timing-filter",
+    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter",
   },
   {
     id: "skills.give-sids",
@@ -471,6 +520,12 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Style-variant skill branches", ko: "스타일 분기 스킬(병종별 변형)" },
     status: "absent",
     evidence: "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5)",
+  },
+  {
+    id: "skills.orphan-sids",
+    label: { en: "Orphan SIDs (event-granted, no static source)", ko: "고아 SID(정적 소스 없음 — 이벤트 부여 추정)" },
+    status: "absent",
+    evidence: "55행 — CommonSids·SynchroSkills·dispos·EquipSids 어느 소스에도 미참조(gaps/I)",
   },
   {
     id: "skills.crit-unknown",
@@ -514,7 +569,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.inheritance",
     label: { en: "Skill inheritance (cost, availability)", ko: "스킬 계승(비용·가능 여부)" },
     status: "absent",
-    evidence: "skill.xml InheritanceCost/Sort 필드 확인 · 리유르만 계승 불가(InheritanceSkills 21행 공란, gaps/F)",
+    evidence: "skill.xml InheritanceCost/Sort 확인 · 리유르만 계승 불가(gaps/F) · ★수집 최대 결손 — transform.py가 InheritanceSkills 폐기(요구 189행 중 183행이 ENH 정적 보정 = 저비용 고수익, gaps/I)",
   },
   {
     id: "emblem.doubles-multiplier",
@@ -547,6 +602,12 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Magic damage detection (Kind 6 or flag)", ko: "마법 데미지 판별(Kind 6 또는 Flag bit16)" },
     status: "anchored",
     evidence: "item.xml 661건 전수 — Kind=6/Flag bit16 상호배타·반례 0(gaps/B §2, 2026-08-17)",
+  },
+  {
+    id: "weapons.equip-sids",
+    label: { en: "Weapon/item granted skills (EquipSids)", ko: "무기·아이템 부여 스킬(EquipSids)" },
+    status: "absent",
+    evidence: "수집 결손 85행(items.json에 EquipSids 259행 이미 산출 — 배선만 없음, gaps/I 투자 2위)",
   },
   {
     id: "weapons.forge-engrave",
@@ -614,13 +675,45 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.enemy-ai",
     label: { en: "Automatic enemy phase AI", ko: "적턴 AI 자동 진행" },
     status: "deferred",
-    evidence: "M5 — AI 파라미터 정본·평가함수 실측 보정(§10-4) · dispos AI 10필드 파이프라인 사영 완료(소비처만 없음, gaps/L) · 지원 선택 스코어 상수 支援値加算 3/2/1(gaps/J)",
+    evidence: "M5 — L1층(루틴 배정·인자 결선·개시 조건·타겟 지정)은 덤프 확정, L2 스코어링 = 실행파일(AI 가드 상수 3종은 params 실재) · 상위 4조합 = 83.3%(gaps/K) · 지원 스코어 상수 3/2/1(gaps/J)",
   },
   {
     id: "turn.delegate",
     label: { en: "Delegate (auto-battle)", ko: "위임(자동진행)" },
     status: "deferred",
-    evidence: "적턴 AI 모듈 공유(M5)",
+    evidence: "적턴 AI 모듈 공유(M5) — 표적 우선 = 상위 4조합 83.3%(gaps/K §9)",
+  },
+
+  // ── 적 AI 데이터 ──
+  {
+    id: "ai.routine-vocabulary",
+    label: { en: "AI routine opcode programs", ko: "AI 루틴(옵코드 프로그램 141종)" },
+    status: "deferred",
+    evidence: "ai.xml 802행 = AC32·MI11·AT63·MV35, dispos 실사용 77종 — 옵코드 사전은 실행파일 영역(gaps/K §2) · 선행 = M5",
+  },
+  {
+    id: "ai.data-projection",
+    label: { en: "AI field projection completeness", ko: "AI 필드 사영 완결성" },
+    status: "absent",
+    evidence: "transform.py ai_map 15필드 중 4 누락 — AI_HealRateA/B·AI_MoveLimit·AI_Flag(gaps/K §7) · ★수정구간 후보(MoveLimit은 하드 제약, 본편 4맵)",
+  },
+  {
+    id: "ai.move-limit",
+    label: { en: "AI movement boxes (hard constraint)", ko: "AI 이동 제한 박스(AI_MoveLimit)" },
+    status: "absent",
+    evidence: "36건 — 이동을 물리적으로 자르는 하드 제약(m016·m021·m024·m025 포함, gaps/K)",
+  },
+  {
+    id: "ai.band-activation",
+    label: { en: "Band-linked AI activation", ko: "밴드 연동 기동(AI_BandNo)" },
+    status: "absent",
+    evidence: "328밴드 — 집단 각성 구조(gaps/K)",
+  },
+  {
+    id: "ai.sub-routine-swap",
+    label: { en: "Conditional AI routine swap", ko: "조건부 서브 AI 치환" },
+    status: "absent",
+    evidence: "Code 6/7/4 치환 구조, 68유닛(gaps/K) · Lua BattleAfter 전환은 combat.scripted-modifiers",
   },
 ];
 
