@@ -114,6 +114,26 @@ export default function BoardIsland(props: BoardProps) {
   const selected = selectedId === undefined ? undefined : alive.find((u) => u.id === selectedId);
   const target = targetId === undefined ? undefined : alive.find((u) => u.id === targetId);
 
+  // 잠정 이동(인게임 문법): 행동(공격·대기) 확정 전까지 이동은 커밋되지 않는다 — 원점 범위 안 자유 재배치.
+  // 엔진·기보에는 행동 확정 시점에 move 1회 + 행동으로 기록된다(활성화당 이동 1회 룰과 정합).
+  const [pending, setPending] = useState<{ x: number; y: number } | undefined>(undefined);
+  useEffect(() => setPending(undefined), [selectedId, game]);
+  const selectedAt = selected === undefined ? undefined : pending ?? { x: selected.x, y: selected.y };
+
+  // 표시·클릭 판정용 국면(잠정 위치 반영) — 룰 판정(range)은 엔진 진실(byTile)을 쓴다.
+  const viewUnits = useMemo(
+    () =>
+      pending === undefined || selectedId === undefined
+        ? alive
+        : alive.map((u) => (u.id === selectedId ? { ...u, x: pending.x, y: pending.y } : u)),
+    [alive, pending, selectedId],
+  );
+  const byTileView = useMemo(() => {
+    const m = new Map<string, UnitState>();
+    for (const u of viewUnits) m.set(tileKey(u.x, u.y), u);
+    return m;
+  }, [viewUnits]);
+
   const range = useMemo(() => {
     if (selected === undefined) return undefined;
     // 이동 예산 = 엔진과 동일 규칙: 행동 전 = 이동력 1회(이동 후엔 0 — 제자리 공격만) ·
@@ -142,11 +162,13 @@ export default function BoardIsland(props: BoardProps) {
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
     const rangeMax = selected.acted ? 0 : selected.weapon?.rangeMax ?? 0; // 재이동 창엔 공격 없음
-    const ring = rangeMax > 0 ? attackRange(move, selected.weapon!.rangeMin, rangeMax, width, height) : [];
+    // 잠정 이동 중엔 그 지점 기준 사거리만(인게임 표시 문법), 선택 직후엔 전 범위 합집합.
+    const ringFrom = pending === undefined ? move : [{ x: pending.x, y: pending.y }];
+    const ring = rangeMax > 0 ? attackRange(ringFrom, selected.weapon!.rangeMin, rangeMax, width, height) : [];
     const attackAll = new Set(ring.map((t) => tileKey(t.x, t.y)));
     const attack = ring.filter((t) => !moveSet.has(tileKey(t.x, t.y)));
     return { query, move, moveSet, attack, attackAll };
-  }, [selected, byTile, game, width, height]);
+  }, [selected, byTile, game, width, height, pending]);
 
   const path = useMemo(() => {
     if (range === undefined || hover === undefined || selected === undefined) return undefined;
@@ -157,8 +179,8 @@ export default function BoardIsland(props: BoardProps) {
   }, [range, hover, byTile, selected]);
 
   const distance =
-    selected !== undefined && target !== undefined
-      ? Math.abs(selected.x - target.x) + Math.abs(selected.y - target.y)
+    selectedAt !== undefined && target !== undefined
+      ? Math.abs(selectedAt.x - target.x) + Math.abs(selectedAt.y - target.y)
       : undefined;
   const canAttack =
     selected !== undefined &&
@@ -170,10 +192,11 @@ export default function BoardIsland(props: BoardProps) {
     distance <= selected.weapon.rangeMax;
 
   const forecast = useMemo(() => {
-    if (selected === undefined || target === undefined) return undefined;
-    const a = toCombatant(selected, game);
+    if (selected === undefined || selectedAt === undefined || target === undefined) return undefined;
+    // 예보는 잠정 위치 기준(지형 보정 포함) — 확정 시 엔진이 같은 위치에서 판정한다.
+    const a = toCombatant({ ...selected, x: selectedAt.x, y: selectedAt.y }, game);
     const d = toCombatant(target, game);
-    const dist = Math.abs(selected.x - target.x) + Math.abs(selected.y - target.y);
+    const dist = Math.abs(selectedAt.x - target.x) + Math.abs(selectedAt.y - target.y);
     const engageDist = canAttack ? dist : selected.weapon?.rangeMax ?? 1;
     const counter =
       target.weapon !== undefined &&
@@ -184,7 +207,7 @@ export default function BoardIsland(props: BoardProps) {
       attack: selected.weapon !== undefined ? forecastSide(calculator, a, d) : undefined,
       counter: counter ? forecastSide(calculator, d, a) : undefined,
     };
-  }, [selected, target, game, canAttack]);
+  }, [selected, selectedAt, target, game, canAttack]);
 
   const describe = (events: BattleEvent[]): string[] => {
     const t = labels.logTags;
@@ -221,8 +244,10 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   const dispatch = (action: BattleAction): GameState => {
+    // 한 클릭에 move+행동이 연달아 커밋되므로 비교 기준은 렌더 시점 game이 아니라 스토어 최신이어야 한다.
+    const prev = store.getState().game;
     const next = store.getState().dispatch(action);
-    if (next === game) return game;
+    if (next === prev) return prev;
     const lines = describe(next.events);
     if (lines.length > 0) setLog(lines);
     for (const ev of next.events) {
@@ -235,16 +260,27 @@ export default function BoardIsland(props: BoardProps) {
     return next;
   };
 
+  const tryDispatch = (action: BattleAction): boolean => {
+    const prev = store.getState().game;
+    return dispatch(action) !== prev;
+  };
+
+  /** 잠정 이동 확정 — 행동 직전에만 호출된다. 이동 없음/제자리 = 성공으로 친다. */
+  const commitMove = (): boolean => {
+    if (selected === undefined || pending === undefined) return true;
+    if (pending.x === selected.x && pending.y === selected.y) return true;
+    return tryDispatch({ type: "move", unit: selected.id, x: pending.x, y: pending.y });
+  };
+
   const onTileClick = (x: number, y: number) => {
     if (game.outcome !== undefined) return;
     const key = tileKey(x, y);
-    const clicked = byTile.get(key);
+    const clicked = byTileView.get(key);
 
     if (clicked !== undefined) {
       if (selected !== undefined && clicked.force !== selected.force && range?.attackAll.has(key) === true) {
         if (clicked.id === targetId && canAttack) {
-          const next = dispatch({ type: "attack", unit: selected.id, target: clicked.id });
-          if (next !== game) {
+          if (commitMove() && tryDispatch({ type: "attack", unit: selected.id, target: clicked.id })) {
             // 재이동(시구르드) 보유면 선택을 유지해 행동 후 이동 창을 이어준다.
             if (canterPower(selected) === undefined) setSelectedId(undefined);
             setTargetId(undefined);
@@ -255,11 +291,13 @@ export default function BoardIsland(props: BoardProps) {
         return;
       }
       if (clicked.id === selectedId) {
-        // 자기 자신 재클릭 = 대기 (인게임 문법 근사)
+        // 자기 자신 재클릭 = 대기 (인게임 문법 근사) — 잠정 이동이 있으면 함께 확정된다.
         if (!clicked.acted && clicked.force === game.phase) {
-          dispatch({ type: "wait", unit: clicked.id });
-          if (canterPower(clicked) === undefined) setSelectedId(undefined);
-          setTargetId(undefined);
+          if (commitMove()) {
+            tryDispatch({ type: "wait", unit: clicked.id });
+            if (canterPower(clicked) === undefined) setSelectedId(undefined);
+            setTargetId(undefined);
+          }
           return;
         }
       }
@@ -271,9 +309,14 @@ export default function BoardIsland(props: BoardProps) {
     }
 
     if (selected !== undefined && range?.moveSet.has(key) === true) {
-      const next = dispatch({ type: "move", unit: selected.id, x, y });
-      // 재이동 이동을 마치면 이 활성화는 끝 — 선택 해제로 마무리.
-      if (selected.acted && next !== game) setSelectedId(undefined);
+      if (selected.acted) {
+        // 재이동(행동 후)은 클릭 즉시 확정 — 이후 행동이 없어 잠정 단계가 무의미하다.
+        const ok = tryDispatch({ type: "move", unit: selected.id, x, y });
+        if (ok) setSelectedId(undefined);
+      } else {
+        // 행동 전 이동은 잠정 — 원점 범위 안에서 자유 재배치, 원점 클릭 = 이동 취소.
+        setPending(x === selected.x && y === selected.y ? undefined : { x, y });
+      }
       setTargetId(undefined);
       return;
     }
@@ -343,8 +386,8 @@ export default function BoardIsland(props: BoardProps) {
         height={height}
         tiles={tiles}
         objects={objects}
-        units={alive}
-        byTile={byTile}
+        units={viewUnits}
+        byTile={byTileView}
         visuals={visuals}
         range={range}
         path={path}
@@ -374,9 +417,8 @@ export default function BoardIsland(props: BoardProps) {
                 type="button"
                 className="fc-go"
                 onClick={() => {
-                  const next = dispatch({ type: "attack", unit: selected.id, target: target.id });
-                  if (next !== game) {
-                    setSelectedId(undefined);
+                  if (commitMove() && tryDispatch({ type: "attack", unit: selected.id, target: target.id })) {
+                    if (canterPower(selected) === undefined) setSelectedId(undefined);
                     setTargetId(undefined);
                   }
                 }}
