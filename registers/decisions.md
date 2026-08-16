@@ -39,3 +39,4 @@
 - 2026-08-16 게이트 운용: 커밋은 자유(상시), ./dev done은 큰 작업(M단위) 마감과 main 병합에만 — 소커밋마다 풀게이트 금지
 - 2026-08-16 문서 전수 감사(26건) 반영: 배선 4(islands→components 등)·모순 6(☠pnpm deploy 스테이블 우회 차단 포함)·수명 위반 7(플랜 470→278줄, 사망 절 삭제·부록 승격)·집행 갭 4(pre-push 훅 신설, doccheck 배선 테스트 2종, done에 doccheck 명시) — 근거: ~/fesim_data/extracted/DOC_AUDIT.md
 - 2026-08-16 M2 실기 스크린샷 회귀 코퍼스 경로 확정: ~/fesim_data/reference/screens/ (m###_설명.png, 저장소 밖 — 수집은 사용자 몫)
+- 2026-08-16 M2 전투 공식 = calculator.xml DSL을 엔진이 직접 파싱·평가(수기 이식 금지 — 이중화 방지). 산출 = tables/calculator.json(공식 52·테이블 35), 해석 규칙: 미지 식별자 = 심볼(등호 비교 전용, 산술 시 예외) · X계산 파생 해석 · 경험치 테이블 정의역 밖 = 경계 클램프(가정, 실측 반증 시 갱신)

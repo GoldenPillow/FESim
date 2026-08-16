@@ -16,7 +16,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
 - [x] **M1.5 특수 타일 0단계** (2026-08-16) — 4층 구조 전수 조사·스키마 확장·紋章氣 렌더(M003)·[map] 동적 라우트·☠통행판정 정정(정본 = CostName→地形コスト)
 - [x] **배포 체계** (2026-08-16) — main 머지 = 베타 채널·./dev promote = 스테이블 (rules/deploy.md 정본)
 - [ ] **M2 인게임 재현 인터랙션** ← 다음 착수점
-  - [ ] calculator.xml DSL 파서 → 전투 공식 순수 함수(TDD, packages/engine)
+  - [x] calculator.xml DSL 파서 → 전투 공식 순수 함수(TDD, packages/engine) (2026-08-16)
   - [ ] 이동/공격 범위 오버레이 (코스트 테이블 정본 사용)
   - [ ] 이동 경로 꺾임 화살표
   - [ ] 전투 예보 패널 (실기 스크린샷 회귀 검증 — 코퍼스 = `~/fesim_data/reference/screens/` `m###_설명.png`, 실기 촬영물이라 저장소 밖. 수집은 사용자에게 요청)

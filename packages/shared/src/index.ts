@@ -129,3 +129,24 @@ export interface ChapterData {
   map: ChapterMap;
   groups: DisposGroup[];
 }
+
+/**
+ * calculator.json 스키마 — calculator.xml(전투 계산식 정본)의 무손실 사영.
+ * 공식은 DSL 원문 그대로 담고 평가는 엔진(packages/engine/src/formula)이 한다.
+ * 분기 계약: conditions[i]가 참이면 functions[i], 전부 거짓이면 functions[conditions.length](기본 분기).
+ */
+export interface CalculatorFormula {
+  conditions: string[];
+  functions: string[];
+}
+
+/** 경험치 룩업 테이블 — values[n - base]. 원본 정의역은 base=-39..+40. */
+export interface CalculatorTable {
+  base: number;
+  values: number[];
+}
+
+export interface CalculatorData {
+  formulas: Record<string, CalculatorFormula>;
+  tables: Record<string, CalculatorTable>;
+}

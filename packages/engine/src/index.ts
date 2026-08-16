@@ -21,3 +21,15 @@ export interface Action {
 export function reduce(state: GameState, _action: Action, _rng: RandomSource): GameState {
   return { ...state };
 }
+
+export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.js";
+export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
+export { createCalculator, type Calculator } from "./formula/calculator.js";
+export {
+  combatEnv,
+  forecastSide,
+  type Combatant,
+  type CombatantStats,
+  type CombatantWeapon,
+  type SideForecast,
+} from "./formula/combat.js";

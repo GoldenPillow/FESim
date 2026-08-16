@@ -49,6 +49,10 @@ importers:
         version: 6.0.3
 
   packages/engine:
+    dependencies:
+      '@fesim/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^26.2.0

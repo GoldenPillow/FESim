@@ -79,6 +79,26 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "items.json", keyed(items, "Iid"))
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
+    build_calculator(src, out)
+
+
+def build_calculator(src: Path, out: Path) -> None:
+    """calculator.xml → 전투 공식 DSL(공통 시트) + 경험치 룩업 테이블. 평가는 엔진 몫 — 여기선 원문 보존."""
+    _, formulas = load_sheet(src / "gamedata" / "calculator.xml", index=0)
+    entries = {}
+    for row in formulas:
+        conditions = row.get("Condition", [])
+        functions = row.get("Function", [])
+        if len(functions) != len(conditions) + 1:
+            raise SystemExit(f"calculator {row['Name']}: 분기 수 불일치 {len(conditions)}+1 != {len(functions)}")
+        entries[row["Name"]] = {"conditions": conditions, "functions": functions}
+
+    base = -39
+    idents = [f"M{-n:02d}" if n < 0 else ("N00" if n == 0 else f"P{n:02d}") for n in range(base, 41)]
+    _, table_rows = load_sheet(src / "gamedata" / "calculator.xml", index=1)
+    tables = {row["Name"]: {"base": base, "values": [row.get(i, 0) for i in idents]} for row in table_rows}
+
+    write_json(out / "tables" / "calculator.json", {"formulas": entries, "tables": tables})
 
 
 def build_names(src: Path, out: Path) -> None:
