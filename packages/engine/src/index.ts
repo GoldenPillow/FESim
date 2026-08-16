@@ -7,6 +7,7 @@ export {
   createReducer,
   canterPower,
   moveBudget,
+  toCombatant,
   weaponAdvantage,
   type Advantage,
   type BattleAction,
@@ -17,6 +18,7 @@ export {
   type GameState,
   type RandomSource,
   type StrikeKind,
+  type SupportEffects,
   type UnitState,
 } from "./battle.js";
 

@@ -1,4 +1,11 @@
-import type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
+import type {
+  BattleAction,
+  BattleEvent,
+  Difficulty,
+  StrikeKind,
+  SupportEffect,
+  SupportLevel,
+} from "@fesim/shared";
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
@@ -45,6 +52,13 @@ export interface UnitState {
   moveType: MoveType;
   /** 직업 StyleName 원문 — 連携スタイル = 체인어택, 重装スタイル = 브레이크 면역. */
   style?: string;
+  /** person.xml SupportCategory 원문(デフォルト·バランス·命中·必殺·回避·必殺回避) — 支援効果 표의 행 키. */
+  supportCategory?: string;
+  /**
+   * 파트너 유닛 id → 현재 支援レベル. 랭크 진행은 덤프에 없다(진행 소유) — 여기가 주입 통로다.
+   * 없으면 지원 보정 없음(무회귀).
+   */
+  supports?: Record<string, SupportLevel>;
   acted: boolean;
   dead: boolean;
   broken: boolean;
@@ -129,17 +143,59 @@ const manhattan = (a: UnitState, b: UnitState) => Math.abs(a.x - b.x) + Math.abs
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
 
-function toCombatant(u: UnitState, map: BattleMap): Combatant {
+/** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
+export type SupportEffects = Record<string, Record<string, SupportEffect>>;
+
+/**
+ * 인접 아군 지원(絆) 보정 — 表 = reliance.xml 支援効果(archetype × Level 1~4).
+ * ★발동 거리 = 인접 1타일(사용자 실기 실측 2026-08-17 — 2칸 이상은 무효).
+ * 인접의 4방(맨해튼 1) 해석은 가정이다 — 대각 인접 발동 여부는 미실측이라 제외한다(반증 시 여기만 고친다).
+ * archetype 출처 = 파트너의 SupportCategory(지시 정본). gaps/D §1-1은 수혜자 자신의 것이라 추정하나
+ * 덤프만으로는 어느 쪽인지 결정되지 않는다 — 뒤집힐 경우 아래 한 줄(row 조회 대상)만 바뀐다.
+ * 복수 파트너는 합산(원문에 상한·배타 규정 없음 — 가정).
+ */
+function supportOf(
+  u: UnitState,
+  units: readonly UnitState[],
+  effects: SupportEffects | undefined,
+): Combatant["support"] {
+  if (effects === undefined || u.supports === undefined) return undefined;
+  const total = { hit: 0, avoid: 0, crit: 0, dodge: 0 };
+  let found = false;
+  for (const partner of units) {
+    // id 비교 — 예보는 잠정 위치의 사본을 넘기므로 참조 동일성을 믿을 수 없다.
+    if (partner.id === u.id || partner.dead || partner.force !== u.force) continue;
+    const level = u.supports[partner.id];
+    if (level === undefined || manhattan(u, partner) !== 1) continue;
+    const row = effects[partner.supportCategory ?? ""]?.[String(level)];
+    if (row === undefined) continue;
+    total.hit += row.Hit;
+    total.avoid += row.Avoid;
+    total.crit += row.Critical;
+    total.dodge += row.Secure;
+    found = true;
+  }
+  return found ? total : undefined;
+}
+
+/** 유닛 스냅숏 → 전투 계산 입력. 예보 UI와 reduce가 같은 사상을 써야 한다(중복 구현 금지). */
+export function toCombatant(
+  u: UnitState,
+  map: BattleMap,
+  units: readonly UnitState[] = [],
+  supportEffects?: SupportEffects,
+): Combatant {
   const tile = map.terrain?.[u.y]?.[u.x];
   return {
     stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
     weapon: u.weapon,
     terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
     skills: u.skills,
+    support: supportOf(u, units, supportEffects),
   };
 }
 
-export function createReducer(calc: Calculator) {
+export function createReducer(calc: Calculator, supportEffects?: SupportEffects) {
   function expEnv(self: UnitState, foe: UnitState, chainCount: number, difficulty: Difficulty): FormulaEnv {
     const varsOf = (u: UnitState): Record<string, number | string> => ({
       レベル: u.level,
@@ -220,8 +276,8 @@ export function createReducer(calc: Calculator) {
         const distance = manhattan(attacker, defender);
         if (!inWeaponRange(attacker, distance)) throw new Error("사거리 밖 공격");
 
-        const attackerC = toCombatant(attacker, state.map);
-        const defenderC = toCombatant(defender, state.map);
+        const attackerC = toCombatant(attacker, state.map, units, supportEffects);
+        const defenderC = toCombatant(defender, state.map, units, supportEffects);
         const atkF = forecastSide(calc, attackerC, defenderC);
         const defF = forecastSide(calc, defenderC, attackerC);
         const advantage =
@@ -272,7 +328,7 @@ export function createReducer(calc: Calculator) {
         const defenderEnteredBroken = defender.broken;
         strike(attacker, defender, "attack", atkF);
         const chainNumbers = (backup: UnitState) => {
-          const env = combatEnv(toCombatant(backup, state.map), defenderC);
+          const env = combatEnv(toCombatant(backup, state.map, units, supportEffects), defenderC);
           return {
             damage: Math.floor(calc.eval("チェインアタック威力計算", env) as number),
             hitRate: calc.eval("チェインアタック命中率計算", env) as number,

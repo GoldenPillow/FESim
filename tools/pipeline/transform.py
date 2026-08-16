@@ -81,6 +81,7 @@ def build_tables(src: Path, out: Path) -> None:
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
     build_gods(src, out)
+    build_supports(src, out)
     build_calculator(src, out)
     build_chapterlist(src, out)
 
@@ -128,6 +129,37 @@ def build_gods(src: Path, out: Path) -> None:
                 if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})
+
+
+def build_supports(src: Path, out: Path) -> None:
+    """reliance.xml 3시트 → 지원(絆) 정본. 支援効果가 전투 보정의 유일한 수치 출처다.
+
+    支援関係 시트는 열 이름(予約N)이 DLC 캐릭터 추가 시 갱신되지 않았다 — 열 j는 이름이 아니라
+    j번째 행의 Pid를 가리킨다(앞 36명 이름 일치로 확인). 하삼각만 채워진 원문 그대로 사영한다.
+    """
+    path = src / "gamedata" / "reliance.xml"
+    _, pair_rows = load_sheet(path, index=0)
+    _, exp_rows = load_sheet(path, index=1)
+    _, effect_rows = load_sheet(path, index=2)
+
+    order = [row.get("Pid") for row in pair_rows]
+    pairs = {}
+    for row in pair_rows:
+        entry = {other: row[f"ExpType{j}"] for j, other in enumerate(order)
+                 if other and row.get(f"ExpType{j}")}
+        if entry:
+            pairs[row["Pid"]] = entry
+
+    effects, current = {}, None
+    for row in effect_rows:
+        if row.get("Name"):
+            current = row["Name"]
+            effects[current] = {}
+        elif current and row.get("Level"):
+            effects[current][str(row["Level"])] = {k: row.get(k, 0) for k in ("Hit", "Critical", "Avoid", "Secure")}
+
+    write_json(out / "tables" / "supports.json",
+               {"effects": effects, "expPatterns": exp_rows, "pairs": pairs})
 
 
 def build_calculator(src: Path, out: Path) -> None:

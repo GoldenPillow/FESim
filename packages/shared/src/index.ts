@@ -174,6 +174,37 @@ export interface StyleRow {
 }
 
 /**
+ * supports.json 스키마 — reliance.xml 3시트의 사영. 지원(絆) 전투 보정 수치의 정본은 支援効果뿐이다.
+ * ☠수치를 코드에 박제하지 말 것 — 엔진은 이 표를 주입받는다.
+ */
+export interface SupportEffect {
+  /** 支援命中 · 支援必殺 · 支援回避 · 支援必殺回避에 그대로 들어가는 가산값(원문 필드명 보존). */
+  Hit: number;
+  Critical: number;
+  Avoid: number;
+  Secure: number;
+}
+
+/** 支援レベル — 원문 그대로 1~4. C/B/A/S 대응은 원문에 라벨이 없어 미확정(必要経験値 시트는 C/B/A 3단뿐). */
+export type SupportLevel = 1 | 2 | 3 | 4;
+
+/** 랭크 승급 누적 지원치 패턴. 배열 인덱스 = 支援関係 행렬의 값(0 = REXID_なし = 지원 불가). */
+export interface SupportExpPattern {
+  Rexid: string;
+  ExpC: number;
+  ExpB: number;
+  ExpA: number;
+}
+
+export interface SupportsTable {
+  /** effects[SupportCategory(person.xml)][Level] — 6 archetype × 4단. */
+  effects: Record<string, Record<string, SupportEffect>>;
+  expPatterns: SupportExpPattern[];
+  /** pairs[Pid][상대 Pid] = expPatterns 인덱스. 원문이 하삼각만 채우므로 대칭화는 소비처 몫이다. */
+  pairs: Record<string, Record<string, number>>;
+}
+
+/**
  * calculator.json 스키마 — calculator.xml(전투 계산식 정본)의 무손실 사영.
  * 공식은 DSL 원문 그대로 담고 평가는 엔진(packages/engine/src/formula)이 한다.
  * 분기 계약: conditions[i]가 참이면 functions[i], 전부 거짓이면 functions[conditions.length](기본 분기).

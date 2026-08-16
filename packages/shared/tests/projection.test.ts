@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { ChapterData, DisposUnit, StyleRow } from "@fesim/shared";
+import type { ChapterData, DisposUnit, StyleRow, SupportsTable } from "@fesim/shared";
 
 /**
  * 파이프라인 사영 계약 — "덤프에 있는데 산출 JSON에 없다"는 결손을 막는다.
@@ -74,5 +74,36 @@ describe("테이블 사영", () => {
       Object.values(levels).filter((row) => row.InheritanceSkills !== undefined),
     );
     expect(total.length).toBeGreaterThan(180);
+  });
+
+  /**
+   * reliance.xml은 통째로 사영되지 않아 지원(絆) 보정 수치의 출처가 저장소에 없었다.
+   * 支援効果가 유일한 정본이라, 없으면 엔진이 명중·회피 가산을 하드코딩(=허구)하는 길밖에 없다.
+   */
+  it("supports.json이 支援効果 6 archetype × 4단과 페어 행렬을 담는다", () => {
+    const supports = read<SupportsTable>("tables/supports.json");
+    expect(Object.keys(supports.effects)).toHaveLength(6);
+    // 원문 그대로: 命中 L4 = Hit30/Avoid5 · 必殺 L4 = Hit10/Crit12/Secure5.
+    expect(supports.effects["命中"]["4"]).toEqual({ Hit: 30, Critical: 0, Avoid: 5, Secure: 0 });
+    expect(supports.effects["必殺"]["4"]).toEqual({ Hit: 10, Critical: 12, Avoid: 0, Secure: 5 });
+    for (const levels of Object.values(supports.effects)) {
+      expect(Object.keys(levels)).toEqual(["1", "2", "3", "4"]);
+    }
+
+    // 페어 값은 expPatterns 인덱스(0 = REXID_なし = 지원 불가)라 정의역을 벗어나면 안 된다.
+    expect(supports.expPatterns[0].Rexid).toBe("REXID_なし");
+    expect(supports.expPatterns[1]).toEqual({ Rexid: "REXID_パターン１", ExpC: 5, ExpB: 20, ExpA: 45 });
+    const values = Object.values(supports.pairs).flatMap((row) => Object.values(row));
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.every((v) => v > 0 && v < supports.expPatterns.length)).toBe(true);
+
+    // archetype 키는 person.SupportCategory와 같은 어휘여야 조인된다.
+    const persons = read<Record<string, { SupportCategory?: string }>>("tables/persons.json");
+    const categories = new Set(
+      Object.values(persons)
+        .map((p) => p.SupportCategory)
+        .filter((c): c is string => c !== undefined),
+    );
+    expect([...categories].every((c) => c in supports.effects)).toBe(true);
   });
 });

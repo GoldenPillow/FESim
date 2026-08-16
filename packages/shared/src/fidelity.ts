@@ -285,9 +285,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "combat.support-bonus",
-    label: { en: "Support (bond) bonuses", ko: "지원(絆) 보정" },
-    status: "absent",
-    evidence: "정식화 — reliance.xml 支援効果 6archetype×4단×4보정 + person.SupportCategory · combat.ts 슬롯 실재·미배선 · 발동 거리만 원문 없음(gaps/D §1)",
+    label: { en: "Support (bond) bonuses (adjacent only)", ko: "지원(인연) 보정 — 인접 1타일" },
+    status: "assumed",
+    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · 가정 3 = 합산·4방 인접·archetype 소유자(파트너 기준, 수혜자설과 상충 — 실측 1회로 결정) · 예보 패널 표시는 §0 미룸",
   },
   {
     id: "combat.status-effects",

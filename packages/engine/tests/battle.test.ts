@@ -1,14 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { CalculatorData } from "@fesim/shared";
+import type { CalculatorData, SupportsTable } from "@fesim/shared";
 import {
   createCalculator,
   createReducer,
+  forecastSide,
   moveBudget,
+  toCombatant,
   weaponAdvantage,
   type BattleAction,
   type GameState,
   type RandomSource,
+  type SupportEffects,
   type UnitState,
 } from "@fesim/engine";
 
@@ -24,6 +27,11 @@ const data: CalculatorData = JSON.parse(
 );
 const calc = createCalculator(data);
 const reduce = createReducer(calc);
+const supportEffects: SupportEffects = (
+  JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/supports.json", import.meta.url), "utf-8"),
+  ) as SupportsTable
+).effects;
 
 const seq = (...rolls: number[]): RandomSource => ({ roll: () => rolls.shift() ?? 0 });
 const alwaysHit: RandomSource = { roll: () => 0 };
@@ -333,5 +341,100 @@ describe("턴/페이즈 진행", () => {
     const s = state([unit({ id: "a", force: 0, x: 0, y: 0 })]);
     const next = reduce(s, { type: "wait", unit: "a" }, alwaysHit);
     expect(next.units[0].acted).toBe(true);
+  });
+});
+
+/**
+ * 지원(絆) 보정 — 수치 정본 = reliance.xml 支援効果(data/fe17/tables/supports.json).
+ * ★발동 거리 = 인접 1타일(사용자 실기 실측 2026-08-17) — 2칸 이상은 무효다.
+ * 이 결함이 위험했던 이유: 계산기 공식(命中値 = ... + 支援命中)과 Combatant.support 슬롯이 이미 있는데
+ * toCombatant가 채우지 않아, 인접 지원이 붙은 전투가 전부 명중·회피 과소 계산으로 조용히 어긋났다.
+ */
+describe("지원(絆) 보정", () => {
+  const dullSword = { ...sword, hit: 30 }; // 명중률을 100 클램프 밖에 두어 보정이 관측되게 한다
+  const forecast = (s: GameState, effects?: SupportEffects) =>
+    forecastSide(
+      calc,
+      toCombatant(s.units.find((u) => u.id === "a")!, s.map, s.units, effects),
+      toCombatant(s.units.find((u) => u.id === "d")!, s.map, s.units, effects),
+    );
+
+  // a(技10 幸運5 무기명중30) → 命中値 52 · d(速さ10 幸運5 무기없음) → 回避値 22 · 명중률 30이 기준선이다.
+  const field = (partial: { a?: Partial<UnitState>; d?: Partial<UnitState>; allies?: UnitState[] }) =>
+    state([
+      unit({ id: "a", force: 0, x: 1, y: 1, weapon: dullSword, ...partial.a }),
+      unit({ id: "d", force: 1, x: 2, y: 1, ...partial.d }),
+      ...(partial.allies ?? []),
+    ]);
+
+  it("인접 파트너의 支援効果만큼 명중·회피가 변한다", () => {
+    const base = field({});
+    expect(forecast(base, supportEffects).hitRate).toBe(30);
+
+    // b = 命中 archetype L1 → Hit15. a의 왼쪽 아래(맨해튼 1).
+    const withHitter = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })],
+    });
+    expect(forecast(withHitter, supportEffects).hitRate).toBe(45); // 52+15 - 22
+
+    // e = 回避 archetype L3 → Avoid10(방어측 회피가 오르면 명중률이 내린다).
+    const both = field({
+      a: { supports: { b: 1 } },
+      d: { supports: { e: 3 } },
+      allies: [
+        unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" }),
+        unit({ id: "e", force: 1, x: 3, y: 1, supportCategory: "回避" }),
+      ],
+    });
+    expect(forecast(both, supportEffects).hitRate).toBe(35); // 67 - 32
+  });
+
+  it("복수 파트너는 합산한다(원문에 상한·배타 규정 없음 — 가정)", () => {
+    const s = field({
+      a: { supports: { b: 1, c: 4 } },
+      allies: [
+        unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" }), // L1 Hit15
+        unit({ id: "c", force: 0, x: 0, y: 1, supportCategory: "必殺" }), // L4 Hit10/Crit12/Secure5
+      ],
+    });
+    const f = forecast(s, supportEffects);
+    expect(f.hitRate).toBe(55); // 52 + 15 + 10 - 22
+    expect(f.critRate).toBe(12); // int(10/2) + 12 - 5
+  });
+
+  it("2칸 이상 떨어진 파트너는 무효다(발동 거리 = 인접 1타일, 실측 2026-08-17)", () => {
+    const s = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 0, x: 1, y: 3, supportCategory: "命中" })], // 맨해튼 2
+    });
+    expect(forecast(s, supportEffects).hitRate).toBe(30);
+    // 대각(1,2)→(2,2)도 맨해튼 2다 — 4방 인접 해석의 귀결(대각 발동은 미실측).
+    const diagonal = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 0, x: 2, y: 2, supportCategory: "命中" })],
+    });
+    expect(forecast(diagonal, supportEffects).hitRate).toBe(30);
+  });
+
+  it("supports가 없으면 종전과 동일하다(무회귀)", () => {
+    const s = field({
+      allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })],
+    });
+    expect(forecast(s, supportEffects)).toEqual(forecast(s, undefined));
+    expect(forecast(s, supportEffects).hitRate).toBe(30);
+  });
+
+  it("reduce가 지원 보정을 태운다 — 같은 롤이 지원 유무로 명중/빗나감을 가른다", () => {
+    const s = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })],
+    });
+    const action: BattleAction = { type: "attack", unit: "a", target: "d" };
+    // 롤 44 < 45(지원 후 명중률) → 명중 · 지원이 없으면 30이라 빗나간다.
+    const hit = createReducer(calc, supportEffects)(s, action, seq(44));
+    expect(hit.events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
+    const miss = reduce(s, action, seq(44));
+    expect(miss.events.find((e) => e.type === "strike")).toMatchObject({ hit: false });
   });
 });
