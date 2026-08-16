@@ -133,11 +133,12 @@
 .board .icon {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--tile) * -0.29);
+  /* 캔버스 하단 여백(≈0.145×아이콘 높이)을 상쇄해 접지선을 타일 바닥에 유지 — 크기 바꾸면 비율 유지 */
+  bottom: calc(var(--tile) * -0.44);
   transform: translateX(-50%);
   transform-origin: bottom center;
-  width: calc(var(--tile) * 2);
-  height: calc(var(--tile) * 2);
+  width: calc(var(--tile) * 3);
+  height: calc(var(--tile) * 3);
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
