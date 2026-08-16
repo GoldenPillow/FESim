@@ -11,7 +11,7 @@ set up a position, craft a line, share it with a single link.
 
 ## Stack
 
-Astro 5 (SSG) + React islands + Tailwind v4 + TypeScript strict + Zustand/Immer,
+Astro (SSG) + React islands + Tailwind v4 + TypeScript strict + Zustand/Immer,
 pnpm workspaces, Vitest. Rule engine is a pure-function TS library (`packages/engine`).
 
 ## Development
@@ -22,6 +22,7 @@ pnpm install
 ./dev test    # all tests
 ./dev done    # release gate: typecheck + test + doccheck
 ./dev gc      # archive implemented design docs
+./dev promote # promote a tested version to the public (stable) channel
 ```
 
 ## Disclaimer

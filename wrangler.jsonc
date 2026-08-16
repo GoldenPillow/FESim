@@ -1,5 +1,5 @@
 {
-  // fesim Worker — 정적 에셋 서빙(assets-only). 빌드: pnpm run build → 배포: npx wrangler deploy
+  // fesim Worker — 정적 에셋 서빙(assets-only). main 머지 = 버전 업로드(베타 별칭) · 스테이블 = ./dev promote (rules/deploy.md)
   "name": "fesim",
   "compatibility_date": "2026-08-15",
   "assets": {

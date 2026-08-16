@@ -9,7 +9,7 @@
 |---|---|---|
 | 스테이블(공개) | https://fesim.goldenpillow7.workers.dev | **명시 지시 시에만** `./dev promote` |
 | 베타(관리자 전용) | https://beta-fesim.goldenpillow7.workers.dev | main 머지마다 자동 |
-| 브랜치 프리뷰 | `<버전해시8>-fesim.goldenpillow7.workers.dev` | beta 브랜치 푸시마다(버전별 URL) |
+| 브랜치 프리뷰 | `<버전해시8>-fesim.goldenpillow7.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
 
 ## 흐름
 

@@ -65,6 +65,29 @@ describe("워크스페이스 정의 단일성", () => {
   });
 });
 
+describe("배선 정합", () => {
+  const claudeMd = readFileSync(join(ROOT, "CLAUDE.md"), "utf8");
+
+  /** 죽은 포인터는 콜드스타트를 끊는다(2026-08-16 감사에서 islands/ 배선 깨짐 실증). */
+  it("CLAUDE.md가 가리키는 저장소 경로는 실재한다 — 미래 예정(M3~) 표기만 예외", () => {
+    const missing: string[] = [];
+    for (const line of claudeMd.split("\n")) {
+      for (const m of line.matchAll(/(?<![\w/~])(?:apps|packages|tools|data|design|rules|registers|workers)\/[\w./[\]-]*/g)) {
+        const token = m[0].replace(/[.,]+$/, "");
+        if (token.startsWith("workers/") && line.includes("M3~")) continue;
+        if (!existsSync(join(ROOT, token))) missing.push(token);
+      }
+    }
+    expect([...new Set(missing)], `실재하지 않는 경로: ${[...new Set(missing)].join(", ")}`).toEqual([]);
+  });
+
+  it("rules/*.md는 전부 CLAUDE.md에 배선된다 — 고아 규약 금지", () => {
+    const orphans = readdirSync(join(ROOT, "rules"))
+      .filter((f) => f.endsWith(".md") && !claudeMd.includes(`rules/${f}`));
+    expect(orphans, `CLAUDE.md에 배선 안 된 규약: ${orphans.join(", ")}`).toEqual([]);
+  });
+});
+
 describe("CLAUDE.md 비대화 차단", () => {
   it("CLAUDE.md는 100줄 이하 — 초과는 레드", () => {
     const lines = readFileSync(join(ROOT, "CLAUDE.md"), "utf8").trimEnd().split("\n").length;

@@ -14,7 +14,7 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 | 스택 | Astro SSG + React 아일랜드 + Tailwind v4 + TS strict + Zustand/Immer + pnpm + Vitest |
 | 백엔드 | CF Workers 정적 에셋(현행 배포, wrangler.jsonc) → +KV/R2/D1+Turnstile (M3~) · 서버 LLM ☠금지 |
 | 성능 | ★열람 경로만 릴리즈 게이트: LCP<1s(4G)·INP<100ms·포커스모드 JS≤100KB — 제작 경로는 관대 |
-| 데이터 | data/ = 파이프라인 산출물(git 포함) · romfs 원본은 data/staging(git 제외) |
+| 데이터 | data/ = 파이프라인 산출물(git 포함) · romfs 원본·추출본 = 저장소 밖 ~/fesim_data (data/staging = 심링크, git 제외) |
 | 타이틀 중립 | URL·데이터·기보에 게임ID(fe17) 네임스페이스 — 전 시리즈 확장 전제 |
 | AI(적·위임) | AI.xml+dispos 파라미터는 정본 그대로, 평가함수는 실측 보정 — 리플레이 코퍼스로 수렴 |
 | Claude 연동 | Max 플랜 표면(MCP·컨텍스트 팩)만 · ☠Anthropic API 과금 경로 금지 |
@@ -30,7 +30,8 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 ## 개발 규약
 - TDD 상시: 레드 확인 → 구현 → 그린. 고친 결함 하나 = 테스트 하나(왜 위험했는지 독스트링)
 - 엔진 계약: (국면, 행동, 난수소스) → 국면. 난수는 항상 주입(기록 재생|실굴림|열거)
-- 상시 커밋(자유) — 결정 즉시 파일로 쓰고 커밋. **./dev done은 M단위 마감·main 병합에만**(훅이 강제)
+- 상시 커밋(자유) — 결정 즉시 파일로 쓰고 커밋. **./dev done은 M단위 마감·main 반영에만**
+  (머지 커밋·main 푸시를 훅이 강제, 비main 머지는 경고만)
 - 배포: **main 머지 = 베타 게시(스테이블 불변) · 스테이블 = 명시 지시 시 ./dev promote** —
   ☠채널 주소·흐름·CF 설정의 정본 = `rules/deploy.md` (규약이 커지면 rules/에 주제별 분리)
 - 새 스크립트·워커·cron은 package.json scripts 또는 ./dev에 반드시 등재(고아 금지)
@@ -43,8 +44,8 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 | 축 | 읽을 것 |
 |---|---|
 | 룰 엔진·AI | packages/engine/src/ 해당 모듈 · tests/ · design/의 building 문서 |
-| 데이터 파이프라인 | tools/pipeline/ 머리말 · data/ 산출 스키마(shared 타입) |
-| 공유 킷·배포 | rules/deploy.md(채널·승격) · workers/api/ (M3~) · apps/web/src/islands/ |
-| 계획·이력 | design/fesim_plan.md(§0 체크리스트 = todo 정본) · registers/decisions.md(최신부터) · rules/design-lifecycle.md |
+| 데이터 파이프라인 | tools/pipeline/ 머리말 · data/ 산출 스키마(shared 타입) · ~/fesim_data/extracted(추출본·보고서, 저장소 밖) |
+| 공유 킷·배포 | rules/deploy.md(채널·승격) · workers/api/ (M3~) · apps/web/src/components/ |
+| 계획·이력 | design/fesim_plan.md(§0 체크리스트 = todo 정본) · registers/decisions.md(최신이 맨 아래) · rules/design-lifecycle.md |
 
 *결정 변경 시 이 파일 + registers/decisions.md 동시 갱신. ☠이 파일에 상태·수치 박제 금지.*

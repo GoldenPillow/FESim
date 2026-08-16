@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# main 푸시 = ./dev done 강제 — ff 머지가 pre-merge-commit을 우회하는 구멍을 막는다
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+while read -r _lref _lsha remote_ref _rsha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    "$ROOT/dev" done || { echo "☠ main 푸시 차단: ./dev done 레드"; exit 1; }
+    break
+  fi
+done
+exit 0

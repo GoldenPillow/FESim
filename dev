@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|test|check|doccheck|gc
+# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -31,13 +31,13 @@ case "$cmd" in
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
-  done)     check && test_all && echo "== ./dev done: ALL GREEN ==" ;;
+  done)     check && test_all && doccheck && echo "== ./dev done: ALL GREEN ==" ;;
   extract)  shift; "$PY" tools/pipeline/extract.py "$@" ;;
   transform) shift; "$PY" tools/pipeline/transform.py "$@" ;;
-  verify)   shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
+  verify-m002) shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
   bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify|bake"; exit 2 ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote [버전ID]"; exit 2 ;;
 esac

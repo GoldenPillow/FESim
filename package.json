@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -C apps/web build",
-    "deploy": "pnpm run build && npx wrangler deploy"
+    "deploy": "echo '☠ 스테이블 배포는 ./dev promote — rules/deploy.md 참조' && exit 1"
   }
 }

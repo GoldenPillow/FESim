@@ -1,7 +1,8 @@
 packages:
   - apps/*
   - packages/*
-  - workers/*
+  - workers/*   # M3 시점 생성 예정 — 현재 미존재가 정상
+
   - tools/doccheck
 allowBuilds:
   esbuild: true

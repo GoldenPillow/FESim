@@ -2,14 +2,14 @@
 
 - 2026-08-15 서비스명 FESim 확정(항상 `FESim` 표기) · 저장소 `~/Projects/FESim` 공개(오픈소스, LLM 컨텍스트 팩 전제)
 - 2026-08-15 스택 확정: Astro 5 SSG + React 19 아일랜드 + Tailwind v4 + TS strict + Zustand/Immer + pnpm workspaces + Vitest
-- 2026-08-15 배포: CF Pages(GitHub 연동) 우선 → M3에 Workers 이전 검토 → 도메인은 웹 동작 확인 후(fesim.app, CF Registrar 권장)
+- 2026-08-15 배포: CF Pages(GitHub 연동) 우선 → M3에 Workers 이전 검토 → 도메인은 웹 동작 확인 후(fesim.app, CF Registrar 권장) → [무효] 2026-08-16 Workers 정적 에셋·승격 체계로 대체
 - 2026-08-15 소셜 로그인(T1): better-auth, 대중 프로바이더 전부 로드맵 — Google·Discord 먼저, X·Kakao·Naver 순차
 - 2026-08-15 게이트 제로(T0 무계정 기본) · 서버 LLM ☠금지(컨텍스트 팩 왕복) · Claude 연동은 Max 플랜 표면만(API 금지)
 - 2026-08-15 문서 수명 규칙 도입: design/ frontmatter 필수, 구현 완료 = done + gc, doccheck가 기계 집행(CLAUDE.md ≤100줄 포함)
 - 2026-08-15 적 행동·위임: AI.xml+dispos 파라미터는 정본 그대로, 평가함수는 실측 보정 — 리플레이 코퍼스로 수렴(packages/engine/src/ai)
 - 2026-08-15 romfs 서브셋을 ~/fesim_data/romfs(ext4, 저장소 밖)로 이관, data/staging/romfs 심링크로 접근 — 원본 덤프는 E: 보존
-- 2026-08-15 [미룸] 파이프라인 venv(~/venvs/fesim, Python 3.12+UnityPy) — 선행 조건: M0 파이프라인 착수. 구 ~/venvs/astrafe는 불변
-- 2026-08-15 [미룸] unitindexes.bundle 등 추가 에셋 서브셋 복사 — 선행 조건: M0/M1에서 해당 에셋 필요 시
+- 2026-08-15 [미룸] 파이프라인 venv(~/venvs/fesim, Python 3.12+UnityPy) — 선행 조건: M0 파이프라인 착수. 구 ~/venvs/astrafe는 불변 → [해소] M0 착수 시 생성 완료
+- 2026-08-15 [미룸] unitindexes.bundle 등 추가 에셋 서브셋 복사 — 선행 조건: M0/M1에서 해당 에셋 필요 시 → [해소] M1에서 서브셋 확인·베이크 완료
 - 2026-08-15 [미룸] workers/api 생성 — 선행 조건: M3(공유 킷) 착수
 - 2026-08-15 Astro 7.2로 init(계획서 표기 v5는 작성 시점 최신 — 버전은 문서에 박제하지 않음, CLAUDE.md 표기 중립화)
 - 2026-08-15 TS 이원화: apps/web은 TS6 핀(astro check가 TS7 네이티브 API 미지원), packages/tools는 TS7
@@ -17,10 +17,10 @@
 - 2026-08-15 좌표계 확정: terrain 32×32 고정배열, index=y*32+x, 0-based, 오프셋 0, 패딩=TID_無し (dispos 전수 9,756유닛 통행타일 검증 + TA 대조 13/13 일치) · 화면상 Y방향만 미확정(M1 스크린샷 과제)
 - 2026-08-15 dispos c###_N = 챌린지 배틀 CID(챕터 아님) — 본편은 m###. 조우전 = m###e (M004 이상만 존재)
 - 2026-08-15 M0 완료 판정 충족: M002 챕터 JSON + 테이블(terrain/jobs/persons) + 언어사전(en/ko) 산출, TA 대조군 검증 일치 156·부분일치 3(표시명 세분화 차이)·불일치 0 (리포트: ~/fesim_data/extracted/VERIFY_M002.md)
-- 2026-08-15 [미룸→이월] 아이콘·팔레트 베이크는 M1(보드 가시화)에서 — 선행 조건: unitindexes.bundle 서브셋 복사
+- 2026-08-15 [미룸→이월] 아이콘·팔레트 베이크는 M1(보드 가시화)에서 — 선행 조건: unitindexes.bundle 서브셋 복사 → [해소] M1 베이크 완료(data/fe17/assets)
 - 2026-08-16 로스터 초상화 = 인게임 facethumb.bundle 공식 썸네일 채택 — 계획서 6절의 "초상화+눈좌표 80명 수작업 어노테이션"을 대체(더 정본이고 비용 0). 대형 초상화는 후속 과제
 - 2026-08-16 미니맵 배경 데이터 실증: terrain.xml ColorR/G/B 실재(평지=64,255,64) — 계획서 6절 가정 확인됨
-- 2026-08-16 배포 채널 확정: main = 스테이블(자동 배포) · beta 브랜치 = 베타 채널(CF 프리뷰 빌드, 관리자 전용 URL). 개발 = 로컬 → beta 검증 → 승인 후 main 병합. 릴리즈 후 main 병합 = 명시 승인 필수
+- 2026-08-16 배포 채널 확정: main = 스테이블(자동 배포) · beta 브랜치 = 베타 채널(CF 프리뷰 빌드, 관리자 전용 URL). 개발 = 로컬 → beta 검증 → 승인 후 main 병합. 릴리즈 후 main 병합 = 명시 승인 필수 → [무효] 같은 날 승격 체계(main 머지 = 베타 게시)로 대체
 - 2026-08-16 보드 표시 팔레트는 UI가 소유(공식 ColorRGB는 데이터 정본 유지, 화면은 톤다운 팔레트) — 사용자 피드백: 원색이 쨍함
 - 2026-08-16 화면상 Y축 확정: y=0 = 화면 상단 (M002 렌더를 사용자가 실기와 대조 확인) — 좌표계 미확정 전부 해소
 - 2026-08-16 [정정] 화면상 Y축: 직전 기록 취소 — 실기 대조 결과 상하 반전 확인. 확정 = 데이터 y=0 이 화면 하단(렌더는 FLIP_Y=true로 뒤집는다)
@@ -37,3 +37,5 @@
 - 2026-08-16 플랜 §0 진행 체크리스트 = todo 정본(M0·M1·M1.5·배포체계 체크 완료, 다음 = M2) · 마감(clear 준비) 절차 CLAUDE.md 등재
 - 2026-08-16 rules/design-lifecycle.md 신설 — 설계 문서 = todo, 완료 시 코드 흡수 후 design/에서 삭제(gc가 archive 이송), doccheck 집행
 - 2026-08-16 게이트 운용: 커밋은 자유(상시), ./dev done은 큰 작업(M단위) 마감과 main 병합에만 — 소커밋마다 풀게이트 금지
+- 2026-08-16 문서 전수 감사(26건) 반영: 배선 4(islands→components 등)·모순 6(☠pnpm deploy 스테이블 우회 차단 포함)·수명 위반 7(플랜 470→278줄, 사망 절 삭제·부록 승격)·집행 갭 4(pre-push 훅 신설, doccheck 배선 테스트 2종, done에 doccheck 명시) — 근거: ~/fesim_data/extracted/DOC_AUDIT.md
+- 2026-08-16 M2 실기 스크린샷 회귀 코퍼스 경로 확정: ~/fesim_data/reference/screens/ (m###_설명.png, 저장소 밖 — 수집은 사용자 몫)
