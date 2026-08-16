@@ -1,36 +1,72 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toAddress, type StepAddress, type UnitState } from "@fesim/engine";
-import type { EphemerisFile } from "@fesim/shared";
+import { toAddress, type UnitState } from "@fesim/engine";
+import { parseEphemeris, type EphemerisFile } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
+import { boardsJsonPath } from "../lib/boards";
 import type { BoardProps } from "../lib/fe17";
-import type { FocusLabels } from "../lib/i18n";
-import { createBoardStore, displayState, useBoard } from "../lib/boardStore";
+import type { FocusLabels, Locale } from "../lib/i18n";
+import { createBoardStore, displayState, useBoard, type BoardStore } from "../lib/boardStore";
 import { writeAddress } from "../lib/replayQuery";
-import BoardView from "./BoardView";
-import "./replay.css";
+import ReplayFrame from "./ReplayFrame";
 
 /**
- * 공유 열람(포커스 모드)의 스테퍼 — 표시는 BoardView, 국면은 스토어(리플레이 모드), 룰은 엔진.
- * 기보는 props로 인라인돼 오므로 **스테핑에 네트워크가 없다**(열람 경로가 릴리즈 게이트다).
+ * 공유 열람(포커스 모드)의 스테퍼 — client:only. 첫 페인트는 페이지의 정적 SSR(ReplayFrame)이 담당하고,
+ * 이 아일랜드는 기보(.eph)·보드 JSON을 **하이드레이션 후 fetch**해 조작을 활성화한다(둘 다 캐시되는 정적 응답).
+ * 로드가 끝나면 정적 보드(ssrBoardId)를 숨기고 라이브 프레임으로 교대한다 — 이후 스테핑은 네트워크 제로.
  */
 export interface ReplayIslandProps {
-  board: BoardProps;
-  file: EphemerisFile;
-  /** 서버가 ?t/p/a로 계산한 시작 커서 — 서버 렌더와 첫 클라 렌더가 같은 국면이어야 한다. */
+  id: string;
+  /** 서버가 ?t/p/a로 계산한 시작 커서 — 정적 렌더와 첫 라이브 렌더가 같은 국면이어야 한다. */
   cursor: number;
   /** ?u= 지정 유닛 하이라이트(패널 펼침은 M4). */
   unit?: string;
   labels: FocusLabels;
+  locale: Locale;
+  ssrBoardId: string;
 }
-
-const PHASE_INDEX: Record<StepAddress["p"], number> = { player: 0, enemy: 1, ally: 2 };
 
 /** 스와이프 판정 최소 이동(px) — 세로 스크롤을 가로 스테핑으로 오해하지 않을 만큼. */
 const SWIPE_MIN = 44;
 
-export default function ReplayIsland({ board, file, cursor, unit, labels }: ReplayIslandProps) {
-  // 기보·커서를 생성 시점에 실어야 서버 렌더와 첫 클라 렌더가 같은 국면이 된다(스토어 독스트링 참조).
-  const [store] = useState(() => createBoardStore(board, { file, cursor }));
+interface Loaded {
+  board: BoardProps;
+  file: EphemerisFile;
+  store: BoardStore;
+}
+
+export default function ReplayIsland({ id, cursor, unit, labels, locale, ssrBoardId }: ReplayIslandProps) {
+  const [loaded, setLoaded] = useState<Loaded | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const ephRes = await fetch(`/s/${id}.eph`);
+        if (!ephRes.ok) return;
+        const file = parseEphemeris(await ephRes.text());
+        const boardRes = await fetch(boardsJsonPath(file.chapter.cid, locale));
+        if (!boardRes.ok) return;
+        const board = (await boardRes.json()) as BoardProps;
+        if (!alive) return;
+        setLoaded({ board, file, store: createBoardStore(board, { file, cursor }) });
+      } catch (e) {
+        console.warn("replay load failed — 정적 보드 유지", e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id, cursor, locale]);
+
+  useEffect(() => {
+    if (loaded !== undefined) document.getElementById(ssrBoardId)?.setAttribute("hidden", "");
+  }, [loaded, ssrBoardId]);
+
+  if (loaded === undefined) return null;
+  return <LiveFrame {...loaded} unit={unit} labels={labels} />;
+}
+
+function LiveFrame({ board, file, store, unit, labels }: Loaded & { unit?: string; labels: FocusLabels }) {
   const game = useBoard(store, displayState);
   const visuals = useBoard(store, (s) => s.visuals);
   const replay = useBoard(store, (s) => s.replay);
@@ -75,15 +111,21 @@ export default function ReplayIsland({ board, file, cursor, unit, labels }: Repl
   const badge =
     replay === undefined
       ? undefined
-      : replay.verify.ok
-        ? `${labels.verified} ${file.ruleVersion}`
-        : labels.recordOnly;
+      : { text: replay.verify.ok ? `${labels.verified} ${file.ruleVersion}` : labels.recordOnly, ok: replay.verify.ok };
 
   return (
-    <figure
-      className="plate replay"
-      style={{ "--cols": board.width, "--rows": board.height } as React.CSSProperties}
-      aria-label={board.labels.board}
+    <ReplayFrame
+      board={board}
+      address={address}
+      badge={badge}
+      at={at}
+      steps={steps}
+      labels={labels}
+      alive={alive}
+      byTile={byTile}
+      visuals={visuals}
+      selectedId={unit}
+      onStep={(delta) => store.getState().stepAction(delta)}
       onTouchStart={(e) => {
         touchFrom.current = e.touches[0]?.clientX;
       }}
@@ -95,50 +137,6 @@ export default function ReplayIsland({ board, file, cursor, unit, labels }: Repl
         if (Math.abs(dx) < SWIPE_MIN) return;
         store.getState().stepAction(dx < 0 ? 1 : -1); // 왼쪽으로 밀면 다음 행동(캐러셀 문법)
       }}
-    >
-      <div className="turn-strip">
-        <span className="turn-label">
-          {address === undefined
-            ? ""
-            : `${board.labels.turnWord} ${address.t} · ${board.labels.forceNames[PHASE_INDEX[address.p]]} ${board.labels.turnPhase} · ${labels.actionWord} ${address.a}`}
-        </span>
-        {badge !== undefined && (
-          <span className={replay?.verify.ok === true ? "verify-badge ok" : "verify-badge"}>{badge}</span>
-        )}
-      </div>
-
-      <BoardView
-        width={board.width}
-        height={board.height}
-        tiles={board.tiles}
-        objects={board.objects}
-        units={alive}
-        byTile={byTile}
-        visuals={visuals}
-        selectedId={unit}
-      />
-
-      <nav className="replay-nav" aria-label={board.labels.board}>
-        <button
-          type="button"
-          aria-label={labels.prev}
-          disabled={at <= 0}
-          onClick={() => store.getState().stepAction(-1)}
-        >
-          ←
-        </button>
-        <span className="replay-count">
-          {at} / {steps}
-        </span>
-        <button
-          type="button"
-          aria-label={labels.next}
-          disabled={at >= steps}
-          onClick={() => store.getState().stepAction(1)}
-        >
-          →
-        </button>
-      </nav>
-    </figure>
+    />
   );
 }

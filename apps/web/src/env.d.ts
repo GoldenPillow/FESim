@@ -5,7 +5,12 @@
  */
 declare module "cloudflare:workers" {
   export const env: {
-    LINKS?: { get(key: string): Promise<string | null> };
+    LINKS?: { get(key: string, opts?: { cacheTtl?: number }): Promise<string | null> };
     ASSETS?: { fetch(input: Request | URL | string): Promise<Response> };
   };
+}
+
+/** 워커 Cache API — DOM CacheStorage에는 default가 없어 여기서 보강한다(astro dev에는 없을 수 있음 → 옵셔널 접근). */
+interface CacheStorage {
+  readonly default?: Cache;
 }

@@ -3,13 +3,15 @@ export const prerender = false;
 
 import { env } from "cloudflare:workers";
 import { getReplay, statusFor } from "@fesim/api";
-import { toCursor, type GameState } from "@fesim/engine";
+import { toAddress, toCursor, type UnitState } from "@fesim/engine";
 import type { EphemerisFile } from "@fesim/shared";
 import Base from "../../layouts/Base.astro";
+import ReplayFrame, { type ReplayFrameProps } from "../../components/ReplayFrame";
 import ReplayIsland from "../../components/ReplayIsland";
 import { boardsJsonPath } from "../../lib/boards";
 import { initGame, replayer } from "../../lib/boardStore";
 import { readAddress } from "../../lib/replayQuery";
+import { tileKey } from "../../lib/grid";
 import { DEFAULT_LOCALE, UI, isLocale } from "../../lib/i18n";
 import type { BoardProps } from "../../lib/fe17";
 
@@ -27,15 +29,16 @@ let failure: string | undefined;
 let file: EphemerisFile | undefined;
 let board: BoardProps | undefined;
 let cursor = 0;
-let state: GameState | undefined;
-/** 등장(생존) 유닛 아이콘만 preload — LCP는 보드 위 아이콘이 결정한다. */
-let icons: string[] = [];
+let frame: ReplayFrameProps | undefined;
 
 if (env.LINKS === undefined) {
   Astro.response.status = 503;
   failure = t.focus.notFound;
 } else {
-  const link = await getReplay(env.LINKS, Astro.params.id);
+  // cacheTtl 5분: 응답 캐시(미들웨어)를 비껴가는 쿼리 변형(?t/p/a)의 KV 재읽기를 PoP에 캐시.
+  // ☠부작용 = 미스도 5분 캐시된다(등재 직전 프로브가 새 링크를 그 PoP에서 잠시 가릴 수 있음) — 짧게 유지하는 이유.
+  const links = env.LINKS;
+  const link = await getReplay({ get: (key) => links.get(key, { cacheTtl: 300 }) }, Astro.params.id);
   if (!link.ok) {
     Astro.response.status = statusFor(link.reason);
     failure = link.reason === "corrupt" ? t.focus.broken : t.focus.notFound;
@@ -52,19 +55,25 @@ if (env.LINKS === undefined) {
       board = (await res.json()) as BoardProps;
       const base = initGame(board, file.chapter.difficulty, file.chapter.scenario);
       const timeline = replayer.buildTimeline(base.game, file.log);
-      const address = readAddress(query);
-      cursor = address === undefined ? 0 : toCursor(timeline, address);
-      state = replayer.stateAt(timeline, cursor);
-      // 유닛 id = props.units 인덱스(initGame 계약) — 살아있는 유닛의 아이콘만 모은다.
-      const props = board;
-      icons = [
-        ...new Set(
-          state.units
-            .filter((u) => !u.dead)
-            .map((u) => props.units[Number(u.id.slice(1))]?.icon)
-            .filter((src): src is string => src !== undefined),
-        ),
-      ];
+      const wanted = readAddress(query);
+      cursor = wanted === undefined ? 0 : toCursor(timeline, wanted);
+      // 정적 프레임이 첫 페인트(LCP)의 전부다 — 기보·보드 props는 문서에 싣지 않는다(아일랜드가 fetch).
+      // 아이콘 data URI 인라인은 미들웨어가 이 마크업에 적용한다.
+      const state = replayer.stateAt(timeline, cursor);
+      const alive = state.units.filter((u) => !u.dead);
+      const byTile = new Map<string, UnitState>();
+      for (const u of alive) byTile.set(tileKey(u.x, u.y), u);
+      frame = {
+        board,
+        address: toAddress(timeline, cursor),
+        at: cursor,
+        steps: timeline.steps.length,
+        labels: t.focus,
+        alive,
+        byTile,
+        visuals: base.visuals,
+        selectedId: query.get("u") ?? undefined,
+      };
     }
   }
 }
@@ -86,7 +95,6 @@ const description = board === undefined ? t.focus.shared : `${t.focus.shared} �
     <meta property="og:description" content={description} />
     <meta property="og:url" content={Astro.url.href} />
     <meta name="twitter:card" content="summary" />
-    {icons.map((src) => <link rel="preload" as="image" href={src} />)}
   </Fragment>
 
   {
@@ -108,7 +116,20 @@ const description = board === undefined ? t.focus.shared : `${t.focus.shared} �
           </p>
         </header>
 
-        <ReplayIsland board={board} file={file} cursor={cursor} unit={query.get("u") ?? undefined} labels={t.focus} client:load />
+        {frame !== undefined && (
+          <div id="ssr-board">
+            <ReplayFrame {...frame} />
+          </div>
+        )}
+        <ReplayIsland
+          id={Astro.params.id ?? ""}
+          cursor={cursor}
+          unit={query.get("u") ?? undefined}
+          labels={t.focus}
+          locale={locale}
+          ssrBoardId="ssr-board"
+          client:only="react"
+        />
 
         <a class="focus-cta" href={`/${locale}/fe17/maps/${file.chapter.cid}`}>{t.focus.edit}</a>
       </main>
