@@ -184,6 +184,29 @@ describe("전투 해결", () => {
     expect(next.units.find((u) => u.id === "a")!.hp).toBeLessThan(30); // 반격 유효
   });
 
+  it("브레이크는 피격 전투 1회 직후 해제 — 같은 페이즈 세 번째 공격부터 반격 재개", () => {
+    // 왜 위험한가: 종전 모델(자기 페이즈 복귀까지 유지)은 같은 아군 턴의 후속 공격 전부를
+    // 반격 몰수로 과대 계산했다. 실기 반증 = 사용자 스크린샷 3장(2026-08-17, reference/screens):
+    // 브레이크 걸린 적 피격 시 그 전투까지 반격 불가 유지 → 전투 직후 해제. 적턴 시작 해제와 양립
+    // (kr 도움말 "한 번 전투를 하거나 다음 턴이 되기 전까지"의 '한 번 전투' 절이 이것이다).
+    const enemyStats = { hp: 30, str: 8, mag: 0, dex: 4, spd: 10, lck: 10, def: 12, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a1", force: 0, x: 0, y: 0, weapon: sword }),
+      unit({ id: "a2", force: 0, x: 1, y: 1, weapon: axe }),
+      unit({ id: "a3", force: 0, x: 2, y: 0, weapon: axe }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 30, weapon: axe }),
+    ]);
+    const afterBreak = reduce(s, { type: "attack", unit: "a1", target: "e" }, alwaysHit);
+    expect(afterBreak.units.find((u) => u.id === "e")!.broken).toBe(true);
+    expect(afterBreak.units.find((u) => u.id === "a1")!.hp).toBe(30); // 브레이크로 반격 없음
+    const afterSecond = reduce(afterBreak, { type: "attack", unit: "a2", target: "e" }, alwaysHit);
+    expect(afterSecond.units.find((u) => u.id === "a2")!.hp).toBe(30); // 이 전투까지는 반격 불가
+    expect(afterSecond.events.some((ev) => ev.type === "breakRelease")).toBe(true);
+    expect(afterSecond.units.find((u) => u.id === "e")!.broken).toBe(false); // 직후 해제
+    const afterThird = reduce(afterSecond, { type: "attack", unit: "a3", target: "e" }, alwaysHit);
+    expect(afterThird.units.find((u) => u.id === "a3")!.hp).toBeLessThan(30); // 반격 재개
+  });
+
   it("빗나감 = 데미지 0, 필살 = 3배 (롤 소비: 명중 → 명중시 필살)", () => {
     const enemyStats = { hp: 30, str: 8, mag: 0, dex: 4, spd: 10, lck: 0, def: 2, res: 0, bld: 5 };
     const mk = () =>

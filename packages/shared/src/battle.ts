@@ -25,6 +25,7 @@ export type StrikeKind = "attack" | "counter" | "followUp" | "counterFollowUp" |
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "break"; unit: string }
+  | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
   | { type: "exp"; unit: string; amount: number; total: number }
   | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }

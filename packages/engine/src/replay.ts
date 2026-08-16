@@ -136,6 +136,9 @@ function applyEvents(
       case "break":
         require(ev.unit).broken = true;
         break;
+      case "breakRelease":
+        require(ev.unit).broken = false;
+        break;
       case "death":
         require(ev.unit).dead = true;
         break;

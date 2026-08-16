@@ -231,9 +231,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "combat.break-recovery",
-    label: { en: "Break recovery timing (own phase start)", ko: "브레이크 해제 = 자기 군 페이즈 복귀 시" },
-    status: "assumed",
-    evidence: "실측 미확보 — kr 도움말 '다음 턴' vs us '다음 전투' 원문 불일치(gaps/E §1-1), 미러 플레이 대조 대상",
+    label: { en: "Break recovery: after one defended combat, or own phase start", ko: "브레이크 해제 = 피격 전투 1회 직후 또는 자기 군 페이즈 시작" },
+    status: "anchored",
+    evidence: "사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소)",
   },
   {
     id: "combat.chain-attack",

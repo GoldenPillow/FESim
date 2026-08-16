@@ -233,6 +233,7 @@ export default function BoardIsland(props: BoardProps) {
             const gains = Object.entries(ev.gains).map(([k, v]) => `${k}+${v}`).join(" ");
             return `${name(ev.unit)} Lv ${ev.level}! ${gains}`;
           }
+          case "breakRelease":
           case "phase":
           case "outcome":
             return "";

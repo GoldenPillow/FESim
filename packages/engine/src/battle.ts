@@ -267,6 +267,9 @@ export function createReducer(calc: Calculator) {
           }
         };
 
+        // 실기 정본(2026-08-17 사용자 대조): 브레이크 상태로 피격당한 전투가 끝나면 즉시 해제 —
+        // 페이즈 복귀까지 유지하면 같은 턴 후속 공격이 전부 반격 몰수로 과대 계산된다.
+        const defenderEnteredBroken = defender.broken;
         strike(attacker, defender, "attack", atkF);
         const chainNumbers = (backup: UnitState) => {
           const env = combatEnv(toCombatant(backup, state.map), defenderC);
@@ -282,6 +285,10 @@ export function createReducer(calc: Calculator) {
         if (canCounter()) strike(defender, attacker, "counter", defF);
         if (atkF.followUp) strike(attacker, defender, "followUp", atkF);
         if (defF.followUp && canCounter()) strike(defender, attacker, "counterFollowUp", defF);
+        if (defenderEnteredBroken && !defender.dead) {
+          defender.broken = false;
+          events.push({ type: "breakRelease", unit: defender.id });
+        }
 
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
