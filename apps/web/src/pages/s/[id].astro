@@ -53,27 +53,35 @@ if (env.LINKS === undefined) {
       file = undefined;
     } else {
       board = (await res.json()) as BoardProps;
-      const base = initGame(board, file.chapter.difficulty, file.chapter.scenario);
-      const timeline = replayer.buildTimeline(base.game, file.log);
-      const wanted = readAddress(query);
-      cursor = wanted === undefined ? 0 : toCursor(timeline, wanted);
-      // 정적 프레임이 첫 페인트(LCP)의 전부다 — 기보·보드 props는 문서에 싣지 않는다(아일랜드가 fetch).
-      // 아이콘 data URI 인라인은 미들웨어가 이 마크업에 적용한다.
-      const state = replayer.stateAt(timeline, cursor);
-      const alive = state.units.filter((u) => !u.dead);
-      const byTile = new Map<string, UnitState>();
-      for (const u of alive) byTile.set(tileKey(u.x, u.y), u);
-      frame = {
-        board,
-        address: toAddress(timeline, cursor),
-        at: cursor,
-        steps: timeline.steps.length,
-        labels: t.focus,
-        alive,
-        byTile,
-        visuals: base.visuals,
-        selectedId: query.get("u") ?? undefined,
-      };
+      try {
+        const base = initGame(board, file.chapter.difficulty, file.chapter.scenario);
+        const timeline = replayer.buildTimeline(base.game, file.log);
+        const wanted = readAddress(query);
+        cursor = wanted === undefined ? 0 : toCursor(timeline, wanted);
+        // 정적 프레임이 첫 페인트(LCP)의 전부다 — 기보·보드 props는 문서에 싣지 않는다(아일랜드가 fetch).
+        // 아이콘 data URI 인라인은 미들웨어가 이 마크업에 적용한다.
+        const state = replayer.stateAt(timeline, cursor);
+        const alive = state.units.filter((u) => !u.dead);
+        const byTile = new Map<string, UnitState>();
+        for (const u of alive) byTile.set(tileKey(u.x, u.y), u);
+        frame = {
+          board,
+          address: toAddress(timeline, cursor),
+          at: cursor,
+          steps: timeline.steps.length,
+          labels: t.focus,
+          alive,
+          byTile,
+          visuals: base.visuals,
+          selectedId: query.get("u") ?? undefined,
+        };
+      } catch {
+        // 스키마는 통과했지만 재생 불가한 레코드(예: events·rolls 없는 공격) — 500 대신 깨진 기록으로 표시.
+        Astro.response.status = 400;
+        failure = t.focus.broken;
+        file = undefined;
+        board = undefined;
+      }
     }
   }
 }

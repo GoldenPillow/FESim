@@ -165,7 +165,11 @@ function applyEvents(
 }
 
 export function createReplayer(reduce: Reduce) {
-  /** 재생 1스텝. 공격은 기록 events 절대값 적용, 나머지는 reduce 재사용(롤 무소비 — 소비하면 던진다). */
+  /**
+   * 재생 1스텝. 공격은 기록 events 절대값 적용 — 단 events가 없으면 rolls로 reduce 재계산(정본 부재 폴백).
+   * 그 외 행동은 reduce 재사용(롤 무소비 — 소비하면 던진다). events·rolls 둘 다 없는 공격은
+   * ReplayDesyncError로 끝난다(수기·LLM 기보의 정합 검증은 M4 검증기 몫 — 호출측이 잡아서 표시한다).
+   */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
     if (step.action.type === "attack" && step.events !== undefined) {
       return applyEvents(state, step.action, step.events);
