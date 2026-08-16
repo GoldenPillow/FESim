@@ -98,7 +98,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "movement.multi-tile-unit",
     label: { en: "Multi-tile units (BmapSize)", ko: "다칸 유닛(BmapSize)" },
     status: "absent",
-    evidence: "BmapSize != 1 31행(대형 보스) — 단위 범례는 덤프에 없음(gaps/H)",
+    evidence: "BmapSize 2 = 異形竜류 29체·3 = E006 보스·5 = 솜브론 용형(gaps/H) · ★실기 등장 확인 = 17장 이형룡(m017 dispos 3배치, 화염 브레스 — 사용자 전언 2026-08-17 정합) · 점유·인접·사거리 판정 영향, 발현 = M017 변환 시",
   },
   {
     id: "movement.warp",
@@ -147,7 +147,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "actions.dance",
     label: { en: "Dance (grant another action)", ko: "춤(재행동 부여)" },
     status: "absent",
-    evidence: "원문 절차 확보 — 행동완료 아군 인접·미행동 리셋(gaps/E §1-7) · 경험치 = combat.exp-dance",
+    evidence: "원문 절차 확보(gaps/E §1-7) + 실기 확인 = 커맨드로 인접 아군 재행동(사용자 2026-08-17) · 경험치 = combat.exp-dance",
   },
   {
     id: "actions.engage",
