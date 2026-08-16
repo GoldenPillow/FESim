@@ -61,3 +61,6 @@
 - 2026-08-16 승계 강화(사용자): 로그인 즉시 로컬 보관함 전략 전부를 서버 DB로 자동 저장·귀속(수동 단계 없음, 유실 = UX 치명) — 이후 로컬+서버 이중 저장. 구현 = M4(better-auth+D1과 함께)
 - 2026-08-16 M3 4단계 판정: 워커 배포 설정 정본 = 빌드 산출물 apps/web/dist/server/wrangler.json(어댑터 14.x, CF 대시보드 배포 명령에 -c 필수 — deploy.md 갱신) · KV fesim-links 프로비저닝(바인딩 LINKS, 베타/스테이블 공유) · 어댑터 자동 프로비저닝 바인딩(SESSION·IMAGES)은 명시 차단(session:false·imageService:passthrough — 미사용 바인딩 = 배포·과금 표면) · link:put 기본 = 원격(--local 명시)
 - 2026-08-16 /s/ 번들 실측 74.3KB gzip(게이트 100KB 통과, 여유 25.7KB) · 워커 청크 80KB(5MB 테이블 미반입 설계 달성) · zustand SSR 함정(getServerSnapshot = 초기 상태) 실측 발견 → 리플레이는 스토어 생성 인자로 — 회귀 테스트 박제
+- 2026-08-16 ☠LCP 게이트 "모바일 4G" = LTE 정의 확정(사용자): lighthouserc RTT 70ms/10Mbps 명시 — Lighthouse 기본(Slow 4G, RTT150)은 연결 바닥만 ~780ms라 첫 페인트 자원 전체가 14.6KB(TCP 1라운드) 안이어야 해 실전 기보·큰 맵이 구조적 불가(실측: Slow 1217ms vs LTE 635ms)
+- 2026-08-16 /s/ 전달 구조 확정: 문서 = 셸+정적 보드 SSR+아이콘 data URI 인라인(미들웨어)만 · 기보(.eph 엔드포인트)·보드 JSON은 하이드레이션 후 fetch(이후 스테핑 네트워크 제로) · 응답 엣지 캐시(Cache API, 1h — 미룸분 흡수, 발현 조건 = TTFB 실측) · KV cacheTtl 5분. 계획서 "로그 인라인" 세부를 실측 근거로 대체
+- 2026-08-16 M3 6단계 게이트 실측(프리뷰 f68e8119, 표본 3회): LCP 623/627/639ms 중앙값 627(<1s 통과) · /s/ JS 74.1KB gzip(<100KB 통과) · 문서 전송 11.4KB
