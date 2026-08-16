@@ -40,9 +40,23 @@ DOTNET_ROLL_FORWARD=Major printf '\n' | \
     ~/fesim_data/il2cpp_out
 ```
 
-## 다음 단계 (함수 본문 = 실제 로직)
+## 3) 함수 본문 판독 — `nso_disasm.py` (Ghidra 불요)
 
-`dump.cs`는 시그니처+오프셋만. 본문(1RN/2RN 여부 등)은 `main`을 Ghidra에 로드 →
-`script.json`으로 RVA에 심볼 부여 → 대상 함수 디컴파일. 우선 대상 함수(BattleCalculator):
-`RandomCheckHit(int ratio)` · `CalcAttackHit(out int critical)` · `CalcExp` · `GetChainGuardDamage` ·
-`GetExpendCount` · `CalcRodHit`. 정본 절차·매핑 = `design/verification.md §2-7`.
+`dump.cs`는 시그니처+RVA까지("어디에 있나"). 실제 식은 본문을 읽어야 한다. 대상 함수가 대개
+수십 명령이라 **47MB 바이너리 전량 분석(Ghidra+JDK 400MB) 없이 표적 디스어셈블로 충분**하다.
+
+```bash
+# 1회: 파이썬 환경(저장소 밖 — 립 도구 계열과 같은 곳)
+python3 -m venv ~/fesim_data/venv && ~/fesim_data/venv/bin/pip install lz4 capstone
+
+# 판독
+cd tools/exefs   # 또는 저장소 루트
+~/fesim_data/venv/bin/python tools/exefs/nso_disasm.py 0x1e8d420 --count 60   # RVA로
+~/fesim_data/venv/bin/python tools/exefs/nso_disasm.py RandomCheckHit          # 이름으로(후보 목록)
+```
+
+NSO0의 `.text`는 LZ4 블록 압축(flags 0x3f)이라 스크립트가 디컴프레스한 뒤 `RVA - memoff`로
+잘라 aarch64 디스어셈블한다. `BL`/`B` 분기처는 `script.json`으로 IL2CPP 심볼명을 주석에 붙인다
+(간접 호출 `BLR`은 이름이 안 붙으므로 vtable 오프셋을 dump.cs로 역추적해야 한다).
+
+우선 대상·판독 결과 매핑 = `design/verification.md §2-7`, 판독 보고서 = `~/fesim_data/extracted/il2cpp/`.

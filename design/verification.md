@@ -91,8 +91,12 @@ Unity IL2CPP 게임이라 exefs `main`(C#→C++ AOT)에 `global-metadata.dat`를
 - **부트스트랩·절차 정본 = `tools/exefs/README.md`** (추출기 소스 = LibHac 참조 C#, 티켓 임포트 포함).
 - **산출물**(저장소 밖 `~/fesim_data/`): `exefs/main`(5.0.0·NSO0·47MB) · `il2cpp_out/{dump.cs,script.json,il2cpp.h,DummyDll/}`.
   버전 정합 = main·global-metadata 둘 다 5.0.0(메타데이터 v27, romfs 데이터마인 정본과 동일 빌드).
-- **다음 단계(함수 본문 판독)**: `dump.cs`는 시그니처+RVA만 = "어디에 있나"까지. 실제 식(1RN/2RN 등)은
-  `main`을 Ghidra에 로드 → `script.json`으로 심볼 부여 → 대상 함수 디컴파일. 우선 대상(`BattleCalculator`):
+- **함수 본문 판독 = `tools/exefs/nso_disasm.py`**(2026-08-17 개통 — Ghidra·JDK 불요). NSO의 LZ4 `.text`를
+  디컴프레스해 RVA 구간만 aarch64 디스어셈블하고, `BL` 분기처에 `script.json` 심볼명을 붙인다.
+  ☠간접 호출(`BLR`·델리게이트)은 이름이 안 붙으므로 vtable 오프셋·바인딩 지점을 dump.cs로 역추적해야 한다 —
+  실제로 `BattleMath.RandomCheckHit`은 **`BattleMath.Probability` 델리게이트로 tail-call**한다(명중 판정이
+  주입 가능한 함수라는 구조적 발견, 2026-08-17). 판독 보고서 = `~/fesim_data/extracted/il2cpp/`.
+  우선 대상(`BattleCalculator`):
 
   | 미결 항목(§4) | 정본 함수(dump.cs 확인) |
   |---|---|
