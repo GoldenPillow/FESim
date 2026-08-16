@@ -33,6 +33,14 @@ export {
   type ReachableTile,
   type Tile,
 } from "./range.js";
+export {
+  deriveStats,
+  grownLevels,
+  STAT_KEYS,
+  type DeriveStatsInput,
+  type StatBlock,
+  type StatKey,
+} from "./stats.js";
 export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.js";
 export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 export { createCalculator, type Calculator } from "./formula/calculator.js";

@@ -1,5 +1,5 @@
 import type { ChapterData, DisposUnit, MapObject } from "@fesim/shared";
-import { MOVE_TYPES, type MoveType } from "@fesim/engine";
+import { MOVE_TYPES, deriveStats, type MoveType, type StatBlock } from "@fesim/engine";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -307,6 +307,51 @@ export const chapterTitle = (chapter: ChapterData, locale: Locale): ChapterTitle
     place: label(locale, `MCID_${key}_PLACE`) ?? "",
   };
 };
+
+/* ── 스탯 산출 ───────────────────────────────────────────────
+   공식·검증 근거는 packages/engine/src/stats.ts가 소유. 여기는 테이블 필드 → 입력 사상만. */
+
+export type Difficulty = "n" | "h" | "l";
+
+/** 데이터 필드명(일본어 원본 유래) → 엔진 스탯 키. Tech=기량, Quick=속도, Mdef=마방, Phys=체격. */
+const STAT_FIELDS: Record<keyof StatBlock, string> = {
+  hp: "Hp",
+  str: "Str",
+  mag: "Magic",
+  dex: "Tech",
+  spd: "Quick",
+  lck: "Luck",
+  def: "Def",
+  res: "Mdef",
+  bld: "Phys",
+};
+
+const DIFF_SUFFIX: Record<Difficulty, string> = { n: "N", h: "H", l: "L" };
+
+const statBlock = (row: Record<string, unknown>, prefix: string): StatBlock => {
+  const out = {} as StatBlock;
+  for (const [key, field] of Object.entries(STAT_FIELDS) as [keyof StatBlock, string][]) {
+    out[key] = Number(row[`${prefix}${field}`] ?? 0);
+  }
+  return out;
+};
+
+/** dispos 유닛의 실스탯(난이도 반영). 인물·직업 테이블 미비 시 undefined. */
+export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock | undefined {
+  const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
+  const job = jobs[unit.jid] as unknown as Record<string, unknown> | undefined;
+  if (person === undefined || job === undefined) return undefined;
+  const suffix = DIFF_SUFFIX[difficulty];
+  const disposLevel = unit.level[difficulty];
+  return deriveStats({
+    jobBase: statBlock(job, "Base."),
+    jobInternalLevel: Number(job["InternalLevel"] ?? 0),
+    personOffset: statBlock(person, `Offset${suffix}.`),
+    personGrowth: statBlock(person, "Grow."),
+    level: disposLevel > 0 ? disposLevel : Number(person["Level"] ?? 1),
+    autoGrowOffset: Number(person[`AutoGrowOffset${suffix}`] ?? 0),
+  });
+}
 
 /* ── 보드 아일랜드 props ─────────────────────────────────────
    아일랜드(클라이언트)는 이 직렬화 산출물만 받는다 — 대용량 테이블 JSON은 SSG에만 남는다. */
