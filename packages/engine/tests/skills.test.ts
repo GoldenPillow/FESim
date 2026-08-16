@@ -176,3 +176,51 @@ describe("발동 필터 — Stand(전투 주도권)·Action(타격 역할)", () 
     expect(avoid({ ...alear, skills: [migiriStand] })).toBe(57.25);
   });
 });
+
+/**
+ * 스킬 보정 합성 — 인게임 정본(BattleParam.GetResult RVA 0x1E8DA30,
+ * BattleParamCommand.Add/Scale/SetImpl 0x1B45D60/0x1B45DA0/0x1B45DE0).
+ *
+ * 왜 위험했나: 엔진은 보정을 순차 즉시 반영해서 `+5`와 `*1.3`이 **스킬 순서에 따라** 다른 값을 냈다.
+ * 게임은 훅마다 base·add·scale 세 레지스터를 따로 모아 마지막에 `(base + add) * scale` 한 번으로 합성한다 —
+ * 순서 무관이고, 결과는 파라미터 종류별로 클램프된다(값계 0..999 · 율계 0..100).
+ * ☠이 규칙은 전투 12훅(BattleParam)에만 적용된다. 원시 스탯(力·守備…)은 즉시 반영이 맞다.
+ */
+describe("보정 합성 — (base + add) * scale, 순서 무관", () => {
+  const act = (sid: string, name: string, op: string, value: string): SkillRow => ({
+    Sid: sid, ActNames: [name], ActOperations: [op], ActValues: [value],
+  });
+  const apply = (skills: SkillRow[], name: string, base: number) =>
+    makeSkillModifier(skills, combatEnv(alear))(name, base);
+
+  it("가산과 승산의 순서가 결과를 바꾸지 않는다", () => {
+    const plus = act("a", "威力", "+", "5");
+    const times = act("b", "威力", "*", "1.3");
+    expect(apply([plus, times], "威力", 10)).toBeCloseTo(19.5); // (10+5)*1.3
+    expect(apply([times, plus], "威力", 10)).toBeCloseTo(19.5); // 순서를 뒤집어도 같다
+  });
+
+  it("율계 훅은 0..100으로 클램프된다", () => {
+    const big = act("a", "命中率", "+", "80");
+    expect(apply([big, { ...big, Sid: "b" }], "命中率", 30)).toBe(100);
+  });
+
+  it("값계 훅은 0..999로 클램프된다", () => {
+    expect(apply([act("a", "威力", "*", "100")], "威力", 50)).toBe(999);
+    expect(apply([act("a", "威力", "-", "500")], "威力", 10)).toBe(0);
+  });
+
+  it("=(대입)은 기저만 덮고 가산·승산은 살아남는다", () => {
+    const set = act("a", "必殺値", "=", "20");
+    const plus = act("b", "必殺値", "+", "5");
+    expect(apply([set, plus], "必殺値", 3)).toBe(25); // (20+5)*1
+    expect(apply([plus, set], "必殺値", 3)).toBe(25);
+  });
+
+  it("원시 스탯은 합성 규칙 밖이다(즉시 반영·클램프 없음)", () => {
+    const plus = act("a", "力", "+", "5");
+    const times = act("b", "力", "*", "2");
+    expect(apply([plus, times], "力", 10)).toBe(30); // (10+5)*2 가 아니라 순차 = 30
+    expect(apply([times, plus], "力", 10)).toBe(25); // 순서 의존이 정본이다
+  });
+});

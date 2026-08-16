@@ -66,6 +66,26 @@ const node = (source: string): FormulaNode => {
 
 const truthy = (v: FormulaValue): boolean => (typeof v === "number" ? v !== 0 : v !== "");
 
+/**
+ * 전투 파라미터(BattleParam) 훅 — 이 12개만 base·add·scale 3레지스터로 합성되고 결과가 클램프된다.
+ * 나머지(원시 스탯·追撃条件)는 즉시 반영·클램프 없음이 정본이다.
+ * 값계는 0..999, 율계(命中率·必殺率)는 0..100 — BattleParam .cctor RVA 0x1E8DD60.
+ */
+const PARAM_LIMIT: Record<string, number> = {
+  ユニット攻撃力: 999,
+  ユニット防御力: 999,
+  攻撃力: 999,
+  防御力: 999,
+  命中値: 999,
+  回避値: 999,
+  必殺値: 999,
+  必殺回避: 999,
+  攻撃速度: 999,
+  威力: 999,
+  命中率: 100,
+  必殺率: 100,
+};
+
 /** 스킬이 이 국면에서 발동 자격이 있는지 — 전투 주도권(Stand)과 타격 역할(Action)은 서로 독립인 축이다. */
 export interface BattleRole {
   /** 이 전투를 건 쪽인가. 미지정 = 문맥 없음이라 Stand를 검사하지 않는다. */
@@ -115,7 +135,13 @@ export function makeSkillModifier(
   const condEnv = strictIdents(env);
   const active = skills.filter((skill) => passesFilter(skill, role));
   return (valueName, value) => {
-    let out = value;
+    const limit = PARAM_LIMIT[valueName];
+    const composed = limit !== undefined;
+    // 전투 파라미터는 세 레지스터를 따로 모아 끝에 한 번 합성한다 — 그래서 스킬 순서에 흔들리지 않는다.
+    let base = value;
+    let add = 0;
+    let scale = 1;
+    let out = value; // 원시 스탯·追撃条件 = 즉시 반영 경로
     for (const skill of active) {
       const names = skill.ActNames;
       if (names === undefined) continue;
@@ -128,17 +154,27 @@ export function makeSkillModifier(
           const amount = evaluateFormula(node(skill.ActValues?.[i] ?? "0"), env);
           if (typeof amount !== "number") continue;
           const op = skill.ActOperations?.[i] ?? "+";
-          out =
-            op === "+" ? out + amount
-            : op === "-" ? out - amount
-            : op === "*" ? out * amount
-            : op === "=" ? amount
-            : out;
+          if (composed) {
+            if (op === "+") add += amount;
+            else if (op === "-") add -= amount;
+            else if (op === "*") scale *= amount;
+            else if (op === "/") scale *= amount === 0 ? 0 : 1 / amount;
+            else if (op === "=") base = amount; // 기저만 덮는다 — add·scale은 살아남는다
+          } else {
+            out =
+              op === "+" ? out + amount
+              : op === "-" ? out - amount
+              : op === "*" ? out * amount
+              : op === "/" ? (amount === 0 ? 0 : out / amount)
+              : op === "=" ? amount
+              : out;
+          }
         } catch {
           continue;
         }
       }
     }
-    return out;
+    if (!composed) return out;
+    return Math.min(Math.max((base + add) * scale, 0), limit);
   };
 }

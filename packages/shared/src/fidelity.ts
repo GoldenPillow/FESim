@@ -537,7 +537,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.act-values",
     label: { en: "Combat value modifiers (ActNames DSL)", ko: "계산값 보정(ActNames DSL — 소수 유지·표시 내림)" },
     status: "anchored",
-    evidence: "M003 간파 corpus.test.ts · ActNames 전수 52종 census — 자기측 훅 13종 305회 소비 / 상대측 90 / 원시 스탯 58 / 어휘 밖 20종 218회(gaps/I) · 별건 항목 = opponent-act·raw-stat-act·timing-filter",
+    evidence: "M003 간파 corpus.test.ts · ActNames 전수 52종 census — 자기측 훅 13종 305회 소비 / 상대측 90 / 원시 스탯 58 / 어휘 밖 20종 218회(gaps/I) · 별건 항목 = opponent-act·raw-stat-act·timing-filter · ★IL2CPP 합성 규칙 확정(2026-08-17, il2cpp/RATES_FORMULA §2-3·SKILL_ENGINE §5-1): 전투 파라미터 12훅은 base·add·scale **3레지스터**로 모았다가 `(base+add)*scale` 1회 합성이라 **스킬 순서 무관**이고(엔진은 순차 즉시 반영이라 `+5`와 `*1.3`의 순서로 값이 갈렸다 — 정정), `=`는 기저만 덮고 add·scale은 살아남는다 · 결과 클램프 = 값계 0..999 · 율계(命中率·必殺率) 0..100, 2단 클램프 실재(命中値·回避値 각각 0..999 후 차감, 결과 다시 0..100) · ☠원시 스탯(力·守備…)·追撃条件은 이 규칙 밖 = 즉시 반영·클램프 없음이 정본 · 배선 = skills.ts PARAM_LIMIT(테스트 5건) · 미배선 = 攻撃速度 음수 클램프(0 하한)를 calculator 층에 넣는 것",
   },
   {
     id: "skills.timing-filter",
@@ -565,9 +565,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "skills.condition-fallback",
-    label: { en: "Unsupported skill conditions safely skip", ko: "평가 불가 조건 = 미적용 안전 강하" },
-    status: "implemented",
-    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter",
+    label: { en: "Unknown condition identifiers fall back to not-applied", ko: "미지 조건 식별자 = 미적용 강하" },
+    status: "assumed",
+    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter · ★2026-08-17 IL2CPP 대조 후 **의도적 유지**(il2cpp/SKILL_ENGINE §5-2): 게임은 미지 식별자를 0으로 치환해 식을 계속 평가하고(CalculatorManager.GetValueImpl 0x298F760) Condition 부재는 참이다(0x248E2E0). 그러나 **게임에는 미지 식별자가 없다**(165종 전부 구현) — 그 0 치환은 '없는 변수'용 안전망이지 '어휘 결손'용이 아니다. 우리 결손에 0을 넣으면 `武器の種類 == 剣`이 `0==0`으로 참이 되어 **과대 발동**한다. 결손이 남아 있는 동안은 과소(미적용)가 안전하므로 현행 유지하고, 어휘를 채울 때마다 이 강하가 자연 소멸하게 둔다 · Condition 부재 = 참은 현행도 동일",
   },
   {
     id: "skills.give-sids",
