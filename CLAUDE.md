@@ -31,9 +31,8 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 - TDD 상시: 레드 확인 → 구현 → 그린. 고친 결함 하나 = 테스트 하나(왜 위험했는지 독스트링)
 - 엔진 계약: (국면, 행동, 난수소스) → 국면. 난수는 항상 주입(기록 재생|실굴림|열거)
 - 상시 커밋 — 결정 즉시 파일로 쓰고 커밋. 마감 = ./dev done (git 훅이 main에서 강제)
-- 배포 채널: **main 머지 = 베타 게시**(CF가 버전 업로드만 — 스테이블 불변, beta-fesim.goldenpillow7.workers.dev
-  = 관리자 채널) · **스테이블 = 명시 지시 시 ./dev promote [버전ID]**(버전 승격 — 재빌드 없음, 생략 시 최신).
-  롤백 = 이전 버전 재승격. 개발 = 로컬 pnpm dev → beta 브랜치 푸시(버전별 프리뷰) → 승인 후 main 병합
+- 배포: **main 머지 = 베타 게시(스테이블 불변) · 스테이블 = 명시 지시 시 ./dev promote** —
+  ☠채널 주소·흐름·CF 설정의 정본 = `rules/deploy.md` (규약이 커지면 rules/에 주제별 분리)
 - 새 스크립트·워커·cron은 package.json scripts 또는 ./dev에 반드시 등재(고아 금지)
 - ★모델 티어링: 설계·계획 문서 작업은 Fable 고정 · 서브에이전트 = Opus(난제 구현)/
   Sonnet(통상·기본값)/Haiku(기계적) — ☠퀄리티 저하 금지, 애매하면 상위. 새 모델 출시 시 표만 갱신(역할 불변)
@@ -43,7 +42,7 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 |---|---|
 | 룰 엔진·AI | packages/engine/src/ 해당 모듈 · tests/ · design/의 building 문서 |
 | 데이터 파이프라인 | tools/pipeline/ 머리말 · data/ 산출 스키마(shared 타입) |
-| 공유 킷·배포 | workers/api/ (M3~) · apps/web/src/islands/ 공유 컴포넌트 |
+| 공유 킷·배포 | rules/deploy.md(채널·승격) · workers/api/ (M3~) · apps/web/src/islands/ |
 | 계획·이력 | design/fesim_plan.md(목차만 열기) · registers/decisions.md(최신부터) |
 
 *결정 변경 시 이 파일 + registers/decisions.md 동시 갱신. ☠이 파일에 상태·수치 박제 금지.*
