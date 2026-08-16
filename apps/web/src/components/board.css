@@ -192,6 +192,141 @@
   background: var(--panel, rgb(255 255 255 / 0.04));
 }
 
+/* 턴/페이즈 스트립 — 보드 좌상단(난이도 스위치의 대칭) */
+.plate .turn-strip {
+  position: absolute;
+  bottom: calc(100% + 1.4rem);
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 5;
+}
+.plate .turn-strip .turn-label {
+  font-size: 11px;
+  color: var(--ink, #ddd);
+  letter-spacing: 0.02em;
+}
+.plate .turn-strip button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .turn-strip button:hover:not(:disabled) {
+  color: var(--ink);
+}
+.plate .turn-strip button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 행동 완료 = 인게임 회색화 문법 */
+.board .cell.acted .icon,
+.board .cell.acted .chip {
+  filter: grayscale(1) brightness(0.7);
+}
+
+/* 유닛 HP 바 — 맵 위 미니 바(인게임 문법) */
+.board .hpbar {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 4%;
+  height: 8%;
+  background: rgb(0 0 0 / 0.55);
+  border-radius: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.board .hpbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #58c2f0, #7fe3a8);
+  transition: width 300ms ease;
+}
+.board .cell[style*="--force: #e2635c"] .hpbar i {
+  background: linear-gradient(90deg, #f0a058, #e2635c);
+}
+
+/* 브레이크 뱃지 */
+.board .brk {
+  position: absolute;
+  top: -8%;
+  right: 0;
+  font-size: calc(var(--tile) * 0.4);
+  font-weight: 900;
+  color: #ffd23e;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+  pointer-events: none;
+}
+
+/* 페이즈/승패 배너 */
+.board .banner {
+  position: absolute;
+  inset: 40% 0 auto;
+  padding: 0.6rem 0;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #fff;
+  background: linear-gradient(90deg, transparent, rgb(10 14 22 / 0.85) 25%, rgb(10 14 22 / 0.85) 75%, transparent);
+  animation: banner-in 1.3s ease both;
+  pointer-events: none;
+  z-index: 6;
+}
+.board .banner.stay {
+  animation: banner-hold 400ms ease both;
+}
+@keyframes banner-in {
+  0% { opacity: 0; transform: translateX(-6%); }
+  15%, 80% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateX(6%); }
+}
+@keyframes banner-hold {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 전투 로그 스트립 */
+.plate .battle-log {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 1rem;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* 공격 실행 버튼(예보 패널 중앙) */
+.forecast .fc-mid {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  align-self: center;
+}
+.forecast .fc-go {
+  padding: 0.25rem 0.8rem;
+  border: 1px solid #e2635c;
+  border-radius: 9999px;
+  background: rgb(226 99 92 / 0.15);
+  color: #ff9d97;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.forecast .fc-go:hover {
+  background: rgb(226 99 92 / 0.3);
+}
+
 /* 공격 대상 — 적색 점멸 링(선택 링과 같은 문법, 색만 적) */
 .board .cell.tgt::before {
   content: "";
@@ -208,7 +343,7 @@
 /* 전투 예보 — 좌우 대면 패널(인게임 문법). 보드 아래 부착. */
 .forecast {
   position: absolute;
-  top: calc(100% + 0.75rem);
+  top: calc(100% + 2rem);
   left: 50%;
   transform: translateX(-50%);
   display: grid;

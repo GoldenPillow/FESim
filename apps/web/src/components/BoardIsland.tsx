@@ -3,111 +3,167 @@ import {
   attackRange,
   combatEnv,
   createCalculator,
+  createReducer,
   forecastSide,
   movementPath,
   movementRange,
+  type BattleEvent,
   type Combatant,
+  type GameState,
   type MoveQuery,
-  type ReachableTile,
+  type RandomSource,
   type SideForecast,
   type Tile,
+  type UnitState,
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
 import { gridCol, gridRow } from "../lib/grid";
-import type { BoardProps, BoardTileProp, BoardUnitProp, Difficulty } from "../lib/fe17";
+import type { BoardProps, BoardUnitProp, Difficulty } from "../lib/fe17";
 import "./board.css";
 
-const DIFFICULTIES: Difficulty[] = ["n", "h", "l"];
-
-/** 전투 계산기 — 원문 DSL(17KB)을 아일랜드 청크에 동봉한다(제작 경로라 예산 관대). */
-const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
-
 /**
- * 보드 아일랜드 — 이 프로젝트의 첫 hydrate 경계.
- * props는 SSG가 직렬화한 산출물뿐이라 대용량 테이블 JSON이 클라이언트로 새지 않는다.
- * 국면(phase) 전환은 페이지의 CSS 라디오가 소유 — 아일랜드는 change 이벤트만 구독한다.
+ * 보드 아일랜드 — M2: 인게임 재현 인터랙션의 hydrate 경계.
+ * 상태의 정본은 엔진 GameState이고 여기는 (행동 선택 → reduce 호출 → 이벤트 표시)만 한다.
+ * 난수 = 실굴림 주입(샌드박스 문법). 국면(시나리오) 선택은 페이지 CSS 라디오가 소유.
  */
+const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
+const reduce = createReducer(calculator);
+const liveRng: RandomSource = { roll: () => Math.floor(Math.random() * 100) };
 
 const tileKey = (x: number, y: number) => `${x},${y}`;
 
-/** 페이지의 phase 라디오(있다면)와 동기화된 현재 국면 id. */
-function usePhase(): string | undefined {
-  const [phase, setPhase] = useState<string | undefined>(undefined);
+function useScenario(): string | undefined {
+  const [scenario, setScenario] = useState<string | undefined>(undefined);
   useEffect(() => {
     const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input.phase-input"));
     if (inputs.length === 0) return;
     const sync = () =>
-      setPhase(inputs.find((i) => i.checked)?.id.replace(/^phase-/, "") ?? undefined);
+      setScenario(inputs.find((i) => i.checked)?.id.replace(/^phase-/, "") ?? undefined);
     sync();
     for (const input of inputs) input.addEventListener("change", sync);
     return () => {
       for (const input of inputs) input.removeEventListener("change", sync);
     };
   }, []);
-  return phase;
+  return scenario;
 }
 
-interface RangeView {
-  unit: BoardUnitProp;
-  query: MoveQuery;
-  move: ReachableTile[];
-  moveSet: Set<string>;
-  attack: Tile[];
-  /** 사거리 링 전체(이동 타일 겹침 포함) — 공격 대상 판정용. */
-  attackAll: Set<string>;
+interface UnitVisual {
+  icon?: string;
+  abbr: string;
+  name: string;
+  job: string;
+  ring: string;
+  chip: string;
+  phase?: string;
 }
 
-const toCombatant = (
-  u: BoardUnitProp,
-  tiles: BoardTileProp[][],
-  difficulty: Difficulty,
-): Combatant | undefined => {
-  const stats = u.stats?.[difficulty];
-  return stats === undefined
-    ? undefined
-    : {
-        stats: { ...stats, maxHp: stats.hp },
-        weapon: u.weapon,
-        terrain: { avoid: tiles[u.y]?.[u.x]?.avoid ?? 0, def: tiles[u.y]?.[u.x]?.def ?? 0 },
-      };
-};
-
-interface ForecastView {
-  attacker: BoardUnitProp;
-  defender: BoardUnitProp;
-  attack?: SideForecast;
-  counter?: SideForecast;
+function initGame(props: BoardProps, difficulty: Difficulty, scenario: string | undefined): {
+  game: GameState;
+  visuals: Map<string, UnitVisual>;
+} {
+  const visuals = new Map<string, UnitVisual>();
+  const units: UnitState[] = [];
+  props.units.forEach((u, i) => {
+    if (u.phase !== undefined && scenario !== undefined && u.phase !== scenario) return;
+    const stats = u.stats?.[difficulty];
+    if (stats === undefined) return;
+    const id = `u${i}`;
+    visuals.set(id, {
+      icon: u.icon, abbr: u.abbr, name: u.name, job: u.job, ring: u.ring, chip: u.chip, phase: u.phase,
+    });
+    units.push({
+      id,
+      name: u.name,
+      force: u.force,
+      x: u.x,
+      y: u.y,
+      hp: stats.hp,
+      stats,
+      weapon: u.weapon,
+      skills: u.skills,
+      growth: u.growth,
+      level: u.levels[difficulty],
+      internalLevel: u.internalLevel,
+      exp: 0,
+      movePoints: u.movePoints,
+      moveType: u.moveType,
+      style: u.style,
+      acted: false,
+      dead: false,
+      broken: false,
+    });
+  });
+  const game: GameState = {
+    turn: 1,
+    phase: 0,
+    difficulty,
+    map: {
+      width: props.width,
+      height: props.height,
+      costs: props.costs,
+      terrain: props.tiles.map((line) => line.map((t) => ({ avoid: t.avoid, def: t.def }))),
+    },
+    units,
+    events: [],
+  };
+  return { game, visuals };
 }
+
+const toCombatant = (u: UnitState, game: GameState): Combatant => ({
+  stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
+  weapon: u.weapon,
+  terrain: {
+    avoid: game.map.terrain?.[u.y]?.[u.x]?.avoid ?? 0,
+    def: game.map.terrain?.[u.y]?.[u.x]?.def ?? 0,
+  },
+  skills: u.skills,
+});
 
 export default function BoardIsland(props: BoardProps) {
-  const { width, height, tiles, costs, objects, units, labels } = props;
-  const phase = usePhase();
-  // 기준 난이도 = 루나틱(확정 결정) — 옵션에서 실시간 전환.
+  const { width, height, tiles, objects, labels } = props;
+  const scenario = useScenario();
   const [difficulty, setDifficulty] = useState<Difficulty>("l");
-  const [selectedAt, setSelectedAt] = useState<string | undefined>(undefined);
-  const [targetAt, setTargetAt] = useState<string | undefined>(undefined);
+  const [resetCount, setResetCount] = useState(0);
+  const [init, setInit] = useState(() => initGame(props, "l", undefined));
+  const [game, setGame] = useState<GameState>(init.game);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
+  const [banner, setBanner] = useState<string | undefined>(undefined);
+  const [log, setLog] = useState<string[]>([]);
+
   useEffect(() => {
-    setSelectedAt(undefined);
-    setTargetAt(undefined);
-  }, [phase]);
+    const next = initGame(props, difficulty, scenario);
+    setInit(next);
+    setGame(next.game);
+    setSelectedId(undefined);
+    setTargetId(undefined);
+    setLog([]);
+    setBanner(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficulty, scenario, resetCount]);
 
-  const active = useMemo(
-    () => units.filter((u) => u.phase === undefined || phase === undefined || u.phase === phase),
-    [units, phase],
-  );
+  useEffect(() => {
+    if (banner === undefined || game.outcome !== undefined) return;
+    const t = setTimeout(() => setBanner(undefined), 1300);
+    return () => clearTimeout(t);
+  }, [banner, game.outcome]);
+
+  const visuals = init.visuals;
+  const alive = useMemo(() => game.units.filter((u) => !u.dead), [game]);
   const byTile = useMemo(() => {
-    const map = new Map<string, BoardUnitProp>();
-    for (const u of active) map.set(tileKey(u.x, u.y), u);
-    return map;
-  }, [active]);
+    const m = new Map<string, UnitState>();
+    for (const u of alive) m.set(tileKey(u.x, u.y), u);
+    return m;
+  }, [alive]);
+  const selected = selectedId === undefined ? undefined : alive.find((u) => u.id === selectedId);
+  const target = targetId === undefined ? undefined : alive.find((u) => u.id === targetId);
 
-  const selected = selectedAt === undefined ? undefined : byTile.get(selectedAt);
-
-  const range = useMemo<RangeView | undefined>(() => {
-    if (selected === undefined) return undefined;
-    const grid = costs[selected.moveType];
+  const range = useMemo(() => {
+    if (selected === undefined || selected.acted) return undefined;
+    const grid = game.map.costs[selected.moveType];
     if (grid === undefined) return undefined;
     const query: MoveQuery = {
       width,
@@ -115,78 +171,160 @@ export default function BoardIsland(props: BoardProps) {
       movePoints: selected.movePoints,
       start: { x: selected.x, y: selected.y },
       costAt: (x, y) => grid[y]?.[x] ?? 255,
-      // 타군 = 통과 불가 · 같은 군 = 통과 가능/정지 불가. 제3군 상호 차단은 가정(실기 반증 시 갱신).
       blocked: (x, y) => {
-        const other = byTile.get(tileKey(x, y));
-        return other !== undefined && other.force !== selected.force;
+        const o = byTile.get(tileKey(x, y));
+        return o !== undefined && o.force !== selected.force;
       },
       occupied: (x, y) => {
-        const other = byTile.get(tileKey(x, y));
-        return other !== undefined && other.force === selected.force;
+        const o = byTile.get(tileKey(x, y));
+        return o !== undefined && o.force === selected.force && o !== selected;
       },
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
-    const ring =
-      selected.rangeMax > 0
-        ? attackRange(move, selected.rangeMin, selected.rangeMax, width, height)
-        : [];
+    const rangeMax = selected.weapon?.rangeMax ?? 0;
+    const ring = rangeMax > 0 ? attackRange(move, selected.weapon!.rangeMin, rangeMax, width, height) : [];
     const attackAll = new Set(ring.map((t) => tileKey(t.x, t.y)));
     const attack = ring.filter((t) => !moveSet.has(tileKey(t.x, t.y)));
-    return { unit: selected, query, move, moveSet, attack, attackAll };
-  }, [selected, byTile, costs, width, height]);
-
-  const target = targetAt === undefined ? undefined : byTile.get(targetAt);
-
-  const forecast = useMemo<ForecastView | undefined>(() => {
-    if (selected === undefined || target === undefined) return undefined;
-    const attackerC = toCombatant(selected, tiles, difficulty);
-    const defenderC = toCombatant(target, tiles, difficulty);
-    if (attackerC === undefined || defenderC === undefined) return undefined;
-    // 교전 거리 근사 = 공격측 장비 무기의 최대 사거리(활 2 → 반격 불가, 검 1 → 반격) — 이동 후
-    // 실제 위치 선택은 전투 해결 단계 몫. 반격 = 방어측 장비 사거리가 그 거리를 덮을 때.
-    const distance = selected.weapon?.rangeMax ?? 1;
-    const canCounter =
-      target.weapon !== undefined &&
-      distance >= target.weapon.rangeMin &&
-      distance <= target.weapon.rangeMax;
-    return {
-      attacker: selected,
-      defender: target,
-      attack: selected.weapon ? forecastSide(calculator, attackerC, defenderC) : undefined,
-      counter: canCounter ? forecastSide(calculator, defenderC, attackerC) : undefined,
-    };
-  }, [selected, target, tiles, difficulty]);
+    return { query, move, moveSet, attack, attackAll };
+  }, [selected, byTile, game, width, height]);
 
   const path = useMemo(() => {
-    if (range === undefined || hover === undefined) return undefined;
+    if (range === undefined || hover === undefined || selected === undefined) return undefined;
     if (!range.moveSet.has(tileKey(hover.x, hover.y))) return undefined;
     if (byTile.has(tileKey(hover.x, hover.y))) return undefined;
     const tiles = movementPath(range.query, hover);
     return tiles !== null && tiles.length > 1 ? tiles : undefined;
-  }, [range, hover, byTile]);
+  }, [range, hover, byTile, selected]);
+
+  const distance =
+    selected !== undefined && target !== undefined
+      ? Math.abs(selected.x - target.x) + Math.abs(selected.y - target.y)
+      : undefined;
+  const canAttack =
+    selected !== undefined &&
+    target !== undefined &&
+    !selected.acted &&
+    selected.weapon !== undefined &&
+    distance !== undefined &&
+    distance >= selected.weapon.rangeMin &&
+    distance <= selected.weapon.rangeMax;
+
+  const forecast = useMemo(() => {
+    if (selected === undefined || target === undefined) return undefined;
+    const a = toCombatant(selected, game);
+    const d = toCombatant(target, game);
+    const dist = Math.abs(selected.x - target.x) + Math.abs(selected.y - target.y);
+    const engageDist = canAttack ? dist : selected.weapon?.rangeMax ?? 1;
+    const counter =
+      target.weapon !== undefined &&
+      !target.broken &&
+      engageDist >= target.weapon.rangeMin &&
+      engageDist <= target.weapon.rangeMax;
+    return {
+      attack: selected.weapon !== undefined ? forecastSide(calculator, a, d) : undefined,
+      counter: counter ? forecastSide(calculator, d, a) : undefined,
+    };
+  }, [selected, target, game, canAttack]);
+
+  const describe = (events: BattleEvent[]): string[] => {
+    const t = labels.logTags;
+    return events
+      .map((ev) => {
+        const name = (id: string) => visuals.get(id)?.name ?? id;
+        switch (ev.type) {
+          case "strike": {
+            const tag =
+              ev.kind === "chain" ? ` (${t.chain})`
+              : ev.kind === "counter" ? ` (${t.counter})`
+              : ev.kind === "followUp" || ev.kind === "counterFollowUp" ? ` (${t.follow})`
+              : "";
+            return ev.hit
+              ? `${name(ev.attacker)} → ${name(ev.defender)} ${ev.damage}${ev.crit ? ` ${t.crit}` : ""}${tag}`
+              : `${name(ev.attacker)} ${t.miss}${tag}`;
+          }
+          case "break":
+            return `${name(ev.unit)} ${t.brk}`;
+          case "death":
+            return `${name(ev.unit)} ${t.kill}`;
+          case "exp":
+            return `${name(ev.unit)} +${ev.amount} EXP`;
+          case "levelUp": {
+            const gains = Object.entries(ev.gains).map(([k, v]) => `${k}+${v}`).join(" ");
+            return `${name(ev.unit)} Lv ${ev.level}! ${gains}`;
+          }
+          case "phase":
+          case "outcome":
+            return "";
+        }
+      })
+      .filter((s) => s !== "");
+  };
+
+  const dispatch = (action: Parameters<typeof reduce>[1]) => {
+    try {
+      const next = reduce(game, action, liveRng);
+      setGame(next);
+      const lines = describe(next.events);
+      if (lines.length > 0) setLog(lines);
+      for (const ev of next.events) {
+        if (ev.type === "phase") {
+          setBanner(`${labels.forceNames[ev.phase] ?? ""} ${labels.turnPhase}`);
+          setLog([]);
+        }
+        if (ev.type === "outcome") setBanner(ev.outcome === "victory" ? labels.victory : labels.defeat);
+      }
+      return next;
+    } catch {
+      return game; // 불법 행동 = 무시 (엔진이 심판)
+    }
+  };
+
+  const onTileClick = (x: number, y: number) => {
+    if (game.outcome !== undefined) return;
+    const key = tileKey(x, y);
+    const clicked = byTile.get(key);
+
+    if (clicked !== undefined) {
+      if (selected !== undefined && clicked.force !== selected.force && range?.attackAll.has(key) === true) {
+        if (clicked.id === targetId && canAttack) {
+          const next = dispatch({ type: "attack", unit: selected.id, target: clicked.id });
+          if (next !== game) {
+            setSelectedId(undefined);
+            setTargetId(undefined);
+          }
+          return;
+        }
+        setTargetId(clicked.id);
+        return;
+      }
+      if (clicked.id === selectedId) {
+        // 자기 자신 재클릭 = 대기 (인게임 문법 근사)
+        if (!clicked.acted && clicked.force === game.phase) {
+          dispatch({ type: "wait", unit: clicked.id });
+          setSelectedId(undefined);
+          setTargetId(undefined);
+          return;
+        }
+      }
+      setSelectedId(clicked.force === game.phase && !clicked.acted ? clicked.id : undefined);
+      setTargetId(undefined);
+      return;
+    }
+
+    if (selected !== undefined && range?.moveSet.has(key) === true) {
+      dispatch({ type: "move", unit: selected.id, x, y });
+      setTargetId(undefined);
+      return;
+    }
+    setSelectedId(undefined);
+    setTargetId(undefined);
+  };
 
   const col = (x: number) => gridCol(width, x);
   const row = (y: number) => gridRow(height, y);
   const cx = (x: number) => col(x) - 0.5;
   const cy = (y: number) => row(y) - 0.5;
-
-  const onTileClick = (x: number, y: number) => {
-    const key = tileKey(x, y);
-    const clicked = byTile.get(key);
-    // 선택 중 사거리 안의 타군 클릭 = 전투 예보 (인게임: 공격 대상 지정 문법)
-    if (
-      clicked !== undefined &&
-      selected !== undefined &&
-      clicked.force !== selected.force &&
-      range?.attackAll.has(key) === true
-    ) {
-      setTargetAt(key === targetAt ? undefined : key);
-      return;
-    }
-    setSelectedAt(clicked !== undefined && key !== selectedAt ? key : undefined);
-    setTargetAt(undefined);
-  };
 
   return (
     <figure
@@ -195,7 +333,7 @@ export default function BoardIsland(props: BoardProps) {
       aria-label={labels.board}
     >
       <nav className="diff-switch" aria-label={labels.difficulty}>
-        {DIFFICULTIES.map((d) => (
+        {(["n", "h", "l"] as Difficulty[]).map((d) => (
           <button
             key={d}
             type="button"
@@ -206,6 +344,18 @@ export default function BoardIsland(props: BoardProps) {
           </button>
         ))}
       </nav>
+
+      <div className="turn-strip">
+        <span className="turn-label">
+          {labels.turnWord} {game.turn} · {labels.forceNames[game.phase] ?? ""} {labels.turnPhase}
+        </span>
+        <button type="button" onClick={() => dispatch({ type: "endPhase" })} disabled={game.outcome !== undefined}>
+          {labels.endPhase}
+        </button>
+        <button type="button" onClick={() => setResetCount((c) => c + 1)}>
+          {labels.reset}
+        </button>
+      </div>
 
       <div className="rail rail-x">
         {Array.from({ length: width }, (_, x) => (
@@ -228,11 +378,7 @@ export default function BoardIsland(props: BoardProps) {
             line.map((tile, x) => (
               <i
                 key={tileKey(x, y)}
-                className={[
-                  "tile",
-                  tile.blocked && "blocked",
-                  byTile.has(tileKey(x, y)) && "has-unit",
-                ]
+                className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
                   .filter(Boolean)
                   .join(" ")}
                 title={`(${x}, ${y}) ${tile.name}`}
@@ -247,18 +393,10 @@ export default function BoardIsland(props: BoardProps) {
         {range !== undefined && (
           <div className="layer range">
             {range.move.map((t) => (
-              <i
-                key={tileKey(t.x, t.y)}
-                className="ov move"
-                style={{ gridColumn: col(t.x), gridRow: row(t.y) }}
-              />
+              <i key={tileKey(t.x, t.y)} className="ov move" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
             ))}
             {range.attack.map((t) => (
-              <i
-                key={tileKey(t.x, t.y)}
-                className="ov atk"
-                style={{ gridColumn: col(t.x), gridRow: row(t.y) }}
-              />
+              <i key={tileKey(t.x, t.y)} className="ov atk" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
             ))}
           </div>
         )}
@@ -290,53 +428,69 @@ export default function BoardIsland(props: BoardProps) {
           </svg>
         )}
 
-        {/* DOM은 전 유닛 — 국면 표시/숨김은 페이지 CSS([data-phase])가 소유. 로직만 active를 쓴다. */}
         <div className="layer units">
-          {units.map((u, i) => (
-            <span
-              key={i}
-              className={selected === u ? "cell sel" : target === u ? "cell tgt" : "cell"}
-              data-phase={u.phase}
-              style={{ gridColumn: col(u.x), gridRow: row(u.y), "--force": u.ring } as React.CSSProperties}
-            >
-              {u.icon ? (
-                <img
-                  src={u.icon}
-                  alt={`${u.name} — ${u.job}`}
-                  className="icon"
-                  width="48"
-                  height="48"
-                  loading="eager"
-                  decoding="sync"
-                />
-              ) : (
-                <span className="chip" title={`${u.name} — ${u.job}`} style={{ background: u.chip }}>
-                  {u.abbr}
+          {alive.map((u) => {
+            const v = visuals.get(u.id);
+            if (v === undefined) return null;
+            const cls = ["cell", u === selected && "sel", u === target && "tgt", u.acted && "acted"]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <span
+                key={u.id}
+                className={cls}
+                style={{ gridColumn: col(u.x), gridRow: row(u.y), "--force": v.ring } as React.CSSProperties}
+              >
+                {v.icon ? (
+                  <img src={v.icon} alt={`${v.name} — ${v.job}`} className="icon" width="48" height="48" loading="eager" decoding="sync" />
+                ) : (
+                  <span className="chip" title={`${v.name} — ${v.job}`} style={{ background: v.chip }}>
+                    {v.abbr}
+                  </span>
+                )}
+                <span className="hpbar" aria-hidden="true">
+                  <i style={{ width: `${Math.round((u.hp / u.stats.hp) * 100)}%` }} />
                 </span>
-              )}
-            </span>
-          ))}
+                {u.broken && <span className="brk" title="Break">✗</span>}
+              </span>
+            );
+          })}
         </div>
+
+        {banner !== undefined && <div className={game.outcome !== undefined ? "banner stay" : "banner"}>{banner}</div>}
       </div>
 
-      {forecast !== undefined && (
+      {log.length > 0 && (
+        <div className="battle-log" role="status">
+          {log.map((line, i) => (
+            <span key={i}>{line}</span>
+          ))}
+        </div>
+      )}
+
+      {forecast !== undefined && selected !== undefined && target !== undefined && (
         <div className="forecast" role="status" aria-label={labels.forecast}>
-          <ForecastSide
-            unit={forecast.attacker}
-            side={forecast.attack}
-            difficulty={difficulty}
-            labels={labels}
-          />
-          <span className="fc-vs" aria-hidden="true">
-            ⚔
-          </span>
-          <ForecastSide
-            unit={forecast.defender}
-            side={forecast.counter}
-            difficulty={difficulty}
-            labels={labels}
-          />
-          <small className="fc-note">{labels.currentPosNote}</small>
+          <ForecastSide unit={selected} visual={visuals.get(selected.id)} side={forecast.attack} labels={labels} />
+          <div className="fc-mid">
+            <span className="fc-vs" aria-hidden="true">⚔</span>
+            {canAttack && (
+              <button
+                type="button"
+                className="fc-go"
+                onClick={() => {
+                  const next = dispatch({ type: "attack", unit: selected.id, target: target.id });
+                  if (next !== game) {
+                    setSelectedId(undefined);
+                    setTargetId(undefined);
+                  }
+                }}
+              >
+                {labels.attackCmd}
+              </button>
+            )}
+          </div>
+          <ForecastSide unit={target} visual={visuals.get(target.id)} side={forecast.counter} labels={labels} />
+          <small className="fc-note">{canAttack ? "" : labels.currentPosNote}</small>
         </div>
       )}
     </figure>
@@ -345,22 +499,22 @@ export default function BoardIsland(props: BoardProps) {
 
 function ForecastSide({
   unit,
+  visual,
   side,
-  difficulty,
   labels,
 }: {
-  unit: BoardUnitProp;
+  unit: UnitState;
+  visual?: UnitVisual;
   side?: SideForecast;
-  difficulty: Difficulty;
   labels: BoardProps["labels"];
 }) {
   const value = (v: number | undefined) => (v === undefined ? "—" : v);
   return (
-    <div className="fc-side" style={{ "--force": unit.ring } as React.CSSProperties}>
-      <strong className="fc-name">{unit.name}</strong>
+    <div className="fc-side" style={{ "--force": visual?.ring ?? "#888" } as React.CSSProperties}>
+      <strong className="fc-name">{visual?.name ?? unit.id}</strong>
       <span className="fc-weapon">{unit.weapon?.name ?? "—"}</span>
       <span className="fc-hp">
-        HP {unit.stats?.[difficulty]?.hp ?? "—"}
+        HP {unit.hp}/{unit.stats.hp}
       </span>
       <dl className="fc-rows">
         <dt>{labels.damage}</dt>

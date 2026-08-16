@@ -37,6 +37,15 @@ interface Strings {
   diffN: string;
   diffH: string;
   diffL: string;
+  endPhase: string;
+  waitCmd: string;
+  attackCmd: string;
+  turnPhase: string;
+  turnWord: string;
+  victory: string;
+  defeat: string;
+  reset: string;
+  logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -71,6 +80,15 @@ export const UI: Record<Locale, Strings> = {
     diffN: "Normal",
     diffH: "Hard",
     diffL: "Maddening",
+    endPhase: "End phase",
+    waitCmd: "Wait",
+    attackCmd: "Attack",
+    turnPhase: "Phase",
+    turnWord: "Turn",
+    victory: "Victory!",
+    defeat: "Defeat...",
+    reset: "Reset",
+    logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
   },
   ko: {
     localeName: "KO",
@@ -103,6 +121,15 @@ export const UI: Record<Locale, Strings> = {
     diffN: "노멀",
     diffH: "하드",
     diffL: "루나틱",
+    endPhase: "페이즈 종료",
+    waitCmd: "대기",
+    attackCmd: "공격",
+    turnPhase: "페이즈",
+    turnWord: "턴",
+    victory: "승리!",
+    defeat: "패배...",
+    reset: "초기화",
+    logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },
   },
 };
 

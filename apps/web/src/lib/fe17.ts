@@ -1,5 +1,13 @@
 import type { ChapterData, DisposUnit, MapObject } from "@fesim/shared";
-import { MOVE_TYPES, deriveStats, type MoveType, type StatBlock } from "@fesim/engine";
+import {
+  MOVE_TYPES,
+  deriveStats,
+  staticEnhances,
+  type MoveType,
+  type SkillRow,
+  type StatBlock,
+} from "@fesim/engine";
+import godsRaw from "../../../../data/fe17/tables/gods.json?raw";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -38,6 +46,7 @@ export interface JobRow {
   /** 地形コスト 컬럼 순서 인덱스(1=foot, 3=fly 실측) — MOVE_TYPES가 정본. */
   MoveType?: number;
   "Base.Move"?: number;
+  StyleName?: string;
 }
 
 /** tools/pipeline bake_assets.py가 만드는 에셋 목록(없으면 폴백 렌더). */
@@ -88,6 +97,12 @@ export const mapIds: string[] = Object.keys(chapters).sort();
 export const terrain = parse<Record<string, TerrainRow>>(terrainRaw);
 export const persons = parse<Record<string, PersonRow>>(personsRaw);
 export const jobs = parse<Record<string, JobRow>>(jobsRaw);
+
+interface GodsTable {
+  gods: Record<string, Record<string, unknown>>;
+  growth: Record<string, Record<string, { SynchroSkills?: string[]; EngageSkills?: string[]; EngageItems?: string[] }>>;
+}
+const godsTable = parse<GodsTable>(godsRaw);
 
 const DICTS: Record<Locale, Record<string, string>> = {
   en: parse<Record<string, string>>(namesEnRaw),
@@ -338,21 +353,60 @@ const statBlock = (row: Record<string, unknown>, prefix: string): StatBlock => {
   return out;
 };
 
+/** dispos 유닛의 표시 레벨(난이도 반영, dispos 0 = 인물 기본). */
+export function unitLevel(unit: DisposUnit, difficulty: Difficulty): number {
+  const disposLevel = unit.level[difficulty];
+  if (disposLevel > 0) return disposLevel;
+  return Number((persons[unit.pid] as unknown as Record<string, unknown> | undefined)?.["Level"] ?? 1);
+}
+
 /** dispos 유닛의 실스탯(난이도 반영). 인물·직업 테이블 미비 시 undefined. */
 export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock | undefined {
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const job = jobs[unit.jid] as unknown as Record<string, unknown> | undefined;
   if (person === undefined || job === undefined) return undefined;
   const suffix = DIFF_SUFFIX[difficulty];
-  const disposLevel = unit.level[difficulty];
   return deriveStats({
     jobBase: statBlock(job, "Base."),
     jobInternalLevel: Number(job["InternalLevel"] ?? 0),
     personOffset: statBlock(person, `Offset${suffix}.`),
     personGrowth: statBlock(person, "Grow."),
-    level: disposLevel > 0 ? disposLevel : Number(person["Level"] ?? 1),
+    level: unitLevel(unit, difficulty),
     autoGrowOffset: Number(person[`AutoGrowOffset${suffix}`] ?? 0),
   });
+}
+
+/* ── 유닛 스킬 (dispos Sid + 인물 CommonSids + 장착 엠블렘 絆1 싱크로) ── */
+
+const SKILL_ROW_FIELDS = [
+  "Sid", "Timing", "Condition", "ActNames", "ActOperations", "ActValues",
+  "GiveSids", "GiveTarget", "Target", "RangeI", "RangeO",
+] as const;
+
+/** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
+const slimSkill = (sid: string): SkillRow | undefined => {
+  const row = skills[sid] as Record<string, unknown> | undefined;
+  if (row === undefined) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const key of SKILL_ROW_FIELDS) if (row[key] !== undefined) out[key] = row[key];
+  for (const key of Object.keys(row)) if (key.startsWith("EnhanceValue.")) out[key] = row[key];
+  out["Sid"] = sid;
+  return out as unknown as SkillRow;
+};
+
+/** 絆 레벨 1 싱크로 스킬(장착 = 싱크로 상태 가정 — 인게이지 발동은 후속). */
+const emblemSyncSids = (gid: string): string[] => {
+  const god = godsTable.gods[gid];
+  const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
+  return table?.["1"]?.SynchroSkills ?? [];
+};
+
+export function unitSkillRows(unit: DisposUnit): SkillRow[] {
+  const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
+  const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
+  const sync = unit.gid !== undefined ? emblemSyncSids(unit.gid) : [];
+  const sids = [...new Set([...unit.sids, ...commons, ...sync])];
+  return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
 }
 
 /* ── 보드 아일랜드 props ─────────────────────────────────────
@@ -377,6 +431,8 @@ export interface BoardWeaponProp {
   magic: boolean;
   rangeMin: number;
   rangeMax: number;
+  /** items.json Kind — 상성(브레이크) 판정 입력. */
+  kind: number;
 }
 
 export interface BoardUnitProp {
@@ -395,10 +451,18 @@ export interface BoardUnitProp {
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
-  /** 난이도별 실스탯(스탯 모델 v1) — 아일랜드가 실시간 난이도 전환. */
+  /** 난이도별 실스탯(스탯 모델 v1 + 정적 스킬 보정) — 아일랜드가 실시간 난이도 전환. */
   stats?: Record<Difficulty, StatBlock | undefined>;
   /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
   weapon?: BoardWeaponProp;
+  levels: Record<Difficulty, number>;
+  /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
+  internalLevel: number;
+  /** 인물 성장률(%) — 자군 레벨업 롤. */
+  growth?: StatBlock;
+  /** 직업 StyleName 원문(連携 = 체인어택 · 重装 = 브레이크 면역). */
+  style?: string;
+  skills?: SkillRow[];
 }
 
 export interface BoardProps {
@@ -420,6 +484,16 @@ export interface BoardProps {
     currentPosNote: string;
     difficulty: string;
     diffNames: Record<Difficulty, string>;
+    forceNames: [string, string, string];
+    endPhase: string;
+    waitCmd: string;
+    attackCmd: string;
+    turnPhase: string;
+    turnWord: string;
+    victory: string;
+    defeat: string;
+    reset: string;
+    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
   };
 }
 
@@ -457,6 +531,7 @@ const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | und
       magic: row.Kind === 6 || (Number(row["Flag"] ?? 0) & MAGIC_FLAG) !== 0,
       rangeMin: row.RangeI ?? 1,
       rangeMax: row.RangeO ?? 1,
+      kind: row.Kind ?? 0,
     };
   }
   return undefined;
@@ -476,6 +551,12 @@ export function boardProps(
     const moveType = MOVE_TYPES[job?.MoveType ?? 0] ?? "none";
     moveTypes.add(moveType);
     const style = forceStyle(v.unit.force);
+    const skillRows = unitSkillRows(v.unit);
+    const withEnhance = (d: Difficulty): StatBlock | undefined => {
+      const base = unitStats(v.unit, d);
+      return base === undefined ? undefined : staticEnhances(base, skillRows);
+    };
+    const person = persons[v.unit.pid] as unknown as Record<string, unknown> | undefined;
     return {
       x: v.unit.x,
       y: v.unit.y,
@@ -490,12 +571,13 @@ export function boardProps(
       movePoints: job?.["Base.Move"] ?? 0,
       moveType,
       ...weaponRange(v.unit),
-      stats: {
-        n: unitStats(v.unit, "n"),
-        h: unitStats(v.unit, "h"),
-        l: unitStats(v.unit, "l"),
-      },
+      stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
       weapon: equippedWeapon(v.unit, locale),
+      levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
+      internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
+      growth: person === undefined ? undefined : statBlock(person, "Grow."),
+      style: job?.StyleName,
+      skills: skillRows.length > 0 ? skillRows : undefined,
     };
   });
   // 베이스 지형 코스트만 — 구조물(m_Layers) 통행 반영은 구조물 렌더와 함께 미룸(M005 실재 맵 시점).

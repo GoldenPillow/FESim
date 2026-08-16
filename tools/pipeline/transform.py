@@ -79,7 +79,25 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "items.json", keyed(items, "Iid"))
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
+    build_gods(src, out)
     build_calculator(src, out)
+
+
+def build_gods(src: Path, out: Path) -> None:
+    """god.xml → 엠블렘 정의 + 絆레벨 성장(싱크로/엔게이지 스킬·엔게이지 무기)."""
+    path = src / "gamedata" / "god.xml"
+    _, gods = load_sheet(path, index=0)
+    _, growth_rows = load_sheet(path, index=1)
+    growth, current = {}, None
+    for row in growth_rows:
+        if row.get("Ggid"):
+            current = row["Ggid"]
+            growth[current] = {}
+        elif current and row.get("Level"):
+            growth[current][str(row["Level"])] = {
+                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems") if row.get(k)
+            }
+    write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})
 
 
 def build_calculator(src: Path, out: Path) -> None:
