@@ -1,40 +1,18 @@
 ---
-import type { ChapterData } from "@fesim/shared";
 import BoardIsland from "./BoardIsland";
-import { boardProps } from "../lib/fe17";
-import { UI, type Locale } from "../lib/i18n";
+import { boardPropsFor } from "../lib/fe17";
+import { type Locale } from "../lib/i18n";
 
 /**
- * SSG 셸 — 테이블 조회·파생(색·이름·이동력·사거리)은 전부 여기(빌드 타임)서 끝내고,
+ * SSG 셸 — 테이블 조회·파생(색·이름·이동력·사거리)은 전부 boardPropsFor(빌드 타임)가 끝내고,
  * 아일랜드에는 직렬화 props만 준다. 대용량 테이블 JSON이 클라이언트 번들에 새면 안 된다.
+ * 같은 산출물을 /fe17/boards/*.json 엔드포인트가 dist로 내보낸다(공유 열람의 입력).
  */
 interface Props {
   locale: Locale;
   mapId: string;
-  chapter: ChapterData;
 }
-const { locale, mapId, chapter } = Astro.props;
-const t = UI[locale];
-const props = boardProps(chapter, mapId, locale, {
-  board: t.board,
-  forecast: t.forecast,
-  hit: t.hit,
-  crit: t.crit,
-  damage: t.damage,
-  currentPosNote: t.currentPosNote,
-  difficulty: t.difficulty,
-  diffNames: { n: t.diffN, h: t.diffH, l: t.diffL },
-  forceNames: [t.player, t.enemy, t.ally],
-  endPhase: t.endPhase,
-  waitCmd: t.waitCmd,
-  attackCmd: t.attackCmd,
-  turnPhase: t.turnPhase,
-  turnWord: t.turnWord,
-  victory: t.victory,
-  defeat: t.defeat,
-  reset: t.reset,
-  logTags: t.logTags,
-});
+const { locale, mapId } = Astro.props;
 ---
 
-<BoardIsland {...props} client:load />
+<BoardIsland {...boardPropsFor(mapId, locale)} client:load />

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote
+# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote|link:put|perf
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -7,6 +7,8 @@ cd "$ROOT"
 cmd="${1:-}"
 
 PY="$ROOT/tools/pipeline/.venv/bin/python"
+# 워크스페이스에 고정된 wrangler(어댑터 peer와 같은 버전)를 쓴다 — npx 즉석 다운로드 금지.
+WRANGLER="$ROOT/apps/web/node_modules/.bin/wrangler"
 
 check() { pnpm -r --if-present run typecheck; }
 test_all() { pnpm -r --if-present run test; }
@@ -36,8 +38,33 @@ case "$cmd" in
   transform) shift; "$PY" tools/pipeline/transform.py "$@" ;;
   verify-m002) shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
   bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
+  link:put) shift
+            # 공유 링크 수동 등재(발급 API는 M4). 키 = id 그대로 · 값 = .eph 원문(@fesim/api 계약).
+            [ $# -ge 2 ] || { echo "usage: ./dev link:put <id> <eph.json> [--local]"; exit 2; }
+            ID="$1"; FILE="$2"; shift 2
+            # 기본은 원격(공유 링크가 실제로 열려야 등재의 의미가 있다) · --local = wrangler dev 로컬 상태.
+            SCOPE="--remote"
+            [ "${1:-}" = "--local" ] && SCOPE="--local"
+            "$WRANGLER" kv key put "$ID" --path "$FILE" --binding LINKS "$SCOPE" -c "$ROOT/wrangler.jsonc" ;;
+  perf)     shift
+            # 열람 경로 릴리즈 게이트(§11): /s/ JS ≤100KB gzip + LCP<1s(모바일 4G 시뮬, lighthouserc.json).
+            [ $# -ge 1 ] || { echo "usage: ./dev perf <URL>  (프리뷰/베타의 /s/<id> 주소)"; exit 2; }
+            URL="$1"
+            BUDGET=102400; TOTAL=0
+            for f in apps/web/dist/client/_astro/client.*.js apps/web/dist/client/_astro/BoardView.*.js \
+                     apps/web/dist/client/_astro/react.*.js apps/web/dist/client/_astro/ReplayIsland.*.js; do
+              [ -e "$f" ] || { echo "perf: $f 없음 — 먼저 pnpm build"; exit 1; }
+              SZ=$(gzip -c "$f" | wc -c); TOTAL=$((TOTAL + SZ))
+              echo "  $(basename "$f"): ${SZ}B gz"
+            done
+            echo "perf: /s/ JS 합계 ${TOTAL}B gz (예산 ${BUDGET}B)"
+            [ "$TOTAL" -le "$BUDGET" ] || { echo "perf: ☠번들 예산 초과"; exit 1; }
+            CHROME_PATH="${CHROME_PATH:-$(find ~/.cache/puppeteer/chrome -name chrome -type f 2>/dev/null | sort | tail -1)}"
+            export CHROME_PATH
+            pnpm exec lhci collect --url="$URL" && pnpm exec lhci assert
+            echo "== ./dev perf: GREEN (URL=$URL, 표본 3회 중앙값) ==" ;;
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote [버전ID]"; exit 2 ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|extract|transform|verify-m002|bake|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>"; exit 2 ;;
 esac

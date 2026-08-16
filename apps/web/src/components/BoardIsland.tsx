@@ -1,116 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   attackRange,
-  combatEnv,
-  createCalculator,
-  createReducer,
   forecastSide,
   movementPath,
   movementRange,
+  type BattleAction,
   type BattleEvent,
   type Combatant,
   type GameState,
   type MoveQuery,
-  type RandomSource,
   type SideForecast,
   type Tile,
   type UnitState,
 } from "@fesim/engine";
-import type { CalculatorData } from "@fesim/shared";
-import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
-import { gridCol, gridRow } from "../lib/grid";
-import type { BoardProps, BoardUnitProp, Difficulty } from "../lib/fe17";
+import { serializeEphemeris } from "@fesim/shared";
+import { tileKey } from "../lib/grid";
+import type { BoardProps, Difficulty } from "../lib/fe17";
+import { calculator, createBoardStore, displayState, useBoard, type UnitVisual } from "../lib/boardStore";
+import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
+import BoardView from "./BoardView";
 import "./board.css";
 
 /**
- * 보드 아일랜드 — M2: 인게임 재현 인터랙션의 hydrate 경계.
- * 상태의 정본은 엔진 GameState이고 여기는 (행동 선택 → reduce 호출 → 이벤트 표시)만 한다.
- * 난수 = 실굴림 주입(샌드박스 문법). 국면(시나리오) 선택은 페이지 CSS 라디오가 소유.
+ * 보드 아일랜드 — 인터랙션 셸: 선택·호버·명령 배선만 하고 국면은 스토어(boardStore)가 소유한다.
+ * 그림은 BoardView, 룰은 엔진. 국면(시나리오) 라디오는 무JS 폴백으로 남기고 정본은 스토어다.
  */
-const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
-const reduce = createReducer(calculator);
-const liveRng: RandomSource = { roll: () => Math.floor(Math.random() * 100) };
-
-const tileKey = (x: number, y: number) => `${x},${y}`;
-
-function useScenario(): string | undefined {
-  const [scenario, setScenario] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input.phase-input"));
-    if (inputs.length === 0) return;
-    const sync = () =>
-      setScenario(inputs.find((i) => i.checked)?.id.replace(/^phase-/, "") ?? undefined);
-    sync();
-    for (const input of inputs) input.addEventListener("change", sync);
-    return () => {
-      for (const input of inputs) input.removeEventListener("change", sync);
-    };
-  }, []);
-  return scenario;
-}
-
-interface UnitVisual {
-  icon?: string;
-  abbr: string;
-  name: string;
-  job: string;
-  ring: string;
-  chip: string;
-  phase?: string;
-}
-
-function initGame(props: BoardProps, difficulty: Difficulty, scenario: string | undefined): {
-  game: GameState;
-  visuals: Map<string, UnitVisual>;
-} {
-  const visuals = new Map<string, UnitVisual>();
-  const units: UnitState[] = [];
-  props.units.forEach((u, i) => {
-    if (u.phase !== undefined && scenario !== undefined && u.phase !== scenario) return;
-    const stats = u.stats?.[difficulty];
-    if (stats === undefined) return;
-    const id = `u${i}`;
-    visuals.set(id, {
-      icon: u.icon, abbr: u.abbr, name: u.name, job: u.job, ring: u.ring, chip: u.chip, phase: u.phase,
-    });
-    units.push({
-      id,
-      name: u.name,
-      force: u.force,
-      x: u.x,
-      y: u.y,
-      hp: stats.hp,
-      stats,
-      weapon: u.weapon,
-      skills: u.skills,
-      growth: u.growth,
-      level: u.levels[difficulty],
-      internalLevel: u.internalLevel,
-      exp: 0,
-      movePoints: u.movePoints,
-      moveType: u.moveType,
-      style: u.style,
-      acted: false,
-      dead: false,
-      broken: false,
-    });
-  });
-  const game: GameState = {
-    turn: 1,
-    phase: 0,
-    difficulty,
-    map: {
-      width: props.width,
-      height: props.height,
-      costs: props.costs,
-      terrain: props.tiles.map((line) => line.map((t) => ({ avoid: t.avoid, def: t.def }))),
-    },
-    units,
-    events: [],
-  };
-  return { game, visuals };
-}
-
 const toCombatant = (u: UnitState, game: GameState): Combatant => ({
   stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
   weapon: u.weapon,
@@ -123,27 +37,60 @@ const toCombatant = (u: UnitState, game: GameState): Combatant => ({
 
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, objects, labels } = props;
-  const scenario = useScenario();
-  const [difficulty, setDifficulty] = useState<Difficulty>("l");
-  const [resetCount, setResetCount] = useState(0);
-  const [init, setInit] = useState(() => initGame(props, "l", undefined));
-  const [game, setGame] = useState<GameState>(init.game);
+  const [store] = useState(() => createBoardStore(props));
+  const game = useBoard(store, displayState);
+  const difficulty = useBoard(store, (s) => s.difficulty);
+  const scenario = useBoard(store, (s) => s.scenario);
+  const mode = useBoard(store, (s) => s.mode);
+  const visuals = useBoard(store, (s) => s.visuals);
+  const [ready, setReady] = useState(false);
+  const urlWritten = useRef(false);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const next = initGame(props, difficulty, scenario);
-    setInit(next);
-    setGame(next.game);
+  const clearLocal = () => {
     setSelectedId(undefined);
     setTargetId(undefined);
     setLog([]);
     setBanner(undefined);
+  };
+
+  useEffect(() => {
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input.phase-input"));
+    const query = readMapQuery(window.location.search);
+    const fromUrl = inputs.find((i) => i.id === `phase-${query.p}`);
+    if (fromUrl !== undefined) fromUrl.checked = true;
+    const checked = () => inputs.find((i) => i.checked)?.id.replace(/^phase-/, "");
+    if (query.d !== undefined) store.getState().setDifficulty(query.d);
+    store.getState().setScenario(checked());
+    store.getState().restore();
+    setReady(true);
+    const sync = () => {
+      store.getState().setScenario(checked());
+      store.getState().restore();
+      clearLocal();
+    };
+    for (const input of inputs) input.addEventListener("change", sync);
+    return () => {
+      for (const input of inputs) input.removeEventListener("change", sync);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [difficulty, scenario, resetCount]);
+  }, []);
+
+  // 로드 시엔 URL을 읽기만 한다 — 변경이 일어난 뒤부터 역기입(주소창을 멋대로 채우지 않는다).
+  useEffect(() => {
+    if (!ready) return;
+    if (!urlWritten.current) {
+      urlWritten.current = true;
+      return;
+    }
+    const search = writeMapQuery(window.location.search, { p: scenario, d: difficulty });
+    window.history.replaceState(null, "", `${window.location.pathname}${search}${window.location.hash}`);
+  }, [ready, difficulty, scenario]);
 
   useEffect(() => {
     if (banner === undefined || game.outcome !== undefined) return;
@@ -151,7 +98,12 @@ export default function BoardIsland(props: BoardProps) {
     return () => clearTimeout(t);
   }, [banner, game.outcome]);
 
-  const visuals = init.visuals;
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1300);
+    return () => clearTimeout(t);
+  }, [copied]);
+
   const alive = useMemo(() => game.units.filter((u) => !u.dead), [game]);
   const byTile = useMemo(() => {
     const m = new Map<string, UnitState>();
@@ -261,23 +213,19 @@ export default function BoardIsland(props: BoardProps) {
       .filter((s) => s !== "");
   };
 
-  const dispatch = (action: Parameters<typeof reduce>[1]) => {
-    try {
-      const next = reduce(game, action, liveRng);
-      setGame(next);
-      const lines = describe(next.events);
-      if (lines.length > 0) setLog(lines);
-      for (const ev of next.events) {
-        if (ev.type === "phase") {
-          setBanner(`${labels.forceNames[ev.phase] ?? ""} ${labels.turnPhase}`);
-          setLog([]);
-        }
-        if (ev.type === "outcome") setBanner(ev.outcome === "victory" ? labels.victory : labels.defeat);
+  const dispatch = (action: BattleAction): GameState => {
+    const next = store.getState().dispatch(action);
+    if (next === game) return game;
+    const lines = describe(next.events);
+    if (lines.length > 0) setLog(lines);
+    for (const ev of next.events) {
+      if (ev.type === "phase") {
+        setBanner(`${labels.forceNames[ev.phase] ?? ""} ${labels.turnPhase}`);
+        setLog([]);
       }
-      return next;
-    } catch {
-      return game; // 불법 행동 = 무시 (엔진이 심판)
+      if (ev.type === "outcome") setBanner(ev.outcome === "victory" ? labels.victory : labels.defeat);
     }
+    return next;
   };
 
   const onTileClick = (x: number, y: number) => {
@@ -321,10 +269,13 @@ export default function BoardIsland(props: BoardProps) {
     setTargetId(undefined);
   };
 
-  const col = (x: number) => gridCol(width, x);
-  const row = (y: number) => gridRow(height, y);
-  const cx = (x: number) => col(x) - 0.5;
-  const cy = (y: number) => row(y) - 0.5;
+  const copyRecord = () => {
+    const file = store.getState().toFile({ created: new Date().toISOString() });
+    void navigator.clipboard
+      .writeText(serializeEphemeris(file))
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
 
   return (
     <figure
@@ -338,7 +289,12 @@ export default function BoardIsland(props: BoardProps) {
             key={d}
             type="button"
             className={d === difficulty ? "on" : undefined}
-            onClick={() => setDifficulty(d)}
+            disabled={mode === "replay"}
+            onClick={() => {
+              store.getState().setDifficulty(d);
+              store.getState().restore();
+              clearLocal();
+            }}
           >
             {labels.diffNames[d]}
           </button>
@@ -349,116 +305,44 @@ export default function BoardIsland(props: BoardProps) {
         <span className="turn-label">
           {labels.turnWord} {game.turn} · {labels.forceNames[game.phase] ?? ""} {labels.turnPhase}
         </span>
-        <button type="button" onClick={() => dispatch({ type: "endPhase" })} disabled={game.outcome !== undefined}>
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "endPhase" })}
+          disabled={game.outcome !== undefined || mode === "replay"}
+        >
           {labels.endPhase}
         </button>
-        <button type="button" onClick={() => setResetCount((c) => c + 1)}>
+        <button
+          type="button"
+          onClick={() => {
+            store.getState().reset();
+            clearLocal();
+          }}
+        >
           {labels.reset}
+        </button>
+        <button type="button" onClick={copyRecord}>
+          {copied ? labels.copied : labels.copyRecord}
         </button>
       </div>
 
-      <div className="rail rail-x">
-        {Array.from({ length: width }, (_, x) => (
-          <span key={x} style={{ gridColumn: col(x) }}>
-            {x}
-          </span>
-        ))}
-      </div>
-      <div className="rail rail-y">
-        {Array.from({ length: height }, (_, y) => (
-          <span key={y} style={{ gridRow: row(y) }}>
-            {y}
-          </span>
-        ))}
-      </div>
-
-      <div className="board" onPointerLeave={() => setHover(undefined)}>
-        <div className="layer">
-          {tiles.map((line, y) =>
-            line.map((tile, x) => (
-              <i
-                key={tileKey(x, y)}
-                className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
-                  .filter(Boolean)
-                  .join(" ")}
-                title={`(${x}, ${y}) ${tile.name}`}
-                style={{ gridColumn: col(x), gridRow: row(y), background: tile.color }}
-                onClick={() => onTileClick(x, y)}
-                onPointerEnter={() => setHover({ x, y })}
-              />
-            )),
-          )}
-        </div>
-
-        {range !== undefined && (
-          <div className="layer range">
-            {range.move.map((t) => (
-              <i key={tileKey(t.x, t.y)} className="ov move" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
-            ))}
-            {range.attack.map((t) => (
-              <i key={tileKey(t.x, t.y)} className="ov atk" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
-            ))}
-          </div>
-        )}
-
-        <div className="layer objects">
-          {objects.map((o) => (
-            <span
-              key={tileKey(o.x, o.y)}
-              className="cell"
-              style={{ gridColumn: col(o.x), gridRow: row(o.y) }}
-              title={`(${o.x}, ${o.y}) ${o.name}`}
-            >
-              <svg className="emblem tile-mark" viewBox="0 0 32 32" aria-hidden="true">
-                <circle cx="16" cy="16" r="12.5" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.4" />
-                <circle cx="16" cy="16" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-                <path d="M16 5.5 L19.5 16 L16 26.5 L12.5 16 Z" fill="currentColor" opacity="0.9" />
-                <path d="M16 10.5 L17.6 16 L16 21.5 L14.4 16 Z" fill="#f2fffd" opacity="0.85" />
-              </svg>
-            </span>
-          ))}
-        </div>
-
-        <div className="vignette"></div>
-
-        {path !== undefined && (
-          <svg className="arrow" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-            <path d={path.map((t, i) => `${i === 0 ? "M" : "L"}${cx(t.x)} ${cy(t.y)}`).join(" ")} />
-            <ArrowHead from={path[path.length - 2]} to={path[path.length - 1]} cx={cx} cy={cy} />
-          </svg>
-        )}
-
-        <div className="layer units">
-          {alive.map((u) => {
-            const v = visuals.get(u.id);
-            if (v === undefined) return null;
-            const cls = ["cell", u === selected && "sel", u === target && "tgt", u.acted && "acted"]
-              .filter(Boolean)
-              .join(" ");
-            return (
-              <span
-                key={u.id}
-                className={cls}
-                style={{ gridColumn: col(u.x), gridRow: row(u.y), "--force": v.ring } as React.CSSProperties}
-              >
-                {v.icon ? (
-                  <img src={v.icon} alt={`${v.name} — ${v.job}`} className="icon" width="48" height="48" loading="eager" decoding="sync" />
-                ) : (
-                  <span className="chip" title={`${v.name} — ${v.job}`} style={{ background: v.chip }}>
-                    {v.abbr}
-                  </span>
-                )}
-                <span className="hpbar" aria-hidden="true">
-                  <i style={{ width: `${Math.round((u.hp / u.stats.hp) * 100)}%` }} />
-                </span>
-                {u.broken && <span className="brk" title="Break">✗</span>}
-              </span>
-            );
-          })}
-        </div>
-
-        {banner !== undefined && <div className={game.outcome !== undefined ? "banner stay" : "banner"}>{banner}</div>}
-      </div>
+      <BoardView
+        width={width}
+        height={height}
+        tiles={tiles}
+        objects={objects}
+        units={alive}
+        byTile={byTile}
+        visuals={visuals}
+        range={range}
+        path={path}
+        selectedId={selectedId}
+        targetId={targetId}
+        banner={banner}
+        bannerStay={game.outcome !== undefined}
+        onTileClick={onTileClick}
+        onTileHover={setHover}
+      />
 
       {log.length > 0 && (
         <div className="battle-log" role="status">
@@ -528,27 +412,5 @@ function ForecastSide({
         <dd>{value(side?.critRate)}</dd>
       </dl>
     </div>
-  );
-}
-
-function ArrowHead({
-  from,
-  to,
-  cx,
-  cy,
-}: {
-  from: Tile;
-  to: Tile;
-  cx: (x: number) => number;
-  cy: (y: number) => number;
-}) {
-  const dx = cx(to.x) - cx(from.x);
-  const dy = cy(to.y) - cy(from.y);
-  const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-  return (
-    <polygon
-      points="-0.16,-0.22 0.3,0 -0.16,0.22"
-      transform={`translate(${cx(to.x)} ${cy(to.y)}) rotate(${angle})`}
-    />
   );
 }

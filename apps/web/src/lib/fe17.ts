@@ -15,7 +15,7 @@ import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
 import { phaseOfGroup } from "./phases";
-import type { Locale } from "./i18n";
+import { UI, type Locale } from "./i18n";
 
 export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
 import { forceStyle } from "./grid";
@@ -484,6 +484,8 @@ export interface BoardUnitProp {
 
 export interface BoardProps {
   mapId: string;
+  /** 챕터 표시명 — 공유 열람(/s/)이 테이블 없이 제목을 쓸 수 있도록 여기서 굳힌다. */
+  title: ChapterTitle;
   width: number;
   height: number;
   /** [y][x] */
@@ -510,6 +512,8 @@ export interface BoardProps {
     victory: string;
     defeat: string;
     reset: string;
+    copyRecord: string;
+    copied: string;
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
   };
 }
@@ -604,6 +608,7 @@ export function boardProps(
   }
   return {
     mapId,
+    title: chapterTitle(chapter, locale),
     width: map.width,
     height: map.height,
     tiles: map.terrain.map((line, y) =>
@@ -620,4 +625,37 @@ export function boardProps(
     units,
     labels,
   };
+}
+
+/**
+ * (맵, 로케일) → 보드 props 단일 진입점.
+ * SSG 셸(Board.astro)과 정적 JSON 엔드포인트(/fe17/boards/*.json)가 **같은 산출물**을 써야 한다 —
+ * 공유 열람(/s/)은 워커에서 이 JSON을 읽는다(대용량 테이블을 워커에 반입하지 않기 위한 경계).
+ */
+export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
+  const chapter = chapters[mapId];
+  if (chapter === undefined) throw new Error(`unknown map: ${mapId}`);
+  const t = UI[locale];
+  return boardProps(chapter, mapId, locale, {
+    board: t.board,
+    forecast: t.forecast,
+    hit: t.hit,
+    crit: t.crit,
+    damage: t.damage,
+    currentPosNote: t.currentPosNote,
+    difficulty: t.difficulty,
+    diffNames: { n: t.diffN, h: t.diffH, l: t.diffL },
+    forceNames: [t.player, t.enemy, t.ally],
+    endPhase: t.endPhase,
+    waitCmd: t.waitCmd,
+    attackCmd: t.attackCmd,
+    turnPhase: t.turnPhase,
+    turnWord: t.turnWord,
+    victory: t.victory,
+    defeat: t.defeat,
+    reset: t.reset,
+    copyRecord: t.copyRecord,
+    copied: t.copied,
+    logTags: t.logTags,
+  });
 }

@@ -19,6 +19,24 @@ export {
 } from "./battle.js";
 
 export {
+  createReplayer,
+  recordingSource,
+  sequenceSource,
+  toAddress,
+  toCursor,
+  ReplayDesyncError,
+  RULE_VERSION,
+  type PhaseName,
+  type PhaseSpan,
+  type RecordingSource,
+  type Reduce,
+  type StepAddress,
+  type Timeline,
+  type VerifyMismatch,
+  type VerifyResult,
+} from "./replay.js";
+
+export {
   attackRange,
   movementPath,
   movementRange,

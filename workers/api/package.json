@@ -1,5 +1,5 @@
 {
-  "name": "@fesim/shared",
+  "name": "@fesim/api",
   "private": true,
   "type": "module",
   "exports": {
@@ -8,6 +8,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@fesim/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

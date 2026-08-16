@@ -4,20 +4,9 @@
  * 적 유닛의 난이도 선택(Offset·레벨·AutoGrowOffset)은 같은 공식의 입력 선택 문제 —
  * 호출측이 난이도에 맞는 값을 골라 넣는다. AutoGrowOffset 가산은 가정(실기 코퍼스로 검증 예정).
  */
-export interface StatBlock {
-  hp: number;
-  str: number;
-  mag: number;
-  dex: number;
-  spd: number;
-  lck: number;
-  def: number;
-  res: number;
-  bld: number;
-}
+import { STAT_KEYS, type StatBlock } from "@fesim/shared";
 
-export const STAT_KEYS = ["hp", "str", "mag", "dex", "spd", "lck", "def", "res", "bld"] as const;
-export type StatKey = (typeof STAT_KEYS)[number];
+export { STAT_KEYS, type StatBlock, type StatKey } from "@fesim/shared";
 
 export interface DeriveStatsInput {
   jobBase: StatBlock;

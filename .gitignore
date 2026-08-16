@@ -12,3 +12,4 @@ data/staging/
 coverage/
 .serena/
 .venv
+.lighthouseci/

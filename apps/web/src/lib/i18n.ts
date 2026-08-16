@@ -45,10 +45,26 @@ interface Strings {
   victory: string;
   defeat: string;
   reset: string;
+  copyRecord: string;
+  copied: string;
   logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
   chapterSelect: string;
   comingSoon: string;
   categories: { main: string; paralogue: string; divine: string; fell: string };
+  focus: FocusLabels;
+}
+
+/** 포커스 모드(공유 열람 /s/) 전용 라벨 — 셸(Astro)과 아일랜드가 같은 묶음을 쓴다. */
+export interface FocusLabels {
+  verified: string;
+  recordOnly: string;
+  prev: string;
+  next: string;
+  actionWord: string;
+  edit: string;
+  notFound: string;
+  broken: string;
+  shared: string;
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -91,10 +107,23 @@ export const UI: Record<Locale, Strings> = {
     victory: "Victory!",
     defeat: "Defeat...",
     reset: "Reset",
+    copyRecord: "Copy record",
+    copied: "Copied",
     logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
     chapterSelect: "Chapters",
     comingSoon: "Coming soon",
     categories: { main: "Main Story", paralogue: "Paralogues", divine: "Divine Paralogues", fell: "Fell Xenologue" },
+    focus: {
+      verified: "Verified",
+      recordOnly: "Record view",
+      prev: "Previous action",
+      next: "Next action",
+      actionWord: "action",
+      edit: "Try editing this strategy",
+      notFound: "No such link.",
+      broken: "This record could not be read.",
+      shared: "Shared record",
+    },
   },
   ko: {
     localeName: "KO",
@@ -135,10 +164,23 @@ export const UI: Record<Locale, Strings> = {
     victory: "승리!",
     defeat: "패배...",
     reset: "초기화",
+    copyRecord: "기보 복사",
+    copied: "복사됨",
     logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },
     chapterSelect: "챕터 선택",
     comingSoon: "준비 중",
     categories: { main: "본편", paralogue: "외전", divine: "신룡의 장", fell: "사룡의 장" },
+    focus: {
+      verified: "검증됨",
+      recordOnly: "기록 열람 모드",
+      prev: "이전 행동",
+      next: "다음 행동",
+      actionWord: "행동",
+      edit: "이 전략 편집해보기",
+      notFound: "그런 링크가 없습니다.",
+      broken: "기보를 읽을 수 없습니다.",
+      shared: "공유된 기보",
+    },
   },
 };
 

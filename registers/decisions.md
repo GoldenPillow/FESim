@@ -52,3 +52,16 @@
 - 2026-08-16 보드 크기·배율 상수 = apps/web/src/components/board-metrics.css 유일 정본(타일 반응형 공식 파라미터·도트 배율 2.6·칩·로스터 크롭) — 크기 튜닝은 이 파일만 수정, 매직넘버 산개 금지. 도트 "크기 불변·위치 상승" 버그 원인 = Tailwind 프리플라이트 img max-width 캡(교훈: 프리플라이트와 치수 CSS 충돌 주의)
 - 2026-08-16 [정정] 도트 배율 최종 2.0 (2.6 기록은 캡 버그 하의 착시 보정 — 버그 해소 후 재보정). ☠수치의 정본은 board-metrics.css — decisions에는 앞으로 수치 박제하지 않는다
 - 2026-08-16 첫 스테이블 게시(사용자 지시) — M2 완성본(f500229) ./dev promote 승격, 실확인 완료
+- 2026-08-16 M3 착수·경계 확정: 짧은 링크 읽기(/s/{id} SSR+KV 조회)만 M3 — 발급 API·Turnstile·발급 UX는 M4(M3엔 발급 소비자=편집기 부재), M3 발급은 ./dev link:put 수동
+- 2026-08-16 M3 SSR = @astrojs/cloudflare 어댑터(단일 워커, /s/만 prerender=false, 나머지 SSG 유지) · KV 베타/스테이블 공유 수용(버전 승격 모델의 구조적 제약, 링크 레코드 불변이라 무해) · 배포 흐름(versions upload·promote) 불변 — CF 문서 검증
+- 2026-08-16 리플레이 기록 = rolls+events 병기: 재생 정본 = events 절대값 적용(applyStep — 공식 변경에도 열람 불변), rolls는 verify(reduce 재계산 대조) 전용 · RULE_VERSION = 게임별 시퀀스(fe17-1)
+- 2026-08-16 M3 세부: .eph 내보내기 최소형(기보 복사 버튼) 포함 · Zustand vanilla 도입(Immer는 M4 보류) · 전투 타입(BattleAction/Event 등) shared 이사+engine 재수출 · 리플레이 중 난이도·국면 잠금 · /s/ 로케일 = ?l= 명시(기본 en)
+- 2026-08-16 [변경] 게이트 경계 재확정(사용자): 무계정 = 열람·제작·기보 입출력·로컬 보관함(재방문 심리스 복구·이어 플레이) · 링크 공유(서버 게시·짧은 링크 발급) = 로그인 필요 — 2026-08-15 "무계정 공유+Turnstile 발급" 대체. better-auth+D1은 M4 편입, 발급용 Turnstile 폐기(로그인 계층 어뷰즈 발현 시 재검토)
+- 2026-08-16 게스트 로컬 보관 = localStorage 시작(오리진당 ~5MB급, 기보 설계 목표 수십 KB/챕터 — 실측은 M3 샘플로), 저장 계층 함수 격리로 IndexedDB 승격 여지 · 유실 한계(브라우저 정리·Safari 7일 정책) 정직 표기 = 로그인 가치 근거 · 유저 기보 서버 아카이빙 = T1, 레이트·랭킹 = 미결 유지
+- 2026-08-16 승계 강화(사용자): 로그인 즉시 로컬 보관함 전략 전부를 서버 DB로 자동 저장·귀속(수동 단계 없음, 유실 = UX 치명) — 이후 로컬+서버 이중 저장. 구현 = M4(better-auth+D1과 함께)
+- 2026-08-16 M3 4단계 판정: 워커 배포 설정 정본 = 빌드 산출물 apps/web/dist/server/wrangler.json(어댑터 14.x, CF 대시보드 배포 명령에 -c 필수 — deploy.md 갱신) · KV fesim-links 프로비저닝(바인딩 LINKS, 베타/스테이블 공유) · 어댑터 자동 프로비저닝 바인딩(SESSION·IMAGES)은 명시 차단(session:false·imageService:passthrough — 미사용 바인딩 = 배포·과금 표면) · link:put 기본 = 원격(--local 명시)
+- 2026-08-16 /s/ 번들 실측 74.3KB gzip(게이트 100KB 통과, 여유 25.7KB) · 워커 청크 80KB(5MB 테이블 미반입 설계 달성) · zustand SSR 함정(getServerSnapshot = 초기 상태) 실측 발견 → 리플레이는 스토어 생성 인자로 — 회귀 테스트 박제
+- 2026-08-16 ☠LCP 게이트 "모바일 4G" = LTE 정의 확정(사용자): lighthouserc RTT 70ms/10Mbps 명시 — Lighthouse 기본(Slow 4G, RTT150)은 연결 바닥만 ~780ms라 첫 페인트 자원 전체가 14.6KB(TCP 1라운드) 안이어야 해 실전 기보·큰 맵이 구조적 불가(실측: Slow 1217ms vs LTE 635ms)
+- 2026-08-16 /s/ 전달 구조 확정: 문서 = 셸+정적 보드 SSR+아이콘 data URI 인라인(미들웨어)만 · 기보(.eph 엔드포인트)·보드 JSON은 하이드레이션 후 fetch(이후 스테핑 네트워크 제로) · 응답 엣지 캐시(Cache API, 1h — 미룸분 흡수, 발현 조건 = TTFB 실측) · KV cacheTtl 5분. 계획서 "로그 인라인" 세부를 실측 근거로 대체
+- 2026-08-16 M3 6단계 게이트 실측(프리뷰 f68e8119, 표본 3회): LCP 623/627/639ms 중앙값 627(<1s 통과) · /s/ JS 74.1KB gzip(<100KB 통과) · 문서 전송 11.4KB
+- 2026-08-16 M3 마감: 완료 판정("링크 하나로 열람") 충족 — /s/{id} 프리뷰 실가동·LCP 627ms·JS 74.1KB·CF 빌드 파이프라인(-c 산출물 설정) 검증. 리뷰 반영 = 재생 불가 레코드 500→400 방어(events·rolls 無 공격은 M4 검증기 몫으로 미룸). 육안 조작감 확인은 베타에서 계속
