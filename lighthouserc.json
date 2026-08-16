@@ -1,0 +1,16 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 3,
+      "settings": {
+        "chromeFlags": "--no-sandbox --headless=new"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 1000, "aggregationMethod": "median" }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 200, "aggregationMethod": "median" }]
+      }
+    }
+  }
+}
