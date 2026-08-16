@@ -33,6 +33,10 @@ interface Strings {
   crit: string;
   damage: string;
   currentPosNote: string;
+  difficulty: string;
+  diffN: string;
+  diffH: string;
+  diffL: string;
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -63,6 +67,10 @@ export const UI: Record<Locale, Strings> = {
     crit: "Crit",
     damage: "Dmg",
     currentPosNote: "Assumes attack at max weapon range",
+    difficulty: "Difficulty",
+    diffN: "Normal",
+    diffH: "Hard",
+    diffL: "Maddening",
   },
   ko: {
     localeName: "KO",
@@ -91,6 +99,10 @@ export const UI: Record<Locale, Strings> = {
     crit: "필살",
     damage: "위력",
     currentPosNote: "공격측 최대 사거리 교전 기준 근사",
+    difficulty: "난이도",
+    diffN: "노멀",
+    diffH: "하드",
+    diffL: "루나틱",
   },
 };
 

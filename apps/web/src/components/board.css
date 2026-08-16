@@ -164,6 +164,34 @@
   }
 }
 
+/* 난이도 전환 — 보드 우상단 세그먼트(기본 = 루나틱) */
+.plate .diff-switch {
+  position: absolute;
+  bottom: calc(100% + 1.4rem);
+  right: 0;
+  display: flex;
+  gap: 0.25rem;
+  z-index: 5;
+}
+.plate .diff-switch button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+.plate .diff-switch button:hover {
+  color: var(--ink);
+}
+.plate .diff-switch button.on {
+  color: var(--gold, #f0c85a);
+  border-color: var(--gold, #f0c85a);
+  background: var(--panel, rgb(255 255 255 / 0.04));
+}
+
 /* 공격 대상 — 적색 점멸 링(선택 링과 같은 문법, 색만 적) */
 .board .cell.tgt::before {
   content: "";

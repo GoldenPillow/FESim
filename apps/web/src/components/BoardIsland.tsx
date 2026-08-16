@@ -15,8 +15,10 @@ import {
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
 import { gridCol, gridRow } from "../lib/grid";
-import type { BoardProps, BoardTileProp, BoardUnitProp } from "../lib/fe17";
+import type { BoardProps, BoardTileProp, BoardUnitProp, Difficulty } from "../lib/fe17";
 import "./board.css";
+
+const DIFFICULTIES: Difficulty[] = ["n", "h", "l"];
 
 /** 전투 계산기 — 원문 DSL(17KB)을 아일랜드 청크에 동봉한다(제작 경로라 예산 관대). */
 const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
@@ -56,14 +58,20 @@ interface RangeView {
   attackAll: Set<string>;
 }
 
-const toCombatant = (u: BoardUnitProp, tiles: BoardTileProp[][]): Combatant | undefined =>
-  u.stats === undefined
+const toCombatant = (
+  u: BoardUnitProp,
+  tiles: BoardTileProp[][],
+  difficulty: Difficulty,
+): Combatant | undefined => {
+  const stats = u.stats?.[difficulty];
+  return stats === undefined
     ? undefined
     : {
-        stats: { ...u.stats, maxHp: u.stats.hp },
+        stats: { ...stats, maxHp: stats.hp },
         weapon: u.weapon,
         terrain: { avoid: tiles[u.y]?.[u.x]?.avoid ?? 0, def: tiles[u.y]?.[u.x]?.def ?? 0 },
       };
+};
 
 interface ForecastView {
   attacker: BoardUnitProp;
@@ -75,6 +83,8 @@ interface ForecastView {
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, costs, objects, units, labels } = props;
   const phase = usePhase();
+  // 기준 난이도 = 루나틱(확정 결정) — 옵션에서 실시간 전환.
+  const [difficulty, setDifficulty] = useState<Difficulty>("l");
   const [selectedAt, setSelectedAt] = useState<string | undefined>(undefined);
   const [targetAt, setTargetAt] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
@@ -130,8 +140,8 @@ export default function BoardIsland(props: BoardProps) {
 
   const forecast = useMemo<ForecastView | undefined>(() => {
     if (selected === undefined || target === undefined) return undefined;
-    const attackerC = toCombatant(selected, tiles);
-    const defenderC = toCombatant(target, tiles);
+    const attackerC = toCombatant(selected, tiles, difficulty);
+    const defenderC = toCombatant(target, tiles, difficulty);
     if (attackerC === undefined || defenderC === undefined) return undefined;
     // 교전 거리 근사 = 공격측 장비 무기의 최대 사거리(활 2 → 반격 불가, 검 1 → 반격) — 이동 후
     // 실제 위치 선택은 전투 해결 단계 몫. 반격 = 방어측 장비 사거리가 그 거리를 덮을 때.
@@ -146,7 +156,7 @@ export default function BoardIsland(props: BoardProps) {
       attack: selected.weapon ? forecastSide(calculator, attackerC, defenderC) : undefined,
       counter: canCounter ? forecastSide(calculator, defenderC, attackerC) : undefined,
     };
-  }, [selected, target, tiles]);
+  }, [selected, target, tiles, difficulty]);
 
   const path = useMemo(() => {
     if (range === undefined || hover === undefined) return undefined;
@@ -184,6 +194,19 @@ export default function BoardIsland(props: BoardProps) {
       style={{ "--cols": width, "--rows": height } as React.CSSProperties}
       aria-label={labels.board}
     >
+      <nav className="diff-switch" aria-label={labels.difficulty}>
+        {DIFFICULTIES.map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={d === difficulty ? "on" : undefined}
+            onClick={() => setDifficulty(d)}
+          >
+            {labels.diffNames[d]}
+          </button>
+        ))}
+      </nav>
+
       <div className="rail rail-x">
         {Array.from({ length: width }, (_, x) => (
           <span key={x} style={{ gridColumn: col(x) }}>
@@ -298,11 +321,21 @@ export default function BoardIsland(props: BoardProps) {
 
       {forecast !== undefined && (
         <div className="forecast" role="status" aria-label={labels.forecast}>
-          <ForecastSide unit={forecast.attacker} side={forecast.attack} labels={labels} />
+          <ForecastSide
+            unit={forecast.attacker}
+            side={forecast.attack}
+            difficulty={difficulty}
+            labels={labels}
+          />
           <span className="fc-vs" aria-hidden="true">
             ⚔
           </span>
-          <ForecastSide unit={forecast.defender} side={forecast.counter} labels={labels} />
+          <ForecastSide
+            unit={forecast.defender}
+            side={forecast.counter}
+            difficulty={difficulty}
+            labels={labels}
+          />
           <small className="fc-note">{labels.currentPosNote}</small>
         </div>
       )}
@@ -313,10 +346,12 @@ export default function BoardIsland(props: BoardProps) {
 function ForecastSide({
   unit,
   side,
+  difficulty,
   labels,
 }: {
   unit: BoardUnitProp;
   side?: SideForecast;
+  difficulty: Difficulty;
   labels: BoardProps["labels"];
 }) {
   const value = (v: number | undefined) => (v === undefined ? "—" : v);
@@ -325,7 +360,7 @@ function ForecastSide({
       <strong className="fc-name">{unit.name}</strong>
       <span className="fc-weapon">{unit.weapon?.name ?? "—"}</span>
       <span className="fc-hp">
-        HP {unit.stats?.hp ?? "—"}
+        HP {unit.stats?.[difficulty]?.hp ?? "—"}
       </span>
       <dl className="fc-rows">
         <dt>{labels.damage}</dt>

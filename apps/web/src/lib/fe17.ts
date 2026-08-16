@@ -395,8 +395,8 @@ export interface BoardUnitProp {
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
-  /** 실스탯(선택 난이도 반영, 스탯 모델 v1). */
-  stats?: StatBlock;
+  /** 난이도별 실스탯(스탯 모델 v1) — 아일랜드가 실시간 난이도 전환. */
+  stats?: Record<Difficulty, StatBlock | undefined>;
   /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
   weapon?: BoardWeaponProp;
 }
@@ -418,6 +418,8 @@ export interface BoardProps {
     crit: string;
     damage: string;
     currentPosNote: string;
+    difficulty: string;
+    diffNames: Record<Difficulty, string>;
   };
 }
 
@@ -465,7 +467,6 @@ export function boardProps(
   mapId: string,
   locale: Locale,
   labels: BoardProps["labels"],
-  difficulty: Difficulty = "n",
 ): BoardProps {
   const map = chapter.map;
   const views = unitsFor(chapter, locale);
@@ -489,7 +490,11 @@ export function boardProps(
       movePoints: job?.["Base.Move"] ?? 0,
       moveType,
       ...weaponRange(v.unit),
-      stats: unitStats(v.unit, difficulty),
+      stats: {
+        n: unitStats(v.unit, "n"),
+        h: unitStats(v.unit, "h"),
+        l: unitStats(v.unit, "l"),
+      },
       weapon: equippedWeapon(v.unit, locale),
     };
   });
