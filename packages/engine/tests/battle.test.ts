@@ -644,3 +644,36 @@ describe("레벨업 성장 — 상한 게이트·재굴림", () => {
     expect(justMiss.unit.stats.str).toBe(baseStats.str);
   });
 });
+
+/**
+ * 타격 순서·브레이크 조건 — 인게임 정본(il2cpp/SEQUENCE_BREAK.md).
+ * 체인어택은 공격측 첫 오더 슬롯 **직전**에 1회 실행된다 — 엔진은 본공격 뒤에 두고 있었다(가정이었고 반증됐다).
+ * 순서가 뒤집히면 "체인으로 먼저 죽어 본공격이 불발"되는 국면이 통째로 달라진다.
+ */
+describe("타격 순서·브레이크 발동 조건", () => {
+  it("체인어택이 본공격보다 먼저다", () => {
+    const enemyStats = { hp: 25, str: 8, mag: 0, dex: 4, spd: 10, lck: 0, def: 100, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+      unit({ id: "b", force: 0, x: 1, y: 1, weapon: sword, style: "連携スタイル" }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 25, weapon: sword }),
+    ]);
+    const kinds = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit)
+      .events.filter((ev) => ev.type === "strike")
+      .map((ev) => (ev.type === "strike" ? ev.kind : ""));
+    expect(kinds[0]).toBe("chain");
+    expect(kinds[1]).toBe("attack");
+  });
+
+  it("대미지가 0이면 브레이크되지 않는다(확정 대미지 1 이상이 조건)", () => {
+    // 왜 위험한가: 상성만 맞으면 흠집 하나 못 내고도 반격을 몰수해 방어측이 통째로 무력화된다.
+    const wall = { hp: 30, str: 8, mag: 0, dex: 4, spd: 5, lck: 0, def: 100, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }), // 검 > 도끼
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: wall, hp: 30, weapon: axe }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
+    expect(next.events.some((ev) => ev.type === "break")).toBe(false);
+    expect(next.units.find((u) => u.id === "a")!.hp).toBeLessThan(30); // 반격이 살아 있다
+  });
+});

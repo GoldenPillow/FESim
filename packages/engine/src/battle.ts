@@ -18,7 +18,7 @@ import { STAT_KEYS, type StatBlock } from "./stats.js";
  * 전투 해결·턴 진행 — 계약: (국면, 행동, 난수소스) → 국면. 순수·불변.
  * 난수 소비 순서(리플레이 재현 계약): 타격마다 명중 롤 → 명중 시에만 필살 롤,
  * 레벨업 시 STAT_KEYS 순서로 스탯당 1롤. 이 순서가 바뀌면 기록 재생이 깨진다.
- * 타격 순서 = 본공격 → 체인어택 → 반격 → 공격측 추격 → 방어측 추격 (체인 위치는 가정 — 실기 반증 시 갱신).
+ * 타격 순서 = 체인어택 → 본공격 → 반격 → 공격측 추격 → 방어측 추격 (체인이 먼저인 것은 코드 확정, il2cpp/SEQUENCE_BREAK).
  */
 export interface RandomSource {
   /**
@@ -363,8 +363,9 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
           to.hp = Math.max(to.hp - damage, 0);
           events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit, crit, damage, hpAfter: to.hp });
-          if (hit && kind === "attack" && advantage === 1 && from === attacker) {
-            // 브레이크: 개시측 상성 유리 + 명중. 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
+          if (hit && damage >= 1 && kind === "attack" && advantage === 1 && from === attacker) {
+            // 브레이크 조건(코드 확정) = 명중 + 확정 대미지 1 이상 + 개시측(반격·체인으로는 발생하지 않는다).
+            // 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
             const immune =
               to.style === "重装スタイル" || to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) === true;
             if (!immune && to.weapon !== undefined && !to.broken) {
@@ -378,10 +379,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           }
         };
 
-        // 실기 정본(2026-08-17 사용자 대조): 브레이크 상태로 피격당한 전투가 끝나면 즉시 해제 —
-        // 페이즈 복귀까지 유지하면 같은 턴 후속 공격이 전부 반격 몰수로 과대 계산된다.
+        // 브레이크 해제 = (A) 그 유닛이 참여한 다음 전투의 커밋 시점 또는 (B) 페이즈 종료, 먼저 오는 쪽
+        // (코드 확정: CommitUnit 0x2477B70 · ResetPhaseEnd 0x1A19EF0, SID_気絶 Cycle=3=PhaseAfter).
+        // kr 원문 "한 번 전투를 하거나 다음 턴이 되기 전까지"가 정확히 이 둘이다 — 아래가 (A)에 해당한다.
         const defenderEnteredBroken = defender.broken;
-        strike(attacker, defender, "attack", atkF);
         const chainNumbers = (backup: UnitState) => {
           const env = combatEnv(toCombatant(backup, state.map, units, supportEffects), defenderC);
           return {
@@ -390,7 +391,9 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             critRate: calc.eval("チェインアタック必殺率計算", env) as number,
           };
         };
+        // 체인어택은 공격측 첫 오더 슬롯 직전 = 본공격보다 먼저다(코드 확정 — 종전 '본공격 뒤'는 가정이었다).
         for (const backup of chainUnits) strike(backup, defender, "chain", chainNumbers(backup));
+        strike(attacker, defender, "attack", atkF);
         const canCounter = () =>
           !defender.dead && !defender.broken && inWeaponRange(defender, distance);
         if (canCounter()) strike(defender, attacker, "counter", defF);

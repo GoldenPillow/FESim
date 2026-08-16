@@ -263,7 +263,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.break-recovery",
     label: { en: "Break recovery: after one defended combat, or own phase start", ko: "브레이크 해제 = 피격 전투 1회 직후 또는 자기 군 페이즈 시작" },
     status: "anchored",
-    evidence: "사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소) · 3회차 patch0-3 전수 후에도 브레이크 자동 해제 타이밍 서술 0건 재확인 — 텍스트 축 경로 종결(gaps/N §4-2)",
+    evidence: "★IL2CPP 코드로 종결(2026-08-17, il2cpp/SEQUENCE_BREAK §2-7): 브레이크의 실체 = SID_気絶(States.Stun) 부여이고 효과는 '반격 불가'가 아니라 **手番回数 = 0**(그 전투에서 오더를 못 받음) · 해제 = 두 경로 중 먼저 오는 쪽 — (A) 그 유닛이 참여한 다음 전투의 커밋 시점(BattleCalculator.CommitUnit 0x2477B70, 그 전투에서 다시 브레이크되지 않았을 때) (B) 페이즈 종료 시 무조건(MapSequence.TurnEnd → Unit.ResetPhaseEnd 0x1A19EF0, 데이터도 SID_気絶 Cycle=3=PhaseAfter) · ⇒ kr 원문 '한 번 전투를 하거나 다음 턴이 되기 전까지' = (A) or (B)로 정확히 대응하고 us 원문은 (A)만 적은 축약이었다(원문 불일치 해소) · 발동 조건 = 명중 + 확정 대미지 1 이상 + 공격 주체가 Offense이고 피격이 Defense(**반격·체인어택으로는 브레이크가 발생하지 않는다**) + CanBreakable(무기 상성 비트) + 미브레이크 · ☠면역의 정본은 SID 목록이 아니라 **BadIgnore 비트**(ブレイク無効_効果=1024/Stun · 相性ブレイク無効=2048/Interact, 重装スタイル 직업이 후자를 부여) — 엔진은 아직 SID 목록으로 근사한다 · 기존 근거: 사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소) · 3회차 patch0-3 전수 후에도 브레이크 자동 해제 타이밍 서술 0건 재확인 — 텍스트 축 경로 종결(gaps/N §4-2)",
   },
   {
     id: "combat.chain-attack",
