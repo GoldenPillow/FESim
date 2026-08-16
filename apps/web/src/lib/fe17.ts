@@ -374,6 +374,17 @@ const statBlock = (row: Record<string, unknown>, prefix: string): StatBlock => {
   return out;
 };
 
+/** 스탯 상한 = job.xml Limit(직업 캡) + person.xml Limit(개인 보정, s8 -120..120) — 합산 후 클램프. */
+const statCap = (job: Record<string, unknown>, person: Record<string, unknown>): StatBlock => {
+  const jobLimit = statBlock(job, "Limit.");
+  const personLimit = statBlock(person, "Limit.");
+  const out = {} as StatBlock;
+  for (const key of Object.keys(STAT_FIELDS) as (keyof StatBlock)[]) {
+    out[key] = jobLimit[key] + personLimit[key];
+  }
+  return out;
+};
+
 /** dispos 유닛의 표시 레벨(난이도 반영, dispos 0 = 인물 기본). */
 export function unitLevel(unit: DisposUnit, difficulty: Difficulty): number {
   const disposLevel = unit.level[difficulty];
@@ -394,10 +405,11 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
     personGrowth: statBlock(person, "Grow."),
     level: unitLevel(unit, difficulty),
     autoGrowOffset: Number(person[`AutoGrowOffset${suffix}`] ?? 0),
+    cap: statCap(job, person),
   });
 }
 
-/* ── 유닛 스킬 (dispos Sid + 인물 CommonSids + 장착 엠블렘 絆1 싱크로) ── */
+/* ── 유닛 스킬 (dispos Sid + 인물 CommonSids + 장착 엠블렘 絆 레벨 싱크로) ── */
 
 const SKILL_ROW_FIELDS = [
   "Sid", "Timing", "Condition", "ActNames", "ActOperations", "ActValues",
@@ -415,17 +427,31 @@ const slimSkill = (sid: string): SkillRow | undefined => {
   return out as unknown as SkillRow;
 };
 
-/** 絆 레벨 1 싱크로 스킬(장착 = 싱크로 상태 가정 — 인게이지 발동은 후속). */
-const emblemSyncSids = (gid: string): string[] => {
+/**
+ * 동계열 판별 키 — 덤프에 계열 필드가 없어 SID 명명 규칙(SID_技＋１ / SID_技＋２ / SID_不屈＋＋)으로만 읽는다(가정).
+ */
+const skillSeries = (sid: string): string => sid.replace(/[＋+]+[０-９0-9]*$/u, "");
+
+/**
+ * 絆 레벨 N까지의 싱크로 스킬 = 레벨 1..N 합집합, 동계열은 최고 레벨만(실측 반증: 絆3 마르스 = 技＋２ 단독).
+ * N 기본값 = god.xml Level(엠블렘 초기 絆 레벨) — 진행 중 絆 레벨은 덤프·dispos 어디에도 없어 호출측이 넘긴다.
+ */
+export const emblemSyncSids = (gid: string, bondLevel?: number): string[] => {
   const god = godsTable.gods[gid];
   const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
-  return table?.["1"]?.SynchroSkills ?? [];
+  if (god === undefined || table === undefined) return [];
+  const max = bondLevel ?? Number(god["Level"] ?? 1);
+  const bySeries = new Map<string, string>();
+  for (let level = 1; level <= max; level++) {
+    for (const sid of table[String(level)]?.SynchroSkills ?? []) bySeries.set(skillSeries(sid), sid);
+  }
+  return [...bySeries.values()];
 };
 
-export function unitSkillRows(unit: DisposUnit): SkillRow[] {
+export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] {
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
-  const sync = unit.gid !== undefined ? emblemSyncSids(unit.gid) : [];
+  const sync = unit.gid !== undefined ? emblemSyncSids(unit.gid, bondLevel) : [];
   const sids = [...new Set([...unit.sids, ...commons, ...sync])];
   return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
 }

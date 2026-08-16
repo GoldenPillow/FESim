@@ -6,6 +6,7 @@ import {
   createCalculator,
   evaluateFormula,
   forecastSide,
+  makeSkillModifier,
   parseFormula,
   staticEnhances,
   type Combatant,
@@ -77,6 +78,40 @@ describe("값 보정 Acts — 실기 코퍼스 재현", () => {
   it("적 명중률 표시 = floor(108 - 57.25) = 50 (실기 일치)", () => {
     const f = forecastSide(calc, swordFighter, alear);
     expect(f.hitRate).toBe(50);
+  });
+
+  it("미지 식별자 조건은 미적용으로 강하한다 — 논리 단항의 truthy 오적용 방지", () => {
+    // 왜 위험한가: 평가기가 미지 식별자를 이름 심볼로 돌려주면 문자열은 truthy라
+    // `配置除去可能`·`生存 && …` 같은 조건이 항상 참이 되어 조건 스킬이 상시 발동한다(C축 §6-3, 6건).
+    // 미지 "함수"는 이미 예외 → 미적용인데 식별자만 강하되지 않아 강하 규칙이 갈라져 있었다.
+    const jimyaku: SkillRow = {
+      Sid: "SID_地脈吸収", Timing: 26, Condition: "配置除去可能",
+      ActNames: ["HP"], ActOperations: ["+"], ActValues: ["10"],
+    };
+    expect(makeSkillModifier([jimyaku], combatEnv(alear))("HP", 21)).toBe(21);
+  });
+
+  it("미지 식별자 비교식도 같은 규칙으로 미적용 — 어휘 결손은 항상 과소, 절대 과대가 아니다", () => {
+    // 왜 위험한가: `武器の種類`가 env에 없으면 심볼끼리 비교라 == 는 거짓(과소)이지만
+    // != ·심볼 대 심볼은 참이 되어 과대 적용으로 뒤집힌다. 강하를 하나로 통일해 방향을 고정한다.
+    const kessatsu: SkillRow = {
+      Sid: "SID_必殺剣", Timing: 3, Condition: "武器の種類 == 剣",
+      ActNames: ["必殺値"], ActOperations: ["+"], ActValues: ["10"],
+    };
+    const negated: SkillRow = { ...kessatsu, Sid: "SID_필살검_부정", Condition: "武器の種類 != 剣" };
+    const modify = (skill: SkillRow) => makeSkillModifier([skill], combatEnv(alear))("必殺値", 4);
+    expect(modify(kessatsu)).toBe(4);
+    expect(modify(negated)).toBe(4);
+  });
+
+  it("열거 상수 비교는 계속 산다 — 月の腕輪(攻撃属性 == 物理属性)", () => {
+    // 왜 위험한가: 강하를 "미지 식별자 전부"로 잡으면 정본의 열거 상수(物理属性·魔法属性)까지 죽어
+    // 지금 정상 적용되는 조건부 스킬 7건이 통째로 꺼진다. 강하 대상은 열거 상수를 제외한 미지 식별자다.
+    const tsuki: SkillRow = {
+      Sid: "SID_月の腕輪", Timing: 3, Condition: "攻撃属性 == 物理属性",
+      ActNames: ["威力"], ActOperations: ["+"], ActValues: ["相手の守備 * 0.2"],
+    };
+    expect(makeSkillModifier([tsuki], combatEnv(alear, swordFighter))("威力", 50)).toBeCloseTo(50.8);
   });
 
   it("조건 불성립이면 미적용, 지원 불가 조건은 안전하게 무시된다", () => {

@@ -62,15 +62,37 @@ const node = (source: string): FormulaNode => {
 
 const truthy = (v: FormulaValue): boolean => (typeof v === "number" ? v !== 0 : v !== "");
 
+/** 조건식이 비교 대상으로 쓰는 열거 상수 — env 변수(攻撃属性)가 실제로 취하는 값이다. */
+const ENUM_SYMBOLS = new Set(["物理属性", "魔法属性"]);
+
+/**
+ * 조건 평가용 환경 — 미지 식별자를 심볼로 흘리지 않고 던진다.
+ * 심볼로 흘리면 비교식은 거짓(과소), 논리 단항은 truthy(과대)로 강하 방향이 갈라진다.
+ */
+function strictIdents(env: FormulaEnv): FormulaEnv {
+  return {
+    lookup: (name) => {
+      const value = env.lookup(name);
+      if (value === undefined && !ENUM_SYMBOLS.has(name)) {
+        throw new Error(`스킬 조건 평가 실패: 미지 식별자 "${name}"`);
+      }
+      return value;
+    },
+    call: env.call?.bind(env),
+    opponent: env.opponent ? () => strictIdents(env.opponent!()) : undefined,
+  };
+}
+
 /**
  * Act 기반 계산값 보정자. env = 스킬 보유자의 순정 환경(보정 훅 없는 것 — 재귀 방지).
- * 평가 불가 조건(전투 흐름 함수 등 현재 미지원 술어)은 스킬 미적용으로 안전 강하한다 —
+ * 평가 불가 조건(미지원 술어 함수·미지 상태변수)은 스킬 미적용으로 안전 강하한다 —
  * 지원 범위는 테스트가 정본이고, 흐름 스킬은 전투 해결 층이 따로 소유한다.
  */
 export function makeSkillModifier(
   skills: readonly SkillRow[],
   env: FormulaEnv,
 ): (valueName: string, value: number) => number {
+  const condEnv = strictIdents(env);
   return (valueName, value) => {
     let out = value;
     for (const skill of skills) {
@@ -79,7 +101,7 @@ export function makeSkillModifier(
       for (let i = 0; i < names.length; i++) {
         if (names[i] !== valueName) continue;
         try {
-          if (skill.Condition !== undefined && !truthy(evaluateFormula(node(skill.Condition), env))) {
+          if (skill.Condition !== undefined && !truthy(evaluateFormula(node(skill.Condition), condEnv))) {
             continue;
           }
           const amount = evaluateFormula(node(skill.ActValues?.[i] ?? "0"), env);

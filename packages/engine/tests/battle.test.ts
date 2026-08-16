@@ -211,6 +211,65 @@ describe("전투 해결", () => {
     expect(next.events.filter((ev) => ev.type === "strike" && ev.kind === "chain").length).toBe(1);
   });
 
+  it("체인어택 경험치 = 실제 체인 참가 수만큼 가산 (정본 チェインアタック基本値 * チェインアタック回数)", () => {
+    // 왜 위험한가: 같은 처리에서 체인어택을 실제로 굴리면서 경험치 환경에는 체인 횟수 0을 고정
+    // 전달하면 자기모순이다(A축 §6-1). 노멀 동레벨 = 전투 6 + 체인기본 1 × 참가 수.
+    const enemyStats = { hp: 25, str: 8, mag: 0, dex: 4, spd: 10, lck: 0, def: 100, res: 0, bld: 5 };
+    const mk = (chains: UnitState[]) =>
+      state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+        ...chains,
+        unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 25, weapon: sword }),
+      ]);
+    const chainOf = (id: string, x: number, y: number) =>
+      unit({ id, force: 0, x, y, weapon: sword, style: "連携スタイル" });
+    const expOf = (s: GameState) => (s.events.find((ev) => ev.type === "exp") as { amount: number }).amount;
+
+    expect(expOf(reduce(mk([]), { type: "attack", unit: "a", target: "e" }, alwaysHit))).toBe(6);
+    expect(expOf(reduce(mk([chainOf("b", 1, 1)]), { type: "attack", unit: "a", target: "e" }, alwaysHit))).toBe(7);
+    expect(
+      expOf(reduce(mk([chainOf("b", 1, 1), chainOf("c", 2, 0)]), { type: "attack", unit: "a", target: "e" }, alwaysHit)),
+    ).toBe(8);
+  });
+
+  it("범용 브레이크 무효 스킬도 면역 (SID_ブレイク無効·_効果 — 41 인물 LunaticSids 실재)", () => {
+    // 왜 위험한가: 엔진이 검사하던 SID_相性ブレイク無効은 어떤 인물·직업·엠블렘도 보유하지 않는다.
+    // 실제로 쓰이는 것은 SID_ブレイク無効(PID_M002_ルミエル 등 41건 LunaticSids)과 그 부여 효과
+    // SID_ブレイク無効_効果(熟練者·ヘクトル엔게이지 기술이 SyncSids로 부여)다 — 면역 유닛이 브레이크된다(A축 §6-5).
+    const enemyStats = { hp: 30, str: 8, mag: 0, dex: 4, spd: 0, lck: 10, def: 5, res: 0, bld: 5 };
+    const attack = (sid: string) => {
+      const s = state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+        unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 30, weapon: axe, skills: [{ Sid: sid }] }),
+      ]);
+      return reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
+    };
+    for (const sid of ["SID_相性ブレイク無効", "SID_ブレイク無効", "SID_ブレイク無効_効果"]) {
+      const next = attack(sid);
+      expect(next.events.some((ev) => ev.type === "break")).toBe(false);
+      expect(next.units.find((u) => u.id === "a")!.hp).toBeLessThan(30); // 면역 = 반격 유효
+    }
+    // 면역이 없으면 종전대로 브레이크된다(대조군)
+    expect(attack("SID_無関係").events.some((ev) => ev.type === "break")).toBe(true);
+  });
+
+  it("성장률 100 초과: 확정 가산 + 잔여 1롤 (105% = +1 확정, 잔여 5%)", () => {
+    // 왜 위험한가: 1롤 모델(roll() < grow)은 롤이 [0,100)이라 100 초과분을 통째로 버린다 —
+    // person.Grow 실측 최대 105(D축 §4)라 초과 성장이 영구 소실된다. 롤 소비 수는 스탯당 1회로 유지(리플레이 계약).
+    const enemyStats = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const growth = { hp: 0, str: 105, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
+    const mk = () =>
+      state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
+        unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
+      ]);
+    // 롤 소비: 명중 → 필살 → 스탯당 1롤(STAT_KEYS 순서, str은 2번째)
+    const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 4));
+    expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 롤 4 < 5
+    const one = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 5));
+    expect(one.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 1); // 잔여 롤 5 = 실패
+  });
+
   it("격파 경험치 = calculator 공식 그대로 (동레벨 노멀 = 18), 레벨업은 성장률 롤", () => {
     const enemyStats = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
     const growth = { hp: 100, str: 100, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };

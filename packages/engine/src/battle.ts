@@ -113,6 +113,17 @@ export function weaponAdvantage(aKind: number, bKind: number): Advantage {
 
 const DIFFICULTY_SYMBOL: Record<Difficulty, string> = { n: "ノーマル", h: "ハード", l: "ルナティック" };
 
+/**
+ * 브레이크 면역 SID. 相性 한정판 외에 汎用 SID_ブレイク無効(41 인물 LunaticSids)과
+ * 그 부여 효과 SID_ブレイク無効_効果(熟練者·ヘクトルエンゲージ技가 SyncSids로 부여)가 별개로 실재한다.
+ */
+const BREAK_IMMUNE_SIDS = new Set([
+  "SID_相性ブレイク無効",
+  "SID_ブレイク無効",
+  "SID_ブレイク無効_効果",
+  "SID_EN_技の薬_効果_ブレイク無効",
+]);
+
 const manhattan = (a: UnitState, b: UnitState) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
@@ -244,7 +255,7 @@ export function createReducer(calc: Calculator) {
           if (hit && kind === "attack" && advantage === 1 && from === attacker) {
             // 브레이크: 개시측 상성 유리 + 명중. 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
             const immune =
-              to.style === "重装スタイル" || to.skills?.some((s) => s.Sid === "SID_相性ブレイク無効") === true;
+              to.style === "重装スタイル" || to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) === true;
             if (!immune && to.weapon !== undefined && !to.broken) {
               to.broken = true;
               events.push({ type: "break", unit: to.id });
@@ -279,8 +290,9 @@ export function createReducer(calc: Calculator) {
         if (attacker.force === 0 && !attacker.dead) {
           const difficulty = state.difficulty ?? "n";
           const formula = defender.dead ? "撃破経験計算" : "戦闘経験計算";
+          const chainCount = events.filter((e) => e.type === "strike" && e.kind === "chain").length;
           const gained = Math.floor(
-            calc.eval(formula, expEnv(attacker, defender, 0, difficulty)) as number,
+            calc.eval(formula, expEnv(attacker, defender, chainCount, difficulty)) as number,
           );
           if (gained > 0) {
             attacker.exp += gained;
@@ -291,10 +303,13 @@ export function createReducer(calc: Calculator) {
               const gains: Partial<StatBlock> = {};
               const stats = { ...attacker.stats };
               for (const key of STAT_KEYS) {
-                const grow = attacker.growth?.[key] ?? 0;
-                if (rng.roll() < grow) {
-                  stats[key] += 1;
-                  gains[key] = 1;
+                // 성장률 100 초과(person.Grow 실측 최대 105)는 확정 가산 + 잔여 1롤 —
+                // 롤 소비는 스탯당 항상 1회로 고정한다(리플레이 재현 계약).
+                const grow = Math.max(attacker.growth?.[key] ?? 0, 0);
+                const gain = Math.floor(grow / 100) + (rng.roll() < grow % 100 ? 1 : 0);
+                if (gain > 0) {
+                  stats[key] += gain;
+                  gains[key] = gain;
                 }
               }
               attacker.stats = stats;
