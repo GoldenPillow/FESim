@@ -52,3 +52,7 @@
 - 2026-08-16 보드 크기·배율 상수 = apps/web/src/components/board-metrics.css 유일 정본(타일 반응형 공식 파라미터·도트 배율 2.6·칩·로스터 크롭) — 크기 튜닝은 이 파일만 수정, 매직넘버 산개 금지. 도트 "크기 불변·위치 상승" 버그 원인 = Tailwind 프리플라이트 img max-width 캡(교훈: 프리플라이트와 치수 CSS 충돌 주의)
 - 2026-08-16 [정정] 도트 배율 최종 2.0 (2.6 기록은 캡 버그 하의 착시 보정 — 버그 해소 후 재보정). ☠수치의 정본은 board-metrics.css — decisions에는 앞으로 수치 박제하지 않는다
 - 2026-08-16 첫 스테이블 게시(사용자 지시) — M2 완성본(f500229) ./dev promote 승격, 실확인 완료
+- 2026-08-16 M3 착수·경계 확정: 짧은 링크 읽기(/s/{id} SSR+KV 조회)만 M3 — 발급 API·Turnstile·발급 UX는 M4(M3엔 발급 소비자=편집기 부재), M3 발급은 ./dev link:put 수동
+- 2026-08-16 M3 SSR = @astrojs/cloudflare 어댑터(단일 워커, /s/만 prerender=false, 나머지 SSG 유지) · KV 베타/스테이블 공유 수용(버전 승격 모델의 구조적 제약, 링크 레코드 불변이라 무해) · 배포 흐름(versions upload·promote) 불변 — CF 문서 검증
+- 2026-08-16 리플레이 기록 = rolls+events 병기: 재생 정본 = events 절대값 적용(applyStep — 공식 변경에도 열람 불변), rolls는 verify(reduce 재계산 대조) 전용 · RULE_VERSION = 게임별 시퀀스(fe17-1)
+- 2026-08-16 M3 세부: .eph 내보내기 최소형(기보 복사 버튼) 포함 · Zustand vanilla 도입(Immer는 M4 보류) · 전투 타입(BattleAction/Event 등) shared 이사+engine 재수출 · 리플레이 중 난이도·국면 잠금 · /s/ 로케일 = ?l= 명시(기본 en)
