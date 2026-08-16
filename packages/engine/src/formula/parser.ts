@@ -8,12 +8,17 @@ export type BinaryOp = "+" | "-" | "*" | "/" | "==" | "!=" | ">" | ">=" | "<" | 
 
 export type FormulaNode =
   | { kind: "num"; value: number }
+  | { kind: "str"; value: string }
   | { kind: "ident"; name: string }
   | { kind: "call"; name: string; args: FormulaNode[] }
   | { kind: "unary"; operand: FormulaNode }
   | { kind: "binary"; op: BinaryOp; left: FormulaNode; right: FormulaNode };
 
-type Token = { type: "num"; value: number } | { type: "ident"; name: string } | { type: "op"; op: string };
+type Token =
+  | { type: "num"; value: number }
+  | { type: "ident"; name: string }
+  | { type: "str"; value: string }
+  | { type: "op"; op: string };
 
 const OPERATORS = ["&&", "||", "==", "!=", ">=", "<=", ">", "<", "+", "-", "*", "/", "(", ")", ","];
 const IDENT_START = /[\p{L}_]/u;
@@ -34,6 +39,13 @@ function tokenize(source: string): Token[] {
         i += op.length;
         continue outer;
       }
+    }
+    if (ch === '"') {
+      const end = source.indexOf('"', i + 1);
+      if (end < 0) throw new Error(`수식 파스 실패: 닫히지 않은 문자열 — "${source}"`);
+      tokens.push({ type: "str", value: source.slice(i + 1, end) });
+      i = end + 1;
+      continue;
     }
     if (/[0-9]/.test(ch)) {
       const match = /^[0-9]+(\.[0-9]+)?/.exec(source.slice(i))!;
@@ -100,6 +112,10 @@ export function parseFormula(source: string): FormulaNode {
     if (token.type === "num") {
       pos++;
       return { kind: "num", value: token.value };
+    }
+    if (token.type === "str") {
+      pos++;
+      return { kind: "str", value: token.value };
     }
     if (token.type === "ident") {
       pos++;

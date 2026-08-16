@@ -1,5 +1,6 @@
 import type { Calculator } from "./calculator.js";
 import type { FormulaEnv, FormulaValue } from "./evaluate.js";
+import { makeSkillModifier, type SkillRow } from "../skills.js";
 
 /**
  * 전투 예보 파사드 — 유닛 스냅숏을 DSL 변수 환경으로 사상하고
@@ -36,6 +37,8 @@ export interface Combatant {
   weapon?: CombatantWeapon;
   support?: { hit?: number; avoid?: number; crit?: number; dodge?: number };
   terrain?: { avoid?: number; def?: number };
+  /** 전투 시 계산값 보정 스킬(간파 등). 정적 보정(EnhanceValue)은 stats에 이미 반영돼 있어야 한다. */
+  skills?: readonly SkillRow[];
 }
 
 export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
@@ -66,10 +69,12 @@ export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
     地形回避: terrain?.avoid ?? 0,
     地形防御: terrain?.def ?? 0,
   };
-  return {
+  const plain: FormulaEnv = {
     lookup: (name) => vars[name],
     opponent: foe ? () => combatEnv(foe, self) : undefined,
   };
+  if (self.skills === undefined || self.skills.length === 0) return plain;
+  return { ...plain, modify: makeSkillModifier(self.skills, plain) };
 }
 
 export interface SideForecast {
@@ -81,8 +86,9 @@ export interface SideForecast {
   followUp: boolean;
 }
 
+/** 표시 규칙(실측): 소수는 계산 내내 유지, 표시 직전에 내림 후 0..100 클램프. */
 const displayClamp = (value: FormulaValue): number =>
-  Math.min(Math.max(value as number, 0), 100);
+  Math.min(Math.max(Math.floor(value as number), 0), 100);
 
 export function forecastSide(calc: Calculator, self: Combatant, foe: Combatant): SideForecast {
   const env = combatEnv(self, foe);

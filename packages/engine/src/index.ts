@@ -33,6 +33,7 @@ export {
   type ReachableTile,
   type Tile,
 } from "./range.js";
+export { makeSkillModifier, staticEnhances, type SkillRow } from "./skills.js";
 export {
   deriveStats,
   grownLevels,

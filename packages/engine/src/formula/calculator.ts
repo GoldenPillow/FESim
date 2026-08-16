@@ -42,13 +42,20 @@ export function createCalculator(data: CalculatorData): Calculator {
         const value = base.lookup(name);
         if (value !== undefined) return value;
         const formula = data.formulas[name] ?? data.formulas[`${name}計算`];
-        if (formula) return evalFormula(formula, base, depth + 1);
+        if (formula) {
+          const result = evalFormula(formula, base, depth + 1);
+          // 스킬 보정은 계산값 이름(回避値 등)에 걸린다 — 값을 계산한 쪽의 env가 소유.
+          return typeof result === "number" && base.modify ? base.modify(name, result) : result;
+        }
         return undefined;
       },
       call(name, args) {
         const value = base.call?.(name, args);
         if (value !== undefined) return value;
-        return data.tables[name] ? table(name, args[0]) : undefined;
+        if (!data.tables[name]) return undefined;
+        const arg = args[0];
+        if (typeof arg !== "number") throw new Error(`계산기: 테이블 "${name}" 인자는 숫자여야 한다`);
+        return table(name, arg);
       },
       opponent: base.opponent ? () => resolving(base.opponent!(), depth + 1) : undefined,
     };
@@ -72,7 +79,9 @@ export function createCalculator(data: CalculatorData): Calculator {
     eval(name, env) {
       const formula = data.formulas[name];
       if (!formula) throw new Error(`계산기: 미지 공식 "${name}"`);
-      return evalFormula(formula, env, 0);
+      const result = evalFormula(formula, env, 0);
+      const valueName = name.endsWith("計算") ? name.slice(0, -2) : name;
+      return typeof result === "number" && env.modify ? env.modify(valueName, result) : result;
     },
     has: (name) => name in data.formulas,
     table,
