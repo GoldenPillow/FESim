@@ -421,7 +421,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.job-growth",
     label: { en: "Generic enemy growth from job", ko: "일반 적 성장 소스(job.BaseGrow)" },
     status: "absent",
-    evidence: "person.Grow 비영은 144/1523(자군 위주) — 일반 적 약 1379행의 성장은 job.BaseGrow(비영 110/111)가 유일한데 deriveStats는 personGrowth만 수용(gaps/H) · 합산 공식은 덤프에 없음",
+    evidence: "재현 불요 확정 — 적은 맵 내 레벨업 없음(사용자 확정 2026-08-17, 엔진도 자군만 경험치·레벨업) · job.BaseGrow는 데이터 참고용(gaps/H)",
   },
   {
     id: "units.weapon-proficiency",
@@ -439,7 +439,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.skirmish-generation",
     label: { en: "Skirmish enemy generation", ko: "조우전 적 생성(encount.xml)" },
     status: "absent",
-    evidence: "진행구간별 무기등급 17·직업풀 25·골드 18 테이블 — AI 열 0(gaps/K §6)",
+    evidence: "★서비스 피쳐 제외(사용자 결정 2026-08-17) — 데이터 정식화만 보존(무기등급 17·직업풀 25·골드 18, gaps/K §6)",
   },
   {
     id: "units.meal-buff",
@@ -551,7 +551,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.engage-activation",
     label: { en: "Engage activation, meter, duration", ko: "인게이지 발동·카운트·지속" },
     status: "deferred",
-    evidence: "정본 수치 확보 — 지속 3턴·증가 常時·한계 god.EngageCount(정규 7·ルフレ 9)(gaps/C §2) · 턴당 범용 증가량은 덤프에 없음 · 설계 선행(§0 미룸)",
+    evidence: "지속 3턴·한계 god.EngageCount(정규 7·ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 사용자 실측 2026-08-17, params 常時 해석 반증) · 설계 선행(§0 미룸)",
   },
   {
     id: "emblem.engage-kit",
@@ -581,7 +581,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.crest-tile",
     label: { en: "Emblem energy tile effect", ko: "紋章氣(문장기) 효과" },
     status: "absent",
-    evidence: "렌더만 구현(M1.5) — PutEffect=エンゲージカウント回復マス(Heal=0), 회복량 수치는 덤프에 없음 = 실측만이 경로(gaps/C §5)",
+    evidence: "렌더만 구현(M1.5) — 효과 확정 = 대기 시 인게이지 카운트 풀충전(사용자 실측 2026-08-17, 덤프 부재값 종결 — gaps/C §5) · 발동 구현은 인게이지 시스템 선행",
   },
 
   // ── 무기·아이템 ──
@@ -639,7 +639,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.chapter-hold-level",
     label: { en: "Chapter hold level (Fell Xenologue)", ko: "챕터 고정 레벨(사룡의 장 HoldLevel)" },
     status: "absent",
-    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28 — E시리즈 미변환이라 무발현(gaps/L)",
+    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28(gaps/L §2-2) · 레벨 영향 실재 = 사용자 전언 정합 · e00x Lua에 레벨 조작 0건 = HoldLevel 단독 소관, 적용식(상하향 클램프)은 덤프에 없음 — E시리즈 변환 시 실측·배선",
   },
   {
     id: "turn.rewind",
