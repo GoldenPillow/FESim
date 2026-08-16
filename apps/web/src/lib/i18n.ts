@@ -10,6 +10,7 @@ interface Strings {
   localeName: string;
   player: string;
   enemy: string;
+  ally: string;
   units: string;
   level: string;
   position: string;
@@ -26,8 +27,7 @@ interface Strings {
   recommended: string;
   size: string;
   phase: string;
-  phase1: string;
-  phase2: string;
+  objects: string;
 }
 
 export const UI: Record<Locale, Strings> = {
@@ -35,6 +35,7 @@ export const UI: Record<Locale, Strings> = {
     localeName: "EN",
     player: "Player",
     enemy: "Enemy",
+    ally: "Ally",
     units: "units",
     level: "Lv",
     position: "Position",
@@ -51,13 +52,13 @@ export const UI: Record<Locale, Strings> = {
     recommended: "Recommended",
     size: "Size",
     phase: "Phase",
-    phase1: "Turn 1",
-    phase2: "After Lumera falls",
+    objects: "Objects",
   },
   ko: {
     localeName: "KO",
     player: "아군",
     enemy: "적군",
+    ally: "우군",
     units: "유닛",
     level: "Lv",
     position: "위치",
@@ -74,8 +75,7 @@ export const UI: Record<Locale, Strings> = {
     recommended: "권장 레벨",
     size: "크기",
     phase: "국면",
-    phase1: "1회전",
-    phase2: "뤼미에르 격파 후",
+    objects: "오브젝트",
   },
 };
 

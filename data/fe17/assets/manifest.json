@@ -1,62 +1,12 @@
 {
  "game": "fe17",
  "chapters": [
-  "CID_M002"
+  "CID_M002",
+  "CID_M003"
  ],
  "mapicons": {
   "rule": "sprite = <palette>_<jobIcon>_<weapon>; palette = persons.UnitIconID (E suffix = Engage form, NOT enemy); jobIcon = jobs.UnitIconID_M|_F by persons.Gender; weapon = jobs.UnitIconWeaponID or the unit's equipped weapon class. Named units carry their own palette and are not force-tinted; generic soldiers are force-tinted via palette (B=player, R=enemy, G=ally, Y=other, N=neutral).",
   "byPid": {
-   "PID_リュール": {
-    "palette": "001Lueur",
-    "jobIcon": "600DragonLord",
-    "defaultWeapon": "Sword",
-    "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の剣",
-    "forceTinted": false,
-    "weapons": {
-     "NoWeapon": "assets/mapicons/001Lueur_600DragonLord_NoWeapon.webp",
-     "Sword": "assets/mapicons/001Lueur_600DragonLord_Sword.webp"
-    }
-   },
-   "PID_ヴァンドレ": {
-    "palette": "500Vandre",
-    "jobIcon": "640Paladin",
-    "defaultWeapon": "Ax",
-    "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の斧",
-    "forceTinted": false,
-    "weapons": {
-     "Ax": "assets/mapicons/500Vandre_640Paladin_Ax.webp",
-     "Lance": "assets/mapicons/500Vandre_640Paladin_Lance.webp",
-     "NoWeapon": "assets/mapicons/500Vandre_640Paladin_NoWeapon.webp",
-     "Sword": "assets/mapicons/500Vandre_640Paladin_Sword.webp"
-    }
-   },
-   "PID_クラン": {
-    "palette": "501Clan",
-    "jobIcon": "660Mage",
-    "defaultWeapon": "MagicBook",
-    "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_ファイアー",
-    "forceTinted": false,
-    "weapons": {
-     "MagicBook": "assets/mapicons/501Clan_660Mage_MagicBook.webp",
-     "NoWeapon": "assets/mapicons/501Clan_660Mage_NoWeapon.webp"
-    }
-   },
-   "PID_フラン": {
-    "palette": "550Fram",
-    "jobIcon": "668Monk",
-    "defaultWeapon": "Scroll",
-    "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄身の法",
-    "forceTinted": false,
-    "weapons": {
-     "NoWeapon": "assets/mapicons/550Fram_668Monk_NoWeapon.webp",
-     "Scroll": "assets/mapicons/550Fram_668Monk_Scroll.webp",
-     "Staff": "assets/mapicons/550Fram_668Monk_Staff.webp"
-    }
-   },
    "PID_M002_ルミエル": {
     "palette": "555Lumiere",
     "jobIcon": "603DragonKing",
@@ -69,6 +19,18 @@
      "Sword": "assets/mapicons/555Lumiere_603DragonKing_Sword.webp"
     }
    },
+   "PID_M002_幻影兵_アクスファイター": {
+    "palette": "713Phantom",
+    "jobIcon": "617AxFighter",
+    "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
+    "forceTinted": false,
+    "weapons": {
+     "Ax": "assets/mapicons/713Phantom_617AxFighter_Ax.webp",
+     "NoWeapon": "assets/mapicons/713Phantom_617AxFighter_NoWeapon.webp"
+    }
+   },
    "PID_M002_幻影兵_アクスファイター_イベント": {
     "palette": "713Phantom",
     "jobIcon": "617AxFighter",
@@ -79,6 +41,18 @@
     "weapons": {
      "Ax": "assets/mapicons/713Phantom_617AxFighter_Ax.webp",
      "NoWeapon": "assets/mapicons/713Phantom_617AxFighter_NoWeapon.webp"
+    }
+   },
+   "PID_M002_幻影兵_アーチャー": {
+    "palette": "713Phantom",
+    "jobIcon": "624Archer",
+    "defaultWeapon": "Bow",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の弓",
+    "forceTinted": false,
+    "weapons": {
+     "Bow": "assets/mapicons/713Phantom_624Archer_Bow.webp",
+     "NoWeapon": "assets/mapicons/713Phantom_624Archer_NoWeapon.webp"
     }
    },
    "PID_M002_幻影兵_アーチャー_イベント": {
@@ -117,42 +91,328 @@
      "NoWeapon": "assets/mapicons/713Phantom_610LanceFighter_NoWeapon.webp"
     }
    },
-   "PID_M002_幻影兵_アーチャー": {
-    "palette": "713Phantom",
+   "PID_M003_イルシオン兵_アーチャー": {
+    "palette": "850SoldierFG",
     "jobIcon": "624Archer",
     "defaultWeapon": "Bow",
     "defaultWeaponSource": "equipped",
     "equippedIid": "IID_鉄の弓",
     "forceTinted": false,
     "weapons": {
-     "Bow": "assets/mapicons/713Phantom_624Archer_Bow.webp",
-     "NoWeapon": "assets/mapicons/713Phantom_624Archer_NoWeapon.webp"
+     "Bow": "assets/mapicons/850SoldierFG_624Archer_Bow.webp",
+     "NoWeapon": "assets/mapicons/850SoldierFG_624Archer_NoWeapon.webp"
     }
    },
-   "PID_M002_幻影兵_アクスファイター": {
-    "palette": "713Phantom",
+   "PID_M003_イルシオン兵_ソードファイター": {
+    "palette": "800SoldierMG",
+    "jobIcon": "604SwordFighter",
+    "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の剣",
+    "forceTinted": false,
+    "weapons": {
+     "NoWeapon": "assets/mapicons/800SoldierMG_604SwordFighter_NoWeapon.webp",
+     "Sword": "assets/mapicons/800SoldierMG_604SwordFighter_Sword.webp"
+    }
+   },
+   "PID_M003_イルシオン兵_ボス": {
+    "palette": "855Boss",
+    "jobIcon": "631AxArmor",
+    "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
+    "forceTinted": false,
+    "weapons": {
+     "Ax": "assets/mapicons/855Boss_631AxArmor_Ax.webp"
+    }
+   },
+   "PID_M003_イルシオン兵_ランスファイター": {
+    "palette": "800SoldierMG",
+    "jobIcon": "610LanceFighter",
+    "defaultWeapon": "Lance",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の槍",
+    "forceTinted": false,
+    "weapons": {
+     "Lance": "assets/mapicons/800SoldierMG_610LanceFighter_Lance.webp",
+     "NoWeapon": "assets/mapicons/800SoldierMG_610LanceFighter_NoWeapon.webp"
+    }
+   },
+   "PID_M003_イルシオン兵_ランスペガサス": {
+    "palette": "850SoldierFG",
+    "jobIcon": "646LancePegasus",
+    "defaultWeapon": "Lance",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の槍",
+    "forceTinted": false,
+    "weapons": {
+     "Lance": "assets/mapicons/850SoldierFG_646LancePegasus_Lance.webp"
+    }
+   },
+   "PID_M003_イルシオン兵_ランスペガサス_イベント": {
+    "palette": "850SoldierFG",
+    "jobIcon": "646LancePegasus",
+    "defaultWeapon": "Lance",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の槍",
+    "forceTinted": false,
+    "weapons": {
+     "Lance": "assets/mapicons/850SoldierFG_646LancePegasus_Lance.webp"
+    }
+   },
+   "PID_アルフレッド": {
+    "palette": "100Alfred",
+    "jobIcon": "678AvenirLC",
+    "defaultWeapon": "Lance",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の槍",
+    "forceTinted": false,
+    "weapons": {
+     "Lance": "assets/mapicons/100Alfred_678AvenirLC_Lance.webp",
+     "NoWeapon": "assets/mapicons/100Alfred_678AvenirLC_NoWeapon.webp"
+    }
+   },
+   "PID_エーティエ": {
+    "palette": "152Etie",
+    "jobIcon": "624Archer",
+    "defaultWeapon": "Bow",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の弓",
+    "forceTinted": false,
+    "weapons": {
+     "Bow": "assets/mapicons/152Etie_624Archer_Bow.webp",
+     "NoWeapon": "assets/mapicons/152Etie_624Archer_NoWeapon.webp"
+    }
+   },
+   "PID_クラン": {
+    "palette": "501Clan",
+    "jobIcon": "660Mage",
+    "defaultWeapon": "MagicBook",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_ファイアー",
+    "forceTinted": false,
+    "weapons": {
+     "MagicBook": "assets/mapicons/501Clan_660Mage_MagicBook.webp",
+     "NoWeapon": "assets/mapicons/501Clan_660Mage_NoWeapon.webp"
+    }
+   },
+   "PID_フラン": {
+    "palette": "550Fram",
+    "jobIcon": "668Monk",
+    "defaultWeapon": "Scroll",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄身の法",
+    "forceTinted": false,
+    "weapons": {
+     "NoWeapon": "assets/mapicons/550Fram_668Monk_NoWeapon.webp",
+     "Scroll": "assets/mapicons/550Fram_668Monk_Scroll.webp",
+     "Staff": "assets/mapicons/550Fram_668Monk_Staff.webp"
+    }
+   },
+   "PID_ブシュロン": {
+    "palette": "101Boucheron",
     "jobIcon": "617AxFighter",
     "defaultWeapon": "Ax",
     "defaultWeaponSource": "equipped",
     "equippedIid": "IID_鉄の斧",
     "forceTinted": false,
     "weapons": {
-     "Ax": "assets/mapicons/713Phantom_617AxFighter_Ax.webp",
-     "NoWeapon": "assets/mapicons/713Phantom_617AxFighter_NoWeapon.webp"
+     "Ax": "assets/mapicons/101Boucheron_617AxFighter_Ax.webp",
+     "NoWeapon": "assets/mapicons/101Boucheron_617AxFighter_NoWeapon.webp"
+    }
+   },
+   "PID_リュール": {
+    "palette": "001Lueur",
+    "jobIcon": "600DragonLord",
+    "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の剣",
+    "forceTinted": false,
+    "weapons": {
+     "NoWeapon": "assets/mapicons/001Lueur_600DragonLord_NoWeapon.webp",
+     "Sword": "assets/mapicons/001Lueur_600DragonLord_Sword.webp"
+    }
+   },
+   "PID_ヴァンドレ": {
+    "palette": "500Vandre",
+    "jobIcon": "640Paladin",
+    "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
+    "forceTinted": false,
+    "weapons": {
+     "Ax": "assets/mapicons/500Vandre_640Paladin_Ax.webp",
+     "Lance": "assets/mapicons/500Vandre_640Paladin_Lance.webp",
+     "NoWeapon": "assets/mapicons/500Vandre_640Paladin_NoWeapon.webp",
+     "Sword": "assets/mapicons/500Vandre_640Paladin_Sword.webp"
     }
    }
   },
   "byJid": {
-   "JID_神竜ノ子": {
+   "JID_M002_神竜ノ王": {
     "m": {
-     "jobIcon": "600DragonLord",
+     "jobIcon": "603DragonKing",
      "forceTinted": true,
      "weapons": {}
     },
     "f": {
-     "jobIcon": "601DragonLord",
+     "jobIcon": "603DragonKing",
      "forceTinted": true,
      "weapons": {}
+    }
+   },
+   "JID_アクスアーマー": {
+    "m": {
+     "jobIcon": "630AxArmor",
+     "forceTinted": true,
+     "weapons": {
+      "Ax": {
+       "p": "assets/mapicons/630AxArmor_Ax_p.webp",
+       "e": "assets/mapicons/630AxArmor_Ax_e.webp"
+      }
+     }
+    },
+    "f": {
+     "jobIcon": "631AxArmor",
+     "forceTinted": true,
+     "weapons": {
+      "Ax": {
+       "p": "assets/mapicons/631AxArmor_Ax_p.webp",
+       "e": "assets/mapicons/631AxArmor_Ax_e.webp"
+      }
+     }
+    }
+   },
+   "JID_アクスファイター": {
+    "m": {
+     "jobIcon": "617AxFighter",
+     "forceTinted": true,
+     "weapons": {
+      "Ax": {
+       "p": "assets/mapicons/617AxFighter_Ax_p.webp",
+       "e": "assets/mapicons/617AxFighter_Ax_e.webp"
+      },
+      "NoWeapon": {
+       "p": "assets/mapicons/617AxFighter_NoWeapon_p.webp",
+       "e": "assets/mapicons/617AxFighter_NoWeapon_e.webp"
+      }
+     }
+    },
+    "f": {
+     "jobIcon": "618AxFighter",
+     "forceTinted": true,
+     "weapons": {
+      "Ax": {
+       "p": "assets/mapicons/618AxFighter_Ax_p.webp",
+       "e": "assets/mapicons/618AxFighter_Ax_e.webp"
+      },
+      "NoWeapon": {
+       "p": "assets/mapicons/618AxFighter_NoWeapon_p.webp",
+       "e": "assets/mapicons/618AxFighter_NoWeapon_e.webp"
+      }
+     }
+    }
+   },
+   "JID_アヴニール下級": {
+    "m": {
+     "jobIcon": "678AvenirLC",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "678AvenirLC",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
+   "JID_アーチャー": {
+    "m": {
+     "jobIcon": "623Archer",
+     "forceTinted": true,
+     "weapons": {
+      "Bow": {
+       "p": "assets/mapicons/623Archer_Bow_p.webp",
+       "e": "assets/mapicons/623Archer_Bow_e.webp"
+      },
+      "NoWeapon": {
+       "p": "assets/mapicons/623Archer_NoWeapon_p.webp",
+       "e": "assets/mapicons/623Archer_NoWeapon_e.webp"
+      }
+     }
+    },
+    "f": {
+     "jobIcon": "624Archer",
+     "forceTinted": true,
+     "weapons": {
+      "Bow": {
+       "p": "assets/mapicons/624Archer_Bow_p.webp",
+       "e": "assets/mapicons/624Archer_Bow_e.webp"
+      },
+      "NoWeapon": {
+       "p": "assets/mapicons/624Archer_NoWeapon_p.webp",
+       "e": "assets/mapicons/624Archer_NoWeapon_e.webp"
+      }
+     }
+    }
+   },
+   "JID_ソードナイト": {
+    "m": {
+     "jobIcon": "637SwordKnight",
+     "forceTinted": true,
+     "weapons": {
+      "NoWeapon": {
+       "p": "assets/mapicons/637SwordKnight_NoWeapon_p.webp",
+       "e": "assets/mapicons/637SwordKnight_NoWeapon_e.webp"
+      },
+      "Sword": {
+       "p": "assets/mapicons/637SwordKnight_Sword_p.webp",
+       "e": "assets/mapicons/637SwordKnight_Sword_e.webp"
+      }
+     }
+    },
+    "f": {
+     "jobIcon": "638SwordKnight",
+     "forceTinted": true,
+     "weapons": {
+      "NoWeapon": {
+       "p": "assets/mapicons/638SwordKnight_NoWeapon_p.webp",
+       "e": "assets/mapicons/638SwordKnight_NoWeapon_e.webp"
+      },
+      "Sword": {
+       "p": "assets/mapicons/638SwordKnight_Sword_p.webp",
+       "e": "assets/mapicons/638SwordKnight_Sword_e.webp"
+      }
+     }
+    }
+   },
+   "JID_ソードファイター": {
+    "m": {
+     "jobIcon": "604SwordFighter",
+     "forceTinted": true,
+     "weapons": {
+      "NoWeapon": {
+       "p": "assets/mapicons/604SwordFighter_NoWeapon_p.webp",
+       "e": "assets/mapicons/604SwordFighter_NoWeapon_e.webp"
+      },
+      "Sword": {
+       "p": "assets/mapicons/604SwordFighter_Sword_p.webp",
+       "e": "assets/mapicons/604SwordFighter_Sword_e.webp"
+      }
+     }
+    },
+    "f": {
+     "jobIcon": "605SwordFighter",
+     "forceTinted": true,
+     "weapons": {
+      "NoWeapon": {
+       "p": "assets/mapicons/605SwordFighter_NoWeapon_p.webp",
+       "e": "assets/mapicons/605SwordFighter_NoWeapon_e.webp"
+      },
+      "Sword": {
+       "p": "assets/mapicons/605SwordFighter_Sword_p.webp",
+       "e": "assets/mapicons/605SwordFighter_Sword_e.webp"
+      }
+     }
     }
    },
    "JID_パラディン": {
@@ -269,108 +529,6 @@
      }
     }
    },
-   "JID_M002_神竜ノ王": {
-    "m": {
-     "jobIcon": "603DragonKing",
-     "forceTinted": true,
-     "weapons": {}
-    },
-    "f": {
-     "jobIcon": "603DragonKing",
-     "forceTinted": true,
-     "weapons": {}
-    }
-   },
-   "JID_アクスファイター": {
-    "m": {
-     "jobIcon": "617AxFighter",
-     "forceTinted": true,
-     "weapons": {
-      "Ax": {
-       "p": "assets/mapicons/617AxFighter_Ax_p.webp",
-       "e": "assets/mapicons/617AxFighter_Ax_e.webp"
-      },
-      "NoWeapon": {
-       "p": "assets/mapicons/617AxFighter_NoWeapon_p.webp",
-       "e": "assets/mapicons/617AxFighter_NoWeapon_e.webp"
-      }
-     }
-    },
-    "f": {
-     "jobIcon": "618AxFighter",
-     "forceTinted": true,
-     "weapons": {
-      "Ax": {
-       "p": "assets/mapicons/618AxFighter_Ax_p.webp",
-       "e": "assets/mapicons/618AxFighter_Ax_e.webp"
-      },
-      "NoWeapon": {
-       "p": "assets/mapicons/618AxFighter_NoWeapon_p.webp",
-       "e": "assets/mapicons/618AxFighter_NoWeapon_e.webp"
-      }
-     }
-    }
-   },
-   "JID_アーチャー": {
-    "m": {
-     "jobIcon": "623Archer",
-     "forceTinted": true,
-     "weapons": {
-      "Bow": {
-       "p": "assets/mapicons/623Archer_Bow_p.webp",
-       "e": "assets/mapicons/623Archer_Bow_e.webp"
-      },
-      "NoWeapon": {
-       "p": "assets/mapicons/623Archer_NoWeapon_p.webp",
-       "e": "assets/mapicons/623Archer_NoWeapon_e.webp"
-      }
-     }
-    },
-    "f": {
-     "jobIcon": "624Archer",
-     "forceTinted": true,
-     "weapons": {
-      "Bow": {
-       "p": "assets/mapicons/624Archer_Bow_p.webp",
-       "e": "assets/mapicons/624Archer_Bow_e.webp"
-      },
-      "NoWeapon": {
-       "p": "assets/mapicons/624Archer_NoWeapon_p.webp",
-       "e": "assets/mapicons/624Archer_NoWeapon_e.webp"
-      }
-     }
-    }
-   },
-   "JID_ソードナイト": {
-    "m": {
-     "jobIcon": "637SwordKnight",
-     "forceTinted": true,
-     "weapons": {
-      "NoWeapon": {
-       "p": "assets/mapicons/637SwordKnight_NoWeapon_p.webp",
-       "e": "assets/mapicons/637SwordKnight_NoWeapon_e.webp"
-      },
-      "Sword": {
-       "p": "assets/mapicons/637SwordKnight_Sword_p.webp",
-       "e": "assets/mapicons/637SwordKnight_Sword_e.webp"
-      }
-     }
-    },
-    "f": {
-     "jobIcon": "638SwordKnight",
-     "forceTinted": true,
-     "weapons": {
-      "NoWeapon": {
-       "p": "assets/mapicons/638SwordKnight_NoWeapon_p.webp",
-       "e": "assets/mapicons/638SwordKnight_NoWeapon_e.webp"
-      },
-      "Sword": {
-       "p": "assets/mapicons/638SwordKnight_Sword_p.webp",
-       "e": "assets/mapicons/638SwordKnight_Sword_e.webp"
-      }
-     }
-    }
-   },
    "JID_ランスファイター": {
     "m": {
      "jobIcon": "610LanceFighter",
@@ -400,25 +558,70 @@
       }
      }
     }
+   },
+   "JID_ランスペガサス": {
+    "m": {
+     "jobIcon": "646LancePegasus",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "646LancePegasus",
+     "forceTinted": true,
+     "weapons": {
+      "Lance": {
+       "p": "assets/mapicons/646LancePegasus_Lance_p.webp",
+       "e": "assets/mapicons/646LancePegasus_Lance_e.webp"
+      }
+     }
+    }
+   },
+   "JID_神竜ノ子": {
+    "m": {
+     "jobIcon": "600DragonLord",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "601DragonLord",
+     "forceTinted": true,
+     "weapons": {}
+    }
    }
   }
  },
  "faces": {
-  "PID_リュール": "assets/faces/Lueur.webp",
-  "PID_ヴァンドレ": "assets/faces/Vandre.webp",
-  "PID_クラン": "assets/faces/Clan.webp",
-  "PID_フラン": "assets/faces/Fram.webp",
+  "PID_M002_幻影兵_アクスファイター": "assets/faces/Phantom.webp",
   "PID_M002_幻影兵_アクスファイター_イベント": "assets/faces/Phantom.webp",
+  "PID_M002_幻影兵_アーチャー": "assets/faces/Phantom.webp",
   "PID_M002_幻影兵_アーチャー_イベント": "assets/faces/Phantom.webp",
   "PID_M002_幻影兵_ソードナイト": "assets/faces/Phantom.webp",
   "PID_M002_幻影兵_ランスファイター": "assets/faces/Phantom.webp",
-  "PID_M002_幻影兵_アーチャー": "assets/faces/Phantom.webp",
-  "PID_M002_幻影兵_アクスファイター": "assets/faces/Phantom.webp"
+  "PID_アルフレッド": "assets/faces/Alfred.webp",
+  "PID_エーティエ": "assets/faces/Etie.webp",
+  "PID_クラン": "assets/faces/Clan.webp",
+  "PID_フラン": "assets/faces/Fram.webp",
+  "PID_ブシュロン": "assets/faces/Boucheron.webp",
+  "PID_リュール": "assets/faces/Lueur.webp",
+  "PID_ヴァンドレ": "assets/faces/Vandre.webp"
  },
  "missing": {
-  "mapicons": [],
-  "faces": [
-   "PID_M002_ルミエル(Lumiere)"
-  ]
+  "CID_M002": {
+   "mapicons": [],
+   "faces": [
+    "PID_M002_ルミエル(Lumiere)"
+   ]
+  },
+  "CID_M003": {
+   "mapicons": [],
+   "faces": [
+    "PID_M003_イルシオン兵_ボス(M003_Boss)",
+    "PID_M003_イルシオン兵_アーチャー(MysteriousGroup)",
+    "PID_M003_イルシオン兵_ソードファイター(MysteriousGroup)",
+    "PID_M003_イルシオン兵_ランスペガサス(MysteriousGroup)",
+    "PID_M003_イルシオン兵_ランスファイター(MysteriousGroup)",
+    "PID_M003_イルシオン兵_ランスペガサス_イベント(MysteriousGroup)"
+   ]
+  }
  }
 }

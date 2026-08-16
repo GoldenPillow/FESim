@@ -1,0 +1,10 @@
+---
+import LocaleRedirect from "../../../components/LocaleRedirect.astro";
+import { mapIds } from "../../../lib/fe17";
+
+export function getStaticPaths() {
+  return mapIds.map((map) => ({ params: { map } }));
+}
+---
+
+<LocaleRedirect target={`/fe17/maps/${Astro.params.map}`} />

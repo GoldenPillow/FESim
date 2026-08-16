@@ -114,29 +114,34 @@ def bake(args) -> int:
 
     icon_dir = data / "assets" / "mapicons"
     face_dir = data / "assets" / "faces"
-    manifest = {
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    manifest.setdefault("mapicons", {}).setdefault("byPid", {})
+    manifest["mapicons"].setdefault("byJid", {})
+    manifest.setdefault("faces", {})
+    chapters = [c for c in manifest.get("chapters", []) if c != chapter["cid"]] + [chapter["cid"]]
+    missing = {k: v for k, v in manifest.get("missing", {}).items()
+               if k.startswith("CID_") and k != chapter["cid"]}
+    missing[chapter["cid"]] = {"mapicons": [], "faces": []}
+    manifest.update({
         "game": "fe17",
-        "chapters": [chapter["cid"]],
-        "mapicons": {
-            "rule": (
-                "sprite = <palette>_<jobIcon>_<weapon>; palette = persons.UnitIconID "
-                "(E suffix = Engage form, NOT enemy); jobIcon = jobs.UnitIconID_M|_F by persons.Gender; "
-                "weapon = jobs.UnitIconWeaponID or the unit's equipped weapon class. "
-                "Named units carry their own palette and are not force-tinted; "
-                "generic soldiers are force-tinted via palette (B=player, R=enemy, G=ally, Y=other, N=neutral)."
-            ),
-            "byPid": {},
-            "byJid": {},
-        },
-        "faces": {},
-        "missing": {"mapicons": [], "faces": []},
-    }
+        "chapters": sorted(chapters),
+        "missing": dict(sorted(missing.items())),
+    })
+    manifest["mapicons"]["rule"] = (
+        "sprite = <palette>_<jobIcon>_<weapon>; palette = persons.UnitIconID "
+        "(E suffix = Engage form, NOT enemy); jobIcon = jobs.UnitIconID_M|_F by persons.Gender; "
+        "weapon = jobs.UnitIconWeaponID or the unit's equipped weapon class. "
+        "Named units carry their own palette and are not force-tinted; "
+        "generic soldiers are force-tinted via palette (B=player, R=enemy, G=ally, Y=other, N=neutral)."
+    )
+    chapter_missing = manifest["missing"][chapter["cid"]]
 
     baked_icons = 0
     for unit in chapter_units(chapter, persons, jobs):
         variants = by_pair.get((unit["palette"], unit["jobIcon"]), {})
         if not variants:
-            manifest["missing"]["mapicons"].append(f'{unit["pid"]}/{unit["jid"]}')
+            chapter_missing["mapicons"].append(f'{unit["pid"]}/{unit["jid"]}')
         token, iid = equipped_weapon(unit["iids"], items, variants)
         source = "equipped"
         if token is None:
@@ -180,11 +185,12 @@ def bake(args) -> int:
                 write_webp(faces[key].read().image.convert("RGBA"), dest)
             manifest["faces"][unit["pid"]] = f"assets/faces/{key}.webp"
         else:
-            manifest["missing"]["faces"].append(f'{unit["pid"]}({key})')
+            chapter_missing["faces"].append(f'{unit["pid"]}({key})')
 
-    (data / "assets" / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
-    )
+    manifest["mapicons"]["byPid"] = dict(sorted(manifest["mapicons"]["byPid"].items()))
+    manifest["mapicons"]["byJid"] = dict(sorted(manifest["mapicons"]["byJid"].items()))
+    manifest["faces"] = dict(sorted(manifest["faces"].items()))
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
     if args.dump_png:
         args.dump_png.mkdir(parents=True, exist_ok=True)
@@ -193,9 +199,9 @@ def bake(args) -> int:
 
     print(f"mapicons: {len(list(icon_dir.glob('*.webp')))} files ({baked_icons} new)")
     print(f"faces: {len(list(face_dir.glob('*.webp')))} files")
-    for kind, items in manifest["missing"].items():
-        if items:
-            print(f"missing {kind}: {items}")
+    for kind, names in chapter_missing.items():
+        if names:
+            print(f"missing {kind}: {names}")
     return 0
 
 

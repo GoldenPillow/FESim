@@ -4,16 +4,21 @@ import TopBar from "../../../../components/TopBar.astro";
 import Board from "../../../../components/Board.astro";
 import Roster from "../../../../components/Roster.astro";
 import Brief from "../../../../components/Brief.astro";
-import { chapterTitle } from "../../../../lib/fe17";
+import { chapterTitle, chapters, mapIds } from "../../../../lib/fe17";
+import { phasesFor } from "../../../../lib/phases";
 import { DEFAULT_LOCALE, LOCALES, UI, isLocale } from "../../../../lib/i18n";
 
 export function getStaticPaths() {
-  return LOCALES.map((locale) => ({ params: { locale } }));
+  return LOCALES.flatMap((locale) => mapIds.map((map) => ({ params: { locale, map } })));
 }
 
 const locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const mapId = Astro.params.map ?? "";
+const chapter = chapters[mapId];
+if (chapter === undefined) throw new Error(`unknown map: ${mapId}`);
 const t = UI[locale];
-const title = chapterTitle(locale);
+const phases = phasesFor(mapId);
+const title = chapterTitle(chapter, locale);
 const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
 ---
 
@@ -21,21 +26,29 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
   <TopBar locale={locale} context={heading} sub={title.place} />
 
   <div class="board-frame">
-    <input class="phase-input" type="radio" name="phase" id="phase-1" checked />
-    <input class="phase-input" type="radio" name="phase" id="phase-2" />
+    {
+      phases.map((p, i) => (
+        <input class="phase-input" type="radio" name="phase" id={`phase-${p.id}`} checked={i === 0} />
+      ))
+    }
 
     <main class="order-1 min-w-0 justify-self-center lg:order-2 lg:col-start-2">
-      <nav class="phase-switch" aria-label={t.phase}>
-        <label for="phase-1">{t.phase1}</label>
-        <label for="phase-2">{t.phase2}</label>
-      </nav>
-      <Board locale={locale} />
+      {
+        phases.length > 1 && (
+          <nav class="phase-switch" aria-label={t.phase}>
+            {phases.map((p) => (
+              <label for={`phase-${p.id}`}>{p.label[locale]}</label>
+            ))}
+          </nav>
+        )
+      }
+      <Board locale={locale} mapId={mapId} chapter={chapter} />
     </main>
     <aside class="order-2 w-full lg:order-1 lg:col-start-1 lg:row-start-1 lg:w-[19rem]">
-      <Roster locale={locale} />
+      <Roster locale={locale} mapId={mapId} chapter={chapter} />
     </aside>
     <aside class="order-3 w-full lg:col-start-3 lg:row-start-1 lg:w-[19rem] lg:justify-self-end">
-      <Brief locale={locale} />
+      <Brief locale={locale} mapId={mapId} chapter={chapter} />
     </aside>
   </div>
 

@@ -16,10 +16,69 @@ export interface EphemerisHeader {
  */
 export type Fe17Force = 0 | 1 | 2;
 
+/** 사각형 구조물 레이어 — terrains의 m_Layers(문·부술 수 있는 벽·지붕). */
+export interface MapStructure {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tid: string;
+  /** 연동 그룹 — 같은 group의 지붕(TID_屋根)은 문 개방 시 함께 걷힌다(m015 실측 기반, 0 = 무연동). */
+  group: number;
+}
+
+/** 1칸 지속 오버레이 — terrains의 m_Overlaps(장독·안개·화염 등, 초기 상태만). */
+export interface MapOverlay {
+  x: number;
+  y: number;
+  tid: string;
+}
+
+/** dispos Terrain 그룹이 심는 맵 오브젝트 — 현재 실재 종류는 PID_紋章氣(엔게이지 회복 마스) 1종. */
+export interface MapObject {
+  pid: string;
+  x: number;
+  y: number;
+  tid?: string;
+  flag?: number;
+}
+
+/**
+ * Lua(scripts/)가 배선하는 상호작용 지점. 좌표는 전부 "대상 타일" 기준으로 파이프라인이 정규화한다
+ * (visit의 Lua 좌표는 문 앞 칸이라 tile = (x, y+1)이 입구 — 원본 칸은 stand에 보존).
+ */
+export interface MapInteraction {
+  kind: "chest" | "visit" | "door" | "escape" | "defendArea" | "destroy";
+  x: number;
+  y: number;
+  x2?: number;
+  y2?: number;
+  iid?: string;
+  pid?: string;
+  stand?: { x: number; y: number };
+}
+
 export interface ChapterMap {
   width: number;
   height: number;
   terrain: string[][];
+  structures?: MapStructure[];
+  overlays?: MapOverlay[];
+  objects?: MapObject[];
+  interactions?: MapInteraction[];
+}
+
+/**
+ * MoveType별 이동 코스트(255 = 진입 불가) — terrain.xml CostName → 地形コスト 시트 조인.
+ * ☠통행 판정의 정본은 이것이다. Prohibition(戦闘禁止)은 통행성이 아니다(전수 실측으로 반증됨).
+ */
+export interface TerrainCost {
+  none: number;
+  foot: number;
+  horse: number;
+  fly: number;
+  dragon: number;
+  pad: number;
 }
 
 export interface DisposItem {
