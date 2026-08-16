@@ -1,0 +1,203 @@
+/* 보드 아일랜드 전용 스타일 — Board.astro 스코프드 스타일에서 이식(아일랜드는 스코프 해시를 못 받는다).
+   전부 .plate/.board 하위로 한정해 전역 오염을 막는다. */
+
+/* 좌표 레일은 절대 배치 — 플레이트 박스 = 보드 박스여야 보드가 정확히 화면 중앙에 온다. */
+.plate {
+  --tile: 36px;
+  position: relative;
+  width: calc(var(--cols) * var(--tile));
+  margin: 0;
+}
+
+.plate .rail {
+  display: grid;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.plate .rail-x {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  grid-template-columns: repeat(var(--cols), var(--tile));
+  justify-items: center;
+  padding-bottom: 0.35rem;
+}
+.plate .rail-x span {
+  grid-row: 1;
+}
+.plate .rail-y {
+  position: absolute;
+  right: 100%;
+  top: 0;
+  bottom: 0;
+  grid-template-rows: repeat(var(--rows), var(--tile));
+  align-items: center;
+  justify-items: end;
+  padding-right: 0.35rem;
+}
+.plate .rail-y span {
+  grid-column: 1;
+}
+
+.plate .board {
+  position: relative;
+  box-shadow:
+    0 0 0 1px var(--board-frame),
+    0 0 0 4px var(--ground),
+    0 0 0 5px var(--board-frame),
+    var(--board-shadow);
+}
+
+.board .layer {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--tile));
+  grid-template-rows: repeat(var(--rows), var(--tile));
+}
+.board .units,
+.board .objects,
+.board .range {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.board .tile {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.07);
+}
+.board .tile.blocked {
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.07),
+    inset 0 0 8px rgb(0 0 0 / 0.28);
+}
+.board .tile.has-unit {
+  cursor: pointer;
+}
+
+/* 인게임 문법: 파랑 = 이동 가능, 빨강 = 공격 범위(이동 불가·공격만 닿는 테두리) */
+.board .ov.move {
+  background: rgb(66 133 244 / 0.4);
+  box-shadow: inset 0 0 0 1px rgb(160 200 255 / 0.55);
+}
+.board .ov.atk {
+  background: rgb(226 68 60 / 0.34);
+  box-shadow: inset 0 0 0 1px rgb(252 165 165 / 0.45);
+}
+
+.board .arrow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.board .arrow path {
+  fill: none;
+  stroke: #f0c85a;
+  stroke-width: 0.22;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.92;
+  filter: drop-shadow(0 0.04px 0.08px rgb(0 0 0 / 0.6));
+}
+.board .arrow polygon {
+  fill: #f0c85a;
+  opacity: 0.92;
+}
+
+.board .cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+/* 발밑 앵커 — 48px 캔버스의 접지선(하단 여백 약 0.19)이 타일 바닥에 오도록 고정해
+   확대해도 위로만 자란다(FE 맵 스프라이트 문법). */
+.board .icon {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--tile) * -0.29);
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  width: calc(var(--tile) * 2);
+  height: calc(var(--tile) * 2);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+}
+.board .chip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(var(--tile) * 0.82);
+  height: calc(var(--tile) * 0.82);
+  border-radius: 9999px;
+  border: 2px solid var(--force);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.45);
+}
+
+/* 선택 유닛 — 타일 위 발광 링(인게임 커서 문법의 최소 재현) */
+.board .cell.sel::before {
+  content: "";
+  position: absolute;
+  inset: 6%;
+  border: 2px solid #f0c85a;
+  border-radius: 4px;
+  box-shadow:
+    0 0 6px rgb(240 200 90 / 0.75),
+    inset 0 0 4px rgb(240 200 90 / 0.4);
+  animation: sel-pulse 1.6s ease-in-out infinite;
+}
+@keyframes sel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.board .vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.22));
+}
+
+/* 紋章氣 마커 — EmblemMark.astro와 동일 룩(아일랜드 사본은 보드 하위로 한정) */
+.board .tile-mark {
+  width: calc(var(--tile) * 1.05);
+  height: calc(var(--tile) * 1.05);
+}
+.board .emblem {
+  color: #45e3d8;
+  filter: drop-shadow(0 0 5px rgb(69 227 216 / 0.7)) drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+  animation: emblem-pulse 2.8s ease-in-out infinite;
+}
+@keyframes emblem-pulse {
+  0%,
+  100% {
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (max-width: 1024px) {
+  .plate {
+    --tile: 30px;
+  }
+}
+@media (max-width: 640px) {
+  .plate {
+    --tile: 22px;
+  }
+}

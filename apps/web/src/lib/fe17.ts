@@ -1,14 +1,15 @@
 import type { ChapterData, DisposUnit, MapObject } from "@fesim/shared";
+import { MOVE_TYPES, type MoveType } from "@fesim/engine";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
+import { phaseOfGroup } from "./phases";
 import type { Locale } from "./i18n";
 
-/** 상하 반전이 화면 정본(실기 대조 확정) — 데이터 (0,0) = 화면 좌하단. */
-export const FLIP_X = false;
-export const FLIP_Y = true;
+export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
+import { forceStyle } from "./grid";
 
 export interface TerrainRow {
   Tid: string;
@@ -17,6 +18,8 @@ export interface TerrainRow {
   ColorG: number;
   ColorB: number;
   Prohibition: number;
+  /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
+  cost?: Record<MoveType, number>;
 }
 
 export interface PersonRow {
@@ -30,6 +33,9 @@ export interface PersonRow {
 export interface JobRow {
   Jid: string;
   Name: string;
+  /** 地形コスト 컬럼 순서 인덱스(1=foot, 3=fly 실측) — MOVE_TYPES가 정본. */
+  MoveType?: number;
+  "Base.Move"?: number;
 }
 
 /** tools/pipeline bake_assets.py가 만드는 에셋 목록(없으면 폴백 렌더). */
@@ -43,9 +49,15 @@ export interface AssetManifest {
   faces?: Record<string, string>;
 }
 
-/** items.json·skills.json은 파이프라인 병렬 작업물 — Name(메시지 라벨)만 쓴다. */
 interface NamedRow {
   Name?: string;
+}
+
+/** Kind 실측 분류: 1검 2창 3도끼 4활 5나이프 6마도서 7지팡이 8체술 9브레스류 10~ 소비/기타. */
+interface ItemRow extends NamedRow {
+  Kind?: number;
+  RangeI?: number;
+  RangeO?: number;
 }
 
 const parse = <T,>(raw: string): T => JSON.parse(raw) as T;
@@ -90,7 +102,7 @@ export const manifest: AssetManifest =
   ) ?? {};
 
 const items =
-  optional<Record<string, NamedRow>>(
+  optional<Record<string, ItemRow>>(
     import.meta.glob("../../../../data/fe17/tables/items.json", {
       eager: true,
       query: "?raw",
@@ -296,16 +308,107 @@ export const chapterTitle = (chapter: ChapterData, locale: Locale): ChapterTitle
   };
 };
 
-/** 0 = 아군(파랑) · 1 = 적(빨강) · 2 = 우군/중립(초록) — 톤다운 보드 위에서 읽히는 채도로 맞춤 */
-export interface ForceStyle {
-  ring: string;
-  chip: string;
-  key: "player" | "enemy" | "other";
+/* ── 보드 아일랜드 props ─────────────────────────────────────
+   아일랜드(클라이언트)는 이 직렬화 산출물만 받는다 — 대용량 테이블 JSON은 SSG에만 남는다. */
+
+export interface BoardTileProp {
+  color: string;
+  name: string;
+  blocked: boolean;
 }
 
-export const forceStyle = (force: number): ForceStyle =>
-  force === 0
-    ? { ring: "#5b95e6", chip: "#2b5fb0", key: "player" }
-    : force === 1
-      ? { ring: "#e2635c", chip: "#a8322d", key: "enemy" }
-      : { ring: "#63b06d", chip: "#2f7a3c", key: "other" };
+export interface BoardUnitProp {
+  x: number;
+  y: number;
+  force: number;
+  phase?: string;
+  icon?: string;
+  abbr: string;
+  name: string;
+  job: string;
+  ring: string;
+  chip: string;
+  movePoints: number;
+  moveType: MoveType;
+  /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
+  rangeMin: number;
+  rangeMax: number;
+}
+
+export interface BoardProps {
+  mapId: string;
+  width: number;
+  height: number;
+  /** [y][x] */
+  tiles: BoardTileProp[][];
+  /** 이동타입별 진입 코스트 [y][x] — 실사용 타입만 담는다. */
+  costs: Partial<Record<MoveType, number[][]>>;
+  objects: { x: number; y: number; name: string }[];
+  units: BoardUnitProp[];
+  labels: { board: string };
+}
+
+/** 공격 사거리를 갖는 무기 분류(Kind 실측) — 7 = 지팡이는 공격이 아니다. */
+const WEAPON_KINDS = new Set([1, 2, 3, 4, 5, 6, 8, 9]);
+
+const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } => {
+  let min = Infinity;
+  let max = 0;
+  for (const entry of unit.items) {
+    const row = items[entry.iid];
+    if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0)) continue;
+    const outer = row.RangeO ?? 0;
+    if (outer < 1) continue;
+    min = Math.min(min, row.RangeI ?? 1);
+    max = Math.max(max, outer);
+  }
+  return max > 0 ? { rangeMin: min, rangeMax: max } : { rangeMin: 0, rangeMax: 0 };
+};
+
+export function boardProps(chapter: ChapterData, mapId: string, locale: Locale, boardLabel: string): BoardProps {
+  const map = chapter.map;
+  const views = unitsFor(chapter, locale);
+  const moveTypes = new Set<MoveType>();
+  const units: BoardUnitProp[] = views.map((v) => {
+    const job = jobs[v.unit.jid];
+    const moveType = MOVE_TYPES[job?.MoveType ?? 0] ?? "none";
+    moveTypes.add(moveType);
+    const style = forceStyle(v.unit.force);
+    return {
+      x: v.unit.x,
+      y: v.unit.y,
+      force: v.unit.force,
+      phase: phaseOfGroup(mapId, v.group),
+      icon: v.icon,
+      abbr: v.abbr,
+      name: v.name,
+      job: v.job,
+      ring: style.ring,
+      chip: style.chip,
+      movePoints: job?.["Base.Move"] ?? 0,
+      moveType,
+      ...weaponRange(v.unit),
+    };
+  });
+  // 베이스 지형 코스트만 — 구조물(m_Layers) 통행 반영은 구조물 렌더와 함께 미룸(M005 실재 맵 시점).
+  const costs: Partial<Record<MoveType, number[][]>> = {};
+  for (const type of moveTypes) {
+    costs[type] = map.terrain.map((line) => line.map((tid) => terrain[tid]?.cost?.[type] ?? 255));
+  }
+  return {
+    mapId,
+    width: map.width,
+    height: map.height,
+    tiles: map.terrain.map((line, y) =>
+      line.map((tid, x) => ({
+        color: tileColorAt(tid, x, y),
+        name: tileName(locale, tid),
+        blocked: isBlocked(tid),
+      })),
+    ),
+    costs,
+    objects: (map.objects ?? []).map((o) => ({ x: o.x, y: o.y, name: objectName(locale, o) })),
+    units,
+    labels: { board: boardLabel },
+  };
+}
