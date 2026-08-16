@@ -138,10 +138,12 @@ const sections = [
     overflow: hidden;
     background: color-mix(in srgb, var(--force) 16%, var(--sunken));
   }
+  /* 맵 스프라이트는 캔버스 하단 접지(발밑 여백 ~19%) — 얼굴은 세로 40~60% 부근이라
+     상단이 아니라 중하단을 창에 맞춘다(상단 크롭 = 빈 하늘만 보이는 잘림 버그의 원인). */
   .sprite img {
     position: absolute;
     left: 50%;
-    top: -9px;
+    top: -30px;
     transform: translateX(-50%);
     width: 84px;
     height: 84px;
