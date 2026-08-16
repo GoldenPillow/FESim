@@ -19,7 +19,8 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
   - [x] calculator.xml DSL 파서 → 전투 공식 순수 함수(TDD, packages/engine) (2026-08-16)
   - [x] 이동/공격 범위 오버레이 (코스트 테이블 정본 사용) (2026-08-16)
   - [x] 이동 경로 꺾임 화살표 (2026-08-16)
-  - [ ] 전투 예보 패널 (실기 스크린샷 회귀 검증 — 코퍼스 = `~/fesim_data/reference/screens/` `m###_설명.png`, 실기 촬영물이라 저장소 밖. 수집은 사용자에게 요청)
+  - [x] 전투 예보 패널 + 실기 회귀 1차 (2026-08-16 — M003 3종 세트 corpus.test.ts 50/50 그린, 코퍼스 노트 = `~/fesim_data/reference/screens/NOTES.md`. 완전 일치는 스킬 엔진 대기)
+  - [ ] 스킬 엔진 — skills.json DSL 직접 실행 (정적 보정 EnhanceValue → 조건부 ActNames/Condition → GiveSids 부여, 소수 유지·최종 내림. 미결: 뤼에르 필살 +5 소스)
   - [ ] 전투 해결 → 행동 완료 회색화 → 턴/페이즈 진행 → 승패 판정
   - 세부 재현 체크리스트(인게임 그대로) = §8 말미
 - [ ] **M3 리플레이·포커스 모드** — 로그 재생·2단 스테핑·딥링크·LCP<1s 게이트·workers/api
