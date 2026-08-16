@@ -87,6 +87,24 @@ describe("리플레이", () => {
     return store.getState().toFile();
   };
 
+  /**
+   * 왜 위험했나: zustand의 서버 스냅숏은 `getInitialState()`다. 기보를 만든 뒤 loadReplay로 얹으면
+   * SSR(/s/)이 초기 국면을 그리고 하이드레이션에서 화면이 튄다(딥링크 ?t/p/a가 서버에서 무시됐다).
+   * 그래서 리플레이는 **생성 인자**로 실려야 하고, 그 사실이 초기 상태에서 관측돼야 한다.
+   */
+  it("생성 인자로 실은 기보·커서는 초기 상태(SSR 스냅숏)에 이미 들어 있다", () => {
+    const file = recorded();
+    const store = createBoardStore(props, { file, cursor: 2 });
+    const initial = store.getInitialState();
+    expect(initial.mode).toBe("replay");
+    expect(initial.cursor).toBe(2);
+    expect(initial.replay?.verify.ok).toBe(true);
+    expect(displayState(initial)).toEqual(displayState(store.getState()));
+
+    // 커서는 타임라인 밖으로 나가지 않는다(주소가 조작돼도 렌더가 깨지지 않아야 한다).
+    expect(createBoardStore(props, { file, cursor: 999 }).getInitialState().cursor).toBe(file.log.length);
+  });
+
   it("loadReplay는 난이도·국면을 잠근다(파일이 소유)", () => {
     const file = recorded();
     const store = createBoardStore(props);

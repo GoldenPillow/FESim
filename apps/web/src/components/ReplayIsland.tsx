@@ -29,12 +29,8 @@ const PHASE_INDEX: Record<StepAddress["p"], number> = { player: 0, enemy: 1, all
 const SWIPE_MIN = 44;
 
 export default function ReplayIsland({ board, file, cursor, unit, labels }: ReplayIslandProps) {
-  const [store] = useState(() => {
-    const created = createBoardStore(board);
-    created.getState().loadReplay(file);
-    created.getState().seek(cursor);
-    return created;
-  });
+  // 기보·커서를 생성 시점에 실어야 서버 렌더와 첫 클라 렌더가 같은 국면이 된다(스토어 독스트링 참조).
+  const [store] = useState(() => createBoardStore(board, { file, cursor }));
   const game = useBoard(store, displayState);
   const visuals = useBoard(store, (s) => s.visuals);
   const replay = useBoard(store, (s) => s.replay);

@@ -142,8 +142,25 @@ export function displayState(s: BoardState): GameState {
   return state;
 }
 
-export function createBoardStore(props: BoardProps): BoardStore {
-  const initial = initGame(props, "l", undefined);
+/**
+ * 리플레이는 **스토어 생성 시점에** 실려야 한다 — zustand의 서버 스냅숏은 `getInitialState()`라서,
+ * 만든 뒤 loadReplay로 얹으면 SSR이 초기 국면을 그리고 하이드레이션에서 화면이 튄다(실측으로 확인).
+ */
+export interface ReplayInit {
+  file: EphemerisFile;
+  cursor?: number;
+}
+
+const sessionOf = (base: GameState, file: EphemerisFile): ReplaySession => ({
+  file,
+  timeline: replayer.buildTimeline(base, file.log),
+  verify: replayer.verify(base, file.log),
+});
+
+export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): BoardStore {
+  const start = replayInit?.file.chapter;
+  const initial = initGame(props, start?.difficulty ?? "l", start?.scenario);
+  const session = replayInit === undefined ? undefined : sessionOf(initial.game, replayInit.file);
 
   return createStore<BoardState>((set, get) => {
     const saveKey = (): SaveKey => ({
@@ -168,14 +185,14 @@ export function createBoardStore(props: BoardProps): BoardStore {
     };
 
     return {
-      mode: "play",
-      difficulty: "l",
-      scenario: undefined,
+      mode: session === undefined ? "play" : "replay",
+      difficulty: start?.difficulty ?? "l",
+      scenario: start?.scenario,
       game: initial.game,
       visuals: initial.visuals,
-      recording: [],
-      replay: undefined,
-      cursor: 0,
+      recording: session === undefined ? [] : [...session.file.log],
+      replay: session,
+      cursor: session === undefined ? 0 : clamp(replayInit?.cursor ?? 0, 0, session.timeline.steps.length),
 
       setDifficulty(difficulty) {
         if (get().mode === "replay" || get().difficulty === difficulty) return;
@@ -245,7 +262,6 @@ export function createBoardStore(props: BoardProps): BoardStore {
         const difficulty = file.chapter.difficulty;
         const scenario = file.chapter.scenario;
         const base = initGame(props, difficulty, scenario);
-        const timeline = replayer.buildTimeline(base.game, file.log);
         set({
           mode: "replay",
           difficulty,
@@ -253,7 +269,7 @@ export function createBoardStore(props: BoardProps): BoardStore {
           game: base.game,
           visuals: base.visuals,
           recording: [...file.log],
-          replay: { file, timeline, verify: replayer.verify(base.game, file.log) },
+          replay: sessionOf(base.game, file),
           cursor: 0,
         });
       },
