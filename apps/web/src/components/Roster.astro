@@ -143,10 +143,11 @@ const sections = [
   .sprite img {
     position: absolute;
     left: 50%;
-    top: -30px;
+    top: var(--m-roster-sprite-top);
     transform: translateX(-50%);
-    width: 84px;
-    height: 84px;
+    width: var(--m-roster-sprite);
+    height: var(--m-roster-sprite);
+    max-width: none;
     object-fit: contain;
     image-rendering: pixelated;
   }

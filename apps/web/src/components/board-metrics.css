@@ -1,0 +1,21 @@
+/* 보드 크기 조정 상수 — 유일 정본. 크기·배율 튜닝은 전부 이 파일에서만 바꾼다.
+   (board.css·Roster.astro가 소비. 새 크기 옵션이 생기면 여기 등재 — 흩어진 매직넘버 금지) */
+:root {
+  /* ── 타일 (반응형 공식: clamp(min, min(비례, 세로맞춤, 가로맞춤), max)) ── */
+  --m-tile-slope: 2.45vw;          /* 뷰포트 비례 기울기 — 1920에서 47px */
+  --m-tile-slope-narrow: 5vw;      /* 사이드 패널 접힘(<1024px) 구간 기울기 */
+  --m-tile-min: 16px;
+  --m-tile-max: 64px;
+  --m-fit-v-reserve: 15rem;        /* 세로 맞춤 시 상하 UI 예약 높이 */
+  --m-fit-h-reserve: 47rem;        /* 가로 맞춤 시 좌우 패널 예약 폭 */
+  --m-fit-h-reserve-narrow: 2.75rem;
+
+  /* ── 유닛 도트 스프라이트 (배율 = 타일 대비) ── */
+  --m-icon-scale: 2.6;             /* 최종 확정: 원본(2.0)의 1.3배 */
+  --m-icon-foot: 0.38;             /* 발밑 접지 보정(타일 단위) — scale × 0.145 근사 */
+  --m-chip-scale: 0.82;            /* 아이콘 없는 유닛의 원형 칩 */
+
+  /* ── 로스터 스프라이트 얼굴 크롭 ── */
+  --m-roster-sprite: 84px;         /* 46×34 창 안에 확대되는 스프라이트 한 변 */
+  --m-roster-sprite-top: -30px;    /* 크롭 창 시작(캔버스 중하단이 얼굴) */
+}

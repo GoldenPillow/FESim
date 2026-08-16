@@ -1,15 +1,16 @@
 /* 보드 아일랜드 전용 스타일 — Board.astro 스코프드 스타일에서 이식(아일랜드는 스코프 해시를 못 받는다).
-   전부 .plate/.board 하위로 한정해 전역 오염을 막는다. */
+   전부 .plate/.board 하위로 한정해 전역 오염을 막는다. ☠크기 상수는 board-metrics.css가 유일 정본. */
+@import "./board-metrics.css";
 
 /* 좌표 레일은 절대 배치 — 플레이트 박스 = 보드 박스여야 보드가 정확히 화면 중앙에 온다. */
 .plate {
   /* 반응형 타일 — 기준: ~1920 뷰포트에서 47px(사용자 승인 크기) = 2.45vw.
      뷰포트 비례를 기본으로, 맵 칸수(--cols/--rows)에 따라 화면을 넘지 않게 맞추고
      상·하한으로 극단을 자른다. 아이콘·오버레이·화살표는 전부 --tile 종속이라 같이 스케일. */
-  --tile-fluid: 2.45vw;
-  --tile-fit-h: calc((100vh - 15rem) / var(--rows));
-  --tile-fit-w: calc((100vw - 47rem) / var(--cols));
-  --tile: clamp(16px, min(var(--tile-fluid), var(--tile-fit-h), var(--tile-fit-w)), 64px);
+  --tile-fluid: var(--m-tile-slope);
+  --tile-fit-h: calc((100vh - var(--m-fit-v-reserve)) / var(--rows));
+  --tile-fit-w: calc((100vw - var(--m-fit-h-reserve)) / var(--cols));
+  --tile: clamp(var(--m-tile-min), min(var(--tile-fluid), var(--tile-fit-h), var(--tile-fit-w)), var(--m-tile-max));
   position: relative;
   width: calc(var(--cols) * var(--tile));
   margin: 0;
@@ -18,8 +19,8 @@
    (2.45vw를 유지하면 패널이 접혀 생긴 공간을 못 쓴다). */
 @media (max-width: 1023px) {
   .plate {
-    --tile-fluid: 5vw;
-    --tile-fit-w: calc((100vw - 2.75rem) / var(--cols));
+    --tile-fluid: var(--m-tile-slope-narrow);
+    --tile-fit-w: calc((100vw - var(--m-fit-h-reserve-narrow)) / var(--cols));
   }
 }
 
@@ -133,12 +134,14 @@
 .board .icon {
   position: absolute;
   left: 50%;
-  /* 캔버스 하단 여백(≈0.145×아이콘 높이)을 상쇄해 접지선을 타일 바닥에 유지 — 크기 바꾸면 비율 유지 */
-  bottom: calc(var(--tile) * -0.44);
+  /* 캔버스 하단 여백(≈0.145×아이콘 높이) 상쇄 = 접지선 고정. ☠max-width 해제 필수 —
+     Tailwind 프리플라이트 img{max-width:100%}가 셀 폭으로 가로를 캡해 "크기 불변·위치만 상승" 버그를 만든다. */
+  bottom: calc(var(--tile) * -1 * var(--m-icon-foot));
   transform: translateX(-50%);
   transform-origin: bottom center;
-  width: calc(var(--tile) * 3);
-  height: calc(var(--tile) * 3);
+  width: calc(var(--tile) * var(--m-icon-scale));
+  height: calc(var(--tile) * var(--m-icon-scale));
+  max-width: none;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
@@ -147,8 +150,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: calc(var(--tile) * 0.82);
-  height: calc(var(--tile) * 0.82);
+  width: calc(var(--tile) * var(--m-chip-scale));
+  height: calc(var(--tile) * var(--m-chip-scale));
   border-radius: 9999px;
   border: 2px solid var(--force);
   color: #fff;
