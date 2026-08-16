@@ -3,10 +3,24 @@
 
 /* 좌표 레일은 절대 배치 — 플레이트 박스 = 보드 박스여야 보드가 정확히 화면 중앙에 온다. */
 .plate {
-  --tile: 47px;
+  /* 반응형 타일 — 기준: ~1920 뷰포트에서 47px(사용자 승인 크기) = 2.45vw.
+     뷰포트 비례를 기본으로, 맵 칸수(--cols/--rows)에 따라 화면을 넘지 않게 맞추고
+     상·하한으로 극단을 자른다. 아이콘·오버레이·화살표는 전부 --tile 종속이라 같이 스케일. */
+  --tile-fluid: 2.45vw;
+  --tile-fit-h: calc((100vh - 15rem) / var(--rows));
+  --tile-fit-w: calc((100vw - 47rem) / var(--cols));
+  --tile: clamp(16px, min(var(--tile-fluid), var(--tile-fit-h), var(--tile-fit-w)), 64px);
   position: relative;
   width: calc(var(--cols) * var(--tile));
   margin: 0;
+}
+/* 사이드 패널이 세로로 접히는 폭 — 가로 맞춤 기준이 전폭이 되고, 비례 기울기도 키운다
+   (2.45vw를 유지하면 패널이 접혀 생긴 공간을 못 쓴다). */
+@media (max-width: 1023px) {
+  .plate {
+    --tile-fluid: 5vw;
+    --tile-fit-w: calc((100vw - 2.75rem) / var(--cols));
+  }
 }
 
 .plate .rail {
@@ -439,13 +453,3 @@
   }
 }
 
-@media (max-width: 1024px) {
-  .plate {
-    --tile: 39px;
-  }
-}
-@media (max-width: 640px) {
-  .plate {
-    --tile: 29px;
-  }
-}
