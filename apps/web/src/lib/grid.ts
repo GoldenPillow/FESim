@@ -5,6 +5,8 @@
 export const FLIP_X = false;
 export const FLIP_Y = true;
 
+export const tileKey = (x: number, y: number): string => `${x},${y}`;
+
 /** CSS Grid 1-based 라인 번호. SVG 좌표는 (gridCol(x) - 0.5, gridRow(y) - 0.5)가 타일 중심. */
 export const gridCol = (width: number, x: number): number => (FLIP_X ? width - x : x + 1);
 export const gridRow = (height: number, y: number): number => (FLIP_Y ? height - y : y + 1);

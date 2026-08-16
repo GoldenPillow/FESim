@@ -1,0 +1,291 @@
+import { createStore, type StoreApi } from "zustand/vanilla";
+import { useStore } from "zustand/react";
+import {
+  createCalculator,
+  createReducer,
+  createReplayer,
+  recordingSource,
+  RULE_VERSION,
+  type BattleAction,
+  type GameState,
+  type Timeline,
+  type UnitState,
+  type VerifyResult,
+} from "@fesim/engine";
+import type { CalculatorData, Difficulty, EphemerisFile, EphemerisStep } from "@fesim/shared";
+import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
+import type { BoardProps } from "./fe17";
+import { clearSlot, loadSlot, saveSlot, type SaveKey } from "./guestSave";
+
+/**
+ * 보드 상태의 정본 — 아일랜드는 이 스토어를 구독만 한다(룰 로직은 엔진, 표시는 BoardView).
+ * 플레이 = 실굴림을 recordingSource로 감싸 기보가 자동으로 쌓인다(공유·자동 저장이 같은 기록을 쓴다).
+ * 리플레이 = 파일이 난이도·국면을 소유하므로 플레이 조작은 잠근다.
+ */
+export const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
+const reduce = createReducer(calculator);
+const replayer = createReplayer(reduce);
+const liveRng = { roll: () => Math.floor(Math.random() * 100) };
+
+export interface UnitVisual {
+  icon?: string;
+  abbr: string;
+  name: string;
+  job: string;
+  ring: string;
+  chip: string;
+  phase?: string;
+}
+
+export interface ReplaySession {
+  file: EphemerisFile;
+  timeline: Timeline;
+  verify: VerifyResult;
+}
+
+export interface BoardState {
+  mode: "play" | "replay";
+  difficulty: Difficulty;
+  scenario?: string;
+  game: GameState;
+  visuals: Map<string, UnitVisual>;
+  recording: EphemerisStep[];
+  replay?: ReplaySession;
+  cursor: number;
+  setDifficulty: (difficulty: Difficulty) => void;
+  setScenario: (scenario: string | undefined) => void;
+  reset: () => void;
+  restore: () => void;
+  dispatch: (action: BattleAction) => GameState;
+  toFile: (meta?: EphemerisFile["meta"]) => EphemerisFile;
+  loadReplay: (file: EphemerisFile) => void;
+  seek: (cursor: number) => void;
+  stepAction: (delta: number) => void;
+  stepPhase: (delta: number) => void;
+}
+
+export type BoardStore = StoreApi<BoardState>;
+
+export function initGame(
+  props: BoardProps,
+  difficulty: Difficulty,
+  scenario: string | undefined,
+): { game: GameState; visuals: Map<string, UnitVisual> } {
+  const visuals = new Map<string, UnitVisual>();
+  const units: UnitState[] = [];
+  props.units.forEach((u, i) => {
+    if (u.phase !== undefined && scenario !== undefined && u.phase !== scenario) return;
+    const stats = u.stats?.[difficulty];
+    if (stats === undefined) return;
+    const id = `u${i}`;
+    visuals.set(id, {
+      icon: u.icon, abbr: u.abbr, name: u.name, job: u.job, ring: u.ring, chip: u.chip, phase: u.phase,
+    });
+    units.push({
+      id,
+      name: u.name,
+      force: u.force,
+      x: u.x,
+      y: u.y,
+      hp: stats.hp,
+      stats,
+      weapon: u.weapon,
+      skills: u.skills,
+      growth: u.growth,
+      level: u.levels[difficulty],
+      internalLevel: u.internalLevel,
+      exp: 0,
+      movePoints: u.movePoints,
+      moveType: u.moveType,
+      style: u.style,
+      acted: false,
+      dead: false,
+      broken: false,
+    });
+  });
+  const game: GameState = {
+    turn: 1,
+    phase: 0,
+    difficulty,
+    map: {
+      width: props.width,
+      height: props.height,
+      costs: props.costs,
+      terrain: props.tiles.map((line) => line.map((t) => ({ avoid: t.avoid, def: t.def }))),
+    },
+    units,
+    events: [],
+  };
+  return { game, visuals };
+}
+
+const GAME_ID = "fe17";
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
+
+const phaseIndexAt = (timeline: Timeline, cursor: number): number => {
+  for (let i = timeline.phases.length - 1; i > 0; i--) {
+    if (timeline.phases[i].start <= cursor) return i;
+  }
+  return 0;
+};
+
+/** 표시 국면 = 리플레이면 커서 위치, 아니면 플레이 국면. 커서 1건 메모(스테핑이 매 렌더 재계산되면 안 된다). */
+let memo: { timeline: Timeline; cursor: number; state: GameState } | undefined;
+export function displayState(s: BoardState): GameState {
+  if (s.replay === undefined) return s.game;
+  const timeline = s.replay.timeline;
+  if (memo !== undefined && memo.timeline === timeline && memo.cursor === s.cursor) return memo.state;
+  const state = replayer.stateAt(timeline, s.cursor);
+  memo = { timeline, cursor: s.cursor, state };
+  return state;
+}
+
+export function createBoardStore(props: BoardProps): BoardStore {
+  const initial = initGame(props, "l", undefined);
+
+  return createStore<BoardState>((set, get) => {
+    const saveKey = (): SaveKey => ({
+      game: GAME_ID,
+      mapId: props.mapId,
+      difficulty: get().difficulty,
+      scenario: get().scenario,
+    });
+
+    const fresh = (difficulty: Difficulty, scenario: string | undefined) => {
+      const next = initGame(props, difficulty, scenario);
+      set({
+        mode: "play",
+        difficulty,
+        scenario,
+        game: next.game,
+        visuals: next.visuals,
+        recording: [],
+        replay: undefined,
+        cursor: 0,
+      });
+    };
+
+    return {
+      mode: "play",
+      difficulty: "l",
+      scenario: undefined,
+      game: initial.game,
+      visuals: initial.visuals,
+      recording: [],
+      replay: undefined,
+      cursor: 0,
+
+      setDifficulty(difficulty) {
+        if (get().mode === "replay" || get().difficulty === difficulty) return;
+        fresh(difficulty, get().scenario);
+      },
+
+      setScenario(scenario) {
+        if (get().mode === "replay" || get().scenario === scenario) return;
+        fresh(get().difficulty, scenario);
+      },
+
+      reset() {
+        clearSlot(saveKey());
+        fresh(get().difficulty, get().scenario);
+      },
+
+      /** 슬롯이 있으면 기록을 되감아 이어 플레이 — 실패는 조용히 새 판(진행 중 판을 건드리지 않는다). */
+      restore() {
+        if (get().mode === "replay") return;
+        const key = saveKey();
+        const file = loadSlot(key);
+        if (file === undefined || file.log.length === 0) return;
+        const base = initGame(props, key.difficulty, key.scenario);
+        try {
+          let state = base.game;
+          for (const step of file.log) state = replayer.applyStep(state, step);
+          set({ game: state, visuals: base.visuals, recording: [...file.log] });
+        } catch (e) {
+          console.warn("게스트 저장 복원 실패 — 새 판으로 시작한다", e);
+          clearSlot(key);
+        }
+      },
+
+      dispatch(action) {
+        const { game, mode, recording } = get();
+        if (mode === "replay") return game;
+        const rng = recordingSource(liveRng);
+        let next: GameState;
+        try {
+          next = reduce(game, action, rng);
+        } catch {
+          return game; // 불법 행동 = 무시 (엔진이 심판)
+        }
+        const rolls = rng.drain();
+        const step: EphemerisStep = { action };
+        if (rolls.length > 0) step.rolls = rolls;
+        if (next.events.length > 0) step.events = [...next.events];
+        const log = [...recording, step];
+        set({ game: next, recording: log });
+        saveSlot(saveKey(), get().toFile());
+        return next;
+      },
+
+      toFile(meta) {
+        const { difficulty, scenario, recording } = get();
+        return {
+          eph: 1,
+          game: GAME_ID,
+          ruleVersion: RULE_VERSION,
+          chapter: { cid: props.mapId, difficulty, scenario },
+          log: recording,
+          ...(meta === undefined ? {} : { meta }),
+        };
+      },
+
+      loadReplay(file) {
+        const difficulty = file.chapter.difficulty;
+        const scenario = file.chapter.scenario;
+        const base = initGame(props, difficulty, scenario);
+        const timeline = replayer.buildTimeline(base.game, file.log);
+        set({
+          mode: "replay",
+          difficulty,
+          scenario,
+          game: base.game,
+          visuals: base.visuals,
+          recording: [...file.log],
+          replay: { file, timeline, verify: replayer.verify(base.game, file.log) },
+          cursor: 0,
+        });
+      },
+
+      seek(cursor) {
+        const replay = get().replay;
+        if (replay === undefined) return;
+        set({ cursor: clamp(cursor, 0, replay.timeline.steps.length) });
+      },
+
+      stepAction(delta) {
+        get().seek(get().cursor + delta);
+      },
+
+      /** 뒤로 = 현 페이즈 개시점, 이미 개시점이면 앞 페이즈(미디어 플레이어 문법). */
+      stepPhase(delta) {
+        const { replay, cursor } = get();
+        if (replay === undefined) return;
+        const { phases, steps } = replay.timeline;
+        const idx = phaseIndexAt(replay.timeline, cursor);
+        if (delta > 0) {
+          get().seek(phases[idx + 1]?.start ?? steps.length);
+          return;
+        }
+        if (cursor > phases[idx].start) {
+          get().seek(phases[idx].start);
+          return;
+        }
+        get().seek(phases[idx - 1]?.start ?? 0);
+      },
+    };
+  });
+}
+
+export const useBoard = <T>(store: BoardStore, selector: (state: BoardState) => T): T =>
+  useStore(store, selector);

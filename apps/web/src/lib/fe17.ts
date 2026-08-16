@@ -510,6 +510,8 @@ export interface BoardProps {
     victory: string;
     defeat: string;
     reset: string;
+    copyRecord: string;
+    copied: string;
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
   };
 }
