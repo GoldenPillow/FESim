@@ -551,7 +551,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.engage-activation",
     label: { en: "Engage activation, meter, duration", ko: "인게이지 발동·카운트·지속" },
     status: "deferred",
-    evidence: "지속 3턴·한계 god.EngageCount(정규 7·ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 사용자 실측 2026-08-17, params 常時 해석 반증) · 설계 선행(§0 미룸)",
+    evidence: "지속 = 기본 3턴(継続ターン)·★외전 클리어+인연 20 해금 시 4칸(사용자 실측 2026-08-17 — 연장 소스 덤프에 없음, 진행 플래그 소관) · 한계 EngageCount(7/ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 실측, 常時 해석 반증) · 설계 선행(§0 미룸)",
   },
   {
     id: "emblem.engage-kit",
