@@ -96,7 +96,10 @@ Unity IL2CPP 게임이라 exefs `main`(C#→C++ AOT)에 `global-metadata.dat`를
   ☠간접 호출(`BLR`·델리게이트)은 이름이 안 붙으므로 vtable 오프셋·바인딩 지점을 dump.cs로 역추적해야 한다 —
   실제로 `BattleMath.RandomCheckHit`은 **`BattleMath.Probability` 델리게이트로 tail-call**한다(명중 판정이
   주입 가능한 함수라는 구조적 발견, 2026-08-17). 판독 보고서 = `~/fesim_data/extracted/il2cpp/`.
-  우선 대상(`BattleCalculator`):
+  ★**2026-08-18 13갈래 전수 판독 완료** — 롤업 = `~/fesim_data/extracted/il2cpp/REPORT_IL2CPP.md`(축별 상세 13편 색인).
+  최장기 미결 9건 종결·엔진 수정구간 9건 TDD 정정·아키텍처 판정(calculator = 데이터 주도 인터프리터 = 현행과 동일 구조).
+  이로써 이 축은 **미러 플레이보다 상위의 1차 정본**이 됐고, 실측은 "이식 대조" 역할로 내려간다(§2-5 성격 전환).
+  최초 착수 대상이었던 함수들(전부 판독 완료):
 
   | 미결 항목(§4) | 정본 함수(dump.cs 확인) |
   |---|---|
