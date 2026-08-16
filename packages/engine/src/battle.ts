@@ -50,6 +50,8 @@ export interface UnitState {
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
+  /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
+  cap?: StatBlock;
   level: number;
   internalLevel?: number;
   exp: number;
@@ -148,16 +150,62 @@ const manhattan = (a: UnitState, b: UnitState) => Math.abs(a.x - b.x) + Math.abs
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
 
+/** 한 레벨에 이만큼도 못 올리면 다시 굴린다 — Unit.GrowAbortCount. */
+const GROW_ABORT = 2;
+/** 재굴림 포함 최대 시도 수 — Unit.LevelUpRetryMax. */
+const GROW_ATTEMPTS = 4;
+
+/**
+ * 레벨업 성장 롤 — 정본 = App.Unit.LevelUp(RVA 0x1A3A040) GrowMode.Random 경로.
+ *
+ * 게임은 "획득 스탯이 abort 미만이면 최대 4시도까지 다시 굴리고 최선 시도를 채택"한다.
+ * 난수는 시도 사이에 이어지므로(같은 Random 인스턴스) 소비 개수가 결과에 따라 달라진다 —
+ * 기보 재생이 이 소비 순서에 걸려 있으니 시도 구조를 그대로 옮긴다.
+ * 증가 1회마다 상한을 다시 확인하는 것도 원본 그대로다(확정 가산분도 캡을 못 뚫는다).
+ */
+function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
+  let best: Partial<StatBlock> = {};
+  let bestCount = 0;
+  for (let attempt = 0; attempt < GROW_ATTEMPTS; attempt++) {
+    const gains: Partial<StatBlock> = {};
+    let count = 0;
+    for (const key of STAT_KEYS) {
+      // 성장률 상한은 255다 — 100 절사가 아니다(person.Grow 실측 최대 105).
+      let grow = Math.min(Math.max(unit.growth?.[key] ?? 0, 0), 255);
+      if (grow === 0) continue;
+      const cap = unit.cap?.[key];
+      const room = (): boolean => cap === undefined || unit.stats[key] + (gains[key] ?? 0) < cap;
+      const grant = (): void => {
+        if (!room()) return;
+        gains[key] = (gains[key] ?? 0) + 1;
+        count += 1;
+      };
+      while (grow > 99) {
+        grow -= 100;
+        grant();
+      }
+      // 잔여가 0이면 게임도 난수를 보지 않는다(IsProbability100이 percent<=0에서 즉시 false).
+      if (grow > 0 && isProbability100(grow, rng.next(100000))) grant();
+    }
+    if (count > bestCount) {
+      best = gains;
+      bestCount = count;
+    }
+    if (bestCount >= GROW_ABORT) break;
+  }
+  return best;
+}
+
 /** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
 export type SupportEffects = Record<string, Record<string, SupportEffect>>;
 
 /**
- * 인접 아군 지원(絆) 보정 — 表 = reliance.xml 支援効果(archetype × Level 1~4).
- * ★발동 거리 = 인접 1타일(사용자 실기 실측 2026-08-17 — 2칸 이상은 무효).
- * 인접의 4방(맨해튼 1) 해석은 가정이다 — 대각 인접 발동 여부는 미실측이라 제외한다(반증 시 여기만 고친다).
- * archetype 출처 = 파트너의 SupportCategory(지시 정본). gaps/D §1-1은 수혜자 자신의 것이라 추정하나
- * 덤프만으로는 어느 쪽인지 결정되지 않는다 — 뒤집힐 경우 아래 한 줄(row 조회 대상)만 바뀐다.
- * 복수 파트너는 합산(원문에 상한·배타 규정 없음 — 가정).
+ * 인접 아군 지원(絆) 보정 — 表 = reliance.xml 支援効果(archetype × Level 1~4 = C/B/A/A+).
+ * 아래 넷은 전부 실행파일 코드로 확정됐다(il2cpp/SUPPORT.md) — 더는 가정이 아니다:
+ *  - 거리 = 맨해튼 1. SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트라 대각은 미발동.
+ *  - archetype = 파트너의 SupportCategory. TryGetSupportData가 파트너 쪽만 인덱싱한다(수혜자 아님).
+ *  - 복수 파트너 = 단순 합산, 상한 없음(MaxShowUnits=4는 UI 표시 슬롯일 뿐 보정과 무관).
+ *  - 파트너 자격 = 엄격 동일 세력. ☠동맹(우군)까지 넓히는 것은 반증된 변경이다.
  */
 function supportOf(
   u: UnitState,
@@ -370,17 +418,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             while (attacker.exp >= 100) {
               attacker.exp -= 100;
               attacker.level += 1;
-              const gains: Partial<StatBlock> = {};
+              const gains = rollGrowth(attacker, rng);
               const stats = { ...attacker.stats };
               for (const key of STAT_KEYS) {
-                // 성장률 100 초과(person.Grow 실측 최대 105)는 확정 가산 + 잔여 1롤 —
-                // 롤 소비는 스탯당 항상 1회로 고정한다(리플레이 재현 계약).
-                const grow = Math.max(attacker.growth?.[key] ?? 0, 0);
-                const gain = Math.floor(grow / 100) + (rng.next(100) < grow % 100 ? 1 : 0);
-                if (gain > 0) {
-                  stats[key] += gain;
-                  gains[key] = gain;
-                }
+                const gain = gains[key];
+                if (gain !== undefined) stats[key] += gain;
               }
               attacker.stats = stats;
               if (gains.hp !== undefined) attacker.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도

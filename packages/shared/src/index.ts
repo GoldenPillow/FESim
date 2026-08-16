@@ -186,6 +186,7 @@ export interface SupportEffect {
 }
 
 /** 支援レベル — 원문 그대로 1~4. C/B/A/S 대응은 원문에 라벨이 없어 미확정(必要経験値 시트는 C/B/A 3단뿐). */
+/** 지원 랭크 — 1=C · 2=B · 3=A · 4=A+ (☠S가 아니다: RelianceData.Level 열거, il2cpp/SUPPORT.md). 경험 승급은 A까지고 A+는 엠블럼 링크 경로다. */
 export type SupportLevel = 1 | 2 | 3 | 4;
 
 /** 랭크 승급 누적 지원치 패턴. 배열 인덱스 = 支援関係 행렬의 값(0 = REXID_なし = 지원 불가). */

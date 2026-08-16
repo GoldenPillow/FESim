@@ -13,6 +13,7 @@ import {
   type GameState,
   type RandomSource,
   type SkillRow,
+  type StatBlock,
   type SupportEffects,
   type UnitState,
 } from "@fesim/engine";
@@ -297,10 +298,11 @@ describe("전투 해결", () => {
         unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
         unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
       ]);
-    // 롤 소비: 명중 → 필살 → 스탯당 1롤(STAT_KEYS 순서, str은 2번째)
-    const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 4));
-    expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 롤 4 < 5
-    const one = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 5));
+    // 롤 소비: 명중 → 필살 → 성장률이 0이 아닌 스탯만 1롤(str뿐). 잔여 5% = 5000/100000.
+    const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 4999));
+    expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 성공
+    // 잔여가 실패하면 획득 1스탯 < abort(2)라 최대 4시도까지 재굴림한다 — 전부 실패시켜야 +1로 끝난다.
+    const one = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 5000, 5000, 5000, 5000));
     expect(one.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 1); // 잔여 롤 5 = 실패
   });
 
@@ -428,6 +430,26 @@ describe("지원(絆) 보정", () => {
     expect(forecast(s, supportEffects).hitRate).toBe(30);
   });
 
+  it("archetype은 파트너의 SupportCategory로 인덱싱한다(수혜자 것이 아니다)", () => {
+    // 왜 위험한가: 수혜자 기준으로 뒤집으면 인접한 두 유닛의 보정이 통째로 뒤바뀐다.
+    // 정본 = App.UnitReliance.TryGetSupportData(RVA 0x1C5B150) — 파트너의 PersonData+0x80만 읽는다.
+    const s = field({
+      a: { supports: { b: 1 }, supportCategory: "回避" }, // 수혜자 = 回避
+      allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })], // 파트너 = 命中
+    });
+    expect(forecast(s, supportEffects).hitRate).toBe(45); // 파트너(命中) 기준. 수혜자 기준이면 40이다.
+  });
+
+  it("다른 세력 유닛은 파트너가 아니다(엄격 동일 Force — 동맹도 제외)", () => {
+    // 왜 위험한가: '아군'을 동맹 포함으로 넓히면 청색 NPC 옆에서 없던 보정이 생긴다.
+    // SupportCalculator.RangeFunction(0x20AE4B0)은 Force.Type 동일성만 보고 IsAllide를 쓰지 않는다.
+    const s = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 2, x: 1, y: 2, supportCategory: "命中" })],
+    });
+    expect(forecast(s, supportEffects).hitRate).toBe(30);
+  });
+
   it("reduce가 지원 보정을 태운다 — 같은 롤이 지원 유무로 명중/빗나감을 가른다", () => {
     const s = field({
       a: { supports: { b: 1 } },
@@ -544,5 +566,81 @@ describe("발동 필터 배선 — Stand는 전투 주도권을 따른다", () =
     expect(attacking).toBeGreaterThan(0);
     expect(countering).toBeGreaterThan(0); // 반격 자체는 성립한다
     expect(attacking - countering).toBe(10); // 차이는 정확히 스킬 보정분
+  });
+});
+
+/**
+ * 레벨업 성장 — 인게임 정본(App.Unit.LevelUp RVA 0x1A3A040, GrowMode.Random).
+ *
+ * 왜 위험했나: 엔진은 "스탯당 1롤, 캡 무시, 재굴림 없음"이었다. 게임은 셋 다 다르다 —
+ * 성장 결과 분포가 통째로 어긋나므로 육성 시뮬레이션의 결론이 바뀐다.
+ *   (1) 증가 1회마다 상한 게이트(확정분·잔여 롤분 각각)
+ *   (2) 잔여가 0이면 난수를 아예 소모하지 않는다(IsProbability100이 percent<=0에서 즉시 false)
+ *   (3) 획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택한다
+ */
+describe("레벨업 성장 — 상한 게이트·재굴림", () => {
+  const STAT_KEY_ORDER = ["hp", "str", "mag", "dex", "spd", "lck", "def", "res", "bld"] as const;
+  const zeroGrowth = Object.fromEntries(STAT_KEY_ORDER.map((k) => [k, 0])) as StatBlock;
+  const levelUpOnce = (
+    growth: Partial<StatBlock>,
+    rolls: number[],
+    extra: Partial<UnitState> = {},
+  ): { unit: UnitState; consumed: number } => {
+    let consumed = 0;
+    const src = [...rolls];
+    const rng: RandomSource = {
+      next() {
+        consumed += 1;
+        return src.shift() ?? 0;
+      },
+    };
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({
+        id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95,
+        growth: { ...zeroGrowth, ...growth }, ...extra,
+      }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, rng);
+    return { unit: next.units.find((u) => u.id === "a")!, consumed };
+  };
+  /** 전투에서 성장 롤보다 먼저 소비되는 몫 = 명중 + 필살(이 조합은 필살률이 0이 아니다). */
+  const BEFORE_GROWTH = 2;
+  const crit = 99999; // 필살 실패값 — 성장 롤에 영향 주지 않게 고정
+
+  it("상한에 걸리면 확정 가산분도 막힌다(성장률 250이어도 캡까지만)", () => {
+    const cap = { ...baseStats, str: baseStats.str + 1 };
+    const { unit: grown } = levelUpOnce({ str: 250 }, [0, crit, 0], { cap });
+    expect(grown.stats.str).toBe(cap.str);
+  });
+
+  it("잔여가 0이면 그 스탯은 난수를 소모하지 않는다", () => {
+    const flat = levelUpOnce({ str: 200 }, [0, crit]); // 200 = 확정 2(획득 2 = abort 충족), 잔여 0
+    const withRemainder = levelUpOnce({ str: 245 }, [0, crit, 0]); // 잔여 45 = 롤 1회 → 확정 2 + 1
+    expect(withRemainder.consumed).toBe(flat.consumed + 1);
+  });
+
+  it("획득이 2스탯 미만이면 재굴림하고 최선 시도를 채택한다", () => {
+    // 성장률 50 x 2스탯. 1시도차 = 롤 2개.
+    // 시도1: str 실패(50000)·spd 실패 → 0스탯 → 재굴림
+    // 시도2: str 성공(0)·spd 성공(0) → 2스탯 → 채택하고 종료
+    const rolls = [0 /* 명중 */, crit, 50000, 50000, 0, 0];
+    const { unit: grown } = levelUpOnce({ str: 50, spd: 50 }, rolls);
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.stats.spd).toBe(baseStats.spd + 1);
+  });
+
+  it("2스탯 이상이면 재굴림하지 않는다(첫 시도 채택)", () => {
+    const { consumed } = levelUpOnce({ str: 50, spd: 50 }, [0, crit, 0, 0]);
+    expect(consumed).toBe(BEFORE_GROWTH + 2); // 성장 롤 2회뿐 — 재굴림 없음
+  });
+
+  it("성장 확률은 0.001% 해상도로 판정한다", () => {
+    const justHit = levelUpOnce({ str: 45 }, [0, crit, 44999]);
+    // 실패하면 재굴림하므로 4시도 전부 실패시킨다.
+    const justMiss = levelUpOnce({ str: 45 }, [0, crit, 45000, 45000, 45000, 45000]);
+    expect(justHit.unit.stats.str).toBe(baseStats.str + 1);
+    expect(justMiss.unit.stats.str).toBe(baseStats.str);
   });
 });

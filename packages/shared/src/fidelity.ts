@@ -328,8 +328,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.support-bonus",
     label: { en: "Support (bond) bonuses (adjacent only)", ko: "지원(인연) 보정 — 인접 1타일" },
-    status: "assumed",
-    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · 가정 3 = 합산·4방 인접·archetype 소유자(파트너 기준, 수혜자설과 상충 — 실측 1회로 결정) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
+    status: "anchored",
+    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · ★IL2CPP 코드로 가정 3건 전부 종결(2026-08-17, il2cpp/SUPPORT.md): 거리 = 맨해튼 1(SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트 — **대각 미발동 확정**) · archetype = **파트너**의 SupportCategory(UnitReliance.TryGetSupportData 0x1C5B150이 unitB의 PersonData+0x80만 인덱싱 — 수혜자설 기각, 현행 엔진 정합) · 복수 파트너 = 단순 합산·상한 없음(MaxShowUnits=4는 UI 표시 슬롯 전용) · 파트너 자격 = 엄격 동일 Force.Type(동맹 세력 제외 — IsAllide를 쓰지 않는다) · 평가 = 전투 정보 산출 시 양측 1회 고정(매 타격 재계산 아님), 좌표는 이동 후 전투 지점 · ☠Level 4 = **A+**이지 S가 아니다(RelianceData.Level None0/C1/B2/A3/APlus4 — 경험 승급은 A까지, A+는 엠블럼 링크 경로) · 회귀 방지 테스트 2건(archetype 소유자·타 세력 배제) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
   },
   {
     id: "combat.status-effects",
@@ -423,9 +423,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "combat.levelup-growth",
-    label: { en: "Level-up: one growth roll per stat", ko: "레벨업 = 스탯별 성장률 1롤" },
-    status: "assumed",
-    evidence: "100 초과 = floor(grow/100) 확정 가산+잔여 1롤(battle.test.ts, 실측 최대 105 — gaps/D §4) · 1롤 모델 자체는 FE 문법 가정",
+    label: { en: "Level-up growth (cap gate, retry up to 4)", ko: "레벨업 성장 — 상한 게이트·최대 4시도 재굴림" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · 미배선 = GrowMode.Fixed(고정 성장 모드)·성장률 변조 스킬(努力の才 *2·星玉の加護 +15)·무기 GrowRatio",
   },
 
   // ── 유닛·스탯 ──
@@ -510,8 +510,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "units.divine-paralogue-level",
     label: { en: "Divine Paralogue enemy level scaling (runtime)", ko: "신룡의 장(g001~g006) 적 레벨 런타임 스케일링" },
-    status: "absent",
-    evidence: "정적 데이터로 재현 불가 확정(gaps/L 실측 후속 2026-08-17): 적 전원 PID_G000_幻影兵_* 공용 25종 person.Level=1(고유 PID_G00x_*도 Lv5·1 플레이스홀더) · dispos 레벨 140파일 전수 0 · g00x Lua 레벨 조작 0건 · chapter.xml은 RecommendedLevel(20/15/20/25/35/30)·Nation=NID_神竜の章뿐, HoldLevel=0 — 사용자 실기 전언(2026-08-17) = 플레이어 레벨 추종하는 듯(미확정) · 기준(최고/평균/진행도)·클램프(RecommendedLevel 하한 여부)는 실측만이 경로 = 미러 플레이 등재",
+    status: "anchored",
+    evidence: "★IL2CPP 코드로 수식 확정(2026-08-17, il2cpp/ENEMY_LEVEL.md — 실측 불요로 종결): totalLevel = person.Level + MapSituation.AverageLevel - 1 (Unit.CreateDlcGodEnemy RVA 0x1A0CA80, 0x1A0CB00~34). 잡졸 PID_G000_幻影兵_*은 person.Level=1이라 **총레벨 = AverageLevel 그대로** · AverageLevel = Clamp(CalcEncountRank(N) + 난이도조정, 1, 99), 난이도조정 = Normal -5 / Hard -2 / Lunatic +1 · CalcEncountRank(N) = round(상위 N명 총레벨 합 / N) + 2, N = 그 맵 dispos의 플레이어 그룹 엔트리 수(출격 슬롯), 총레벨 = Level + InternalLevel(승급 = 내부레벨 +20), 반드레는 조건부 편입 · ⇒ 사용자 전언('플레이어 레벨 추종')이 정확했고 기준은 **출격 슬롯 수만큼의 상위 레벨 평균**이다 · 정적 데이터로 재현 불가했던 이유 = 스케일링이 실행부 소관(dispos 레벨 전수 0·Lua 조작 0건·HoldLevel=0)",
   },
   {
     id: "units.chapter-preset-roster",
