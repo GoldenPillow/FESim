@@ -487,7 +487,13 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.difficulty-scaling",
     label: { en: "Per-difficulty levels and stats from dispos", ko: "난이도별 레벨·스탯(dispos·Offset)" },
     status: "anchored",
-    evidence: "VERIFY_M002 대조 일치 156·불일치 0 · 3회차 재확인: dispos LevelN/LevelH/LevelL은 140파일 10,951행 전수 동일값(난이도 분기 데이터 없음, gaps/O §10-1-4) — 실제 난이도별 스탯 스케일링은 Offset 경로 소관, 본 앵커의 근거가 LevelN/H/L이라면 오해 소지 있어 재확인 요망",
+    evidence: "VERIFY_M002 대조 일치 156·불일치 0 · 3회차 재확인: dispos LevelN/LevelH/LevelL은 140파일 10,951행 전수 동일값(난이도 분기 데이터 없음, gaps/O §10-1-4) — 실제 난이도별 스탯 스케일링은 Offset 경로 소관, 본 앵커의 근거가 LevelN/H/L이라면 오해 소지 있어 재확인 요망 · 후속 정정(2026-08-17): dispos LevelN 비영 행 140파일 전수 0(아군·적 공히) = dispos는 레벨 미소유 — 적 레벨 정본은 person.xml Level(M002 2~5·M010 12~15 스토리 정합, gaps/L 실측 후속 절). 신룡의 장은 별건 = units.divine-paralogue-level",
+  },
+  {
+    id: "units.divine-paralogue-level",
+    label: { en: "Divine Paralogue enemy level scaling (runtime)", ko: "신룡의 장(g001~g006) 적 레벨 런타임 스케일링" },
+    status: "absent",
+    evidence: "정적 데이터로 재현 불가 확정(gaps/L 실측 후속 2026-08-17): 적 전원 PID_G000_幻影兵_* 공용 25종 person.Level=1(고유 PID_G00x_*도 Lv5·1 플레이스홀더) · dispos 레벨 140파일 전수 0 · g00x Lua 레벨 조작 0건 · chapter.xml은 RecommendedLevel(20/15/20/25/35/30)·Nation=NID_神竜の章뿐, HoldLevel=0 — 사용자 실기 전언(2026-08-17) = 플레이어 레벨 추종하는 듯(미확정) · 기준(최고/평균/진행도)·클램프(RecommendedLevel 하한 여부)는 실측만이 경로 = 미러 플레이 등재",
   },
   {
     id: "units.chapter-preset-roster",
@@ -711,7 +717,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.chapter-hold-level",
     label: { en: "Chapter hold level (Fell Xenologue)", ko: "챕터 고정 레벨(사룡의 장 HoldLevel)" },
     status: "absent",
-    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28(gaps/L §2-2) · 레벨 영향 실재 = 사용자 전언 정합 · e00x Lua에 레벨 조작 0건 = HoldLevel 단독 소관, 적용식(상하향 클램프)은 덤프에 없음 — E시리즈 변환 시 실측·배선",
+    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28(gaps/L §2-2) · 레벨 영향 실재 = 사용자 전언 정합 · e00x Lua에 레벨 조작 0건 = HoldLevel 단독 소관, 적용식(상하향 클램프)은 덤프에 없음 — E시리즈 변환 시 실측·배선 · 교차 보강(2026-08-17): E시리즈 적 레벨은 person.xml에 박제(E001 = 15/18/23, HoldLevel 15와 정합) — HoldLevel = 아군 클램프·적 = person 박제 분업 가설 지지(gaps/L 실측 후속 절)",
   },
   {
     id: "turn.rewind",
