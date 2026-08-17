@@ -80,6 +80,8 @@ export interface UnitState {
    * 행동(공격·대기)이 false로 리셋해 재이동(시구르드) 창을 열고, 페이즈 복귀 시에도 리셋.
    */
   moved?: boolean;
+  /** 이 활성화에서 교환·수송대를 썼는가 — 인게이지 발동만 봉쇄(실기 판별 2026-08-18). 페이즈 복귀 시 리셋. */
+  traded?: boolean;
 }
 
 /**
@@ -588,6 +590,31 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         break;
       }
 
+      case "trade": {
+        const actor = require(action.unit);
+        const partner = require(action.target);
+        assertActable(actor);
+        if (actor.force !== partner.force) throw new Error("교환은 같은 군만 대상이다");
+        if (actor === partner) throw new Error("자기 자신과는 교환할 수 없다");
+        if (manhattan(actor, partner) !== 1) throw new Error("교환은 인접 1칸만");
+        const [giver, receiver] = action.back === true ? [partner, actor] : [actor, partner];
+        const channel = action.kind === "weapon" ? "weapons" : action.kind === "staff" ? "staves" : "consumables";
+        const list = giver[channel];
+        const item = list?.[action.index];
+        if (item === undefined) throw new Error(`불법 교환 인덱스: ${action.kind}[${action.index}]`);
+        (giver as Record<typeof channel, unknown[]>)[channel] = list!.filter((_, i) => i !== action.index);
+        (receiver as Record<typeof channel, unknown[]>)[channel] = [...(receiver[channel] ?? []), item];
+        if (action.kind === "weapon") {
+          // 장비 무기가 옮겨가면 주는 쪽은 남은 목록[0] 재장비(없으면 비무장), 비무장 수령자는 첫 무기 장비.
+          if (giver.weapon === item) giver.weapon = giver.weapons?.[0];
+          if (receiver.weapon === undefined) receiver.weapon = receiver.weapons?.[0];
+        }
+        // 실기 판별(2026-08-18): 행동 유지·이동 창 소진·인게이지 발동 봉쇄. 상대 창 상태는 불변.
+        actor.moved = true;
+        actor.traded = true;
+        break;
+      }
+
       case "engage": {
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
@@ -596,6 +623,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (g === undefined) throw new Error("엠블렘 미장착");
         if (g.engaging) throw new Error("이미 인게이지 중");
         // 발동 조건 = 만충(CanEngageImpl 0x1A26F70). 행동은 소모하지 않는다 — 발동 후 이동·공격 가능.
+        if (u.traded === true) throw new Error("교환 후에는 인게이지 발동 불가");
         if (g.limit < 1 || g.count < g.limit) throw new Error("게이지 미만충");
         u.engage = { ...g, engaging: true, turn: 0 };
         events.push({ type: "engage", unit: u.id });
@@ -616,6 +644,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             units: units.map((u) => {
               if (u.force !== nextForce) return u;
               const fresh: UnitState = { ...u, acted: false, broken: false, moved: false };
+              delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
               // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
               const g = fresh.engage;
               if (g?.engaging === true && !fresh.dead) {

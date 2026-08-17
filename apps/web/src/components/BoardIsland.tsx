@@ -311,6 +311,19 @@ export default function BoardIsland(props: BoardProps) {
   const fcTarget = foeTarget ?? hoverEnemy;
   const fcAt = (foeTarget !== undefined ? selectedAt : engageAt) ?? selectedAt;
 
+  // 교환 — 인접 아군 선택 → 2열 패널에서 아이템 클릭 = 1점 이동(행동 무소모, 엔진 trade 액션 연속 커밋).
+  const [tradeWith, setTradeWith] = useState<string | undefined>(undefined);
+  useEffect(() => setTradeWith(undefined), [selectedId, game.phase, game.turn]);
+  const tradePartners = useMemo(() => {
+    if (selected === undefined || selected.acted || selectedAt === undefined || selected.force !== game.phase) return [];
+    return viewUnits.filter(
+      (u) =>
+        u.force === selected.force &&
+        u.id !== selected.id &&
+        Math.abs(u.x - selectedAt.x) + Math.abs(u.y - selectedAt.y) === 1,
+    );
+  }, [selected, selectedAt, viewUnits, game.phase]);
+
   // 아이템 사용 버튼 — 대상 판정의 정본은 엔진 itemTargets(중복 구현 금지). 기준 위치 = 잠정 이동 반영.
   const itemButtons = useMemo(() => {
     if (selected === undefined || selected.acted || selected.force !== game.phase || selectedAt === undefined) return [];
@@ -635,7 +648,7 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined) && (
+      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
           {selected.engage !== undefined && (
             <span className="edit-hint">
@@ -648,6 +661,7 @@ export default function BoardIsland(props: BoardProps) {
           {selected.engage !== undefined &&
             !selected.engage.engaging &&
             !selected.acted &&
+            selected.traded !== true && // 교환 후 인게이지 발동 불가(실기 판별) — 엔진과 동일 게이트
             selected.engage.limit > 0 &&
             selected.engage.count >= selected.engage.limit && (
               <button type="button" onClick={() => void tryDispatch({ type: "engage", unit: selected.id })}>
@@ -668,8 +682,66 @@ export default function BoardIsland(props: BoardProps) {
               {c.name ?? labels.itemCmd} +{c.power} ({c.uses})
             </button>
           ))}
+          {tradePartners.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                // 교환은 확정 위치 기준 — 잠정 이동을 먼저 커밋한다(인게임: 이동 후 교환, 이후 재이동 불가).
+                if (commitMove()) setTradeWith(p.id);
+              }}
+            >
+              {labels.tradeCmd}: {visuals.get(p.id)?.name ?? p.id}
+            </button>
+          ))}
         </div>
       )}
+
+      {tradeWith !== undefined &&
+        selected !== undefined &&
+        (() => {
+          const partner = alive.find((u) => u.id === tradeWith);
+          if (partner === undefined) return null;
+          const column = (owner: UnitState, back: boolean) => (
+            <div className="trade-col" style={{ "--force": visuals.get(owner.id)?.ring ?? "#888" } as React.CSSProperties}>
+              <strong className="fc-name">{visuals.get(owner.id)?.name ?? owner.id}</strong>
+              {(["weapon", "staff", "consumable"] as const).flatMap((kind) => {
+                const list = kind === "weapon" ? owner.weapons : kind === "staff" ? owner.staves : owner.consumables;
+                return (list ?? []).map((it, i) => (
+                  <button
+                    key={`${kind}${i}`}
+                    type="button"
+                    onClick={() =>
+                      void tryDispatch({
+                        type: "trade",
+                        unit: selected.id,
+                        target: partner.id,
+                        kind,
+                        index: i,
+                        ...(back ? { back: true } : {}),
+                      })
+                    }
+                  >
+                    {(it as { name?: string }).name ?? kind}
+                    {owner.weapon === it && <em className="fc-eq" title="Equipped"> E</em>}
+                  </button>
+                ));
+              })}
+            </div>
+          );
+          return (
+            <div className="forecast trade no-arm" role="dialog" aria-label={labels.tradeCmd}>
+              {column(selected, false)}
+              <div className="fc-mid">
+                <span className="fc-vs" aria-hidden="true">⇄</span>
+                <button type="button" className="fc-go" onClick={() => setTradeWith(undefined)}>
+                  {labels.closeCmd}
+                </button>
+              </div>
+              {column(partner, true)}
+            </div>
+          );
+        })()}
 
       {editing && (
         <div className="edit-bar" role="toolbar" aria-label={labels.editCmd}>

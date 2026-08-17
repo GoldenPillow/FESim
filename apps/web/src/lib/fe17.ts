@@ -610,6 +610,8 @@ export interface BoardProps {
     staffCmd: string;
     itemCmd: string;
     engageCmd: string;
+    tradeCmd: string;
+    closeCmd: string;
     turnPhase: string;
     turnWord: string;
     victory: string;
@@ -823,6 +825,8 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
     engageCmd: t.engageCmd,
+    tradeCmd: t.tradeCmd,
+    closeCmd: t.closeCmd,
     turnPhase: t.turnPhase,
     turnWord: t.turnWord,
     victory: t.victory,

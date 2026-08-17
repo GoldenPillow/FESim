@@ -146,7 +146,12 @@ export type BattleAction =
   | { type: "item"; unit: string; item?: number }
   /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
   | { type: "dance"; unit: string; target: string }
-  /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). */
+  /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
   | { type: "engage"; unit: string }
+  /**
+   * 교환 — 인접 아군과 소지품 1점 이동(행동 무소모라 연속 액션 = 인게임 다중 이동).
+   * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.
+   */
+  | { type: "trade"; unit: string; target: string; kind: "weapon" | "staff" | "consumable"; index: number; back?: boolean }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

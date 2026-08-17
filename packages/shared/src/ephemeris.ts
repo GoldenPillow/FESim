@@ -76,7 +76,7 @@ function assert(ok: unknown, why: string): asserts ok {
 }
 
 const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
-const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "wait", "endPhase"];
+const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "trade", "wait", "endPhase"];
 
 /**
  * 남이 만든 파일이 들어오는 신뢰 경계 — 뼈대만 검사한다.

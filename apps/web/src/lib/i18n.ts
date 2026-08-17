@@ -45,6 +45,8 @@ interface Strings {
   staffCmd: string;
   itemCmd: string;
   engageCmd: string;
+  tradeCmd: string;
+  closeCmd: string;
   turnPhase: string;
   turnWord: string;
   victory: string;
@@ -127,6 +129,8 @@ export const UI: Record<Locale, Strings> = {
     staffCmd: "Staff",
     itemCmd: "Item",
     engageCmd: "Engage",
+    tradeCmd: "Trade",
+    closeCmd: "Close",
     turnPhase: "Phase",
     turnWord: "Turn",
     victory: "Victory!",
@@ -214,6 +218,8 @@ export const UI: Record<Locale, Strings> = {
     staffCmd: "지팡이",
     itemCmd: "아이템",
     engageCmd: "인게이지",
+    tradeCmd: "교환",
+    closeCmd: "닫기",
     turnPhase: "페이즈",
     turnWord: "턴",
     victory: "승리!",

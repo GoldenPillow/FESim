@@ -160,8 +160,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.trade",
     label: { en: "Trade and convoy", ko: "교환·수송대" },
-    status: "absent",
-    evidence: "커맨드 클래스 확정 = TradeMenuItem(il2cpp/MAP_COMMANDS §1-1) — 인접 유닛 소지품 이동. 수송대는 캠페인층(MP5)",
+    status: "implemented",
+    evidence:
+      "교환 배선(2026-08-18, trade.test.ts) — 1액션 = 1점 이동(행동 무소모 = 연속 액션이 다중 이동과 등가)·인접 1·장비 재계산·moved 소진·traded 창 플래그(인게이지 발동 봉쇄). 계약 = 실기 판별(2026-08-18 사용자: 교환 후 제자리 행동·전투 가능 / 인게이지 후 교환 가능 / 교환 후 인게이지 불가) + TradeMenuItem(MAP_COMMANDS §1-1) · ☠수송대 = 캠페인층(MP5) · 미배선 소지품 종류(소재 등 비사용형)는 교환 목록 밖",
   },
   {
     id: "actions.interact",
