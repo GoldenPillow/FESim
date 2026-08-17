@@ -14,6 +14,7 @@ import {
   createReducer,
   emptyAiMemory,
   type BattleAction,
+  type BattleMap,
   type BattleWeapon,
   type GameState,
   type RandomSource,
@@ -79,7 +80,12 @@ interface ChapterUnit {
   ai?: Record<string, unknown>;
 }
 interface ChapterJson {
-  map: { width: number; height: number; terrain: string[][] };
+  map: {
+    width: number;
+    height: number;
+    terrain: string[][];
+    interactions?: { kind: string; x: number; y: number; iid?: string; pid?: string }[];
+  };
   groups: { name: string; units: ChapterUnit[] }[];
 }
 
@@ -89,11 +95,19 @@ const baseStats = { hp: 24, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, r
 function aiSnapshotOf(raw: Record<string, unknown> | undefined) {
   if (raw === undefined) return undefined;
   const routines: Record<string, unknown> = {};
-  for (const key of ["action", "mind", "attack", "move"]) {
-    const name = raw[key] as string | undefined;
-    if (name === undefined || routines[name] !== undefined) continue;
+  // 웹 chapterAiRoutines와 같은 계약 — ChangeSeq(Code 6)가 가리키는 루틴까지 전이 수집한다.
+  const queue = ["action", "mind", "attack", "move"]
+    .map((k) => raw[k] as string | undefined)
+    .filter((n): n is string => n !== undefined && n !== "");
+  while (queue.length > 0) {
+    const name = queue.pop()!;
+    if (routines[name] !== undefined) continue;
     const rows = aiTable[name];
-    if (rows !== undefined) routines[name] = rows;
+    if (rows === undefined) continue;
+    routines[name] = rows;
+    for (const row of rows) {
+      if (row.Code === 6 && typeof row.StrValue0 === "string" && row.StrValue0 !== "") queue.push(row.StrValue0);
+    }
   }
   return { ...raw, ...(Object.keys(routines).length > 0 ? { routines } : {}) } as UnitState["ai"];
 }
@@ -134,7 +148,16 @@ function loadChapter(cid: string): GameState {
     turn: 1,
     phase: 0,
     difficulty: "n",
-    map: { width, height, costs: { foot: costs }, terrain: json.map.terrain.map((line) => line.map(cellOf)) },
+    map: {
+      width,
+      height,
+      costs: { foot: costs },
+      terrain: json.map.terrain.map((line) => line.map(cellOf)),
+      // 조사 지점 — MI_Treasure·MV_Escape의 이동 목적지 입력(웹 initGame과 같은 계약).
+      ...(json.map.interactions !== undefined && json.map.interactions.length > 0
+        ? { interactions: json.map.interactions as BattleMap["interactions"] }
+        : {}),
+    },
     units,
     events: [],
   };
@@ -248,4 +271,52 @@ describe("적턴 자동 헤드리스 (m002·m003)", () => {
     }
     expect(closer).toBeGreaterThan(0); // 접근이 실제로 일어난다
   });
+  /**
+   * ★다턴 소크 — 단일 페이즈 프로브가 못 잡는 결함류를 잡는다.
+   * 왜 위험했나 = m001에서 **미등록 Lua 네이티브 1건이 endPhase를 영구 거부**해 적턴 자동이
+   * 페이즈를 영영 못 닫았는데, 화면·콘솔·결손 패널이 전부 침묵했다(2026-08-18).
+   * 이 게이트가 지키는 것 = (1) AI가 낸 액션을 reduce가 거부하지 않는다(합법성 표류 0)
+   * (2) 같은 국면 → 같은 결정으로 도는 무진행 루프가 없다 (3) endPhase가 항상 진행한다.
+   * 대표 챕터만 돈다(전 54챕터 소크는 45초 — 상시 게이트로는 과하다).
+   */
+  it("다턴 소크 — 액션 거부 0·무진행 루프 0·페이즈 진행 보장", () => {
+    const problems: string[] = [];
+    let acts = 0;
+    for (const cid of ["m001", "m006", "m020", "s015"]) {
+      let state: GameState = { ...loadChapter(cid), phase: 0 };
+      let memory = emptyAiMemory();
+      const ai = createAi(createCalculator(data));
+      for (let p = 0; p < 8 && state.outcome === undefined; p++) {
+        if (state.phase === 0) {
+          state = reduce(state, { type: "endPhase" }, battleRng);
+          continue;
+        }
+        for (let guard = 0; ; guard++) {
+          if (guard > 400) {
+            problems.push(`${cid} p${p} 무진행 루프`);
+            break;
+          }
+          const before = state;
+          const d = ai.next(state, stubbornRng, memory);
+          memory = d.memory;
+          if (d.actions.length === 0) break;
+          try {
+            for (const a of d.actions) {
+              state = reduce(state, a, battleRng);
+              acts += 1;
+            }
+          } catch (e) {
+            problems.push(`${cid} p${p} AI 액션 거부: ${String(e).slice(0, 80)}`);
+            break;
+          }
+          if (state === before && d.unit !== undefined) {
+            memory = { ...memory, skipped: { ...memory.skipped, [d.unit]: "무진행" } };
+          }
+        }
+        state = reduce(state, { type: "endPhase" }, battleRng);
+      }
+    }
+    expect(problems).toEqual([]);
+    expect(acts).toBeGreaterThan(50); // 실제로 돌았다는 증거
+  }, 60000);
 });

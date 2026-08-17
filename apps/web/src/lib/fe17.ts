@@ -7,6 +7,7 @@ import {
   type MoveType,
   type AiCommand,
   type AiSnapshot,
+  type MapInteraction,
   type SkillRow,
   type StatBlock,
 } from "@fesim/engine";
@@ -643,11 +644,22 @@ export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] 
  */
 export function chapterAiRoutines(units: readonly DisposUnit[]): Record<string, AiCommand[]> | undefined {
   const out: Record<string, AiCommand[]> = {};
+  const queue: string[] = [];
   for (const unit of units) {
     for (const name of [unit.ai?.action, unit.ai?.mind, unit.ai?.attack, unit.ai?.move]) {
-      if (name === undefined || name === "" || out[name] !== undefined) continue;
-      const rows = aiRoutines[name];
-      if (rows !== undefined) out[name] = rows;
+      if (name !== undefined && name !== "") queue.push(name);
+    }
+  }
+  // ★전이 수집 — `AI_ChangeSeq`(Code 6)가 갈아끼우는 루틴은 dispos 슬롯에 안 적혀 있다.
+  //   그 본문까지 실어야 치환 후 사고가 "루틴 미탑재" 결손으로 죽지 않는다.
+  while (queue.length > 0) {
+    const name = queue.pop()!;
+    if (out[name] !== undefined) continue;
+    const rows = aiRoutines[name];
+    if (rows === undefined) continue;
+    out[name] = rows;
+    for (const row of rows) {
+      if (row.Code === 6 && typeof row.StrValue0 === "string" && row.StrValue0 !== "") queue.push(row.StrValue0);
     }
   }
   return Object.keys(out).length > 0 ? out : undefined;
@@ -825,7 +837,11 @@ export interface BoardProps {
   /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
   overlays?: BoardOverlayProp[];
   /** 상호작용 지점(Lua 추출 — 상자·민가·문·이탈점·파괴 트리거) — 표시 마커 전용(실행 = MP2 이월). */
-  interactions?: { kind: string; x: number; y: number; x2?: number; y2?: number; name?: string }[];
+  /**
+   * 조사 지점(상자·민가·문·이탈점·방어영역·파괴 트리거) — 표시 마커이자 **AI 이동 목적지의 입력**.
+   * `kind`는 엔진 `MapInteraction`과 같은 열거를 쓴다(사영 계약 일치 — projectUnit 관례).
+   */
+  interactions?: (MapInteraction & { name?: string })[];
   units: BoardUnitProp[];
   /**
    * 이 챕터가 쓰는 ai.xml 루틴만 모은 표 — ★유닛마다 복사하지 않고 보드에 **한 번만** 싣는다.
@@ -1285,7 +1301,9 @@ export function boardProps(
         y: it.y,
         ...(it.x2 !== undefined ? { x2: it.x2 } : {}),
         ...(it.y2 !== undefined ? { y2: it.y2 } : {}),
-        ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid) } : {}),
+        ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid), iid: it.iid } : {}),
+        // ★이탈점의 대상 인물 — S015처럼 특정 유닛 전용 이탈점이 있다(AI MV_Escape가 소비).
+        ...(it.pid !== undefined ? { pid: it.pid } : {}),
       }));
       return {
         ...(structures.length > 0 ? { structures } : {}),

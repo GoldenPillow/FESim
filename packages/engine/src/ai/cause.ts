@@ -115,6 +115,38 @@ export function attackAreaFrom(
   return attackRange(reach, min, max, state.map.width, state.map.height);
 }
 
+/**
+ * 방해(지팡이) 사정권 — `IsEnemyInsideInterferenceArea`(0x19457C0)가 도색하는 이미지.
+ * ★`UnitAIMoveXY(deploy, unit, x, z, movePower, flag = 0, weaponFlag = InterferenceRod|IgnoreSilent)`
+ * (0x1945924 `mov x6, #0x4000000` + `movk x6, #0x10, lsl #32`) — 즉 **이동범위를 방해 지팡이 사거리로 확장**한다.
+ * ☠방해 지팡이(RodType 3)가 없으면 공격 이미지가 비어 **항상 false**다(회복 계열의 HasHealRod 게이트와 같은 효과).
+ */
+export function interferenceAreaFrom(
+  state: GameState,
+  u: UnitState,
+  originX: number,
+  originY: number,
+  factor: number,
+): { x: number; y: number }[] {
+  const rods = (u.staves ?? []).filter((s) => s.rodType === 3 && s.uses > 0);
+  if (rods.length === 0 || state.map.costs[u.moveType] === undefined) return [];
+  let min = Infinity;
+  let max = 0;
+  for (const r of rods) {
+    min = Math.min(min, r.rangeMin);
+    max = Math.max(max, r.rangeMax);
+  }
+  const reach = movementRange({
+    width: state.map.width,
+    height: state.map.height,
+    movePoints: movePowerOf(movePower(u), factor),
+    start: { x: originX, y: originY },
+    costAt: makeCostAt(state.map, state.structures, u.moveType, state.terrainPatches),
+    ...movePredicates(state.map, state.units, u),
+  });
+  return attackRange(reach, min, max, state.map.width, state.map.height);
+}
+
 /** 이 유닛이 `factor`% 이동력으로 닿는 칸 + 무기 사거리 = 사정권(현 위치 기준). */
 export const threatTiles = (state: GameState, u: UnitState, factor: number): { x: number; y: number }[] =>
   attackAreaFrom(state, u, u.x, u.y, factor);
@@ -220,6 +252,25 @@ export function evaluateCause(
         opcode === AC.attackRange ? parsePos(ctx.args[1]) ?? { x: ctx.unit.x, y: ctx.unit.y } : { x: ctx.unit.x, y: ctx.unit.y };
       return isEnemyInsideAttackAreaForAC(
         ctx, opcode, origin.x, origin.y, factorOf(v0), 0, false, new Map(), ctx.args[1],
+      );
+    }
+    case AC.interferenceRange:
+    case AC.interferenceRangeExcludePerson: {
+      // `ActiveCauseInterferenceRange`(0x19456A0)는 AttackRange 계열과 명령 단위까지 동형이고,
+      // 꼬리만 `IsEnemyInsideInterferenceArea`로 간다(C_cause §AC_InterferenceRange).
+      // ★람다 판정(0x294BAC0) = IsAttackPermission → (command 15면 인물 제외) → 대상 셀이 도색 이미지 안인가.
+      const isPerson = opcode === AC.interferenceRangeExcludePerson;
+      const origin = isPerson ? { x: ctx.unit.x, y: ctx.unit.y } : parsePos(ctx.args[1]) ?? { x: ctx.unit.x, y: ctx.unit.y };
+      const area = new Set(
+        interferenceAreaFrom(ctx.state, ctx.unit, origin.x, origin.y, factorOf(v0)).map((t) =>
+          cellKey(ctx.state, t.x, t.y),
+        ),
+      );
+      if (area.size === 0) return false;
+      const excludePid = ctx.args[1];
+      return foesOf(ctx.state, ctx.unit).some(
+        (f) => !(isPerson && excludePid !== undefined && f.pid === excludePid)
+          && area.has(cellKey(ctx.state, f.x, f.y)),
       );
     }
     case AC.bandRange:

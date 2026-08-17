@@ -26,8 +26,11 @@ import {
   eachEnemyUnit,
   evaluateCause,
   guardTo,
+  isEscapePosition,
   killScoreNormalize,
   mindTorch,
+  mindTreasure,
+  moveEscape,
   moveIdle,
   movePosition,
   movePowerOf,
@@ -35,6 +38,8 @@ import {
   type HandlerContext,
   parseMoveLimit,
   parsePos,
+  processing,
+  type ThinkRuntime,
   rodHealTo,
   terrainScoreAt,
   type BattleMap,
@@ -308,8 +313,7 @@ describe("표적 필터 — IsAttackPermissionOnlyCommand (H_handlers §1-5)", (
     expect(targetFilter(ACT.attackForce, ["FORCE_ENEMY"], t({ force: 0 }))).toBe(false);
   });
 
-  it("☠판정에 필요한 사영이 없는 옵코드는 undefined = 정직 결손 (AT_Hero·AT_Job)", () => {
-    expect(targetFilter(ACT.attackHero, [], t({}))).toBeUndefined();
+  it("☠판정에 필요한 사영이 없는 옵코드는 undefined = 정직 결손 (AT_Job — Job 미사영)", () => {
     expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({}))).toBeUndefined();
   });
 });
@@ -562,5 +566,191 @@ describe("RD_Heal 동작 — 다친 아군을 회복한다", () => {
     const acts = r.kind === "decide" ? r.actions : [];
     expect(acts.some((a) => a.type === "move")).toBe(false);
     expect(acts.find((a) => a.type === "staff")).toMatchObject({ target: "near" });
+  });
+});
+
+describe("MV_Escape · MI_Treasure — 조사 지점 이동 축 (I_handlers2 §5·§6)", () => {
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const board = (interactions: BattleMap["interactions"]): BattleMap => ({ ...flatMap(14, 14), interactions });
+  const runner = (id: string, x: number, y: number) =>
+    unit({ id, force: 1, x, y, movePoints: 3, weapon: sword, weapons: [sword] });
+  const ctx = (map: BattleMap, units: UnitState[], args: string[] = []): HandlerContext =>
+    ({
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!, args, rng: { next: () => 1 }, think: 8, allowIdle: false, targeted: {},
+    }) as unknown as HandlerContext;
+
+  it("★MV_Escape — 이탈 지점 쪽으로 이동한다", () => {
+    // 14x14 → 플레이 영역 [1,12]. 내부(6,6)에서 출발하면 테두리로 향한다.
+    const map = board(undefined);
+    const me = runner("me", 6, 6);
+    const r = moveEscape(ctx(map, [me]));
+    expect(r.kind).toBe("decide");
+    const acts = r.kind === "decide" ? r.actions : [];
+    expect(acts.some((a) => a.type === "move")).toBe(true);
+  });
+
+  it("★조사 지점이 없어도 **플레이 영역 테두리**가 이탈 지점이라 결손이 아니다", () => {
+    // ☠종전에는 "이탈점 미사영" 결손이었다 — PlayArea가 맵에서 바깥 1칸을 뺀 사각형임이
+    //   판독으로 확정되면서(MapImage$$SetSize 0x1DE2BA0) 테두리 갈래를 배선할 수 있게 됐다.
+    expect(moveEscape(ctx(board(undefined), [runner("me", 6, 6)])).kind).toBe("decide");
+  });
+
+  it("★대상 인물이 걸린 이탈점은 **다른 유닛이 그 칸을 쓰지 못한다** (S015 반지 소지 적)", () => {
+    const map = board([{ kind: "escape", x: 6, y: 6, pid: "PID_반지" }]);
+    // 제자리(6,6)가 반지 전용 이탈점이면 다른 유닛에겐 후보가 아니다 → 테두리로 나간다.
+    const other = unit({ id: "me", force: 1, x: 6, y: 6, movePoints: 3, pid: "PID_다른놈" });
+    const r = moveEscape(ctx(map, [other]));
+    expect(r.kind).toBe("decide");
+    expect((r.kind === "decide" ? r.actions : []).some((a) => a.type === "move")).toBe(true);
+    // 반지 소지 적은 제자리가 곧 이탈점이라 움직일 필요가 없다.
+    const ringer = unit({ id: "me", force: 1, x: 6, y: 6, movePoints: 3, pid: "PID_반지" });
+    expect(moveEscape(ctx(map, [ringer])).kind).toBe("none");
+  });
+
+  it("★MI_Treasure — 상자 쪽으로 이동하되 개방은 결손으로 남는다", () => {
+    const map = board([{ kind: "chest", x: 8, y: 1, iid: "IID_은의검" }]);
+    const r = mindTreasure(ctx(map, [runner("me", 1, 1)]));
+    expect(r.kind).toBe("decide");
+    const acts = r.kind === "decide" ? r.actions : [];
+    expect(acts.some((a) => a.type === "move")).toBe(true);
+  });
+
+  it("상자가 없으면 결손", () => {
+    expect(mindTreasure(ctx(board([{ kind: "escape", x: 8, y: 1 }]), [runner("me", 1, 1)])).kind).toBe("deficit");
+  });
+});
+
+describe("서브 AI 치환 — AI_ChangeSeq/ChangeValue/Retry (AI_ENGINE §4-4)", () => {
+  // 실루틴 `AI_MV_TreasureToEscape`와 같은 형태: 활성(1) 상태에서 조건이 Trans=2를 스테이징하고,
+  // 같은 패스에서 ChangeSeq가 **다른 슬롯**을 갈아끼운 뒤 Retry가 사고를 재시작한다.
+  const routines = {
+    SWAP: [
+      { Active: 1, Code: 1, Mind: 0, StrValue0: "V_Default", StrValue1: "V_Default", Trans: 2 },
+      { Active: 1, Code: 6, Mind: 1, StrValue0: "AI_SWAPPED", StrValue1: "V_Default", Trans: -128 },
+      { Active: 1, Code: 7, Mind: 1, StrValue0: "0", StrValue1: "V_Default", Trans: -128 },
+      { Active: 1, Code: 4, Mind: 0, StrValue0: "V_Default", StrValue1: "V_Default", Trans: -128 },
+      { Active: 0, Code: 0, Mind: 0, StrValue0: "V_Default", StrValue1: "V_Default", Trans: -128 },
+    ],
+    AI_SWAPPED: [
+      { Active: 2, Code: 3, Mind: 81, StrValue0: "V_Default", StrValue1: "V_Default", Trans: -128 },
+      { Active: 0, Code: 0, Mind: 0, StrValue0: "V_Default", StrValue1: "V_Default", Trans: -128 },
+    ],
+    NOOP: [{ Active: 0, Code: 0, Mind: 0, StrValue0: "V_Default", StrValue1: "V_Default", Trans: -128 }],
+  };
+  const ai = (over: Record<string, unknown> = {}) =>
+    ({ action: "NOOP", mind: "NOOP", attack: "NOOP", move: "SWAP", routines, ...over }) as never;
+
+  it("★ChangeSeq는 **다른 슬롯**의 루틴을 갈아끼우고 Retry가 Cause부터 재시작한다", () => {
+    const runtime: ThinkRuntime = { active: 1 };
+    const seen: number[] = [];
+    const out = processing({
+      ai: ai(),
+      runtime,
+      think: 8,
+      handlers: {
+        cause: () => true,
+        action: (opcode) => {
+          seen.push(opcode);
+          return { kind: "none" };
+        },
+      },
+    });
+    expect(out.deficits).toEqual([]);
+    expect(runtime.active).toBe(2); // 조건 성공의 Trans=2가 Update에서 반영됐다
+    expect(runtime.sequences).toEqual({ 1: "AI_SWAPPED" }); // Mind 슬롯이 갈렸다
+    expect(seen).toContain(81); // 재시작 후 갈아끼운 루틴이 실제로 돌았다
+  });
+
+  it("☠갈아끼운 루틴 본문이 스냅숏에 없으면 정직 결손이 된다", () => {
+    const { AI_SWAPPED: _drop, ...rest } = routines;
+    const out = processing({
+      ai: ai({ routines: rest }),
+      runtime: { active: 1 },
+      think: 8,
+      handlers: { cause: () => true, action: () => ({ kind: "none" }) },
+    });
+    expect(out.deficits.some((d) => d.includes("루틴 미탑재"))).toBe(true);
+  });
+});
+
+describe("AC_InterferenceRange(14/15) — 방해 지팡이 사정권 (IsEnemyInsideInterferenceArea 0x19457C0)", () => {
+  const map = flatMap(14, 14);
+  const rod = { power: 0, rangeMin: 1, rangeMax: 3, uses: 5, rodType: 3, rodExp: 0 };
+  const caster = (over: Partial<UnitState> = {}) =>
+    unit({ id: "me", force: 1, x: 2, y: 2, movePoints: 2, staves: [rod], ...over });
+  const foe = (x: number, y: number, pid?: string) =>
+    unit({ id: "f", force: 0, x, y, ...(pid !== undefined ? { pid } : {}) });
+  const ask = (op: number, v0: number, units: UnitState[], args: string[] = []) =>
+    evaluateCause(op, v0, undefined, {
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!,
+      args,
+    });
+
+  it("★이동범위 + 방해 지팡이 사거리 안의 적을 잡는다", () => {
+    // 이동 2 + 지팡이 사거리 3 → 최대 5칸
+    expect(ask(AC.interferenceRange, 100, [caster(), foe(2, 7)])).toBe(true);
+    expect(ask(AC.interferenceRange, 100, [caster(), foe(2, 9)])).toBe(false);
+  });
+
+  it("☠방해 지팡이가 없으면 사정권이 비어 항상 false", () => {
+    expect(ask(AC.interferenceRange, 100, [caster({ staves: [] }), foe(2, 3)])).toBe(false);
+  });
+
+  it("회복 지팡이(rodType 2)는 방해 사정권을 만들지 않는다", () => {
+    const heal = { ...rod, rodType: 2 };
+    expect(ask(AC.interferenceRange, 100, [caster({ staves: [heal] }), foe(2, 3)])).toBe(false);
+  });
+
+  it("ExcludePerson(15)은 지정 인물을 제외한다", () => {
+    expect(ask(AC.interferenceRangeExcludePerson, 100, [caster(), foe(2, 4, "PID_제외")], ["100", "PID_제외"]))
+      .toBe(false);
+    expect(ask(AC.interferenceRangeExcludePerson, 100, [caster(), foe(2, 4, "PID_다른")], ["100", "PID_제외"]))
+      .toBe(true);
+  });
+});
+
+describe("AT_Hero(3) — 주인공 지정 (PersonData.IsHero 0x1F2A0B0)", () => {
+  const t = (over: Partial<UnitState>) => unit({ id: "t", force: 0, x: 0, y: 0, ...over });
+  const hero = [{ Sid: "SID_主人公" }];
+
+  it("★'보스'가 아니라 **주인공 스킬(SID_主人公) 보유**가 판별식이다", () => {
+    expect(targetFilter(ACT.attackHero, [], t({ skills: hero }))).toBe(true);
+    expect(targetFilter(ACT.attackHero, [], t({ skills: [{ Sid: "SID_必殺０" }] }))).toBe(false);
+    expect(targetFilter(ACT.attackHero, [], t({}))).toBe(false);
+  });
+
+  it("☠보스 플래그와 무관하다 — boss여도 주인공 스킬이 없으면 대상 아님", () => {
+    expect(targetFilter(ACT.attackHero, [], t({ boss: true }))).toBe(false);
+  });
+});
+
+describe("이탈 지점 판정 (IsEscapePosition 0x195FDF0)", () => {
+  const mapOf = (w: number, h: number, interactions?: BattleMap["interactions"]): BattleMap => ({
+    width: w,
+    height: h,
+    costs: { foot: Array.from({ length: h }, () => Array.from({ length: w }, () => 1)) },
+    ...(interactions !== undefined ? { interactions } : {}),
+  });
+
+  it("★플레이 영역 = 맵에서 바깥 1칸 테두리를 뺀 사각형 — 그 테두리가 이탈 지점이다", () => {
+    const map = mapOf(12, 16); // 플레이 영역 = [1,10] x [1,14]
+    expect(isEscapePosition(map, 1, 5, "foot")).toBe(true); // 왼쪽 테두리
+    expect(isEscapePosition(map, 10, 5, "foot")).toBe(true); // 오른쪽 테두리
+    expect(isEscapePosition(map, 5, 1, "foot")).toBe(true);
+    expect(isEscapePosition(map, 5, 14, "foot")).toBe(true);
+    expect(isEscapePosition(map, 5, 5, "foot")).toBe(false); // 내부
+  });
+
+  it("☠바깥 한 칸이 통행 불가면 이탈 지점이 아니다", () => {
+    const map = mapOf(12, 16);
+    map.costs.foot![5]![0] = 255; // (0,5) 진입 불가
+    expect(isEscapePosition(map, 1, 5, "foot")).toBe(false);
+  });
+
+  it("조사 지점(escape)은 위치와 무관하게 이탈 지점이다", () => {
+    const map = mapOf(12, 16, [{ kind: "escape", x: 5, y: 5 }]);
+    expect(isEscapePosition(map, 5, 5, "foot")).toBe(true);
   });
 });

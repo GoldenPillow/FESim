@@ -311,11 +311,31 @@ export function terrainPatchAt(
   return patches?.find((p) => p.x === x && p.y === y);
 }
 
+/**
+ * 맵 조사 지점 1건(`MapInspector` 사영, 정적 — overlays 관례).
+ * ☠**AI 전용 입력이 아니다** — 원기에서 상자·이탈점·민가는 전부 같은 `MapInspector.Kind` 열거다
+ * (Tbox=5 · Door=6 · Torch=7 · Visit=8 · Escape=9). AI의 `MI_Treasure`·`MV_Escape`가 이것을 소비한다.
+ * ⚠**표시·목적지 축만** — 상자 개방·이탈 소멸 같은 **실행**은 이 층이 아니다(장부 ai.action-handlers).
+ */
+export interface MapInteraction {
+  kind: "chest" | "visit" | "door" | "escape" | "defendArea" | "destroy";
+  x: number;
+  y: number;
+  x2?: number;
+  y2?: number;
+  /** 상자 내용물(chest) — 개방 실행이 미배선이라 현재는 소비처가 없다. */
+  iid?: string;
+  /** 이탈점에 걸린 대상 인물(escape) — S015의 반지 소지 적처럼 특정 유닛 전용 이탈점이 있다. */
+  pid?: string;
+}
+
 export interface BattleMap {
   width: number;
   height: number;
   costs: Partial<Record<MoveType, number[][]>>;
   terrain?: TerrainCell[][];
+  /** 조사 지점(상자·이탈점 등) — 정적 사영. AI 이동 목적지의 입력. */
+  interactions?: MapInteraction[];
   /** 지속 오버레이 초기 상태(정적) — 런타임 MapOverlapSet 생성은 이월(장부 turn.map-gimmicks). */
   overlays?: OverlaySpot[];
   /**

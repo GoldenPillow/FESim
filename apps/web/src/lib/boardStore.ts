@@ -193,6 +193,10 @@ export function initGame(
           };
         }),
       ),
+      // 조사 지점 — AI 이동 목적지(MI_Treasure·MV_Escape)의 입력. 표시용 사영과 같은 원천을 쓴다.
+      ...(props.interactions !== undefined && props.interactions.length > 0
+        ? { interactions: props.interactions }
+        : {}),
       ...(props.overlays !== undefined && props.overlays.length > 0
         ? {
             overlays: props.overlays.map((o) => ({

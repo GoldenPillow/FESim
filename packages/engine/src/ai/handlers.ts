@@ -9,17 +9,19 @@ import {
   allianceOf,
   effectiveWeapons,
   canChainGuard,
+  effectiveSkills,
   makeCostAt,
   staffHealAmount,
   movePower,
   movePredicates,
   moveBudgetOn,
   type BattleAction,
+  type BattleMap,
   type GameState,
   type RandomSource,
   type UnitState,
 } from "../battle.js";
-import { attackRange, movementRange } from "../range.js";
+import { attackRange, movementRange, type MoveType } from "../range.js";
 import {
   aiIsRandom,
   betterAttack,
@@ -95,8 +97,13 @@ export function targetFilter(opcode: number, args: readonly string[], target: Un
       const want = FORCE_TOKENS[args[0] ?? ""];
       return want === undefined ? undefined : target.force === want;
     }
+    case ACT.attackHero:
+      // ★`PersonData$$IsHero`(0x1F2A0B0) = `CommonSkills`에 `SkillData.s_HeroSkill`이 서 있는가이고,
+      //   그 정적 필드는 `OnCompletedEnd`(0x248D3F8)에서 **`SID_主人公`**로 채워진다.
+      //   ⇒ "보스"가 아니라 **주인공 지정**이다(전 1523인물 중 PID_リュール 1건).
+      return effectiveSkills(target)?.some((sk) => sk.Sid === "SID_主人公") === true;
     default:
-      // AT_Hero(3)는 PersonData.IsHero, AT_Job(7/8)은 Job 사영이 필요한데 UnitState에 없다.
+      // AT_Job(7/8)은 Job 사영이 UnitState에 없다.
       return undefined;
   }
 }
@@ -480,6 +487,157 @@ export function movePosition(ctx: HandlerContext): ActionResult {
     actions: [
       { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
       { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/** 국면의 조사 지점 중 종별 일치분. */
+const interactionsOf = (ctx: HandlerContext, kind: string): { x: number; y: number; pid?: string }[] =>
+  (ctx.state.map.interactions ?? []).filter((i) => i.kind === kind);
+
+/**
+ * `AIThink$$ActionMoveEscape`(0x1950C40) — `MV_Escape(96)`/`MV_EscapeSlow`.
+ *
+ * 판독(I_handlers2 §5): A버퍼 = movePower 100 이동 이미지, 후보는 `IsEscapePosition`(0x195FDF0)인 칸,
+ * 점수 `100 - costA` 최대(= 가장 싸게 닿는 이탈점), 동점 코인플립. 끝은
+ * `MoveTo(tx, tz, flag = Through|Break|Door(0x13))`.
+ * ★**도착해도 이 핸들러는 유닛을 제거하지 않는다**(488명령 전수에 제거 계열 호출 없음) —
+ * 이탈 소멸은 별도 계층이므로 **이동 축만 배선해도 오재현이 아니다**.
+ *
+ * ☠`IsEscapePosition`의 두 갈래 중 **"플레이 영역 테두리" 갈래는 미배선**이다 —
+ * 엔진에 PlayArea 사각형 사영이 없어(맵 경계와 다르다) 지어낼 수 없다.
+ * 조사 지점(`MapInspectors.IsEnable(Kind.Escape)`) 갈래만 소비하고, 지점이 아예 없으면 정직 결손으로 올린다.
+ */
+export function moveEscape(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  // 이탈점에 인물이 걸려 있으면 그 유닛 전용이다(S015 반지 소지 적).
+  const claimed = (ctx.state.map.interactions ?? []).filter(
+    (i) => i.kind === "escape" && i.pid !== undefined && i.pid !== actor.pid,
+  );
+  const isClaimedByOther = (x: number, y: number): boolean => claimed.some((c) => c.x === x && c.y === y);
+  const image = moveImageOf(ctx.state, actor, -1); // 목표 선정은 맵 전역 도달성으로
+  const spots: { x: number; y: number }[] = [];
+  for (const k of image.keys()) {
+    const x = k % ctx.state.map.width;
+    const y = Math.floor(k / ctx.state.map.width);
+    if (!isEscapePosition(ctx.state.map, x, y, actor.moveType)) continue;
+    if (isClaimedByOther(x, y)) continue;
+    spots.push({ x, y });
+  }
+  if (spots.length === 0) return NONE;
+  return moveToward(ctx, spots, MOVE_FLAG.through | MOVE_FLAG.break | MOVE_FLAG.door);
+}
+
+
+/**
+ * `AIThink$$ActionMindTreasure`(0x194AC70) — `MI_Treasure(61)`.
+ *
+ * 판독(I_handlers2 §6): `MapFor.EachPoke(Kind.Tbox(5))` 열거 → 도달 가능·칸 비어 있음 필터 →
+ * 점수 `100 - costA` 최대(동점 코인플립 없음) → `MapMind.Type = TreasureBox(23)`, 목적지 = 이동칸.
+ *
+ * ☠**이동 축만 배선한다** — 상자 개방 실행(내용물 취득·상자 소멸)은 국면에 상자 상태가 없어 미배선이다.
+ * ⚠그 결과 도달한 유닛은 이후 턴에 제자리에서 아무것도 하지 않는다(MoveTo가 목표 칸에서 None을 내므로
+ * 대기로 흘러간다). 원기라면 열고 떠났을 것이므로 **이 고착은 알려진 오재현**이다(장부 ai.action-handlers).
+ */
+export function mindTreasure(ctx: HandlerContext): ActionResult {
+  const chests = interactionsOf(ctx, "chest");
+  if (chests.length === 0) return { kind: "deficit", reason: "상자 미사영: chest 조사 지점 없음" };
+  return moveToward(ctx, chests, 0);
+}
+
+/** 후보 지점들 중 **이동 코스트가 가장 싼** 곳으로 향한다(`100 - costA` 최대와 동치). */
+function moveToward(
+  ctx: HandlerContext,
+  spots: readonly { x: number; y: number }[],
+  flag: number,
+): ActionResult {
+  const image = moveImageOf(ctx.state, ctx.unit, -1); // movePower 100 = 맵 전역 도달성
+  const occupied = new Set(
+    ctx.state.units.filter((u) => !u.dead && u.id !== ctx.unit.id).map((u) => key(ctx.state, u.x, u.y)),
+  );
+  let goal: { x: number; y: number; cost: number } | undefined;
+  for (const s of spots) {
+    const k = key(ctx.state, s.x, s.y);
+    const cost = image.get(k);
+    if (cost === undefined || occupied.has(k)) continue;
+    if (goal === undefined || cost < goal.cost) goal = { x: s.x, y: s.y, cost };
+  }
+  if (goal === undefined) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, goal.x, goal.y, flag, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/**
+ * `IsEscapePosition`(0x195FDF0) — 이탈 가능 칸.
+ *
+ * ★**플레이 영역은 맵 전체가 아니라 "맵에서 바깥 1칸 테두리를 뺀 사각형"**이다.
+ * 유일한 기입자 `MapImage$$SetSize(w, h)`(0x1DE2BA0)가 `PlayAreaX = PlayAreaZ = 1`,
+ * `PlayAreaX2 = w - 2`, `PlayAreaZ2 = h - 2`를 **상수로** 박고, 호출자는
+ * `MapTerrain$$UpdateMapImage`(0x201C400)가 `m_Width`/`m_Height`만 넘기는 곳 하나뿐이다
+ * (☠`m_X`/`m_Z`는 쓰이지 않는다 — "플레이 영역 = 맵 사각형"이라는 가설은 반증됐다).
+ * 실데이터 대조: 전 54챕터 6090유닛 중 6088이 이 사각형 안이고, 예외 2건은 (0,0) 대기 유닛이다.
+ *
+ * 판정 = **플레이 영역 테두리 칸이면서 바깥 한 칸이 통행 가능**, 아니면 **Escape 조사 지점**.
+ */
+export function isEscapePosition(map: BattleMap, x: number, y: number, moveType: MoveType): boolean {
+  if ((map.interactions ?? []).some((i) => i.kind === "escape" && i.x === x && i.y === y)) return true;
+  const x1 = 1;
+  const y1 = 1;
+  const x2 = map.width - 2;
+  const y2 = map.height - 2;
+  if (x < x1 || y < y1 || x > x2 || y > y2) return false;
+  const outside =
+    x === x1 ? { x: 0, y } : x === x2 ? { x: map.width - 1, y } : y === y1 ? { x, y: 0 } : y === y2 ? { x, y: map.height - 1 } : undefined;
+  if (outside === undefined) return false;
+  // `IsNoMove` = 이동타입 진입 코스트가 0xFE 초과.
+  return (map.costs[moveType]?.[outside.y]?.[outside.x] ?? 255) <= 0xfe;
+}
+
+/**
+ * `AIThink$$ActionMindEscape`(0x194B390) — `MI_Escape(63)` / `MI_EscapeSlow(64)`.
+ *
+ * 판독(K_interference_escape §P4): 게이트는 `BmapSize > 1`(대형 유닛) 하나뿐이고,
+ * `MapFor.EachPlayArea` + `IsEscapePosition`으로 후보를 모아 **`100 - costA` 최대**를 고른다
+ * (☠동점 코인플립이 **없다** — 나중 후보가 이긴다). 칸에 유닛이 있으면 제외.
+ * 커밋은 `MapMind.X/Z` + **`MapMind.Type = Escape(19)`**이고 `MoveTo`를 부르지 않는다.
+ *
+ * ☠**이탈 실행은 이 핸들러가 하지 않는다** — `ProcEscape.OnDispose`(0x1E3A130)가
+ * `SetStatus(PureHide|EscapeHere)`로 **은닉+표식**할 뿐이고(사망 아님), 소지품은 유닛과 함께 사라진다.
+ * 관측 훅은 `EventSequence.Poke(Kind.Escape)`라 **Lua 층**이다(S015의 "반지 소지 적 이탈 = 패배"가 그것).
+ * ⇒ 엔진에는 은닉 상태가 없어 **이동만 배선**한다. 도달한 적이 사라지지 않는 것은 **알려진 오재현**이다.
+ */
+export function mindEscape(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  // ★`UnitAIMove(movePower = -1)`은 "무제한"이 아니라 **유닛 실이동력**이다(H_handlers §1-1).
+  //   맵 전역 이미지를 쓰면 이번 턴에 못 닿는 칸을 목적지로 골라 reduce가 이동을 거부한다
+  //   (다턴 소크 게이트가 s015에서 실제로 잡았다 — "불법 이동: (14,27)는 이동 범위 밖").
+  const image = moveImageOf(ctx.state, actor);
+  const occupied = new Set(
+    ctx.state.units.filter((u) => !u.dead && u.id !== actor.id).map((u) => key(ctx.state, u.x, u.y)),
+  );
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const [k, cost] of image) {
+    if (occupied.has(k)) continue;
+    const x = k % ctx.state.map.width;
+    const y = Math.floor(k / ctx.state.map.width);
+    if (!isEscapePosition(ctx.state.map, x, y, actor.moveType)) continue;
+    // 점수 = 100 - costA 최대 ⇒ 코스트 최소. 동점은 **나중 후보가 이긴다**(코인플립 없음).
+    if (best === undefined || cost <= best.cost) best = { x, y, cost };
+  }
+  if (best === undefined) return NONE;
+  if (best.x === actor.x && best.y === actor.y) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: actor.id, x: best.x, y: best.y },
+      { type: "wait", unit: actor.id },
     ],
   };
 }
