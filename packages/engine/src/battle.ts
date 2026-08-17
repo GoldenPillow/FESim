@@ -48,6 +48,13 @@ export interface UnitState {
   aiScript?: (string | number | boolean)[][];
   /** UNIT_STATUS_* 비트(common.lua 96~104) — 이벤트가 세우고 지운다. 소비 = MP4(이동 금지·출격 로스터). */
   flags?: number;
+  /**
+   * HP 스톡(dispos HpStockCount +0xB0) — 다단 보스의 남은 부활 횟수.
+   * ☠**사영·이벤트만**이다: 부활 거동(HP 0 → 스톡 소모 부활)은 미배선 — 소비 경로는 확정됐으나
+   * (TryAddDeadScene 0x2472D20 → CanRevive 0x1A4F860 → Revive 0x1A4F8B0) 부활 후 HP·상태가 미판독이다.
+   * 장부 combat.hp-stock. 0이면 필드 자체를 두지 않는다.
+   */
+  hpStock?: number;
   force: number;
   x: number;
   y: number;

@@ -613,6 +613,7 @@ export default function BoardIsland(props: BoardProps) {
           case "equip":
           case "terrainSet":
           case "gain":
+          case "hpStock":
           case "putOff":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }

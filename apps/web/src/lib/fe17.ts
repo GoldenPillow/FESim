@@ -756,6 +756,8 @@ export interface BoardUnitProp {
   staves?: StaffItem[];
   /** 사용형 아이템 전체(소지품 순) — item.item 인덱스의 해석 대상. */
   consumables?: ConsumableItem[];
+  /** HP 스톡(dispos HpStockCount) — 다단 보스. ☠사영·이벤트 전용, 부활 거동은 미배선(장부 combat.hp-stock). */
+  hpStock?: number;
   /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
   engage?: EngageState;
   /** 인게이지 중 스킬 세트(EngagedSkills 교체본) — engaging일 때 skills 대신 이 목록이 유효. */
@@ -1136,6 +1138,7 @@ export function boardProps(
           ...(engageArt !== undefined ? { engageArt } : {}),
         };
       })(),
+      ...(v.unit.hpStock !== undefined && v.unit.hpStock > 0 ? { hpStock: v.unit.hpStock } : {}),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
       growth: person === undefined ? undefined : statBlock(person, "Grow."),

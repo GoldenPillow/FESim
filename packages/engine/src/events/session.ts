@@ -820,6 +820,25 @@ export function createEventSession(opts: {
     else lua.lua_pushinteger(A, u.hp);
     return 1;
   });
+  register("UnitGetHpStock", () => {
+    lua.lua_pushinteger(A, unitAt(1)?.hpStock ?? 0);
+    return 1;
+  });
+  register("UnitGetHpStockMax", () => {
+    // 최대 스톡 = 초기 배치 원값 — 국면은 잔여만 든다. ⚠현재값으로 강하(장부 combat.hp-stock).
+    lua.lua_pushinteger(A, unitAt(1)?.hpStock ?? 0);
+    return 1;
+  });
+  register("UnitSetHpStock", () => {
+    const u = unitAt(1);
+    const stock = lua.lua_tointeger(A, 2);
+    if (u !== undefined) {
+      if (stock === 0) delete u.hpStock;
+      else u.hpStock = stock;
+      emit({ type: "hpStock", unit: u.id, stock });
+    }
+    return 0;
+  });
   register("UnitGetLevel", () => {
     const u = unitAt(1);
     if (u === undefined) lua.lua_pushnil(A);

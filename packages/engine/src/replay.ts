@@ -297,6 +297,12 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         }
         break;
       }
+      case "hpStock": {
+        const u = require(ev.unit);
+        if (ev.stock === 0) delete u.hpStock;
+        else u.hpStock = ev.stock;
+        break;
+      }
       case "gain": {
         const u = require(ev.unit);
         const item = JSON.parse(JSON.stringify(ev.item)) as never;

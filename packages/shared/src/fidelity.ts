@@ -525,7 +525,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Boss HP stocks (multi-phase revival)", ko: "보스 HP 스톡(다단부활)" },
     status: "absent",
     evidence:
-      "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열) · ★IL2CPP 경로 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-10·§4): 소비는 전투 계산기가 아니라 **커밋 계층**이다 — TryAddDeadScene(RVA 0x2472D20)이 사망 시 Unit.CanRevive(RVA 0x1A4F860 = HpStockCount + ExtraHpStockCount != 0)를 묻고 Unit.Revive(RVA 0x1A4F8B0)가 부활시킨다 · 출처 = DisposData.HpStockCount(+0xB0) · HP 반영 자체는 CommitHp(RVA 0x1E88580) = clamp(Hp - (Damage - Heal), 0, MaxHp) — 회복이 같은 프레임에서 상계되고 MaxHp 상한도 있다(엔진은 상계·상한 모두 없음) · 부활 후 HP·상태 규칙은 여전히 미판독",
+      "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열) · ★IL2CPP 경로 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-10·§4): 소비는 전투 계산기가 아니라 **커밋 계층**이다 — TryAddDeadScene(RVA 0x2472D20)이 사망 시 Unit.CanRevive(RVA 0x1A4F860 = HpStockCount + ExtraHpStockCount != 0)를 묻고 Unit.Revive(RVA 0x1A4F8B0)가 부활시킨다 · 출처 = DisposData.HpStockCount(+0xB0) · HP 반영 자체는 CommitHp(RVA 0x1E88580) = clamp(Hp - (Damage - Heal), 0, MaxHp) — 회복이 같은 프레임에서 상계되고 MaxHp 상한도 있다(엔진은 상계·상한 모두 없음) · 부활 후 HP·상태 규칙은 여전히 미판독 · ★국면 사영 배선(2026-08-18, MP3 이벤트 5라운드): UnitState.hpStock + BoardUnitProp/projectUnit 사영 + 이벤트 네이티브(UnitGetHpStock·UnitGetHpStockMax·UnitSetHpStock)·hpStock 절대 이벤트·재생 — ☠**사영·이벤트만**이고 부활 거동은 여전히 미배선이다(부활 후 HP·상태 미판독이라 굴리면 픽션). UnitGetHpStockMax는 초기 원값을 국면이 안 들어 현재값으로 강하(⚠근사)",
   },
   {
     id: "combat.scripted-modifiers",

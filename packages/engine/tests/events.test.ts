@@ -385,12 +385,12 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
   const HONEST_GAPS: Record<string, string[]> = {
     // (1) 대상 아이템이 국면 어디에도 없다 — iid 사영은 끝났지만(weapons·engageWeapons 전부 iid 보유)
     //     이 둘은 스크립트가 **미소지 아이템**을 물리거나 뺏는다. 원기가 어떻게 조달하는지 미판독.
-    //     e005 = リュール의 IID_銀の剣(dispos 소지품에 없음 — 진행 인벤토리는 시뮬 모델 밖).
+    //     e005·e006 = リュール의 IID_銀の剣·IID_リベラシオン(dispos 소지품에 없음 — 진행 인벤토리는 시뮬 모델 밖).
     //     m014 = IID_ベレト_ルーン(dispos = IID_コラプス_M014 · GID_M014_敵ベレト 絆1 = IID_ベレト_ルーン_M010).
     e005: ["UnitPutOffItem"],
+    e006: ["UnitPutOffItem"],
     m014: ["UnitSetItemEquip"],
-    // (2) 미모델 유닛 속성 — hpStock(dispos에 실재하나 UnitState 미보유) · MPID(인물 이름 ID 미사영).
-    e006: ["UnitSetHpStock"],
+    // (2) 미모델 유닛 속성 — MPID(인물 이름 ID 미사영 — PID에서 유추하면 픽션).
     m022: ["UnitGetMPID"],
     // (3) ☠원문 Lua 문법 오류(추출 산물 아님 — 게임의 실행 형태 미확인). g001.txt:157이 `if A then
     //     return a` 뒤에 end 없이 다음 if를 연다(elseif 오타 — 메인 실검 확정). fengari는 로드를 거부한다.
@@ -485,6 +485,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     x: number;
     y: number;
     gid?: string;
+    hpStock?: number;
     items?: { iid: string }[];
   }
   interface ChapterJson {
@@ -518,6 +519,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
           id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y,
           ...(weapons.length > 0 ? { weapons, weapon: weapons[0] } : {}),
           ...(u.gid === undefined ? {} : { engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
+          ...(u.hpStock !== undefined && u.hpStock > 0 ? { hpStock: u.hpStock } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
         });
       });
@@ -652,8 +654,6 @@ describe("정직 결손 — 미등록 유지 네이티브", () => {
   const GAPS: [string, string, string][] = [
     ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
     ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
-    ["UnitGetHpStock", `UnitGetHpStock("PID_p")`, "HP 스톡 미모델(dispos에는 hpStock이 실재 — UnitState 확장이 선행)"],
-    ["UnitSetHpStock", `UnitSetHpStock("PID_p", 1)`, "위와 같음"],
     ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
     ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
     ["UnitSetHp", `UnitSetHp("PID_p", 1)`, "HP 절대 대입 이벤트 미정의(절대 재생 계약이 선행)"],
@@ -984,5 +984,58 @@ describe("이벤트 세션 — 실 스크립트 통합(s009 여신상 획득)", 
     expect(gains).toEqual(["IID_女神の像"]);
     expect(r.state.variables?.["アイテム_済"]).toBe(1); // 발화 후 잠금 — 두 번 안 준다
     expect(r.events.filter((e) => e.type === "gain")).toEqual([]); // none = 국면 무변화
+  });
+});
+
+/**
+ * HP 스톡(다단 보스) — ☠**사영과 이벤트만** 배선한다. 부활 거동(HP 0 → 스톡 소모 부활)은 미배선이다:
+ * 소비 경로는 확정됐지만(TryAddDeadScene 0x2472D20 → Unit.CanRevive 0x1A4F860 → Unit.Revive 0x1A4F8B0)
+ * **부활 후 HP·상태 규칙이 미판독**이라 굴리면 픽션이 된다(장부 combat.hp-stock).
+ */
+describe("이벤트 HP 스톡 — 사영·질의·대입", () => {
+  const boss = () => unit({ id: "b", force: 1, x: 1, y: 1, hpStock: 3 });
+  const run = (body: string, u = boss()) => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, hs: `Include("Common")\nfunction Startup() ${body} end` },
+      chapter: "hs", host: host(),
+    });
+    return session.setup(state([unit({ id: "p", force: 0, x: 0, y: 0 }), u]));
+  };
+
+  it("UnitGetHpStock은 국면의 실값을 읽는다(부재 = 0)", () => {
+    const r = run(`VariableSet("보스", UnitGetHpStock("PID_b"))\nVariableSet("자군", UnitGetHpStock("PID_p"))`);
+    expect(r.state.variables?.["보스"]).toBe(3);
+    expect(r.state.variables?.["자군"]).toBe(0);
+  });
+
+  it("UnitSetHpStock = 절대 대입 + hpStock 이벤트(0 대입 = 필드 제거)", () => {
+    const r = run(`UnitSetHpStock("PID_b", 1)`);
+    expect(r.state.units[1].hpStock).toBe(1);
+    expect(r.events).toContainEqual({ type: "hpStock", unit: "b", stock: 1 });
+    const zero = run(`UnitSetHpStock("PID_b", 0)`);
+    expect(zero.state.units[1].hpStock).toBeUndefined();
+    expect(zero.events).toContainEqual({ type: "hpStock", unit: "b", stock: 0 });
+  });
+
+  it("절대 재생 — 기록 이벤트만으로 스톡이 복원된다(세션 무반입)", () => {
+    const r = run(`UnitSetHpStock("PID_b", 1)`);
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(state([unit({ id: "p", force: 0, x: 0, y: 0 }), boss()]), {
+      action: { type: "setup" }, events: r.events,
+    });
+    expect(replayed.units[1].hpStock).toBe(1);
+  });
+
+  it("☠부활 거동은 배선하지 않는다 — 스톡이 있어도 HP 0 격파는 그대로 사망이다", () => {
+    const session = createEventSession({ sources: { common: COMMON_MIN, hs: `Include("Common")\nfunction Startup() end` }, chapter: "hs", host: host() });
+    const reduce = createEventedReducer(base, session);
+    const p = unit({ id: "p", force: 0, x: 0, y: 0, weapon: sword });
+    const e = unit({ id: "e", force: 1, x: 1, y: 0, hp: 5, hpStock: 3 });
+    const filler = unit({ id: "f", force: 1, x: 7, y: 7 });
+    let s = session.setup(state([p, e, filler])).state;
+    s = reduce(s, { type: "attack", unit: "p", target: "e" }, rolls([0]));
+    const dead = s.units.find((u) => u.id === "e")!;
+    expect(dead.dead).toBe(true); // 부활 없음(장부 combat.hp-stock = absent 유지)
+    expect(dead.hpStock).toBe(3); // 스톡은 소모되지 않는다 — 사영만 살아 있다
   });
 });

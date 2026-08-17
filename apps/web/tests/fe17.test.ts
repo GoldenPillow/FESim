@@ -267,3 +267,15 @@ describe("script.items — ItemGain 아이템 사영 (MP3)", () => {
     }
   });
 });
+
+describe("hpStock 사영 — 다단 보스 (MP3)", () => {
+  it("dispos HpStockCount가 보드 props까지 실린다 — 0은 생략(부활 거동은 미배선)", () => {
+    // 왜 위험한가: 이벤트 UnitGetHpStock이 이 값으로 국면을 분기한다(e006 보스 다단 연출).
+    // ☠값이 실려도 부활은 일어나지 않는다 — 장부 combat.hp-stock은 absent 그대로다.
+    const board = boardPropsFor("e006", "ko");
+    const stocked = board.units.filter((u) => u.hpStock !== undefined);
+    expect(stocked.length).toBeGreaterThan(0);
+    expect(stocked.every((u) => (u.hpStock ?? 0) > 0)).toBe(true);
+    expect(board.units.find((u) => u.pid === "PID_E006_Boss")?.hpStock).toBe(3);
+  });
+});
