@@ -73,7 +73,10 @@
 }
 .board .units,
 .board .objects,
-.board .range {
+.board .range,
+.board .overlays,
+.board .structures,
+.board .roofs {
   position: absolute;
   inset: 0;
   pointer-events: none;
