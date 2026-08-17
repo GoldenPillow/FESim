@@ -21,6 +21,15 @@ export const coordLabel = (x: number, y: number): string => `${colLabel(x)}${y +
 export const gridCol = (width: number, x: number): number => (FLIP_X ? width - x : x + 1);
 export const gridRow = (height: number, y: number): number => (FLIP_Y ? height - y : y + 1);
 
+/**
+ * 타일 결정적 미세 명암(항공뷰 텍스처감) — 팔레트 정규화(3-6) 후 지터는 렌더 측 brightness가 소유한다
+ * (직렬화엔 종별 기본색만 — 난수 금지 = 빌드 안정성은 결정적 해시로 유지).
+ */
+export const tileShade = (x: number, y: number): number => {
+  const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+  return 1 + ((h % 5) - 2) * 0.016;
+};
+
 /** 0 = 아군(파랑) · 1 = 적(빨강) · 2 = 우군/중립(초록) — 톤다운 보드 위에서 읽히는 채도로 맞춤 */
 export interface ForceStyle {
   ring: string;

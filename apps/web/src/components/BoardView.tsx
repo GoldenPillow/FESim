@@ -1,5 +1,5 @@
 import type { Tile, UnitState } from "@fesim/engine";
-import { colLabel, coordLabel, gridCol, gridRow, tileKey } from "../lib/grid";
+import { colLabel, coordLabel, gridCol, gridRow, tileKey, tileShade } from "../lib/grid";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -11,7 +11,9 @@ import "./board.css";
 export interface BoardViewProps {
   width: number;
   height: number;
+  /** [y][x] = palette 인덱스(3-6 정규화) — 표시 필드는 palette가 소유, 지터는 렌더가 소유. */
   tiles: BoardProps["tiles"];
+  palette: BoardProps["palette"];
   objects: BoardProps["objects"];
   /** 표시할 구조물 — 호출측이 visibleStructures로 걸러 넘긴다(파괴·지붕 걷힘 판별은 boards.ts 소유). */
   structures?: BoardProps["structures"];
@@ -34,6 +36,7 @@ export default function BoardView({
   width,
   height,
   tiles,
+  palette,
   objects,
   structures,
   overlays,
@@ -74,18 +77,27 @@ export default function BoardView({
       <div className="board" onPointerLeave={() => onTileHover?.(undefined)}>
         <div className="layer">
           {tiles.map((line, y) =>
-            line.map((tile, x) => (
-              <i
-                key={tileKey(x, y)}
-                className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
-                  .filter(Boolean)
-                  .join(" ")}
-                title={`${coordLabel(x, y)} ${tile.name}`}
-                style={{ gridColumn: col(x), gridRow: row(y), background: tile.color }}
-                onClick={() => onTileClick?.(x, y)}
-                onPointerEnter={() => onTileHover?.({ x, y })}
-              />
-            )),
+            line.map((idx, x) => {
+              const tile = palette[idx];
+              if (tile === undefined) return null;
+              return (
+                <i
+                  key={tileKey(x, y)}
+                  className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
+                    .filter(Boolean)
+                    .join(" ")}
+                  title={`${coordLabel(x, y)} ${tile.name}`}
+                  style={{
+                    gridColumn: col(x),
+                    gridRow: row(y),
+                    background: tile.color,
+                    filter: `brightness(${tileShade(x, y)})`,
+                  }}
+                  onClick={() => onTileClick?.(x, y)}
+                  onPointerEnter={() => onTileHover?.({ x, y })}
+                />
+              );
+            }),
           )}
         </div>
 

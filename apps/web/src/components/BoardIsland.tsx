@@ -846,6 +846,7 @@ export default function BoardIsland(props: BoardProps) {
         width={width}
         height={height}
         tiles={tiles}
+        palette={props.palette}
         objects={visibleObjects(objects, game.crests)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}

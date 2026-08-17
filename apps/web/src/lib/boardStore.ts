@@ -8,6 +8,7 @@ import {
   RULE_VERSION,
   type BattleAction,
   type GameState,
+  type MoveType,
   type Reduce,
   type Timeline,
   type UnitState,
@@ -155,19 +156,33 @@ export function initGame(
     map: {
       width: props.width,
       height: props.height,
-      costs: props.costs,
+      // 코스트 격자 = 팔레트에서 파생(직렬화엔 격자를 싣지 않는다 — 3-6 팔레트 정규화).
+      costs: (() => {
+        const types = new Set<MoveType>();
+        for (const p of props.palette) for (const t of Object.keys(p.cost ?? {})) types.add(t as MoveType);
+        const costs: Partial<Record<MoveType, number[][]>> = {};
+        for (const type of types) {
+          costs[type] = props.tiles.map((line) =>
+            line.map((i) => props.palette[i]?.cost?.[type] ?? 255),
+          );
+        }
+        return costs;
+      })(),
       terrain: props.tiles.map((line) =>
-        line.map((t) => ({
-          avoid: t.avoid,
-          def: t.def,
-          ...(t.playerAvoid !== undefined ? { playerAvoid: t.playerAvoid } : {}),
-          ...(t.playerDef !== undefined ? { playerDef: t.playerDef } : {}),
-          ...(t.enemyAvoid !== undefined ? { enemyAvoid: t.enemyAvoid } : {}),
-          ...(t.enemyDef !== undefined ? { enemyDef: t.enemyDef } : {}),
-          ...(t.heal !== undefined ? { heal: t.heal } : {}),
-          ...(t.moveFirst !== undefined ? { moveFirst: t.moveFirst } : {}),
-          ...(t.notWarp === true ? { notWarp: true } : {}),
-        })),
+        line.map((i) => {
+          const t = props.palette[i] ?? { avoid: 0, def: 0 };
+          return {
+            avoid: t.avoid,
+            def: t.def,
+            ...(t.playerAvoid !== undefined ? { playerAvoid: t.playerAvoid } : {}),
+            ...(t.playerDef !== undefined ? { playerDef: t.playerDef } : {}),
+            ...(t.enemyAvoid !== undefined ? { enemyAvoid: t.enemyAvoid } : {}),
+            ...(t.enemyDef !== undefined ? { enemyDef: t.enemyDef } : {}),
+            ...(t.heal !== undefined ? { heal: t.heal } : {}),
+            ...(t.moveFirst !== undefined ? { moveFirst: t.moveFirst } : {}),
+            ...(t.notWarp === true ? { notWarp: true } : {}),
+          };
+        }),
       ),
       ...(props.overlays !== undefined && props.overlays.length > 0
         ? {

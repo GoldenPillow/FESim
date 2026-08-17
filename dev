@@ -68,8 +68,20 @@ case "$cmd" in
             export CHROME_PATH
             pnpm exec lhci collect --url="$URL" && pnpm exec lhci assert
             echo "== ./dev perf: GREEN (URL=$URL, 표본 3회 중앙값) ==" ;;
+  size)     shift
+            # 챕터 데이터 게이트(§11): 빌드 산출 보드 JSON 전건 ≤50KB gzip. 위반 목록 출력 후 실패.
+            BUDGET=51200; BAD=0; N=0; MAX=0; MAXF=""
+            for f in apps/web/dist/client/fe17/boards/*.json; do
+              [ -e "$f" ] || { echo "size: 보드 JSON 없음 — 먼저 pnpm build"; exit 1; }
+              SZ=$(gzip -c "$f" | wc -c); N=$((N + 1))
+              [ "$SZ" -gt "$MAX" ] && { MAX="$SZ"; MAXF="$(basename "$f")"; }
+              [ "$SZ" -le "$BUDGET" ] || { echo "  ☠$(basename "$f"): ${SZ}B gz (예산 ${BUDGET}B)"; BAD=$((BAD + 1)); }
+            done
+            echo "size: 보드 JSON ${N}건 · 최대 ${MAXF} ${MAX}B gz · 예산 ${BUDGET}B"
+            [ "$BAD" -eq 0 ] || { echo "size: ☠${BAD}건 예산 초과"; exit 1; }
+            echo "== ./dev size: GREEN ==" ;;
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|fuzz [runs]|extract|transform|verify-m002|bake|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>"; exit 2 ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|fuzz [runs]|extract|transform|verify-m002|bake|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

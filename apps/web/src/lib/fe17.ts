@@ -656,6 +656,12 @@ export interface BoardOverlayProp {
   flyCost?: number;
 }
 
+/** 팔레트 항목 = 타일 종별 표시·판정 필드 + 이동 코스트(격자 파생용). */
+export interface BoardPaletteEntry extends BoardTileProp {
+  tid: string;
+  cost?: Partial<Record<MoveType, number>>;
+}
+
 export interface BoardTileProp {
   color: string;
   name: string;
@@ -743,10 +749,10 @@ export interface BoardProps {
   title: ChapterTitle;
   width: number;
   height: number;
-  /** [y][x] */
-  tiles: BoardTileProp[][];
-  /** 이동타입별 진입 코스트 [y][x] — 실사용 타입만 담는다. */
-  costs: Partial<Record<MoveType, number[][]>>;
+  /** 타일 종별 팔레트 — tiles의 인덱스가 가리킨다(코스트 포함 — 격자 파생은 initGame 소유). */
+  palette: BoardPaletteEntry[];
+  /** [y][x] = palette 인덱스. */
+  tiles: number[][];
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
   /** 구조물 레이어(m_Layers) — 엔진 StructureState의 초기값 + 렌더 표시 필드(색·이름은 SSG에서 굳힘). */
@@ -1040,38 +1046,49 @@ export function boardProps(
       skills: skillRows.length > 0 ? skillRows : undefined,
     };
   });
-  // 베이스 지형 코스트만 — 구조물(m_Layers) 통행 반영은 구조물 렌더와 함께 미룸(M005 실재 맵 시점).
-  const costs: Partial<Record<MoveType, number[][]>> = {};
-  for (const type of moveTypes) {
-    costs[type] = map.terrain.map((line) => line.map((tid) => terrain[tid]?.cost?.[type] ?? 255));
-  }
+  // ★타일 팔레트 정규화(3-6) — 셀마다 객체를 반복하지 않는다: palette[tid 종별] + tiles[인덱스 격자].
+  // 코스트 격자도 싣지 않는다 — 클라이언트(initGame)가 palette.cost에서 파생(직렬화 = 타일 수 선형 → 종별 선형).
+  const tids: string[] = [];
+  const tidIndex = new Map<string, number>();
+  const indexOf = (tid: string): number => {
+    let i = tidIndex.get(tid);
+    if (i === undefined) {
+      i = tids.length;
+      tids.push(tid);
+      tidIndex.set(tid, i);
+    }
+    return i;
+  };
+  const tileGrid = map.terrain.map((line) => line.map(indexOf));
+  const opt = (key: string, value: number | undefined): Record<string, number> =>
+    typeof value === "number" && value !== 0 ? { [key]: value } : {};
+  const palette = tids.map((tid) => {
+    const row = terrain[tid];
+    return {
+      tid,
+      color: tileColor(tid),
+      name: tileName(locale, tid),
+      blocked: isBlocked(tid),
+      avoid: row?.Avoid ?? 0,
+      def: row?.Defense ?? 0,
+      ...opt("playerAvoid", row?.PlayerAvoid),
+      ...opt("playerDef", row?.PlayerDefense),
+      ...opt("enemyAvoid", row?.EnemyAvoid),
+      ...opt("enemyDef", row?.EnemyDefense),
+      ...opt("heal", row?.Heal),
+      ...opt("moveFirst", row?.MoveFirst),
+      ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...(row?.cost !== undefined ? { cost: row.cost } : {}),
+    };
+  });
+  void moveTypes;
   return {
     mapId,
     title: chapterTitle(chapter, locale),
     width: map.width,
     height: map.height,
-    tiles: map.terrain.map((line, y) =>
-      line.map((tid, x) => {
-        const row = terrain[tid];
-        const opt = (key: keyof BoardTileProp, value: number | undefined): Record<string, number> =>
-          typeof value === "number" && value !== 0 ? { [key]: value } : {};
-        return {
-          color: tileColorAt(tid, x, y),
-          name: tileName(locale, tid),
-          blocked: isBlocked(tid),
-          avoid: row?.Avoid ?? 0,
-          def: row?.Defense ?? 0,
-          ...opt("playerAvoid", row?.PlayerAvoid),
-          ...opt("playerDef", row?.PlayerDefense),
-          ...opt("enemyAvoid", row?.EnemyAvoid),
-          ...opt("enemyDef", row?.EnemyDefense),
-          ...opt("heal", row?.Heal),
-          ...opt("moveFirst", row?.MoveFirst),
-          ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
-        };
-      }),
-    ),
-    costs,
+    palette,
+    tiles: tileGrid,
     objects: (map.objects ?? []).map((o) => ({
       x: o.x,
       y: o.y,
