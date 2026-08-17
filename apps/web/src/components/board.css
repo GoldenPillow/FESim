@@ -603,3 +603,17 @@
   }
 }
 
+
+/* 교환 패널 — 2열 아이템 목록, 왼쪽 = 선택 유닛(주기), 오른쪽 = 상대(받기) */
+.forecast.trade .trade-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 9rem;
+}
+.forecast.trade .trade-col button {
+  text-align: left;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-left: 2px solid var(--force, #888);
+}

@@ -88,9 +88,46 @@ export interface StaffItem {
   name?: string;
 }
 
+/**
+ * 사용형 아이템(Kind=10, AddTarget != 0) 소지 항목 — 傷薬류의 전투 소비분 스냅숏.
+ * ☠목록엔 사용형 전부를 싣는다(미배선 포함) — 필터를 넓힐 때 item 인덱스 계약이 흔들리면 기보가 깨진다.
+ */
+export interface ConsumableItem {
+  /** items.json AddType — 2 = 범위 회복(배선 범위). 그 외는 reduce가 정직하게 거부한다. */
+  addType: number;
+  /** items.json AddPower — 회복량 등 효과 수치(고정값 — 능력치 무관). */
+  power: number;
+  /** items.json AddRange — 자신 중심 효과 반경(맨해튼). */
+  range: number;
+  /** 잔여 사용 횟수(items.json Endurance 출발) — 사용마다 1 감소. */
+  uses: number;
+  name?: string;
+}
+
+/**
+ * 인게이지 게이지 상태 — 정본 = il2cpp/EMBLEM_ENGAGE §3(전부 코드 확정).
+ * limit·turnLimit 산출은 데이터층 소관: limit = god.EngageCount - 성장표 Flag4(絆20) - 스킬 Flag bit42,
+ * turnLimit = 3 + 성장표 Flag2(絆11, リュール만 20). 초기 count = min(7, limit).
+ */
+export interface EngageState {
+  count: number;
+  limit: number;
+  /** 인게이지 지속 페이즈 수(자기 페이즈 시작마다 1 소비). */
+  turnLimit: number;
+  /** 인게이지 경과 턴 — engaging일 때만 의미. */
+  turn: number;
+  engaging: boolean;
+}
+
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
+  /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
+  | { type: "refresh"; unit: string }
+  /** 인게이지 게이지 변화 — count = 변화 후 절대값(절대 재생이 이 값을 그대로 쓴다). */
+  | { type: "charge"; unit: string; count: number }
+  | { type: "engage"; unit: string }
+  | { type: "disengage"; unit: string }
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
@@ -105,5 +142,16 @@ export type BattleAction =
   | { type: "attack"; unit: string; target: string; weapon?: number }
   /** staff = 유닛 staves 목록 인덱스(부재 = 0). 대상은 같은 군 — 회복·보조는 교전이 아니다. */
   | { type: "staff"; unit: string; target: string; staff?: number }
+  /** item = 유닛 consumables 목록 인덱스(부재 = 0). 대상 지정 없음 — 효과 범위는 아이템이 소유(자신 중심). */
+  | { type: "item"; unit: string; item?: number }
+  /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
+  | { type: "dance"; unit: string; target: string }
+  /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
+  | { type: "engage"; unit: string }
+  /**
+   * 교환 — 인접 아군과 소지품 1점 이동(행동 무소모라 연속 액션 = 인게임 다중 이동).
+   * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.
+   */
+  | { type: "trade"; unit: string; target: string; kind: "weapon" | "staff" | "consumable"; index: number; back?: boolean }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

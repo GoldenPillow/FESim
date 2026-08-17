@@ -1,4 +1,4 @@
-import type { ChapterData, DisposUnit, MapObject, StaffItem } from "@fesim/shared";
+import type { ChapterData, ConsumableItem, DisposUnit, EngageState, MapObject, StaffItem } from "@fesim/shared";
 import {
   MOVE_TYPES,
   deriveStats,
@@ -105,7 +105,7 @@ interface GodsTable {
     string,
     Record<
       string,
-      { SynchroSkills?: string[]; EngageSkills?: string[]; EngageItems?: string[]; InheritanceSkills?: string[] }
+      { SynchroSkills?: string[]; EngageSkills?: string[]; EngageItems?: string[]; InheritanceSkills?: string[]; Flag?: number }
     >
   >;
 }
@@ -487,6 +487,29 @@ export const emblemSyncSids = (gid: string, bondLevel?: number): string[] => {
   return [...bySeries.values()];
 };
 
+/**
+ * 인게이지 게이지 초기 스냅숏 — 정본 = il2cpp/EMBLEM_ENGAGE §3(코드 확정):
+ * limit = god.EngageCount - (絆 성장표 Flag 4 보유 레벨 도달 시 1) · turnLimit = 3 + (Flag 2 도달 시 1) ·
+ * 초기 count = min(7, limit)(params エンゲージ初期値 — 정규 엠블렘은 맵 시작부터 발동 가능).
+ * ☠장착 스킬 Flag bit42(SubEngageCountLimit) 차감은 미배선(skills 사영에 Flags 없음 — 후속).
+ */
+export const engageStateFor = (gid: string, bondLevel?: number): EngageState | undefined => {
+  const god = godsTable.gods[gid];
+  const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
+  if (god === undefined || table === undefined) return undefined;
+  const bond = bondLevel ?? Number(god["Level"] ?? 1);
+  let flags = 0;
+  for (let level = 1; level <= bond; level++) flags |= Number(table[String(level)]?.Flag ?? 0);
+  const limit = Math.max(0, Number(god["EngageCount"] ?? 0) - ((flags & 4) !== 0 ? 1 : 0));
+  return {
+    count: Math.min(7, limit),
+    limit,
+    turnLimit: 3 + ((flags & 2) !== 0 ? 1 : 0),
+    turn: 0,
+    engaging: false,
+  };
+};
+
 export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] {
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
@@ -545,6 +568,10 @@ export interface BoardUnitProp {
   weapons?: BoardWeaponProp[];
   /** 소지 지팡이 전체(소지품 순) — staff.staff 인덱스의 해석 대상. */
   staves?: StaffItem[];
+  /** 사용형 아이템 전체(소지품 순) — item.item 인덱스의 해석 대상. */
+  consumables?: ConsumableItem[];
+  /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
+  engage?: EngageState;
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -581,6 +608,10 @@ export interface BoardProps {
     waitCmd: string;
     attackCmd: string;
     staffCmd: string;
+    itemCmd: string;
+    engageCmd: string;
+    tradeCmd: string;
+    closeCmd: string;
     turnPhase: string;
     turnWord: string;
     victory: string;
@@ -594,7 +625,7 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
-    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
+    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string };
   };
 }
 
@@ -659,6 +690,26 @@ export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
   return list;
 };
 
+/**
+ * 사용형 아이템 스냅숏 — Kind=10 중 AddTarget != 0 전부(미배선 포함).
+ * ☠필터를 배선 여부로 좁히면 나중에 배선을 넓힐 때 item 인덱스 계약이 흔들려 기보가 깨진다.
+ */
+export const consumableItems = (unit: DisposUnit, locale: Locale): ConsumableItem[] => {
+  const list: ConsumableItem[] = [];
+  for (const entry of unit.items) {
+    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+    if (row === undefined || row.Kind !== 10 || Number(row["AddTarget"] ?? 0) === 0) continue;
+    list.push({
+      name: namedOr(items, locale, entry.iid),
+      addType: Number(row["AddType"] ?? 0),
+      power: Number(row["AddPower"] ?? 0),
+      range: Number(row["AddRange"] ?? 0),
+      uses: Number(row["Endurance"] ?? 0),
+    });
+  }
+  return list;
+};
+
 export function boardProps(
   chapter: ChapterData,
   mapId: string,
@@ -701,6 +752,14 @@ export function boardProps(
       ...(() => {
         const staves = staffItems(v.unit, locale);
         return staves.length > 0 ? { staves } : {};
+      })(),
+      ...(() => {
+        const consumables = consumableItems(v.unit, locale);
+        return consumables.length > 0 ? { consumables } : {};
+      })(),
+      ...(() => {
+        const engage = v.unit.gid === undefined ? undefined : engageStateFor(v.unit.gid);
+        return engage !== undefined ? { engage } : {};
       })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
@@ -764,6 +823,10 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
     staffCmd: t.staffCmd,
+    itemCmd: t.itemCmd,
+    engageCmd: t.engageCmd,
+    tradeCmd: t.tradeCmd,
+    closeCmd: t.closeCmd,
     turnPhase: t.turnPhase,
     turnWord: t.turnWord,
     victory: t.victory,

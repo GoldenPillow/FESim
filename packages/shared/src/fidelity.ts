@@ -153,31 +153,94 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.items",
     label: { en: "Item use (vulneraries etc.)", ko: "아이템 사용(회복약 등)" },
-    status: "absent",
-    evidence: "정식화 부분 — Kind=10 168건 AddType×AddPower×AddSids(gaps/B §6-2) · AddType=31(스킬부여 49건) 세부 후속",
+    status: "implemented",
+    evidence:
+      "AddType 2 범위 회복 배선(2026-08-18, itemUse.test.ts — item 액션·자신+반경 아군·AddPower 고정·잃은 HP 상한·횟수 소모·절대 재생·경험 없음(calculator에 아이템 경험식 부재)) ☠잔여 정직 거부 = 7 인게이지 충전·18 상태해제·19 횃불·31 스킬부여 · 정식화 — Kind=10 중 사용형 53건: AddType 2 = 범위 회복(傷薬: 자신+주위 AddRange 2칸 아군 HP AddPower 15 — 공식 도움말 원문, gaps/N-patch §2-7) · 7 = 인게이지 카운트 증가(特効薬 +2 — 종전 '상태 경감 추정'을 원문이 정정) · 18 = 상태 해제(毒消し) · 19 = 횃불 효과 · 31 = AddSids 스킬 부여 49건(세부 후속) · 커맨드 = ItemMenuItem(MAP_COMMANDS §1-1)",
   },
   {
     id: "actions.trade",
     label: { en: "Trade and convoy", ko: "교환·수송대" },
-    status: "absent",
+    status: "implemented",
+    evidence:
+      "교환 배선(2026-08-18, trade.test.ts) — 1액션 = 1점 이동(행동 무소모 = 연속 액션이 다중 이동과 등가)·인접 1·장비 재계산·moved 소진·traded 창 플래그(인게이지 발동 봉쇄). 계약 = 실기 판별(2026-08-18 사용자: 교환 후 제자리 행동·전투 가능 / 인게이지 후 교환 가능 / 교환 후 인게이지 불가) + TradeMenuItem(MAP_COMMANDS §1-1) · ☠수송대 = 캠페인층(MP5) · 미배선 소지품 종류(소재 등 비사용형)는 교환 목록 밖",
   },
   {
     id: "actions.interact",
     label: { en: "Chests, villages, doors", ko: "상자·민가·문 상호작용" },
     status: "deferred",
-    evidence: "Lua 이벤트 엔진(M004~, §0 미룸) — Tbox/Door/Visit 3함수 시그니처 정식화(gaps/E §2-3)",
+    evidence:
+      "Lua 이벤트 엔진(M004~, §0 미룸) — Tbox/Door/Visit 3함수 시그니처 정식화(gaps/E §2-3) · 커맨드 클래스·지형 게이트 확정 = Door/TreasureBox/VisitMenuItem + terrain.json Flag bit0=Door/bit1=Treasure/bit2=Visit(MAP_COMMANDS §1-3)",
+  },
+  {
+    id: "actions.talk",
+    label: { en: "Talk command", ko: "대화 커맨드" },
+    status: "deferred",
+    evidence: "TalkMenuItem·Label.Talk=38(MAP_COMMANDS §1-3) — 트리거 = 맵 이벤트/Lua 소관이라 interact와 함께 MP2 이월",
   },
   {
     id: "actions.dance",
     label: { en: "Dance (grant another action)", ko: "춤(재행동 부여)" },
-    status: "absent",
-    evidence: "원문 절차 확보(gaps/E §1-7) + 실기 확인 = 커맨드로 인접 아군 재행동(사용자 2026-08-17) · 경험치 = combat.exp-dance",
+    status: "implemented",
+    evidence:
+      "엔진 배선(2026-08-18, dance.test.ts) — dance 액션·refresh 이벤트(절대 재생 복원)·인접 1칸·행동 완료 대상만·acted/moved 리셋·踊り経験計算 원문(노멀 13·루나틱 clamp 1 정확값) · 자격 = canDance(SID_踊り/SID_特別な踊り — MAP_COMMANDS §1-4) · ☠UI 이월 = 무희 실재 맵 변환 시(MP3) · 원문 절차 gaps/E §1-7 + 실기 확인(2026-08-17)",
   },
   {
     id: "actions.engage",
     label: { en: "Engage activation command", ko: "인게이지 발동 명령" },
+    status: "implemented",
+    evidence:
+      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = 인게이지 중 스킬 세트 교체·엠블렘 무기·세부기 6종·NotEngageAdd 지형·紋章氣 만충(별항) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
+  },
+  {
+    id: "actions.destroy",
+    label: { en: "Destroy terrain/structures", ko: "파괴(구조물 부수기)" },
+    status: "absent",
+    evidence:
+      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3)",
+  },
+  {
+    id: "actions.cannon",
+    label: { en: "Cannon (fire from terrain)", ko: "대포(포격)" },
+    status: "absent",
+    evidence:
+      "CannonMenuItem(States: NotShell/NotTarget/NotBow/NotMagic — MAP_COMMANDS §1-1) · 정본 = terrain.json Flag bit3=BowCannon/bit4=MagicCannon/bit5=FireCannon + CannonShellsN/H/L · 포탄 명중식·원거리 감쇠 = gaps/N-patch §3-2",
+  },
+  {
+    id: "actions.torch",
+    label: { en: "Torch (fog vision)", ko: "횃불 켜기/끄기" },
     status: "deferred",
-    evidence: "엠블렘 시스템 설계 선행(§0 미룸)",
+    evidence: "TorchOnMenuItem + terrain.json Command(TorchOn=1/Off=2)(MAP_COMMANDS §1-3) — 선행 = 안개/시야 시스템(미배선)",
+  },
+  {
+    id: "actions.guard",
+    label: { en: "Chain guard assignment", ko: "체인가드 지정" },
+    status: "absent",
+    evidence: "GuardMenuItem(m_GuardType/m_GuardSkill) + Unit.GuardType(ChainGuard=1/DualGuard=2/NotEnoughHP=3) + SID_チェインガード許可(MAP_COMMANDS §1-4) · 경험치 = combat.exp-guard",
+  },
+  {
+    id: "actions.enchant",
+    label: { en: "Enchant item/weapon", ko: "인챈트(강화 부여)" },
+    status: "absent",
+    evidence: "EnchantItem/EnchantWeaponMenuItem + HasEnchantItem 0x1E4CCE0 + SID_エンチャント(MAP_COMMANDS §1-1) — 발현 = 해당 직업 스킬 보유 유닛 등장 맵",
+  },
+  {
+    id: "actions.command-skills",
+    label: { en: "Skill-granted map commands", ko: "스킬 파생 맵 커맨드(범용)" },
+    status: "absent",
+    evidence:
+      "범용 래퍼 3종 = CommandSkill/OverlapSkill/SubMenuItem(ctor(SkillData) — MAP_COMMANDS §1-4) · 구체 사례 = 환영늑대 생성/해제(SID_幻影狼連携)·계약/소환(SID_契約*, 베로니카 추정)·강행돌파·탈출(의미 미확정 §4) · 어느 스킬이 맵 커맨드로 뜨는지 skill.xml 필터 후속 조사",
+  },
+  {
+    id: "actions.transporter",
+    label: { en: "Transporter station", ko: "수송정거장" },
+    status: "deferred",
+    evidence: "TransporterMenuItem(MAP_COMMANDS §1-1) — 부대 편성 변경 시설. 선행 = 캠페인층(MP5)·해당 시설 실재 맵",
+  },
+  {
+    id: "actions.god-change",
+    label: { en: "God (emblem ring) change on map", ko: "문장(반지) 변경 커맨드" },
+    status: "deferred",
+    evidence: "GodChangeMenuItem + MapSequenceGod(MAP_COMMANDS §1-2·§4 — 정확한 트리거 미확정) · 선행 = 엠블렘 시스템",
   },
 
   // ── 전투 ──

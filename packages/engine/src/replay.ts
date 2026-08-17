@@ -116,7 +116,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function applyEvents(
   state: GameState,
-  action: Extract<BattleAction, { type: "attack" | "staff" }>,
+  action: Extract<BattleAction, { type: "attack" | "staff" | "item" | "dance" }>,
   events: readonly BattleEvent[],
 ): GameState {
   const units = state.units.map((u) => ({ ...u }));
@@ -136,6 +136,27 @@ function applyEvents(
       case "heal":
         require(ev.target).hp = ev.hpAfter;
         break;
+      case "refresh": {
+        const u = require(ev.unit);
+        u.acted = false;
+        u.moved = false;
+        break;
+      }
+      case "charge": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, count: ev.count };
+        break;
+      }
+      case "engage": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, engaging: true, turn: 0 };
+        break;
+      }
+      case "disengage": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, engaging: false, turn: 0, count: 0 };
+        break;
+      }
       case "break":
         require(ev.unit).broken = true;
         break;
@@ -177,6 +198,10 @@ function applyEvents(
     const idx = action.staff ?? 0;
     actor.staves = actor.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
   }
+  if (action.type === "item") {
+    const idx = action.item ?? 0;
+    actor.consumables = actor.consumables?.map((c, i) => (i === idx ? { ...c, uses: c.uses - 1 } : c));
+  }
   actor.acted = true;
   actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
   return { ...state, units, events: [...events], outcome };
@@ -189,7 +214,13 @@ export function createReplayer(reduce: Reduce) {
    * ReplayDesyncError로 끝난다(수기·LLM 기보의 정합 검증은 M4 검증기 몫 — 호출측이 잡아서 표시한다).
    */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
-    if ((step.action.type === "attack" || step.action.type === "staff") && step.events !== undefined) {
+    if (
+      (step.action.type === "attack" ||
+        step.action.type === "staff" ||
+        step.action.type === "item" ||
+        step.action.type === "dance") &&
+      step.events !== undefined
+    ) {
       return applyEvents(state, step.action, step.events);
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));

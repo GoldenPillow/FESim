@@ -2,7 +2,9 @@ import type {
   BattleAction,
   BattleEvent,
   BattleWeapon,
+  ConsumableItem,
   Difficulty,
+  EngageState,
   StaffItem,
   StrikeKind,
   SupportEffect,
@@ -47,6 +49,10 @@ export interface UnitState {
   weapons?: BattleWeapon[];
   /** 소지 지팡이 목록 — staff.staff 인덱스의 해석 대상. 잔여 사용 횟수는 국면 상태다(사용마다 감소). */
   staves?: StaffItem[];
+  /** 사용형 아이템 목록 — item.item 인덱스의 해석 대상. 잔여 횟수는 국면 상태다. */
+  consumables?: ConsumableItem[];
+  /** 인게이지 게이지 — 엠블렘 장착 유닛만. limit·turnLimit 산출은 데이터층(스냅숏) 소관. */
+  engage?: EngageState;
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
@@ -74,6 +80,8 @@ export interface UnitState {
    * 행동(공격·대기)이 false로 리셋해 재이동(시구르드) 창을 열고, 페이즈 복귀 시에도 리셋.
    */
   moved?: boolean;
+  /** 이 활성화에서 교환·수송대를 썼는가 — 인게이지 발동만 봉쇄(실기 판별 2026-08-18). 페이즈 복귀 시 리셋. */
+  traded?: boolean;
 }
 
 /**
@@ -216,6 +224,25 @@ export function staffHealAmount(healer: UnitState, target: UnitState, staff: Sta
   return Math.min(staff.power + Math.floor(healer.stats.mag / 2), missing);
 }
 
+/** 춤(재행동) 시전 자격 — 무희 직업 스킬 SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4). UI 공용. */
+export function canDance(u: UnitState): boolean {
+  return u.skills?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
+}
+
+/**
+ * 아이템 범위 회복 대상 — 자신 포함, 같은 군, 반경(맨해튼) 내, 손상 유닛만.
+ * 傷薬 = "자신과 주위 2칸 아군 회복"(공식 도움말 원문). 예보 UI와 reduce가 같은 판정을 쓴다(중복 구현 금지).
+ */
+export function itemTargets(
+  user: UnitState,
+  units: readonly UnitState[],
+  item: ConsumableItem,
+): UnitState[] {
+  return units.filter(
+    (u) => !u.dead && u.force === user.force && manhattan(u, user) <= item.range && u.hp < u.stats.hp,
+  );
+}
+
 /** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
 export type SupportEffects = Record<string, Record<string, SupportEffect>>;
 
@@ -290,6 +317,18 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
     const foeVars = varsOf(foe);
     const foeEnv: FormulaEnv = { lookup: (n) => foeVars[n] };
     return { lookup: (n) => selfVars[n], opponent: () => foeEnv };
+  }
+
+  /**
+   * 인게이지 충전 — 전투 1회 참가당 +1(상한 클램프). 코드 확정(AddEngageCount 0x2470740):
+   * 인게이지 중·체인 참가는 충전 없음, 턴당 자연 증가는 기전 자체가 없다. 사망자는 무의미라 생략.
+   * ☠NotEngageAdd 지형(8192) 게이트는 미배선 — BattleMap.terrain 스키마 확장 선행(§0 미룸과 동건).
+   */
+  function chargeEngage(u: UnitState, events: BattleEvent[]): void {
+    const g = u.engage;
+    if (g === undefined || g.engaging || u.dead || g.count >= g.limit) return;
+    u.engage = { ...g, count: Math.min(g.count + 1, g.limit) };
+    events.push({ type: "charge", unit: u.id, count: u.engage.count });
   }
 
   /** 경험치 가산 + 100 단위 레벨업(성장 롤 소비) — 전투·지팡이가 같은 경로를 쓴다(중복 구현 금지). */
@@ -446,6 +485,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           events.push({ type: "breakRelease", unit: defender.id });
         }
 
+        // 인게이지 충전 = 공격·피격 양측 각 +1 (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
+        chargeEngage(attacker, events);
+        chargeEngage(defender, events);
+
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
 
@@ -482,6 +525,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         target.hp += amount;
         events.push({ type: "heal", unit: healer.id, target: target.id, amount, hpAfter: target.hp });
         healer.staves = healer.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
+        // 지팡이도 전투 계산기 경로라 술자 +1 — 가정(코드 확정은 전투뿐, 실측 대조 대상: 장부 actions.engage).
+        chargeEngage(healer, events);
         healer.acted = true;
         healer.moved = false; // 행동이 재이동(시구르드) 창을 연다
         if (healer.force === 0) {
@@ -495,20 +540,125 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         break;
       }
 
+      case "item": {
+        const user = require(action.unit);
+        assertActable(user);
+        const idx = action.item ?? 0;
+        const item = user.consumables?.[idx];
+        if (item === undefined) throw new Error(`불법 아이템 인덱스: ${idx}`);
+        // ☠범위 회복(AddType 2)만 배선 — 인게이지 충전·상태 해제·스킬 부여는 선행 시스템별 후속(정직 거부).
+        if (item.addType !== 2) throw new Error("미배선 아이템 종류(범위 회복만 배선)");
+        if (item.uses < 1) throw new Error("아이템 소진");
+        const targets = itemTargets(user, units, item);
+        if (targets.length === 0) throw new Error("사용 대상 없음(범위 내 무손상)");
+        // 회복량 = AddPower 고정(능력치 무관 — 지팡이의 마력 반감 가산과 다른 규칙), 잃은 HP 상한.
+        for (const t of targets) {
+          const amount = Math.min(item.power, t.stats.hp - t.hp);
+          t.hp += amount;
+          events.push({ type: "heal", unit: user.id, target: t.id, amount, hpAfter: t.hp });
+        }
+        user.consumables = user.consumables?.map((c, i) => (i === idx ? { ...c, uses: c.uses - 1 } : c));
+        user.acted = true;
+        user.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        // 경험치 없음 — calculator에 아이템 경험식이 없다(杖·踊り·チェインガード만 존재).
+        break;
+      }
+
+      case "dance": {
+        const dancer = require(action.unit);
+        const target = require(action.target);
+        assertActable(dancer);
+        if (!canDance(dancer)) throw new Error("춤 스킬 없음");
+        if (dancer.force !== target.force) throw new Error("춤은 같은 군만 대상이다");
+        if (dancer === target) throw new Error("자기 자신은 춤 대상이 아니다");
+        // 인접 1칸·행동 완료 대상 — 실기 확인(2026-08-17 decisions) + 게임 메뉴가 대상 필터를 이렇게 건다.
+        if (manhattan(dancer, target) !== 1) throw new Error("춤은 인접 1칸만");
+        if (!target.acted) throw new Error("행동 완료 유닛만 재행동 대상이다");
+        target.acted = false;
+        target.moved = false; // 이동 창까지 새로 연다 — 안 풀면 이동 없는 반쪽 재행동
+        events.push({ type: "refresh", unit: target.id });
+        dancer.acted = true;
+        dancer.moved = false;
+        if (dancer.force === 0) {
+          const difficulty = state.difficulty ?? "n";
+          // 踊り経験計算 = clamp(踊り基本値(자기 레벨) + 補助レベル差減衰値(레벨차), 1, 100).
+          const gained = Math.floor(
+            calc.eval("踊り経験計算", expEnv(dancer, target, 0, difficulty)) as number,
+          );
+          grantExp(dancer, gained, events, rng);
+        }
+        break;
+      }
+
+      case "trade": {
+        const actor = require(action.unit);
+        const partner = require(action.target);
+        assertActable(actor);
+        if (actor.force !== partner.force) throw new Error("교환은 같은 군만 대상이다");
+        if (actor === partner) throw new Error("자기 자신과는 교환할 수 없다");
+        if (manhattan(actor, partner) !== 1) throw new Error("교환은 인접 1칸만");
+        const [giver, receiver] = action.back === true ? [partner, actor] : [actor, partner];
+        const channel = action.kind === "weapon" ? "weapons" : action.kind === "staff" ? "staves" : "consumables";
+        const list = giver[channel];
+        const item = list?.[action.index];
+        if (item === undefined) throw new Error(`불법 교환 인덱스: ${action.kind}[${action.index}]`);
+        (giver as Record<typeof channel, unknown[]>)[channel] = list!.filter((_, i) => i !== action.index);
+        (receiver as Record<typeof channel, unknown[]>)[channel] = [...(receiver[channel] ?? []), item];
+        if (action.kind === "weapon") {
+          // 장비 무기가 옮겨가면 주는 쪽은 남은 목록[0] 재장비(없으면 비무장), 비무장 수령자는 첫 무기 장비.
+          if (giver.weapon === item) giver.weapon = giver.weapons?.[0];
+          if (receiver.weapon === undefined) receiver.weapon = receiver.weapons?.[0];
+        }
+        // 실기 판별(2026-08-18): 행동 유지·이동 창 소진·인게이지 발동 봉쇄. 상대 창 상태는 불변.
+        actor.moved = true;
+        actor.traded = true;
+        break;
+      }
+
+      case "engage": {
+        const u = require(action.unit);
+        if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
+        if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
+        const g = u.engage;
+        if (g === undefined) throw new Error("엠블렘 미장착");
+        if (g.engaging) throw new Error("이미 인게이지 중");
+        // 발동 조건 = 만충(CanEngageImpl 0x1A26F70). 행동은 소모하지 않는다 — 발동 후 이동·공격 가능.
+        if (u.traded === true) throw new Error("교환 후에는 인게이지 발동 불가");
+        if (g.limit < 1 || g.count < g.limit) throw new Error("게이지 미만충");
+        u.engage = { ...g, engaging: true, turn: 0 };
+        events.push({ type: "engage", unit: u.id });
+        break;
+      }
+
       case "endPhase": {
         const forces = [...new Set(units.filter((u) => !u.dead).map((u) => u.force))].sort();
         if (forces.length > 0) {
           const idx = forces.indexOf(state.phase);
           const nextForce = forces[(idx + 1) % forces.length] ?? forces[0];
           const wrapped = forces.indexOf(nextForce) <= idx || idx < 0;
+          const phaseEvents: BattleEvent[] = [{ type: "phase", phase: nextForce, turn: state.turn }];
           const next: GameState = {
             ...state,
             phase: nextForce,
             turn: wrapped && nextForce === forces[0] ? state.turn + 1 : state.turn,
-            units: units.map((u) =>
-              u.force === nextForce ? { ...u, acted: false, broken: false, moved: false } : u,
-            ),
-            events: [{ type: "phase", phase: nextForce, turn: state.turn }],
+            units: units.map((u) => {
+              if (u.force !== nextForce) return u;
+              const fresh: UnitState = { ...u, acted: false, broken: false, moved: false };
+              delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
+              // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
+              const g = fresh.engage;
+              if (g?.engaging === true && !fresh.dead) {
+                const turn = g.turn + 1;
+                if (turn >= g.turnLimit) {
+                  fresh.engage = { ...g, engaging: false, turn: 0, count: 0 };
+                  phaseEvents.push({ type: "disengage", unit: u.id });
+                } else {
+                  fresh.engage = { ...g, turn };
+                }
+              }
+              return fresh;
+            }),
+            events: phaseEvents,
           };
           return next;
         }
