@@ -34,7 +34,7 @@ const data: CalculatorData = JSON.parse(
 const reduce = createReducer(createCalculator(data));
 const replayer = createReplayer(reduce);
 
-const seq = (...rolls: number[]) => ({ roll: () => rolls.shift() ?? 0 });
+const seq = (...rolls: number[]) => ({ next: () => rolls.shift() ?? 0 });
 
 const baseStats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
 const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
@@ -142,10 +142,10 @@ describe("재생", () => {
   });
 
   it("롤 없는 스텝이 롤을 소비하면 던진다 (move/wait/endPhase 무소비 계약)", () => {
-    expect(() => sequenceSource([]).roll()).toThrow(ReplayDesyncError);
+    expect(() => sequenceSource([]).next(100)).toThrow(ReplayDesyncError);
     const src = sequenceSource([3]);
-    expect(src.roll()).toBe(3);
-    expect(() => src.roll()).toThrow(ReplayDesyncError);
+    expect(src.next(100)).toBe(3);
+    expect(() => src.next(100)).toThrow(ReplayDesyncError);
   });
 });
 

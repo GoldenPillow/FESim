@@ -5,12 +5,15 @@ import {
   createCalculator,
   createReducer,
   forecastSide,
+  hitThreshold10000,
   moveBudget,
   toCombatant,
   weaponAdvantage,
   type BattleAction,
   type GameState,
   type RandomSource,
+  type SkillRow,
+  type StatBlock,
   type SupportEffects,
   type UnitState,
 } from "@fesim/engine";
@@ -33,9 +36,9 @@ const supportEffects: SupportEffects = (
   ) as SupportsTable
 ).effects;
 
-const seq = (...rolls: number[]): RandomSource => ({ roll: () => rolls.shift() ?? 0 });
-const alwaysHit: RandomSource = { roll: () => 0 };
-const alwaysMiss: RandomSource = { roll: () => 99 };
+const seq = (...rolls: number[]): RandomSource => ({ next: () => rolls.shift() ?? 0 });
+const alwaysHit: RandomSource = { next: () => 0 };
+const alwaysMiss: RandomSource = { next: (bound) => bound - 1 };
 
 const baseStats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
 const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
@@ -222,7 +225,8 @@ describe("전투 해결", () => {
         unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, hit: 10, crit: 100 } }),
         unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 30, weapon: sword }),
       ]);
-    const missed = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(99, 99, 99, 99));
+    // 롤은 판정별 해상도를 따른다: 명중 [0,10000) · 필살 [0,100000).
+    const missed = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(9999, 9999, 9999, 9999));
     expect(missed.units.find((u) => u.id === "e")!.hp).toBe(30);
     // 명중(0)·필살(0) → 13*3 = 39 → 즉사
     const crit = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 0));
@@ -294,10 +298,11 @@ describe("전투 해결", () => {
         unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
         unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
       ]);
-    // 롤 소비: 명중 → 필살 → 스탯당 1롤(STAT_KEYS 순서, str은 2번째)
-    const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 4));
-    expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 롤 4 < 5
-    const one = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 0, 5));
+    // 롤 소비: 명중 → 필살 → 성장률이 0이 아닌 스탯만 1롤(str뿐). 잔여 5% = 5000/100000.
+    const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 4999));
+    expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 성공
+    // 잔여가 실패하면 획득 1스탯 < abort(2)라 최대 4시도까지 재굴림한다 — 전부 실패시켜야 +1로 끝난다.
+    const one = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 5000, 5000, 5000, 5000));
     expect(one.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 1); // 잔여 롤 5 = 실패
   });
 
@@ -425,16 +430,249 @@ describe("지원(絆) 보정", () => {
     expect(forecast(s, supportEffects).hitRate).toBe(30);
   });
 
+  it("archetype은 파트너의 SupportCategory로 인덱싱한다(수혜자 것이 아니다)", () => {
+    // 왜 위험한가: 수혜자 기준으로 뒤집으면 인접한 두 유닛의 보정이 통째로 뒤바뀐다.
+    // 정본 = App.UnitReliance.TryGetSupportData(RVA 0x1C5B150) — 파트너의 PersonData+0x80만 읽는다.
+    const s = field({
+      a: { supports: { b: 1 }, supportCategory: "回避" }, // 수혜자 = 回避
+      allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })], // 파트너 = 命中
+    });
+    expect(forecast(s, supportEffects).hitRate).toBe(45); // 파트너(命中) 기준. 수혜자 기준이면 40이다.
+  });
+
+  it("다른 세력 유닛은 파트너가 아니다(엄격 동일 Force — 동맹도 제외)", () => {
+    // 왜 위험한가: '아군'을 동맹 포함으로 넓히면 청색 NPC 옆에서 없던 보정이 생긴다.
+    // SupportCalculator.RangeFunction(0x20AE4B0)은 Force.Type 동일성만 보고 IsAllide를 쓰지 않는다.
+    const s = field({
+      a: { supports: { b: 1 } },
+      allies: [unit({ id: "b", force: 2, x: 1, y: 2, supportCategory: "命中" })],
+    });
+    expect(forecast(s, supportEffects).hitRate).toBe(30);
+  });
+
   it("reduce가 지원 보정을 태운다 — 같은 롤이 지원 유무로 명중/빗나감을 가른다", () => {
     const s = field({
       a: { supports: { b: 1 } },
       allies: [unit({ id: "b", force: 0, x: 1, y: 2, supportCategory: "命中" })],
     });
     const action: BattleAction = { type: "attack", unit: "a", target: "d" };
-    // 롤 44 < 45(지원 후 명중률) → 명중 · 지원이 없으면 30이라 빗나간다.
-    const hit = createReducer(calc, supportEffects)(s, action, seq(44));
+    // 롤 4400 < 4500(지원 후 명중 45%의 임계) → 명중 · 지원이 없으면 30%(3000)이라 빗나간다.
+    const hit = createReducer(calc, supportEffects)(s, action, seq(4400));
     expect(hit.events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
-    const miss = reduce(s, action, seq(44));
+    const miss = reduce(s, action, seq(4400));
     expect(miss.events.find((e) => e.type === "strike")).toMatchObject({ hit: false });
+  });
+});
+
+describe("명중 난수 — sin 곡선 배선(인게임 정본)", () => {
+  /**
+   * 왜 위험했나: 예보 수치가 같아도 결과 분포가 달랐다. 표시 명중 51~99는 실제로 더 잘 맞는데
+   * 엔진은 표시값을 그대로 굴려 과소 명중을 냈다 — 전략 조언 자체가 틀어지는 구간이다.
+   * 정본 = App.BattleMath.GetHitRatio10000 (RVA 0x1E8D200), 곡선 자체의 검증은 probability.test.ts.
+   */
+  const scene = () =>
+    state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, hit: 55 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: { ...baseStats, spd: 0, lck: 0 } }),
+    ]);
+  const duel = (hitRoll: number): GameState =>
+    reduce(scene(), { type: "attack", unit: "a", target: "e" }, seq(hitRoll, 99999));
+
+  it("표시 명중과 임계 사이의 굴림이 명중이 된다(선형 모델이면 빗나갔을 구간)", () => {
+    const s = scene();
+    const rate = forecastSide(
+      calc,
+      toCombatant(s.units.find((u) => u.id === "a")!, s.map, s.units),
+      toCombatant(s.units.find((u) => u.id === "e")!, s.map, s.units),
+    ).hitRate;
+    expect(rate).toBeGreaterThan(50); // 곡선 구간이라야 의미 있는 검사다
+    expect(rate).toBeLessThan(100);
+
+    const linearOnly = rate * 100; // 옛 모델이 쓰던 임계
+    const curved = hitThreshold10000(rate);
+    expect(curved).toBeGreaterThan(linearOnly);
+
+    expect(duel(linearOnly).events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
+    expect(duel(curved - 1).events.find((e) => e.type === "strike")).toMatchObject({ hit: true });
+    expect(duel(curved).events.find((e) => e.type === "strike")).toMatchObject({ hit: false });
+  });
+
+  /** 판정마다 해상도가 다르다 — 상한이 곧 리플레이 계약이라 소비 순서·개수와 함께 박제한다. */
+  const consumedBounds = (crit: number): number[] => {
+    const bounds: number[] = [];
+    const spy: RandomSource = {
+      next(bound) {
+        bounds.push(bound);
+        return 0;
+      },
+    };
+    reduce(
+      state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: { ...sword, crit } }),
+        unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+      ]),
+      { type: "attack", unit: "a", target: "e" },
+      spy,
+    );
+    return bounds;
+  };
+
+  it("명중은 [0,10000)·필살은 [0,100000)에서 뽑는다", () => {
+    expect(consumedBounds(50).slice(0, 2)).toEqual([10000, 100000]);
+  });
+
+  it("필살률 0이면 필살 롤을 아예 소비하지 않는다(게임도 percent<=0이면 난수 미소모)", () => {
+    expect(consumedBounds(0)[1]).not.toBe(100000);
+  });
+});
+
+/**
+ * 발동 필터가 실전투 수치를 가른다 — 필터의 의미론은 skills.test.ts가 소유하고,
+ * 여기서는 "전투를 누가 걸었는가"가 reduce 경로로 제대로 전달되는지만 본다.
+ * 이게 끊기면 필터를 구현해도 예보는 그대로 틀린다(C4류 표류와 같은 결함 형태).
+ */
+describe("발동 필터 배선 — Stand는 전투 주도권을 따른다", () => {
+  /** 자기가 건 전투에서만 위력 +10 — 효과를 데미지로 관측하려고 큰 값을 쓴다. */
+  const offensive: SkillRow = {
+    Sid: "SID_鬼神の一撃",
+    Timing: 5,
+    Stand: 1,
+    ActNames: ["威力"],
+    ActOperations: ["+"],
+    ActValues: ["10"],
+  };
+  const holderDamage = (holderInitiates: boolean): number => {
+    const s = state(
+      [
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [offensive] }),
+        unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+      ],
+      holderInitiates ? 0 : 1,
+    );
+    const next = reduce(
+      s,
+      holderInitiates
+        ? { type: "attack", unit: "a", target: "e" }
+        : { type: "attack", unit: "e", target: "a" },
+      alwaysHit,
+    );
+    const strike = next.events.find((ev) => ev.type === "strike" && ev.attacker === "a");
+    return strike !== undefined && strike.type === "strike" ? strike.damage : -1;
+  };
+
+  it("보유자가 걸면 보정이 붙고, 걸린 쪽이면 반격에도 붙지 않는다", () => {
+    const attacking = holderDamage(true);
+    const countering = holderDamage(false);
+    expect(attacking).toBeGreaterThan(0);
+    expect(countering).toBeGreaterThan(0); // 반격 자체는 성립한다
+    expect(attacking - countering).toBe(10); // 차이는 정확히 스킬 보정분
+  });
+});
+
+/**
+ * 레벨업 성장 — 인게임 정본(App.Unit.LevelUp RVA 0x1A3A040, GrowMode.Random).
+ *
+ * 왜 위험했나: 엔진은 "스탯당 1롤, 캡 무시, 재굴림 없음"이었다. 게임은 셋 다 다르다 —
+ * 성장 결과 분포가 통째로 어긋나므로 육성 시뮬레이션의 결론이 바뀐다.
+ *   (1) 증가 1회마다 상한 게이트(확정분·잔여 롤분 각각)
+ *   (2) 잔여가 0이면 난수를 아예 소모하지 않는다(IsProbability100이 percent<=0에서 즉시 false)
+ *   (3) 획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택한다
+ */
+describe("레벨업 성장 — 상한 게이트·재굴림", () => {
+  const zeroGrowth: StatBlock = { hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
+  const levelUpOnce = (
+    growth: Partial<StatBlock>,
+    rolls: number[],
+    extra: Partial<UnitState> = {},
+  ): { unit: UnitState; consumed: number } => {
+    let consumed = 0;
+    const src = [...rolls];
+    const rng: RandomSource = {
+      next() {
+        consumed += 1;
+        return src.shift() ?? 0;
+      },
+    };
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({
+        id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95,
+        growth: { ...zeroGrowth, ...growth }, ...extra,
+      }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, rng);
+    return { unit: next.units.find((u) => u.id === "a")!, consumed };
+  };
+  /** 전투에서 성장 롤보다 먼저 소비되는 몫 = 명중 + 필살(이 조합은 필살률이 0이 아니다). */
+  const BEFORE_GROWTH = 2;
+  const crit = 99999; // 필살 실패값 — 성장 롤에 영향 주지 않게 고정
+
+  it("상한에 걸리면 확정 가산분도 막힌다(성장률 250이어도 캡까지만)", () => {
+    const cap = { ...baseStats, str: baseStats.str + 1 };
+    const { unit: grown } = levelUpOnce({ str: 250 }, [0, crit, 0], { cap });
+    expect(grown.stats.str).toBe(cap.str);
+  });
+
+  it("잔여가 0이면 그 스탯은 난수를 소모하지 않는다", () => {
+    const flat = levelUpOnce({ str: 200 }, [0, crit]); // 200 = 확정 2(획득 2 = abort 충족), 잔여 0
+    const withRemainder = levelUpOnce({ str: 245 }, [0, crit, 0]); // 잔여 45 = 롤 1회 → 확정 2 + 1
+    expect(withRemainder.consumed).toBe(flat.consumed + 1);
+  });
+
+  it("획득이 2스탯 미만이면 재굴림하고 최선 시도를 채택한다", () => {
+    // 성장률 50 x 2스탯. 1시도차 = 롤 2개.
+    // 시도1: str 실패(50000)·spd 실패 → 0스탯 → 재굴림
+    // 시도2: str 성공(0)·spd 성공(0) → 2스탯 → 채택하고 종료
+    const rolls = [0 /* 명중 */, crit, 50000, 50000, 0, 0];
+    const { unit: grown } = levelUpOnce({ str: 50, spd: 50 }, rolls);
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.stats.spd).toBe(baseStats.spd + 1);
+  });
+
+  it("2스탯 이상이면 재굴림하지 않는다(첫 시도 채택)", () => {
+    const { consumed } = levelUpOnce({ str: 50, spd: 50 }, [0, crit, 0, 0]);
+    expect(consumed).toBe(BEFORE_GROWTH + 2); // 성장 롤 2회뿐 — 재굴림 없음
+  });
+
+  it("성장 확률은 0.001% 해상도로 판정한다", () => {
+    const justHit = levelUpOnce({ str: 45 }, [0, crit, 44999]);
+    // 실패하면 재굴림하므로 4시도 전부 실패시킨다.
+    const justMiss = levelUpOnce({ str: 45 }, [0, crit, 45000, 45000, 45000, 45000]);
+    expect(justHit.unit.stats.str).toBe(baseStats.str + 1);
+    expect(justMiss.unit.stats.str).toBe(baseStats.str);
+  });
+});
+
+/**
+ * 타격 순서·브레이크 조건 — 인게임 정본(il2cpp/SEQUENCE_BREAK.md).
+ * 체인어택은 공격측 첫 오더 슬롯 **직전**에 1회 실행된다 — 엔진은 본공격 뒤에 두고 있었다(가정이었고 반증됐다).
+ * 순서가 뒤집히면 "체인으로 먼저 죽어 본공격이 불발"되는 국면이 통째로 달라진다.
+ */
+describe("타격 순서·브레이크 발동 조건", () => {
+  it("체인어택이 본공격보다 먼저다", () => {
+    const enemyStats = { hp: 25, str: 8, mag: 0, dex: 4, spd: 10, lck: 0, def: 100, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+      unit({ id: "b", force: 0, x: 1, y: 1, weapon: sword, style: "連携スタイル" }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 25, weapon: sword }),
+    ]);
+    const kinds = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit)
+      .events.filter((ev) => ev.type === "strike")
+      .map((ev) => (ev.type === "strike" ? ev.kind : ""));
+    expect(kinds[0]).toBe("chain");
+    expect(kinds[1]).toBe("attack");
+  });
+
+  it("대미지가 0이면 브레이크되지 않는다(확정 대미지 1 이상이 조건)", () => {
+    // 왜 위험한가: 상성만 맞으면 흠집 하나 못 내고도 반격을 몰수해 방어측이 통째로 무력화된다.
+    const wall = { hp: 30, str: 8, mag: 0, dex: 4, spd: 5, lck: 0, def: 100, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }), // 검 > 도끼
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: wall, hp: 30, weapon: axe }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
+    expect(next.events.some((ev) => ev.type === "break")).toBe(false);
+    expect(next.units.find((u) => u.id === "a")!.hp).toBeLessThan(30); // 반격이 살아 있다
   });
 });

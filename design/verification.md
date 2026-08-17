@@ -81,6 +81,42 @@ interface FidelityEntry {
 
 TAS식 입력 스크립트로 예보 화면 전수 채굴 등. 고비용 — **미룸, 발현 조건 = 미러 플레이로 코퍼스 수집이 병목이 될 때**.
 
+### 2-7. ★IL2CPP 실행파일 정적 분석 — "실측 전용" 항목의 정본 확인 경로 (2026-08-17 개통)
+
+미러 플레이가 유일 경로라던 항목들(§4 실측 대기 목록)의 **상당수가 실행파일 코드에 있다**. FE 인게이지는
+Unity IL2CPP 게임이라 exefs `main`(C#→C++ AOT)에 `global-metadata.dat`를 짝지으면 클래스·메서드 심볼이
+복원된다. 이 경로가 개통되면 명중 난수·필살·경험 등은 **실측(확률적·표본 필요)이 아니라 코드 판독(결정적)**으로
+정본을 확정할 수 있다. no-fiction 위배 아님 — 실행파일은 게임 로직의 1차 정본이다(romfs 데이터와 동급).
+
+- **부트스트랩·절차 정본 = `tools/exefs/README.md`** (추출기 소스 = LibHac 참조 C#, 티켓 임포트 포함).
+- **산출물**(저장소 밖 `~/fesim_data/`): `exefs/main`(5.0.0·NSO0·47MB) · `il2cpp_out/{dump.cs,script.json,il2cpp.h,DummyDll/}`.
+  버전 정합 = main·global-metadata 둘 다 5.0.0(메타데이터 v27, romfs 데이터마인 정본과 동일 빌드).
+- **함수 본문 판독 = `tools/exefs/nso_disasm.py`**(2026-08-17 개통 — Ghidra·JDK 불요). NSO의 LZ4 `.text`를
+  디컴프레스해 RVA 구간만 aarch64 디스어셈블하고, `BL` 분기처에 `script.json` 심볼명을 붙인다.
+  ☠간접 호출(`BLR`·델리게이트)은 이름이 안 붙으므로 vtable 오프셋·바인딩 지점을 dump.cs로 역추적해야 한다 —
+  실제로 `BattleMath.RandomCheckHit`은 **`BattleMath.Probability` 델리게이트로 tail-call**한다(명중 판정이
+  주입 가능한 함수라는 구조적 발견, 2026-08-17). 판독 보고서 = `~/fesim_data/extracted/il2cpp/`.
+  ★**2026-08-18 13갈래 전수 판독 완료** — 롤업 = `~/fesim_data/extracted/il2cpp/REPORT_IL2CPP.md`(축별 상세 13편 색인).
+  최장기 미결 9건 종결·엔진 수정구간 9건 TDD 정정·아키텍처 판정(calculator = 데이터 주도 인터프리터 = 현행과 동일 구조).
+  이로써 이 축은 **미러 플레이보다 상위의 1차 정본**이 됐고, 실측은 "이식 대조" 역할로 내려간다(§2-5 성격 전환).
+  최초 착수 대상이었던 함수들(전부 판독 완료):
+
+  | 미결 항목(§4) | 정본 함수(dump.cs 확인) |
+  |---|---|
+  | 명중 난수 모델(1RN/2RN/sin) | `BattleCalculator.RandomCheckHit(int ratio)` |
+  | 필살 판정·배수 | `CalcAttackHit(BattleInfoSide, BattleInfoSide, out int critical)` |
+  | 戦闘経験倍率 적용점·반올림 | `CalcExp(FuncExp1, ...)` · `CalcExp(FuncExp2, ...)` |
+  | 체인가드 데미지(=자기 HP*0.2 스펙) | `GetChainGuardDamage(current, reverse)` (static) |
+  | 인게이지 턴 소비 | `GetExpendCount(side)` · `CalcExpendCount()` |
+  | 지팡이 경험치 | `CalcRodHit(...)` |
+  | 독 티어 승격 하드코딩 | 상태이상 부여 경로(BadState 처리) — 심볼 탐색 대상 |
+  | 신룡의 장 적 레벨 스케일링 | 유닛 생성·레벨 결정 경로(`units.divine-paralogue-level`) |
+
+  ★**수정구간 발생 시 = 엔진 + 룰북(fidelity.ts) 동시 수정**(§2-5·플랜 규약 동일). 코드 판독으로 확정한
+  기전은 **anchored 승격**(evidence에 함수명·RVA·빌드버전 박제). 실측은 코드가 애매한 경우의 보조로 강등.
+- **런타임 계측(보조 축)**: Ryujinx 활성 포크(Ryubing) GDB 스텁 + Cobalt 후킹 — §2-6 자동화와 합류.
+  코드 판독으로 안 풀리는 타이밍·상태누적(브레이크 해제 프레임 등)에서만 개통. 현재는 미룸.
+
 ## 3. M3.5 "검증 기반" 실행 계획 (확정 — 구현 순서 그대로)
 
 > ★새 세션 인수 지점: 이 절이 M3.5의 작업 정본이다. 진행 체크는 플랜 §0의 M3.5 항목에서.

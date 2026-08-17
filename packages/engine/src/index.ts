@@ -63,6 +63,7 @@ export {
 export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.js";
 export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 export { createCalculator, type Calculator } from "./formula/calculator.js";
+export { hitThreshold10000, isHit, isProbability100 } from "./formula/probability.js";
 export {
   combatEnv,
   forecastSide,

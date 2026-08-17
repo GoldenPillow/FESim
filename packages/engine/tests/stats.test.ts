@@ -70,3 +70,23 @@ describe("deriveStats — 공개 실측 앵커", () => {
     expect(s.hp).toBe(40);
   });
 });
+
+/**
+ * HP 하한 = 1 — 인게임 정본(App.Unit.GetCapability RVA 0x1A2DD80, 0x1a2df10 `mov w1,#1`).
+ * 왜 위험한가: 음수 오프셋 유닛의 표시 HP가 0이 되면 살아있는 유닛이 즉사 판정 대상이 된다.
+ * 나머지 스탯은 하한 0으로 남는다(인덱스 0 = HP만 1).
+ */
+describe("스탯 하한", () => {
+  it("HP만 하한이 1이고 나머지는 0이다", () => {
+    const zero = { hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
+    const derived = deriveStats({
+      jobBase: zero,
+      personOffset: { ...zero, hp: -5, str: -5 },
+      personGrowth: zero,
+      jobInternalLevel: 0,
+      level: 1,
+    });
+    expect(derived.hp).toBe(1);
+    expect(derived.str).toBe(0);
+  });
+});

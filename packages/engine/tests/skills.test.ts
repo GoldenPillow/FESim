@@ -126,3 +126,128 @@ describe("값 보정 Acts — 실기 코퍼스 재현", () => {
     expect(calc.eval("回避値計算", combatEnv(conditional))).toBe(40);
   });
 });
+
+/**
+ * 발동 필터(Stand·Action) — 인게임 정본(IL2CPP 판독, BattleInfoSide.IsEnableSkill RVA 0x1E8CDCC~0x1E8CE24).
+ *
+ * 왜 위험했나: 엔진이 이 필드를 아예 읽지 않아 한쪽 입장에서만 켜져야 할 큰 보정이 반대 입장에서도 켜졌다.
+ * 간파(회피 +15+속도*0.25)·달의 팔찌(위력 +상대수비*0.3) 등 8종이 과대 적용 = 예보 수치가 조용히 틀어졌다.
+ *
+ * 두 필드는 축이 다르다:
+ *   Stand  = 이 전투를 건 쪽인가(전투 단위, BattleSide.Type: Offense=0 / Defense=1)
+ *   Action = 이번 타격에서 때리는 쪽인가(타격 단위)
+ * ☠실기 실측("선공 예보와 피격 예보의 적 명중 동일")은 Stand를 반증하지 않는다 —
+ *   그 둘은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 코퍼스도 같은 구조다).
+ */
+describe("발동 필터 — Stand(전투 주도권)·Action(타격 역할)", () => {
+  const migiriStand: SkillRow = { ...MIGIRI, Stand: 1 }; // 실데이터의 SID_見切り가 Stand=1이다
+  const avoid = (c: Combatant) => calc.eval("回避値計算", combatEnv(c));
+
+  it("Stand=1(내가 건 전투)은 걸린 쪽일 때 발동하지 않는다", () => {
+    expect(avoid({ ...alear, skills: [migiriStand], initiator: true })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [migiriStand], initiator: false })).toBe(40);
+  });
+
+  it("Stand=2(내가 걸린 전투)는 반대다", () => {
+    const guard: SkillRow = { ...MIGIRI, Sid: "SID_明鏡の構え", Stand: 2 };
+    expect(avoid({ ...alear, skills: [guard], initiator: false })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [guard], initiator: true })).toBe(40);
+  });
+
+  it("Action=1(때리는 타격)은 맞는 타격에서 발동하지 않는다", () => {
+    const offence: SkillRow = { ...MIGIRI, Sid: "SID_命中１００", Action: 1 };
+    expect(avoid({ ...alear, skills: [offence], striking: true })).toBe(57.25);
+    expect(avoid({ ...alear, skills: [offence], striking: false })).toBe(40);
+  });
+
+  it("Stand·Action이 0이면 어느 입장에서도 발동한다(독처럼 Stand=0인 스킬)", () => {
+    expect(avoid({ ...alear, skills: [MIGIRI], initiator: false, striking: false })).toBe(57.25);
+  });
+
+  it("두 축은 독립이다 — 하나라도 어긋나면 발동하지 않는다", () => {
+    const both: SkillRow = { ...MIGIRI, Sid: "SID_必殺０_オフェンス時", Stand: 1, Action: 1 };
+    const on = { ...alear, skills: [both], initiator: true, striking: true };
+    expect(avoid(on)).toBe(57.25);
+    expect(avoid({ ...on, striking: false })).toBe(40);
+    expect(avoid({ ...on, initiator: false })).toBe(40);
+  });
+
+  it("역할이 미지정이면 게이트를 걸지 않는다(예보 밖 단독 평가 무회귀)", () => {
+    expect(avoid({ ...alear, skills: [migiriStand] })).toBe(57.25);
+  });
+});
+
+/**
+ * 스킬 보정 합성 — 인게임 정본(BattleParam.GetResult RVA 0x1E8DA30,
+ * BattleParamCommand.Add/Scale/SetImpl 0x1B45D60/0x1B45DA0/0x1B45DE0).
+ *
+ * 왜 위험했나: 엔진은 보정을 순차 즉시 반영해서 `+5`와 `*1.3`이 **스킬 순서에 따라** 다른 값을 냈다.
+ * 게임은 훅마다 base·add·scale 세 레지스터를 따로 모아 마지막에 `(base + add) * scale` 한 번으로 합성한다 —
+ * 순서 무관이고, 결과는 파라미터 종류별로 클램프된다(값계 0..999 · 율계 0..100).
+ * ☠이 규칙은 전투 12훅(BattleParam)에만 적용된다. 원시 스탯(力·守備…)은 즉시 반영이 맞다.
+ */
+describe("보정 합성 — (base + add) * scale, 순서 무관", () => {
+  const act = (sid: string, name: string, op: string, value: string): SkillRow => ({
+    Sid: sid, ActNames: [name], ActOperations: [op], ActValues: [value],
+  });
+  const apply = (skills: SkillRow[], name: string, base: number) =>
+    makeSkillModifier(skills, combatEnv(alear))(name, base);
+
+  it("가산과 승산의 순서가 결과를 바꾸지 않는다", () => {
+    const plus = act("a", "威力", "+", "5");
+    const times = act("b", "威力", "*", "1.3");
+    expect(apply([plus, times], "威力", 10)).toBeCloseTo(19.5); // (10+5)*1.3
+    expect(apply([times, plus], "威力", 10)).toBeCloseTo(19.5); // 순서를 뒤집어도 같다
+  });
+
+  it("율계 훅은 0..100으로 클램프된다", () => {
+    const big = act("a", "命中率", "+", "80");
+    expect(apply([big, { ...big, Sid: "b" }], "命中率", 30)).toBe(100);
+  });
+
+  it("값계 훅은 0..999로 클램프된다", () => {
+    expect(apply([act("a", "威力", "*", "100")], "威力", 50)).toBe(999);
+    expect(apply([act("a", "威力", "-", "500")], "威力", 10)).toBe(0);
+  });
+
+  it("=(대입)은 기저만 덮고 가산·승산은 살아남는다", () => {
+    const set = act("a", "必殺値", "=", "20");
+    const plus = act("b", "必殺値", "+", "5");
+    expect(apply([set, plus], "必殺値", 3)).toBe(25); // (20+5)*1
+    expect(apply([plus, set], "必殺値", 3)).toBe(25);
+  });
+
+  it("원시 스탯은 합성 규칙 밖이다(즉시 반영·클램프 없음)", () => {
+    const plus = act("a", "力", "+", "5");
+    const times = act("b", "力", "*", "2");
+    expect(apply([plus, times], "力", 10)).toBe(30); // (10+5)*2 가 아니라 순차 = 30
+    expect(apply([times, plus], "力", 10)).toBe(25); // 순서 의존이 정본이다
+  });
+});
+
+/**
+ * 대미지 정수화 — 인게임 정본(SimplePowerParam + BattleCalculator.CalcAttackHit 0x24726E4).
+ * 게임은 威力를 [0,999]로 클램프하고 **정수로 절사한 뒤** 필살 3배를 곱한다.
+ * 엔진은 소수를 그대로 들고 있다가 3배를 곱해서, 보정 스킬이 붙는 순간 HP에서 소수가 빠지고
+ * `trunc(x)*3`과 `trunc(x*3)`이 갈렸다(威力 10.6 → 정본 30 · 현행 31.8).
+ */
+describe("威力 정수화", () => {
+  it("소수 위력은 절사된 뒤에 필살 배수가 곱해진다", () => {
+    const attacker: Combatant = {
+      ...alear,
+      stats: { ...alear.stats, str: 10 },
+      weapon: { might: 0, hit: 100, crit: 0, weight: 0 },
+      skills: [{ Sid: "SID_소수", ActNames: ["威力"], ActOperations: ["+"], ActValues: ["0.6"] }],
+    };
+    const foe: Combatant = { ...swordFighter, stats: { ...swordFighter.stats, def: 0 } };
+    expect(forecastSide(calc, attacker, foe).damage).toBe(10); // 10.6 → 10
+  });
+
+  it("위력은 0..999로 클램프된다", () => {
+    const attacker: Combatant = {
+      ...alear,
+      skills: [{ Sid: "SID_감산", ActNames: ["威力"], ActOperations: ["-"], ActValues: ["999"] }],
+    };
+    expect(forecastSide(calc, attacker, swordFighter).damage).toBe(0); // 음수 위력 금지
+  });
+});

@@ -39,8 +39,9 @@ export function deriveStats(input: DeriveStatsInput): StatBlock {
     let value =
       input.jobBase[key] + input.personOffset[key] + halfUp((input.personGrowth[key] * levels) / 100);
     if (input.cap !== undefined) value = Math.min(value, input.cap[key]);
-    // 하한 0 — 음수 오프셋 유닛(M002 뤼미에르 실재)의 표시 스탯은 음수일 수 없다(가정, 코퍼스 검증 대상).
-    out[key] = Math.max(value, 0);
+    // 하한 = HP만 1, 나머지 0 (Unit.GetCapability RVA 0x1A2DD80 — 인덱스 0에만 `mov w1,#1`).
+    // 음수 오프셋 유닛(M002 뤼미에르 실재)이 HP 0으로 떨어지면 살아있는 유닛이 즉사 판정 대상이 된다.
+    out[key] = Math.max(value, key === "hp" ? 1 : 0);
   }
   return out;
 }

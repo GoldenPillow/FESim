@@ -13,7 +13,7 @@ import type { GameState, RandomSource, UnitState } from "./battle.js";
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-2";
+export const RULE_VERSION = "fe17-3";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -31,8 +31,8 @@ export interface RecordingSource extends RandomSource {
 export function recordingSource(base: RandomSource): RecordingSource {
   let captured: number[] = [];
   return {
-    roll() {
-      const value = base.roll();
+    next(bound) {
+      const value = base.next(bound);
       captured.push(value);
       return value;
     },
@@ -46,11 +46,11 @@ export function recordingSource(base: RandomSource): RecordingSource {
 
 /** 기록된 롤을 순서대로 먹인다. 소진 = 재계산이 기록보다 길다는 뜻이라 던진다(묵살 금지). */
 export function sequenceSource(rolls: readonly number[]): RandomSource {
-  let next = 0;
+  let cursor = 0;
   return {
-    roll() {
-      if (next >= rolls.length) throw new ReplayDesyncError(`기록된 난수 ${rolls.length}개 소진`);
-      return rolls[next++];
+    next() {
+      if (cursor >= rolls.length) throw new ReplayDesyncError(`기록된 난수 ${rolls.length}개 소진`);
+      return rolls[cursor++];
     },
   };
 }

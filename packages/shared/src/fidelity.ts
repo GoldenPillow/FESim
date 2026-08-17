@@ -44,7 +44,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "movement.range-terrain-cost",
     label: { en: "Movement range from terrain cost (255 = impassable)", ko: "지형 코스트 이동 범위(255 = 진입 불가)" },
     status: "anchored",
-    evidence: "정본 = 地形コスト(Prohibition 전수 반증, decisions 2026-08-16) · range.test.ts",
+    evidence:
+      "정본 = 地形コスト(Prohibition 전수 반증, decisions 2026-08-16) · range.test.ts · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A): 진입 불가 = 코스트 255 단독(TerrainCostData.IsNoMove)·이동타입 열 순서 None/Foot/Horse/Fly/Dragon/Pad·파동 BFS·완화·예산 컷 전부 range.ts와 일치(40규칙 대조표 1~9행) · ☠잔여 결손 = TerrainCostData.GetCost(RVA 0x21E2A20)의 오버레이 가산층 `+ (비행·용 ? overlay.FlyCost : overlay.MoveCost)` 미배선(설치물 = movement.overlay 소관은 turn.map-gimmicks MapOverlap) · 코스트 무시 스킬 MoveCostFree(1<<34)도 미배선",
   },
   {
     id: "movement.once-per-activation",
@@ -56,55 +57,77 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "movement.canter-distance",
     label: { en: "Canter: N tiles after acting (skill Power)", ko: "재이동: 행동 후 N칸(skills.json Power)" },
     status: "anchored",
-    evidence: "공식 도움말 '행동 후 2칸/3칸' 실측 = Power · battle.test.ts 재이동",
+    evidence:
+      "공식 도움말 '행동 후 2칸/3칸' 실측 · battle.test.ts 재이동 · ★IL2CPP 코드로 필드 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10): 정본 필드는 skill.Power가 아니라 **Removable(再移動力)** — Unit.GetMovePowerImpl(RVA 0x1A5B690)이 Status.Removing일 때 max(skill.Removable)을 이동력으로 반환한다(Power는 별개 필드 '強さ'). 종전 'Power = 재이동 거리' 판정은 **반증**됐고 결과가 맞았던 이유는 두 필드의 값이 2·3으로 우연히 일치했기 때문이다(fe17.ts canterPower는 여전히 Power를 읽는다 — 데이터 변경 시 갈린다)",
   },
   {
     id: "movement.canter-terrain-cost",
     label: { en: "Canter obeys terrain cost", ko: "재이동에 지형 코스트 적용" },
-    status: "assumed",
-    evidence: "가정(battle.ts canterPower) — 공식 텍스트에 재이동 지형 서술 없음(gaps/E §1-2), 실기 반증 시 갱신",
+    status: "anchored",
+    evidence:
+      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·§3A 26행): 재이동은 이동력 값만 교체할 뿐(GetMovePowerImpl RVA 0x1A5B690) 탐색 경로는 동일 루틴(MapDeployTemplate.Move → SearchDir RVA 0x2C28FC0)이라 지형 코스트·ZOC·MoveFirst가 전부 그대로 적용된다 — 엔진이 movementRange를 재사용하는 현행 구조와 정합(종전 '공식 텍스트 무지시 가정'을 코드로 대체) · 잔여 = MoveFirst 미배선분(movement.move-first)",
   },
   {
     id: "movement.block-enemy",
     label: { en: "Cannot pass through enemy units", ko: "타군 통과 불가" },
     status: "implemented",
-    evidence: "range.ts blocked",
+    evidence:
+      "range.ts blocked · ★IL2CPP 코드로 판정 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 12행): 저지 기준은 '군(force) 불일치'가 아니라 **진영 동맹표** — SearchDir(RVA 0x2C29500)이 Flag.Enemy 상태에서 !MapSituation.IsAllide(myForce,targetForce)일 때만 차단한다(IsAllide RVA 0x1F48EC0). 엔진의 force 비교는 자군(0)↔우군(2)을 오차단한다(적1↔우군2 상호 차단은 우연 일치) · 스킬 MoveEnemyPass(1<<35)면 해제 — 미배선",
   },
   {
     id: "movement.pass-ally",
     label: { en: "Pass through allies, cannot stop on them", ko: "같은 군 통과 가능·정지 불가" },
     status: "implemented",
-    evidence: "range.ts occupied",
+    evidence:
+      "range.ts occupied · ★IL2CPP 코드로 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 13행): 통과 허용은 같은 군이 아니라 MapSituation.IsAllide(RVA 0x1F48EC0) 동맹표 참 — 자군(0)·우군(2)은 통상 동일 진영이라 서로 통과한다. 엔진의 force 동일 비교는 우군 통과를 막는다(과소)",
   },
   {
     id: "movement.block-third-force",
     label: { en: "Enemy and third force block each other", ko: "적군↔우군 상호 차단" },
-    status: "assumed",
-    evidence: "가정(decisions 2026-08-16) — 공식 텍스트에 서술 전무(gaps/E §1-3), 실기 반증만이 경로",
+    status: "anchored",
+    evidence:
+      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 14행): 차단 기준 = MapSituation.IsAllide(RVA 0x1F48EC0) 진영 인덱스 비교이고 Enemy(1)와 Ally(2)는 서로 비동맹이므로 상호 차단이 코드로 확정된다(종전 '공식 텍스트 전무·실기 반증만이 경로' 판정을 대체) · ⚠챕터가 진영 테이블을 바꿀 수 있음 = 맵별 예외 여지",
   },
   {
     id: "movement.pending-move",
     label: { en: "Move is provisional until an action commits it", ko: "행동 확정 전 잠정 이동(자유 재배치·원점 취소)" },
     status: "anchored",
-    evidence: "사용자 실기 대조(decisions 2026-08-16 이동 UX 정정)",
+    evidence:
+      "사용자 실기 대조(decisions 2026-08-16 이동 UX 정정) · ★IL2CPP 코드 정합 확인(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-14): 원점 보관 = MapMind.m_FirstX/m_FirstZ, 취소 = CommandStack.Push/Pop/Decide + Record.Cancel — 엔진의 moved 플래그·원점 취소와 동형",
   },
   {
     id: "movement.structures",
     label: { en: "Structures (doors, walls) affect passability", ko: "구조물(문·벽) 통행 반영" },
     status: "deferred",
-    evidence: "M005 구조물 렌더 시점(§0 미룸)",
+    evidence:
+      "M005 구조물 렌더 시점(§0 미룸) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-13): 통행 특례 로직은 **없다** — 구조물은 CostName/오버레이 코스트로 환원되고(Map.CanEnterTerrain RVA 0x1EECF90) 파괴 시 ChangeTid로 지형 자체가 교체돼 코스트가 바뀔 뿐 · ⇒ 구현 부담은 렌더·파괴 이벤트 쪽이고 이동 규칙 신설은 불요",
   },
   {
     id: "movement.multi-tile-unit",
     label: { en: "Multi-tile units (BmapSize)", ko: "다칸 유닛(BmapSize)" },
     status: "absent",
-    evidence: "BmapSize 2 = 異形竜류 29체·3 = E006 보스·5 = 솜브론 용형(gaps/H) · ★실기 등장 확인 = 17장 이형룡(m017 dispos 3배치, 화염 브레스 — 사용자 전언 2026-08-17 정합) · 점유·인접·사거리 판정 영향, 발현 = M017 변환 시",
+    evidence: "BmapSize 2 = 異形竜류 29체·3 = E006 보스·5 = 솜브론 용형(gaps/H) · ★실기 등장 확인 = 17장 이형룡(m017 dispos 3배치, 화염 브레스 — 사용자 전언 2026-08-17 정합) · 점유·인접·사거리 판정 영향, 발현 = M017 변환 시 · ★IL2CPP 코드로 점유 규칙 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-5·§3A 20행): 점유 = 좌상 앵커 기준 BmapSize×BmapSize 정사각형(MapEnum.GetCell RVA 0x1DC0B70)이고 SearchDir이 점유 칸을 전수 검사한다 · 지형 회복/피해는 BmapSize 2 및 3 초과 유닛에서 제외",
   },
   {
     id: "movement.warp",
     label: { en: "Warp and other staff/item movement", ko: "지팡이·아이템 이동(워프 등)" },
     status: "absent",
-    evidence: "지형측 워프 금지 Flag 비트 범례 미특정 — groundattribute는 배제 확정(발소리 매핑뿐, gaps/J) · 잔여 후보 = terrain.xml Flag/Prohibition",
+    evidence:
+      "★IL2CPP 코드로 금지 소스 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-9) — 종전 '비트 범례 미특정·잔여 후보 = Flag/Prohibition'은 해소됐다: 판정 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 워프 시 BmapSize<=1 && 상태 Defect/Lockon 아님) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17 = NotWarp**) · groundattribute 배제는 그대로 유효(gaps/J) · 지팡이·아이템 측 배선은 actions.staff 소관",
+  },
+  {
+    id: "movement.move-first",
+    label: { en: "Departure-tile movement bonus (MoveFirst)", ko: "출발 칸 이동력 보정(MoveFirst)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·§3A 11행): 탐색 시작 전 이동력이 clamp(movePower + 베이스지형.MoveFirst + 오버레이.MoveFirst, 0, 100)로 한 번 보정된다(비행·용은 면제) · 재이동에도 같은 루틴이라 재적용된다 · 엔진 range.ts는 이 항이 없다 = 특정 지형 출발 시 이동 범위가 갈린다",
+  },
+  {
+    id: "movement.zoc",
+    label: { en: "Zone of control (skill-driven only)", ko: "제어영역(ZOC — 스킬 전용)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-4·§3A 17~19행): ZOC는 지형이 아니라 **스킬 필드 ZocType**이 소유한다 — 1=CostMin(아군 대상, 해당 칸 코스트 1로 완화)·3=NotMove(적 대상, 진입 금지)의 2종만 데이터에 실재하고 2=CostMax는 코드에만 있고 사용 0건 · 소비 지점 = SearchDir 인접 검사 · 엔진 미배선(과대 이동)",
   },
 
   // ── 행동 ──
@@ -161,55 +184,128 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.forecast-formulas",
     label: { en: "Forecast numbers from Calculator.xml DSL", ko: "예보 수치 = calculator.xml DSL 직접 실행" },
     status: "anchored",
-    evidence: "corpus.test.ts(M002·M003 실기 일치 — 예보 '공격' = 전 타수 합) · 커버리지 52식 중 27 소비(gaps/A §5)",
+    evidence:
+      "corpus.test.ts(M002·M003 실기 일치 — 예보 '공격' = 전 타수 합) · 커버리지 52식 중 27 소비(gaps/A §5) · ★IL2CPP로 아키텍처 정합 확정(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §2·§3): 게임 자체가 **calculator.xml 데이터 주도 인터프리터**다 — CalculatorData.OnBuild(RVA 0x298D1B0)가 XML 52행을 ConditionGetterCommand로 등록하고 CalculatorManager.Calculate(RVA 0x298E560)가 float32 역폴란드 스택 머신으로 평가한다(산출식 하드코딩 0건, 식별자 전부 CalculatorCommand 파생 — 命中値=HitCommand RVA 0x1B484E0 등). 우리 엔진의 DSL 직접 실행 구조가 정본과 동형임이 코드로 확인됐다 · 내장 함수 전수 20종(rand/sin/cos/tan/abs/sqrt/log/exp/round/int/min/max/clamp/lerp/pow/strlen/cond/comp/bit/scale) 중 엔진 지원은 5종 = 미지 함수 강하로 죽는 식이 남아 있다(skills.condition-fallback) · ☠파서 우선순위 = 게임은 && 와 || 가 동순위 좌결합(RATES §5-4)",
   },
   {
     id: "combat.true-hit",
     label: { en: "True hit model (displayed 50+ = sin hybrid)", ko: "명중 실확률(표시 50 이상 = sin 하이브리드)" },
-    status: "assumed",
-    evidence: "현행 = 표시값 1RN 근사 · calculator에 난수 모델 없음(命中率計算 = 命中値-回避値, gaps/A §2-2) — 실행파일 영역, 실측만이 경로(§0 M2 이월)",
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(5.0.0, 2026-08-17) — 굴림은 1회다: App.BattleMath._IsProbabilityHit(RVA 0x1E8D0E0)가 Random.Game.GetValue(10000) 한 번을 GetHitRatio10000(RVA 0x1E8D200) 임계와 < 비교(2RN 아님). 임계 = 표시<51 또는 =100이면 ratio*100 선형, 51~99면 ratio*100 + sin(pi*(ratio-50)/50)*ratio*13.333333 절삭(상수 0x42480000=50.0·0x3C8EFA35=pi/180·0x42C80000=100.0·0x41555555=40/3, 전 연산 float32) · 하한 페널티 없는 비대칭 상향 곡선 = 최대 편차 표시 78에서 +10.21%p · 엔진 배선 = formula/probability.ts(RULE_VERSION fe17-3에서 선형 1RN 반증 정정) · 상세 = extracted/il2cpp/HIT_RANDOM.md",
   },
   {
     id: "combat.crit-multiplier",
     label: { en: "Critical = 3x damage", ko: "필살 = 데미지 3배" },
     status: "anchored",
-    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) — calculator엔 배수 없음(적용은 실행파일, gaps/A §6-4)",
+    evidence: "공식 도움말 원문 kr '대미지 3배' = us 'triple damage'(system.msbt MID_H_INFO_Crit, gaps/N) · 3회차 간접 방증: patch2.msbt MSID_H_SenerioEngage_Dragon '필살이 2배'는 필살률 2배로 층위가 다름(gaps/N §4-2) · ★IL2CPP 코드 확정(2026-08-17): BattleCalculator.CalcAttackHit(RVA 0x24723A0) 0x024726E8 `add w9,w8,w8,lsl #1` + `csel`(Result.Critical 비트) = 정수 상수 3배, 테이블 아님 · 적용 순서 = SimplePower를 Clamp(0,999)한 뒤 3배(필살 데미지는 999 초과 가능, 상한 2997) · 필살 판정 자체는 sin 곡선을 쓰지 않는 선형(combat.crit-rng) · 미조사 = 체인/인게이지 등 타 경로의 별도 배수 유무(HIT_RANDOM.md §4)",
+  },
+  {
+    id: "combat.damage-truncation",
+    label: { en: "Damage integerization points (truncate toward zero)", ko: "대미지 정수화 지점(0 방향 절삭)" },
+    status: "anchored",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §3·RATES_FORMULA.md §3-7): 攻撃力·防御力·威力는 계산·클램프까지 **float32로 유지**되고 정수화는 소비 지점에서 fcvtzs(0 방향 절삭, floor 아님 — 하한 0 클램프 때문에 실질 동일)로 한 번 일어난다 · 지점 = 威力 확정 시 1회(CalcAttackHit RVA 0x24726E4) + ダメージ 대입마다(DamageCommand.SetImpl RVA 0x1B46AA0) + 표시(SetBattleInfoForBattle 0x1F06A44) ⇒ **표시값과 굴림값이 같은 정수**임이 코드로 확정 · 필살 3배는 이 절삭 **뒤**에 곱한다(trunc(x)*3 ≠ trunc(x*3)) · 엔진 배선 = formula/combat.ts damage = trunc(clamp(威力計算, 0, 999)) 후 battle.ts가 3배 · 미배선 = Timing 12 ダメージ 계열의 매 연산 절삭(훅 자체가 없음)",
+  },
+  {
+    id: "combat.skill-sort-key",
+    label: { en: "Skill execution order (SortKey)", ko: "스킬 실행 순서(SortKey 정렬)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §4·SEQUENCE_BREAK.md): 스킬 실행 순서 = HitSkill.SortKey(RVA 0x19B60F0)의 (Timing<<18) + (Order<<11) + 행인덱스 오름차순 · 순서가 결과를 바꾸는 곳은 순차·매회 절삭인 ダメージ/回復 계열뿐이고(威力 계열은 3레지스터 합성이라 순서 무관 — skills.act-values) 그래서 SID_チェインアタック威力軽減(Order=95) 같은 후단 보정의 자리가 이 키로 정해진다 · 엔진 미배선(Timing 11/12 훅 부재라 아직 발현 없음) · SkillData.Priority(+0x94)는 SortKey에 들어가지 않는다(용도 = skills.duplicate-priority)",
+  },
+  {
+    id: "combat.rng-source",
+    label: { en: "RNG source (xorshift128, per-stream)", ko: "난수원(xorshift128·스트림별)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — App.Random 자체 구현: t=s1^(s1<<11); t^=t>>8; t^=s4^(s4>>19); GetValue(n)=(t&0x7FFFFFFF)%n(RVA 0x2375170). UnityEngine.Random 아님 · 스트림 7종(System/Game/Spot/Hub/HubItem/KillBonus/Combat) 중 전투 판정은 전부 Game(get_Game RVA 0x2374C70) · IsSave(type)=type!=0 → System 외 전 스트림이 세이브에 직렬화 = 로드 후에도 난수열 재현 · ☠모듈로 편향 존재(2^31%10000=3648) — 비트 단위 재현 시 나눗셈까지 이식 필요 · 엔진 현행 = 주입식 RandomSource.next(bound)로 추상화(실굴림 분포는 미이식)",
+  },
+  {
+    id: "combat.crit-rng",
+    label: { en: "General probability check (linear, 0.001% step)", ko: "일반 확률 판정(필살·발동 — 선형·0.001% 해상도)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleMath.RandomCheck100 → App.Random.IsProbability100(RVA 0x23754B0): percent*1000 > (xorshift&0x7FFFFFFF)%100000. 명중과 달리 sin 보정 없는 선형이고 해상도가 0.001%다 · percent<=0이면 난수를 소모하지 않는다(롤 소비 순서 계약에 직결) · 필살·격추·스킬 발동이 전부 이 경로 · 엔진 배선 = formula/probability.ts isProbability100, battle.ts가 next(100000)으로 소비",
+  },
+  {
+    id: "combat.forecast-determinism",
+    label: { en: "Forecast/AI simulation is deterministic (RNG bypass)", ko: "예보·AI 시뮬은 결정론(난수 우회)" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleMath는 확률 판정을 델리게이트 슬롯(s_CurrentProbability100/Hit)으로 들고, PushSimulation/PopSimulation이 _IsProbabilityTrue(ratio>0)/_IsProbabilityFalse로 스왑한다(SetSimulation RVA 0x1E8D2E0, s_Simulationed 카운터로 중첩 관리) · 호출처 2곳 = BattleInfo.CalcParam(전투 예보)·BattleCalculator.CalcSimulation(AI 시뮬, PushRandomSeed/PopRandomSeed로 RNG 상태까지 저장·복원해 실난수열을 소모하지 않음) · 시사 = 예보는 '명중률 0 초과면 명중'인 결정론 경로 · 난이도·모드별 확률 분기는 없음(바인딩 후보 4종뿐)",
   },
   {
     id: "combat.follow-up",
     label: { en: "Follow-up attack from calculator formula", ko: "추격 판정 = calculator 공식" },
     status: "anchored",
-    evidence: "corpus.test.ts 예보 일치 · 追撃条件 원문 = 攻撃速度差 >= 5(gaps/A §2-2)",
+    evidence:
+      "corpus.test.ts 예보 일치 · 追撃条件 원문 = 攻撃速度差 >= 5(gaps/A §2-2) · ★IL2CPP 실행부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8): CalcBattleTimesImpl(RVA 0x1E88840, 판정부 0x1E88B6C)이 CalculatorManager로 追撃条件을 평가해 手番回数 = (참 ? 2 : 1)로 대입하고 최종 min(그 값, 장비 잔여 내구)를 적용한다 — 임계 5는 코드 상수가 아니라 calculator.xml 소유(엔진 구조 정합) · ⚠단서 = 식이 읽는 攻撃速度는 BattleParam(ContinuousCommand)이라 0..999 클램프를 통과한 값이다(RATES §6) — 음수 공속이 0으로 잘리므로 초중량 무기에서 엔진과 갈린다(클램프 미배선분 = skills.act-values 잔여)",
+  },
+  {
+    id: "combat.followup-durability-cap",
+    label: { en: "Follow-up capped by remaining weapon durability", ko: "추격의 잔여 내구 상한" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8·§3): CalcBattleTimesImpl 최종 단계가 min(追撃条件 ? 2 : 1, UnitItem.Endurance)를 취한다(RVA 0x1E88BBC) — **잔여 내구 1이면 공속차가 5 이상이어도 추격이 없다** · 엔진은 내구 개념이 없어 미발현(선행 = 무기 내구 모델)",
+  },
+  {
+    id: "combat.counter-range-gate",
+    label: { en: "Counter-attack eligibility gates", ko: "반격 가능 조건(사거리·상태·무기)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §3): CalcBattleTimesImpl(RVA 0x1E88840, 0x1E888E0~0x1E88AE0)이 手番回数를 0/1로 떨어뜨리는 게이트 전수 = UnitUtil.IsAttackRange 불충족 · Status.Rod(지팡이 행동) · BattleInfo.Flags.IgnoreRevenge · EngageCharge · 장비 무기 없음 · 엔진은 '사거리 + 브레이크 + 생존'만 본다(inWeaponRange) = 지팡이·인게이지 충전 등에서 과대 반격",
+  },
+  {
+    id: "combat.interrupt-order",
+    label: { en: "Interrupt order (Break follow-up)", ko: "割込み(가로채기) 오더 — 브레이크 시 추격" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-12·RATES_FORMULA.md §6): 유일 주체 = SID_ブレイク時追撃(SkillData Flag InterruptOrder, Timing=13 AttackEnd, Condition 攻撃結果(ブレイク)) — CalcInterruptOrder(RVA 0x24700B0)가 手番回数를 +1 한 뒤 CalcOrder 1회를 추가 실행한다(0x2470190) · 위력식은 통상과 동일 = SimplePowerParam.Calculate(0x19B7DC8)가 Status.Interrupting 게이트로 割込み威力計算을 고르는데 그 식이 威力計算과 같다 ⇒ gaps/A §7-4 '割込み 주체 불명' 해소, **결손은 수치가 아니라 순서 층뿐**(선행 = 오더 큐 재작성)",
+  },
+  {
+    id: "combat.chain-attack-accuracy",
+    label: { en: "Chain attack accuracy: base 80, skills override via '='", ko: "체인 어택 명중률 = 기본 80 고정, 스킬이 = 연산으로 덮어씀" },
+    status: "anchored",
+    evidence:
+      "calculator.xml チェインアタック命中率計算=80 + skill.xml SID_チェインアタック命中率(90/100/30/10)% + patch2.msbt MSID_H_Charisma(us 'to 90%', kr은 수치 생략 — 모순 아님, gaps/N §3-1) · 상대에게 강제 30/10%는 Condition=相手の立場==援護 게이트 · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §6): SimpleHitParam.Calculate(RVA 0x19B7BA0)가 side.Status & ChainAttack(4)이면 **식 자체를 チェインアタック命中率計算으로 교체**한다(표준식에 가산하는 방식이 아니다). 필살도 SimpleCriticalParam.Calculate(RVA 0x19B7A20)가 チェインアタック必殺率計算(=0)으로 교체 = 체인어택은 필살이 나지 않는다",
+  },
+  {
+    id: "combat.chain-attack-damage-cut",
+    label: { en: "Chain attack damage taken cut to 20%", ko: "체인 어택 받는 대미지 = 20%로 감쇠" },
+    status: "anchored",
+    evidence:
+      "skill.xml SID_チェインアタック威力軽減(＋) ActValues=0.2(ダメージ*0.2) — 텍스트(인연을 가르는 자)는 수치 생략, 데이터 전용 수치(gaps/N §3-1) · ★IL2CPP 적용 시점 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §3 19단계): Timing=12(HitAffect)·Order=95 = **필살 3배와 정수 절사가 끝난 ダメージ에 0.2를 곱하고 다시 절사**한다(威力 단계가 아니다) · ☠엔진은 Timing 11/12 훅 자체가 없어 미배선 — 배선 시 DamageCommand.SetImpl(RVA 0x1B46AA0)처럼 매 연산 절사·SortKey 순차여야 한다(combat.skill-sort-key)",
   },
   {
     id: "combat.strike-order",
-    label: { en: "Strike order: attack, chain, counter, follow-ups", ko: "타격 순서: 본공격→체인→반격→추격→적추격" },
-    status: "assumed",
-    evidence: "실행부 모델 = 측당 (手番回数,攻撃回数,行動回数) 3중 카운터(gaps/A §0-1) — 엔진은 2단 축약, 체인 위치는 가정",
+    label: { en: "Strike order: chain, attack, counter, follow-ups", ko: "타격 순서: 체인→본공격→반격→추격→적추격" },
+    status: "anchored",
+    evidence:
+      "★IL2CPP 실행부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-2~2-5): 전투 = 4단 중첩(Battle > Order > Action > Attack) — CalcNormalBattle(RVA 0x246B580)이 공격측/방어측 교대 오더 큐(0,1,0,1,… 8슬롯)를 만들고, CalcOrders(OrderList)(RVA 0x246BC30)가 각 슬롯에서 **CalcChainAttack을 CalcOrders(side)보다 먼저** 호출하며(0x246BD70), CalcOrders(BattleSide.Type)(RVA 0x246FA50)가 min(手番回数,4) 게이트로 실행 여부를 정한 뒤 CalcOrder→CalcAction(RVA 0x2470D60)→CalcAttack(RVA 0x2471060)이 行動回数·攻撃回数만큼 반복한다 · ⇒ **체인어택이 본공격보다 먼저**이고 종전 '본공격 뒤' 가정은 반증됐다(엔진 정정 완료 — battle.test.ts 체인 선행·난수 소비 순서 갱신) · 잔여 축약 = 측당 3중 카운터를 2단으로 접은 것(별건 = combat.turn-count·combat.strike-count·combat.order-flow-skills)",
   },
   {
     id: "combat.strike-count",
     label: { en: "Multi-strike per engagement turn (attack count 2+)", ko: "타격 횟수(攻撃回数 2 이상)" },
     status: "absent",
-    evidence: "攻撃回数 = 1턴당 타격 수 · SID_助太刀/半身_竜族 = 2 · 엔게이지 기술 4~9(gaps/A §0-2) — 엔진은 1 고정",
+    evidence:
+      "攻撃回数 = 1턴당 타격 수 · SID_助太刀/半身_竜族 = 2 · 엔게이지 기술 4~9(gaps/A §0-2) — 엔진은 1 고정 · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-5): 攻撃回数 = BattleDetail.AttackCount(BaseParams[2])이고 CalcAction(RVA 0x2470D60)이 1..AttackCount 회 CalcAttack을 반복한다(그 위 계층이 行動回数만큼 CalcAction 반복) · 훅 = AttackCountCommand·ActionCountCommand(skills.flow-hooks) = 어휘 결손이 아니라 전투 해결층 상태 결손",
   },
   {
     id: "combat.turn-count",
     label: { en: "Engagement turn count model", ko: "手番回数(교전 턴 수) 모델" },
     status: "absent",
-    evidence: "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약",
+    evidence: "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약 · 3회차 재확인: skill.xml SID_切り返し가 Condition=手番回数==1 게이트 하에 手番回数=2를 직접 대입 — 추격이 手番回数 스칼라 대입으로 구현됨을 실물로 확인(gaps/N §3-4, 제안 id combat.followup-representation 병합) · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-4·2-8): 手番回数 = BattleInfoSide.BattleTimes(+0xB0), 상한 4 — CalcOrders(side)(RVA 0x246FA50, 게이트 0x246FAEC)가 min(BattleTimes,4) <= TotalOrder로 실행을 끊는다. 추격 = 2 · 브레이크 = 0 · 割込み = +1 · 카운터 증가 지점은 SeparatorScope.Dispose(RVA 0x19B6E60)",
   },
   {
     id: "combat.order-flow-skills",
     label: { en: "Order-altering flow skills (Vantage etc.)", ko: "순서 변경 흐름 스킬(待ち伏せ 등)" },
     status: "absent",
-    evidence: "SID_待ち伏せ(HP<=25%)·SID_攻め立て(総手番回数==0) = ActNames 없는 흐름 스킬 — 실행부 소유(gaps/A §0-2)",
+    evidence:
+      "SID_待ち伏せ(HP<=25%)·SID_攻め立て(総手番回数==0) = ActNames 없는 흐름 스킬 — 실행부 소유(gaps/A §0-2) · ★IL2CPP 기전 3종 전부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-13): 待ち伏せ/攻め立て = SkillData.Flags.SwapOrder → CalcOrders가 다음 두 오더 슬롯을 스왑(0x246BD18) · スマッシュ = Flags.ForceLateOrder → CalcNormalBattle이 오더 큐를 1,1,1,1,0,0,0,0으로 구성(0x246B914, IsLateOrder RVA 0x246BA50) · SID_ブレイク時追撃 = Flags.InterruptOrder(별건 = combat.interrupt-order) · ⇒ 순서 변경은 전부 **오더 큐 재배치**이지 개별 타격 삽입이 아니다 = 엔진의 고정 5단 축약으로는 표현 불가(오더 큐 재작성 선행)",
   },
   {
     id: "combat.advantage",
     label: { en: "Weapon triangle (sword>axe>lance, arts>bow/knife/tome)", ko: "상성(검>도끼>창>검·체술>활/단검/마도서)" },
     status: "anchored",
-    evidence: "相性補正 = 0;0;0(정본 전수, gaps/A §2-3) — 수치 보정 없음, 상성 효과는 브레이크뿐 · M2 정본(역방향 우위 없음)",
+    evidence:
+      "相性補正 = 0;0;0(정본 전수, gaps/A §2-3) — 수치 보정 없음, 상성 효과는 브레이크뿐 · M2 정본(역방향 우위 없음) · ★IL2CPP 코드로 재확인(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §4·SEQUENCE_BREAK.md §3): BattleDetail의 BaseParams 20칸·BattleParams 12칸 전수에 상성 보정항이 **부재**하고, 상성의 유일한 소비처는 CanBreakable(RVA 0x1E89CB0)이 무기 kind 인덱스로 테이블을 뽑아 상대 kind 비트를 검사하는 브레이크 판정뿐이다 · ⚠엔진의 BEATS 하드코딩과 그 테이블(0x1C47C0 경유)의 전수 동치는 미대조",
   },
   {
     id: "combat.advantage-skills",
@@ -221,91 +317,128 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.break",
     label: { en: "Break: advantage + hit forfeits counters", ko: "브레이크: 상성 유리+명중 = 반격 몰수" },
     status: "implemented",
-    evidence: "battle.test.ts",
+    evidence:
+      "battle.test.ts · ★IL2CPP 조건 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-6): CalcAttack(0x2471840~) 안에서 **매 타격마다** 평가 — 명중 + 확정 대미지 1 이상 + current.SideType==Offense + reverse.SideType==Defense + CanBreakable(RVA 0x1E89CC8, 상성표) + 미브레이크. 효과의 실체는 '반격 불가'가 아니라 SID_気絶(States.Stun) 부여 → CalcBattleTimesImpl이 手番回数 0을 반환하는 것(combat.break-recovery) · ☠엔진 미배선 2건 = (a) 브레이크 판정을 kind==='attack'으로 한정해 **추격 타격에서 성립하지 않는다**(코드는 몇 번째 手番인지 보지 않는다 — 본공격 빗나가고 추격이 명중해도 브레이크) (b) 페이즈 종료 해제가 nextForce 유닛에만 걸린다(3군 맵 과대) — 둘 다 SEQUENCE_BREAK §4 F2·F3",
   },
   {
     id: "combat.break-immunity",
     label: { en: "Break immunity (armored style, null skill)", ko: "브레이크 면역(중장 스타일·무효 스킬)" },
     status: "implemented",
-    evidence: "battle.test.ts 면역 SID 4종(相性ブレイク無効·ブレイク無効·_効果·인챈트판) — LunaticSids 어댑터 미배선은 §0 등재(gaps/FIX_NOTES F2)",
+    evidence:
+      "battle.test.ts 면역 SID 4종(相性ブレイク無効·ブレイク無効·_効果·인챈트판) — LunaticSids 어댑터 미배선은 §0 등재(gaps/FIX_NOTES F2) · ★IL2CPP 정본 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-6): 면역의 정본은 SID 목록이 아니라 **BadIgnore 비트** — CanBreakable(RVA 0x1E89CC8)이 reverse.MaskSkill.BadIgnore & (Stun 1024 | Interact 2048)로 차단하고, skill.xml SID_ブレイク無効_効果=1024·SID_相性ブレイク無効=2048·SID_EN_技の薬_効果_ブレイク無効=1024가 그 비트를 세운다. 重装スタイル은 스타일 문자열이 아니라 **job.xml이 SID_相性ブレイク無効을 부여**하는 경로다 · 별도로 Status.NotStun이면 GetBreaked가 Result.Ignore · ⇒ 엔진의 'SID 4종 + 스타일 문자열' 근사는 같은 결과를 내지만 신규 데이터(루나틱·인챈트·부여 스킬)에서 갈린다",
   },
   {
     id: "combat.break-recovery",
     label: { en: "Break recovery: after one defended combat, or own phase start", ko: "브레이크 해제 = 피격 전투 1회 직후 또는 자기 군 페이즈 시작" },
     status: "anchored",
-    evidence: "사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소)",
+    evidence: "★IL2CPP 코드로 종결(2026-08-17, il2cpp/SEQUENCE_BREAK §2-7): 브레이크의 실체 = SID_気絶(States.Stun) 부여이고 효과는 '반격 불가'가 아니라 **手番回数 = 0**(그 전투에서 오더를 못 받음) · 해제 = 두 경로 중 먼저 오는 쪽 — (A) 그 유닛이 참여한 다음 전투의 커밋 시점(BattleCalculator.CommitUnit 0x2477B70, 그 전투에서 다시 브레이크되지 않았을 때) (B) 페이즈 종료 시 무조건(MapSequence.TurnEnd → Unit.ResetPhaseEnd 0x1A19EF0, 데이터도 SID_気絶 Cycle=3=PhaseAfter) · ⇒ kr 원문 '한 번 전투를 하거나 다음 턴이 되기 전까지' = (A) or (B)로 정확히 대응하고 us 원문은 (A)만 적은 축약이었다(원문 불일치 해소) · 발동 조건 = 명중 + 확정 대미지 1 이상 + 공격 주체가 Offense이고 피격이 Defense(**반격·체인어택으로는 브레이크가 발생하지 않는다**) + CanBreakable(무기 상성 비트) + 미브레이크 · ☠면역의 정본은 SID 목록이 아니라 **BadIgnore 비트**(ブレイク無効_効果=1024/Stun · 相性ブレイク無効=2048/Interact, 重装スタイル 직업이 후자를 부여) — 엔진은 아직 SID 목록으로 근사한다 · 기존 근거: 사용자 실기 대조 2026-08-17(reference/screens break_recovery_1~3 — 피격 시 유지·직후 해제·적턴 시작 해제) · battle.test.ts breakRelease · kr 도움말 두 절 모두 확정(E §1-1 불일치 해소) · 3회차 patch0-3 전수 후에도 브레이크 자동 해제 타이밍 서술 0건 재확인 — 텍스트 축 경로 종결(gaps/N §4-2)",
   },
   {
     id: "combat.chain-attack",
     label: { en: "Chain attack (backup style in range)", ko: "체인어택(연계 스타일·사거리 내 협공)" },
-    status: "implemented",
-    evidence: "수치 = calculator · battle.test.ts · 위력 절삭(floor)은 가정(원문 무지시, gaps/A §6-7)",
+    status: "anchored",
+    evidence:
+      "수치 = calculator · battle.test.ts · ★IL2CPP 코드로 가정 2건 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §3·SEQUENCE_BREAK.md §2-10): 위력 = 통상 파이프라인을 타되 13단계 식만 max(相手のMaxHP*0.1, 1)로 바뀌고(SimplePowerParam.Calculate 0x19B7D88, Status.ChainAttack 분기) Clamp(0,999) 뒤 fcvtzs로 절사 = **floor 가정이 옳았다**(하한 0 클램프라 trunc=floor) · 순서 = 오더 큐 실행 직전 1회이고 전투당 1회(BattleInfo.Flags.ChainAttacked) — 엔진 정정 완료 · 명중 80 고정·필살 0 고정이라 필살 3배는 발생하지 않는다 · ⚠미확정 = 참가 자격의 정본(ForceChainAttack/JoinChainAttack 반영은 BattleInfo 구성 단계 소유) — 엔진은 '연계 스타일 + 자기 무기 사거리'로 근사",
   },
   {
     id: "combat.chain-guard",
     label: { en: "Chain guard", ko: "체인가드" },
     status: "absent",
-    evidence: "정식화 — 데미지 = 자기 HP*0.2 · 경험 = clamp(基本値+레벨차감쇠,1,100) · 게이트 SID_チェインガード許可(gaps/A §2-4, E §1-6)",
+    evidence:
+      "정식화 — 데미지 = 자기 HP*0.2 · 경험 = clamp(基本値+레벨차감쇠,1,100) · 게이트 SID_チェインガード許可(gaps/A §2-4, E §1-6) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9·EXP_CHAIN_ENGAGE.md §2·SEQUENCE_BREAK.md §2-11): 대미지 = trunc(가드 유닛의 **전투 내 현재 HP**(BattleInfoSide.Hp +0x94) * 0.2)이고 **하한 1이 없다**(HP 4 이하면 0) · 공격 대상이 받는 대미지는 0으로 치환 · 산식 선택 = GetChainGuardDamage(RVA 0x24720C0)가 Unit.Status.ChainGuard(64) 분기에서 calculator의 チェインガードダメージ를 평가 · 발동 게이트 = CalcChainGuardSide(RVA 0x246F3C0) — 피격 측이 Defense 또는 ChainDefense1~4일 때만 · 공격 측이 체인어택이면 무효 · BattleInfo.Flags.EngageAttack(인게이지 기술)이면 무효",
   },
   {
     id: "combat.engage-guard",
     label: { en: "Engage guard", ko: "엔게이지 가드" },
     status: "absent",
-    evidence: "エンゲージガードダメージ = 0(가드 측 HP 손실 없음 — 체인가드 HP*0.2와 대비, gaps/A §0-2)",
+    evidence:
+      "エンゲージガードダメージ = 0(가드 측 HP 손실 없음 — 체인가드 HP*0.2와 대비, gaps/A §0-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9): 같은 함수 GetChainGuardDamage(RVA 0x24720C0, 분기 0x2472260)의 두 번째 분기 = Unit.Status.DualGuard(128)이고 값 0은 calculator.xml 식 그대로 = 가드 유닛도 무피해 확정",
+  },
+  {
+    id: "combat.engage-attack-damage-type",
+    label: { en: "Engage-technique damage is a distinct type (separately mitigable)", ko: "인게이지 기술 대미지 = 독립 유형(별도 감쇠 대상)" },
+    status: "assumed",
+    evidence:
+      "patch3.msbt MSID_H_JobSkill_ShadowPrincessR '인게이지 기술로 공격받았을 때 받는 대미지-20%' — 텍스트 단서(gaps/N §4-1 #9) · ★IL2CPP 판별 비트 규명(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6): 피격 측 Unit.Status.EngageAttacked(0x4000000) / 사용 측 EngageAttack(0x1000000) / BattleInfo.Flags.EngageAttack(4096) 3종이 실재해 스킬 조건이 인게이지 기술 여부를 읽을 수 있다 · 같은 플래그가 체인가드를 무효화한다(인게이지 기술은 가드 불가) · ⚠'독립 대미지 유형'인지 '조건부 감쇠'인지는 여전히 미확정 = 별도 감쇠 파이프라인은 발견되지 않았고 조건 게이트만 확인됐다",
   },
   {
     id: "combat.smash",
     label: { en: "Smash weapons (knockback, no first strike)", ko: "스매시 무기(밀치기·선공 불가)" },
     status: "absent",
-    evidence: "정식화 — SID_スマッシュ 28건 ActNames(넉백100%·거리1)+SID_追撃不可 동시 부여(gaps/B §5) · 규칙 원문 4종(gaps/E §1-5)",
+    evidence:
+      "정식화 — SID_スマッシュ 28건 ActNames(넉백100%·거리1)+SID_追撃不可 동시 부여(gaps/B §5) · 규칙 원문 4종(gaps/E §1-5) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-11·SEQUENCE_BREAK.md §3): '선공 불가'의 실체 = Flags.ForceLateOrder → CalcNormalBattle이 오더 큐를 1,1,1,1,0,0,0,0으로 재배치(0x246B914) = 방어측이 자기 手番을 전부 먼저 소화하는 것이지 공격 자체가 늦어지는 게 아니다 · 넉백 = BlowRatio/BlowDistance BaseParam이고 **damage >= 1일 때만** 판정(CalcAttackHit 0x24726F0 cmp/b.lt) — 0 대미지면 넉백 없음 · 대미지 산식에는 무영향",
+  },
+  {
+    id: "combat.weight-build-overflow",
+    label: { en: "Weight-over-build damage bonus (physical, cap +5)", ko: "무게 초과 대미지 = min(무기 무게-체격, 5), 물리 한정" },
+    status: "anchored",
+    evidence: "skill.xml SID_重撃 威力 += min(武器の重さ-体格,5), Condition=攻撃属性==物理属性 && 武器の重さ>体格 + patch1.msbt MSID_H_HeavyAttack(중격, kr/us 일치, gaps/N §3-4)",
   },
   {
     id: "combat.effectiveness",
     label: { en: "Effectiveness (armored, cavalry, flying, dragon)", ko: "특효(중장·기병·비병·용족 등)" },
     status: "absent",
-    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손",
+    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2) · ★IL2CPP 코드로 합성 규칙까지 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-3·SKILL_ENGINE.md §4): 배수 = SkillArray.GetEfficacyValue(Unit)(RVA 0x24895A0) — 초기 1에서 매치마다 Mathf.Max(acc, skill.EfficacyValue)(0x24896FC)라 **중복 특효는 곱이 아니라 최댓값**이고 무매치 기본은 1 · 마스크 = (공격자.m_Efficacys & 대상.(Person.Attrs|Job.Attrs)) & ~대상.MaskSkill.m_EfficacyIgnores(0x24895F0 bics) · 저장처 = BattleDetail.WeaponEfficacy = m_BaseParams[10], IsEfficacy()(RVA 0x1E768C0) = >1 · 곱하는 자리 = calculator 攻撃力計算의 武器攻撃力 항에만(BattleDetail.CalcAttack RVA 0x1E74400) · ☠엔진 반증 = formula/combat.ts는 특효 배수 기본을 무기 필드 2로 두고 있다(정본 3, 邪竜特効만 2) — 판별 함수 자체가 미배선",
   },
   {
     id: "combat.terrain-bonus",
     label: { en: "Terrain avoid/defense bonuses", ko: "지형 회피·방어 보정" },
     status: "anchored",
-    evidence: "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일)",
+    evidence:
+      "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유(gaps/N §4-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-11·DAMAGE.md §2-4): 지형 보정은 **베이스 지형(+0x40)과 오버레이 지형(+0x48) 2층을 각각 합산**한다(BattleDetail.CalcDefense RVA 0x1E746C0 / CalcAvoid RVA 0x1E74900) — 엔진은 BattleMap.terrain 단일값 1층뿐이라 설치물·기믹 오버레이가 얹히면 갈린다 · 진영 비대칭항은 별건(combat.terrain-asymmetric)",
   },
   {
     id: "combat.effectiveness-ignore",
     label: { en: "Effectiveness immunity/negation", ko: "특효 무효(가호·배리어)" },
     status: "absent",
-    evidence: "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H)",
+    evidence:
+      "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H) · ★IL2CPP로 적용 주체 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·DAMAGE.md §4): 무효 비트는 **피격 대상 자신의** SkillArray 캐시에서 걸린다 — GetEfficacyValue(RVA 0x24895A0)가 target.MaskSkill.m_EfficacyIgnores(unit+0xF0 → +0x34)로 특효 마스크를 BIC 제거한다(공격자 측 판정이 아니다). SkillData.EfficacyIgnore(+0x1AC)가 그 비트의 소스",
   },
   {
     id: "combat.terrain-asymmetric",
     label: { en: "Force-asymmetric terrain modifiers", ko: "자군/적군 비대칭 지형 보정(瘴気 등)" },
     status: "absent",
-    evidence: "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3)",
+    evidence:
+      "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-4·MOVE_TERRAIN.md §3): TerrainDefense = terrain.Defense + (force==Player ? PlayerDefense(+0x5E) : force==Enemy ? EnemyDefense(+0x5F) : 0), 회피도 동형이며 **우군(Ally) 이상은 가산 없음** — BattleDetail.CalcDefense(RVA 0x1E746C0, 분기 0x1E7470C~0x1E74764) · 오버레이 층도 같은 규칙으로 추가 합산 · ⇒ 데이터·식 모두 확보 = 스키마 확장만 하면 즉시 배선 가능",
   },
   {
     id: "combat.support-bonus",
     label: { en: "Support (bond) bonuses (adjacent only)", ko: "지원(인연) 보정 — 인접 1타일" },
-    status: "assumed",
-    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · 가정 3 = 합산·4방 인접·archetype 소유자(파트너 기준, 수혜자설과 상충 — 실측 1회로 결정) · 예보 패널 표시는 §0 미룸",
+    status: "anchored",
+    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · ★IL2CPP 코드로 가정 3건 전부 종결(2026-08-17, il2cpp/SUPPORT.md): 거리 = 맨해튼 1(SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트 — **대각 미발동 확정**) · archetype = **파트너**의 SupportCategory(UnitReliance.TryGetSupportData 0x1C5B150이 unitB의 PersonData+0x80만 인덱싱 — 수혜자설 기각, 현행 엔진 정합) · 복수 파트너 = 단순 합산·상한 없음(MaxShowUnits=4는 UI 표시 슬롯 전용) · 파트너 자격 = 엄격 동일 Force.Type(동맹 세력 제외 — IsAllide를 쓰지 않는다) · 평가 = 전투 정보 산출 시 양측 1회 고정(매 타격 재계산 아님), 좌표는 이동 후 전투 지점 · ☠Level 4 = **A+**이지 S가 아니다(RelianceData.Level None0/C1/B2/A3/APlus4 — 경험 승급은 A까지, A+는 엠블럼 링크 경로) · 회귀 방지 테스트 2건(archetype 소유자·타 세력 배제) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
   },
   {
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) ·사룡 전용 송곳니의 저주(최대HP -5 누적) 포함",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) · 3회차 재해석으로 '데미지식 해석 모호' 해소(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 그중 이름이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減·確率被ダメ半減이 동일하게 '相手の威力*0.5' — 반전 표기 가설 기각 · ★승격(중첩 아닌 치환) = 원문 확정: scripts/g002_gimmick.txt 毒ガスによる状態異常を付与する()가 解除(하위)→装備(상위) 사슬을 그대로 구현하고 개발자 주석이 '1つ上の状態にする'·'上書きする' — 劇毒에서 포화(위 분기 없음) · 남는 결손은 미실측 = 猛毒 +3·劇毒 +5(1스택 실측 + 동일 필드 구조의 연역)·Power 필드 의미(3단 전부 5로 동일해 효과 크기와 무관)·단검 연타 승격의 구현 위치 = ★IL2CPP 코드 확정(2026-08-17, 실측 불요로 종결): SkillData.GroupAssign(RVA 0x248D0C0)이 skill 테이블을 행 순서대로 훑어 Priority 연속 오름차순 구간을 그룹으로 묶고 LowSkill(0x268)/HighSkill(0x270)로 잇는 **범용 승격 사슬 기구**가 실재하며, Unit.AddGiveSkill(0x1A5D430)이 재부여 시 한 단계 위로 치환하고 AddPrivateSkill(0x1A37990)이 하위 티어를 제거해 **공존 불가**다 — 즉 2회 명중 = 猛毒 +3 확정, 중첩(+2) 기각(statusPoison.test.ts의 예측과 일치) · 독 발동 지점도 확정 = Timing=10(HitBefore, CalcAttack이 타격마다 여는 단계)·Action=2(보유자가 맞는 타격만)·Stand=0(주도권 무관)이라 '맞는 매 타격의 威力 단계에 +N, 守備 차감 이전' · ☠猛毒 부여 경로 = XML GiveSids 0건·Lua 1건(g002 승격 사슬)뿐 · Life=0 무제한(해제 = デトックス/毒消し) · 蛇毒은 BadState=0 별계통(%HP DoT) · 사룡 전용 송곳니의 저주는 별도 정식화 완결(combat.status-fang-curse, 3회차 — gaps/N §3-3) · 위 전부 실행 검증 = engine/tests/statusPoison.test.ts(13) + 스크래치 verify_poison_lua.mjs · status는 배선 부재로 absent 유지(선행 = skills.opponent-act)",
+  },
+  {
+    id: "combat.status-fang-curse",
+    label: { en: "Fang curse: max HP -5 per stack, 4 discrete tiers", ko: "송곳니의 저주 — 최대 HP -5씩 4단(-5/-10/-15/-20)" },
+    status: "anchored",
+    evidence: "item.xml IID_牙 + skill.xml SID_牙呪 / SID_牙呪_発動(Condition=相手のMaxHP>5 && 相手の生存) / SID_牙呪_効果_最大HP_-5..-20(4단 이산 SID, EnhanceValue.Hp, BadState=512, Cycle=7/Life=1) + patch2.msbt MIID_H_Fang(kr '최대 -20' = 연속 누적 아닌 4티어 승격) — combat.status-effects §7 언급분의 정식화 완결(gaps/N §3-3)",
   },
   {
     id: "combat.staff-hit",
     label: { en: "Offensive staff hit/avoid", ko: "방해 지팡이 명중·회피" },
     status: "absent",
-    evidence: "妨害杖命中値 = 魔力+技+武器命中 · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避(gaps/A §2-5)",
+    evidence:
+      "妨害杖命中値 = 魔力+技+武器命中 · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避(gaps/A §2-5) · ★IL2CPP 게이트 확정(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §6): HitParam.Calculate(RVA 0x19B7850)가 side.Status & InterferenceRod(1024)면 妨害杖命中値計算으로 식을 교체하고, AvoidParam.Calculate(RVA 0x19B73C0)는 **상대측**(side.Reverse) 상태가 InterferenceRod일 때 妨害杖回避値計算으로 교체한다 · 지팡이 전용 '명중률' 식은 존재하지 않는다 — BattleCalculator.CalcRodAttack(0x24734A8)이 SimpleHit을 그대로 소비하므로 통상 命中率計算(命中値 - 相手の回避値)을 탄다 · 배선 선행 = actions.staff",
+  },
+  {
+    id: "combat.range-hit-falloff",
+    label: { en: "Range-based hit falloff (-10 per tile from range 4)", ko: "원거리 명중 감쇠(4칸부터 칸당 -10)" },
+    status: "assumed",
+    evidence:
+      "SID_弾丸命中의 cond(戦闘距離>=4,(戦闘距離-3)*10,0) 항 — 유일 적용처 = weapons.cannon-hit-model(포탄), 다른 무기군에서 동일 항 미발견(gaps/N §4-1) · ★IL2CPP 대조(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §6): 코드에 포탄 전용 명중 함수는 **없고** SID_弾丸命中은 ActNames `命中値;` op `=;`로 HitCommand.SetImpl을 호출해 표준 技*2 식을 교체하는 평범한 스킬이다(ExecuteImpl RVA 0x248E470 Equal 분기) · 戦闘距離는 BattleDistanceCommand(RVA 0x1B45A00) 실재 · ⇒ **범용 거리 감쇠 룰은 코드에 없다** = 포탄 스킬 한정이라는 해석이 지지되나, 다른 무기의 동일 항 부재를 '전수'로 확인한 것은 아니라 assumed 유지",
   },
   {
     id: "combat.hp-stock",
     label: { en: "Boss HP stocks (multi-phase revival)", ko: "보스 HP 스톡(다단부활)" },
     status: "absent",
-    evidence: "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 부활 거동은 미구현(부활 후 HP·상태 규칙 덤프에 없음) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열)",
+    evidence:
+      "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열) · ★IL2CPP 경로 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-10·§4): 소비는 전투 계산기가 아니라 **커밋 계층**이다 — TryAddDeadScene(RVA 0x2472D20)이 사망 시 Unit.CanRevive(RVA 0x1A4F860 = HpStockCount + ExtraHpStockCount != 0)를 묻고 Unit.Revive(RVA 0x1A4F8B0)가 부활시킨다 · 출처 = DisposData.HpStockCount(+0xB0) · HP 반영 자체는 CommitHp(RVA 0x1E88580) = clamp(Hp - (Damage - Heal), 0, MaxHp) — 회복이 같은 프레임에서 상계되고 MaxHp 상한도 있다(엔진은 상계·상한 모두 없음) · 부활 후 HP·상태 규칙은 여전히 미판독",
   },
   {
     id: "combat.scripted-modifiers",
@@ -323,7 +456,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.exp",
     label: { en: "EXP from calculator formulas and tables", ko: "경험치 = calculator 원문 공식+테이블" },
     status: "assumed",
-    evidence: "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) — 잔여 = 戦闘経験倍率 1.2(실체 후보 = 스승의 인도 120% 스킬, 전역 룰 아닐 가능성 — gaps/N)·루나틱 반복 감쇠 누적(gaps/A §6-2·3)",
+    evidence:
+      "체인 횟수 정정(battle.test.ts, gaps/FIX_NOTES F1) · SID_血統(혈통, DLC) = 取得経験*=1.2(gaps/N §4-2) · ★IL2CPP 코드로 1.2 미결 종결(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §1·§5): params.xml 戦闘経験倍率는 **참조 0건의 사문**이고, 1.2의 실체는 스킬 Act(SID_師の導き効果·SID_血統의 取得経験*1.2)다 — 종전 '전역 룰일 수 있다'는 유보는 반증됐고 엔진이 배율을 안 거는 현행이 정합이다 · 반올림 = 절삭 2회(기본식 결과 fcvtzs — BattleUtil.GetBattleExp RVA 0x1E93FD0, 스킬 배율 적용 후 다시 fcvtzs — GainExpCommand.SetImpl RVA 0x1B47950)라 엔진의 Math.floor와 동치 · 외곽 Mathf.Clamp(0,100)는 XML clamp와 중복(무해) · ☠assumed 유지 사유 = **与戦闘経験累積数가 엔진에 하드코딩 0**이다. 실체 = UnitRecord.Kinds.MapBattleExpGiveCount(21), 맵 단위·피격자(적) 기준 누적이며 BattleCalculator.CalcExpCount(RVA 0x2474C60)가 Status.GiveExpBattle일 때 +1 — 루나틱 반복 전투 경험치가 현재 과대다 · 식 선택(撃破/戦闘)은 게임이 Status.ExpDestroy/ExpBattle로 고르고 없으면 0 = 다중 전투·체인 상황에서 갈릴 여지",
   },
   {
     id: "combat.exp-table-clamp",
@@ -335,7 +469,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.exp-staff",
     label: { en: "Staff EXP", ko: "지팡이 경험치" },
     status: "absent",
-    evidence: "杖経験計算 = clamp(杖経験値+杖減衰値+杖補助レベル差減衰値,1,100) — ★杖経験値는 덤프 미정의(gaps/A §0-2)",
+    evidence:
+      "杖経験計算 = clamp(杖経験値+杖減衰値+杖補助レベル差減衰値,1,100)(gaps/A §0-2) · ★IL2CPP로 결손 해소·기존 서술 반증(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §4·§5): '杖経験値는 덤프 미정의'는 **틀렸다** — 실체 = ItemData.RodExp(item.xml, 오프셋 +0x84)이고 소비 = UnitCalculator.RodExpCommand.GetImpl(RVA 0x1B4B9F0) · 값 분포 = 0/25/30/35/40/45 · 엔진 미구현이라 absent 유지",
   },
   {
     id: "combat.exp-dance",
@@ -347,7 +482,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.exp-chain-guard",
     label: { en: "Chain guard EXP", ko: "체인가드 경험치" },
     status: "absent",
-    evidence: "チェインガード経験計算 = clamp(ガード基本値+補助レベル差減衰値,1,100)(gaps/A §0-2)",
+    evidence:
+      "チェインガード経験計算 = clamp(ガード基本値+補助レベル差減衰値,1,100)(gaps/A §0-2) · ★IL2CPP 정합 확인(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §2): 지팡이·체인가드 경험도 전투 경험과 같은 CalculatorManager 평가·fcvtzs 절삭 경로를 탄다 — 식 이름만 갈릴 뿐 별도 파이프라인이 아니다",
   },
   {
     id: "combat.exp-summon",
@@ -369,9 +505,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "combat.levelup-growth",
-    label: { en: "Level-up: one growth roll per stat", ko: "레벨업 = 스탯별 성장률 1롤" },
-    status: "assumed",
-    evidence: "100 초과 = floor(grow/100) 확정 가산+잔여 1롤(battle.test.ts, 실측 최대 105 — gaps/D §4) · 1롤 모델 자체는 FE 문법 가정",
+    label: { en: "Level-up growth (cap gate, retry up to 4)", ko: "레벨업 성장 — 상한 게이트·최대 4시도 재굴림" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · 미배선 = GrowMode.Fixed(고정 성장 모드)·성장률 변조 스킬(努力の才 *2·星玉の加護 +15)·무기 GrowRatio",
   },
 
   // ── 유닛·스탯 ──
@@ -397,25 +533,29 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.move-enhance",
     label: { en: "Move stat bonuses (EnhanceValue.Move)", ko: "이동력 보정(EnhanceValue.Move)" },
     status: "absent",
-    evidence: "6종 — ENHANCE_FIELDS에 move 부재(gaps/G)",
+    evidence:
+      "ENHANCE_FIELDS에 move 부재(gaps/G) · ★IL2CPP 코드로 수치·적용점 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·SKILL_ENGINE.md §4): 보유 스킬은 **6종이 아니라 19종**(迅走 +5~7·天駆 +2~4 등) · EnhanceValue는 9스탯이 아니라 **11슬롯 벡터**(CapabilityDefinition.Type Hp0…Sight9 **Move10** Num11)이고 Unit.GetCapability(RVA 0x1A2DD80 Move 케이스 0x1A2EB0C)·GetMovePowerImpl(RVA 0x1A5B690, 0x1A5B7FC mov w1,#0xa)이 EnhanceValue[10]을 **직업 Limit 클램프 뒤에** 가산한다(= Limit 초과 가능) 최종 Clamp(0,99) · ⇒ 엔진의 9슬롯 정적 보정층(skills.ts staticEnhances)이 Sight·Move를 통째로 흘린다",
   },
   {
     id: "units.difficulty-skills",
     label: { en: "Per-difficulty skill sets (Normal/Hard/LunaticSids)", ko: "난이도별 스킬(Normal/Hard/LunaticSids)" },
     status: "absent",
-    evidence: "수집 자체 안 함 — 루나틱 23종/162인(gaps/G) · 브레이크 면역 41인물 실배선 포함(§0 등재)",
+    evidence:
+      "수집 자체 안 함 — 루나틱 23종/162인(gaps/G) · 브레이크 면역 41인물 실배선 포함(§0 등재) · ★IL2CPP 선택 규칙 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §3-1): 난이도 스킬은 합집합이 아니라 **배열 교체**다 — PersonData.get_MaskSkill(RVA 0x1F29ED0)이 AssetForce != Enemy(1)이면 CommonSkills(+0x178)를, 적이면 난이도로 NormalSkills(+0x180)/HardSkills(+0x188)/LunaticSkills(+0x190) 중 하나를 **통째로 고른다**(0x1F2A02C·0x1F2A0A8·0x1F2A078). 난이도 3배열은 CommonSkills를 씨앗으로 깐 상위집합이다 · ☠단순 합집합으로 배선하면 Normal에 Hard/Lunatic 스킬이 유출된다",
   },
   {
     id: "units.style-grant-skills",
     label: { en: "Battle-style granted skills", ko: "전투 스타일 부여 스킬(은밀·마법 등)" },
     status: "absent",
-    evidence: "사영 복원 완료(styles.json 9행 — projection.test.ts) · 배선 보류 = 地形回避가 훅 미노출(평문 env)·실측 케이스 부재(프로브 실측 88=88, FIX_NOTES_2 P2 게이트) · 해제 조건 = 훅 노출 + 은밀/마법 실측",
+    evidence:
+      "사영 복원 완료(styles.json 9행 — projection.test.ts) · 배선 보류 = 地形回避가 훅 미노출(평문 env)·실측 케이스 부재(프로브 실측 88=88, FIX_NOTES_2 P2 게이트) · ★IL2CPP 실체 확인(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-12·§3A 35·36행): 스타일 변형은 지형 로직이 아니라 **스킬**이다 — 은밀 = SID_地形回避有利時２倍(조건 地形回避>0), 마법 = SID_相手の地形回避有利時０(마도서 한정) ⇒ 地形回避를 스킬 훅으로 노출하는 것이 유일 선행이고 실측은 확인용",
   },
   {
     id: "units.job-skills",
     label: { en: "Job skills (innate/learning/lunatic)", ko: "병과 스킬(Skills·LearningSkill·LunaticSkill)" },
     status: "absent",
-    evidence: "91건 미소비(踊り·鍵開け 포함, gaps/H) — 수집 요구는 gaps/I 병과 계열 49행",
+    evidence:
+      "91건 미소비(踊り·鍵開け 포함, gaps/H) — 수집 요구는 gaps/I 병과 계열 49행 · ★IL2CPP 수집 경로 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): JobData.MaskSkill(+0x128)이 Skills/LearningSkill/LunaticSkill을 Categorys.Job(2)으로 담고(JobData.OnCompleted 0x20550AC·0x2055748) Unit.UpdateStateImpl(RVA 0x1A16D90)이 유효 집합에 합류시킨다 = 별도 규칙 없는 순수 수집 결손(skills.source-collection의 부분집합)",
   },
   {
     id: "units.job-growth",
@@ -451,7 +591,19 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.difficulty-scaling",
     label: { en: "Per-difficulty levels and stats from dispos", ko: "난이도별 레벨·스탯(dispos·Offset)" },
     status: "anchored",
-    evidence: "VERIFY_M002 대조 일치 156·불일치 0",
+    evidence: "VERIFY_M002 대조 일치 156·불일치 0 · 3회차 재확인: dispos LevelN/LevelH/LevelL은 140파일 10,951행 전수 동일값(난이도 분기 데이터 없음, gaps/O §10-1-4) — 실제 난이도별 스탯 스케일링은 Offset 경로 소관, 본 앵커의 근거가 LevelN/H/L이라면 오해 소지 있어 재확인 요망 · 후속 정정(2026-08-17): dispos LevelN 비영 행 140파일 전수 0(아군·적 공히) = dispos는 레벨 미소유 — 적 레벨 정본은 person.xml Level(M002 2~5·M010 12~15 스토리 정합, gaps/L 실측 후속 절). 신룡의 장은 별건 = units.divine-paralogue-level",
+  },
+  {
+    id: "units.divine-paralogue-level",
+    label: { en: "Divine Paralogue enemy level scaling (runtime)", ko: "신룡의 장(g001~g006) 적 레벨 런타임 스케일링" },
+    status: "anchored",
+    evidence: "★IL2CPP 코드로 수식 확정(2026-08-17, il2cpp/ENEMY_LEVEL.md — 실측 불요로 종결): totalLevel = person.Level + MapSituation.AverageLevel - 1 (Unit.CreateDlcGodEnemy RVA 0x1A0CA80, 0x1A0CB00~34). 잡졸 PID_G000_幻影兵_*은 person.Level=1이라 **총레벨 = AverageLevel 그대로** · AverageLevel = Clamp(CalcEncountRank(N) + 난이도조정, 1, 99), 난이도조정 = Normal -5 / Hard -2 / Lunatic +1 · CalcEncountRank(N) = round(상위 N명 총레벨 합 / N) + 2, N = 그 맵 dispos의 플레이어 그룹 엔트리 수(출격 슬롯), 총레벨 = Level + InternalLevel(승급 = 내부레벨 +20), 반드레는 조건부 편입 · ⇒ 사용자 전언('플레이어 레벨 추종')이 정확했고 기준은 **출격 슬롯 수만큼의 상위 레벨 평균**이다 · 정적 데이터로 재현 불가했던 이유 = 스케일링이 실행부 소관(dispos 레벨 전수 0·Lua 조작 0건·HoldLevel=0)",
+  },
+  {
+    id: "units.chapter-preset-roster",
+    label: { en: "Per-chapter preset party state (level, promotion, inventory, sync)", ko: "챕터별 프리셋 파티 상태(레벨·승급·소지품·싱크로)" },
+    status: "absent",
+    evidence: "chart.xml 加入 1510행(챕터 54 + QA 3) — dispos Force=0 1415행은 레벨 0·Jid/Gid/Sid 공란으로 아군 스탯 미소유, 교집합 60건 실값 일치 0셀, 전역 시그니처 대조 0/1510(gaps/O §10-1) · units.difficulty-scaling·units.promotion과 별개 소스(dispos·encount에 중복 0건)",
   },
   {
     id: "units.equipped-weapon",
@@ -471,61 +623,123 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.act-values",
     label: { en: "Combat value modifiers (ActNames DSL)", ko: "계산값 보정(ActNames DSL — 소수 유지·표시 내림)" },
     status: "anchored",
-    evidence: "M003 간파 corpus.test.ts · ActNames 전수 52종 census — 자기측 훅 13종 305회 소비 / 상대측 90 / 원시 스탯 58 / 어휘 밖 20종 218회(gaps/I) · 별건 항목 = opponent-act·raw-stat-act·timing-filter",
+    evidence: "M003 간파 corpus.test.ts · ActNames 전수 52종 census — 자기측 훅 13종 305회 소비 / 상대측 90 / 원시 스탯 58 / 어휘 밖 20종 218회(gaps/I) · 별건 항목 = opponent-act·raw-stat-act·timing-filter · ★IL2CPP 합성 규칙 확정(2026-08-17, il2cpp/RATES_FORMULA §2-3·SKILL_ENGINE §5-1): 전투 파라미터 12훅은 base·add·scale **3레지스터**로 모았다가 `(base+add)*scale` 1회 합성이라 **스킬 순서 무관**이고(엔진은 순차 즉시 반영이라 `+5`와 `*1.3`의 순서로 값이 갈렸다 — 정정), `=`는 기저만 덮고 add·scale은 살아남는다 · 결과 클램프 = 값계 0..999 · 율계(命中率·必殺率) 0..100, 2단 클램프 실재(命中値·回避値 각각 0..999 후 차감, 결과 다시 0..100) · ☠원시 스탯(力·守備…)·追撃条件은 이 규칙 밖 = 즉시 반영·클램프 없음이 정본 · 배선 = skills.ts PARAM_LIMIT(테스트 5건) · 미배선 = 攻撃速度 음수 클램프(0 하한)를 calculator 층에 넣는 것",
   },
   {
     id: "skills.timing-filter",
     label: { en: "Skill activation filters (Stand/Action/Timing/Order)", ko: "스킬 발동 필터(Stand/Action/Timing/Order) 준수" },
-    status: "absent",
-    evidence: "미준수 — 8종이 필터 무시 항상 적용(과대 방향: 月の腕輪 4종 Stand=1·血讐＋ Action=1 포함, gaps/G) · 필터 의미 범례 덤프에 없음 = 실기 표본 선행(§0 등재)",
+    status: "anchored",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleInfoSide.IsEnableSkill이 네 필드를 전부 게이트로 소비한다. Stand(0x78, Stands: None0/Offence1/Defence2)는 m_SideType(BattleSide.Type: Offense0/Defense1)과 대조 = **전투 주도권**(0x1E8CDFC~0x1E8CE24, Stand!=None이면 상대 실재도 추가 확인, ChainOffense2~7은 Offence 판정에서 탈락) · Action(0x7c)은 CalcActiveSkill이 때리는 쪽에 1·맞는 쪽에 2를 넘겨 대조 = **이번 타격의 역할**(0x2469FC0~) · Timing은 파이프라인 단계 셀렉터(27종 열거, HitBefore=10은 CalcAttack이 타격마다 연다) · Order는 HitSkill.SortKey(0x19B60F0)의 정렬 키 · 평가 순서 = Flag → Timing → Action → Stand → Target → Condition/Cycle. ☠앞선 '실기로 Stand 게이트 기각' 판정은 **오독이었고 철회한다** — 그 실측(선공 예보 vs 피격 예보 적 명중 동일)은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 간파 코퍼스도 동일 구조). 엔진 배선 = skills.ts passesFilter + Combatant.initiator/striking, battle.ts가 전투 주도권 고정·타격 역할 반전으로 주입 · 미확정 = Timing=Always류가 이 게이트를 우회하는 별도 경로(SkillArray 비트마스크) 유무 · 상세 = extracted/il2cpp/STATUS_FILTER.md",
   },
   {
     id: "skills.opponent-act",
     label: { en: "Opponent-side value modifiers", ko: "상대측 계산값 보정(相手の~ ActName)" },
     status: "absent",
-    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건",
+    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건 · ★IL2CPP로 배선 방법까지 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-5·§4): 相手の는 특수 규칙이 아니라 **훅의 이중 등록**이다 — GameCalculator.AddCommandWithReverse<T>가 훅 121종 전부를 정방향/Reverse 두 벌로 등록하고 Reverse()(RVA 0x22791B0)가 m_Index=1·Header='相手の'만 세운다. Get/Set/Add/Scale(RVA 0x2278AD0·0x2278C20·0x2279010·0x2279160)이 그 인덱스로 obj1/obj2 대상만 스왑한다 ⇒ **부호 반전이 아님이 코드로 확정**(문자 그대로 해석 지지가 방증에서 확정으로) · 배선 = 접두 제거 + 대상측 전환 1줄, 선행 없음",
   },
   {
     id: "skills.raw-stat-act",
     label: { en: "Raw-stat ActNames bypass hooks", ko: "원시 스탯 ActName(힘·마력 등 직접 보정)" },
     status: "absent",
-    evidence: "11종 — vars 즉시 반환 경로라 훅 미도달(gaps/G)",
+    evidence:
+      "11종 — vars 즉시 반환 경로라 훅 미도달(gaps/G) · ★IL2CPP로 층 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 훅은 실재하되(UnitCalculator의 Str/Magic/Tech/Quick/Luuk/Def/Mdef/Phys Command) **BattleParam 층이 아니다** — 원시 스탯은 BattleDetail.Capability(int)에 대한 즉시 read-modify-write(GameCalculatorCommand.Add/ScaleImpl 기본구현 RVA 0x2278840·0x2278900 = SetImpl(GetImpl ± * v))라 **순서 의존이고 3레지스터 누산기가 아니다** · ⇒ 배선 시 skills.act-values의 (base+add)*scale 규칙과 **분리 필수**(같은 규칙을 적용하면 반대로 틀린다)",
   },
   {
     id: "skills.sync-sids",
     label: { en: "SyncSids/SyncConditions expansion", ko: "SyncSids·SyncConditions 전개" },
     status: "absent",
-    evidence: "28종 미전개 — 브레이크 면역 _効果 실배선도 이 층 소관(gaps/G · FIX_NOTES F2 파생)",
+    evidence:
+      "28종 미전개 — 브레이크 면역 _効果 실배선도 이 층 소관(gaps/G · FIX_NOTES F2 파생) · ★IL2CPP 전개 규칙 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): SkillArray.Commit(Unit)(RVA 0x2485A10)이 전 엔티티에 AddSyncImpl(RVA 0x2485080, 사본 0x1A5E560)을 돌려 SyncSkills(+0x248)[i]와 m_SyncConditionCommands(+0x2C8)[i]를 **동일 인덱스로 대조**한다(IsSyncCondition RVA 0x248E750) · 전개된 스킬의 Category는 **원본 트리거 스킬의 Category를 상속** · Commit마다 재전개(캐시 아님)",
   },
   {
     id: "skills.condition-fallback",
-    label: { en: "Unsupported skill conditions safely skip", ko: "평가 불가 조건 = 미적용 안전 강하" },
-    status: "implemented",
-    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter",
+    label: { en: "Unknown condition identifiers fall back to not-applied", ko: "미지 조건 식별자 = 미적용 강하" },
+    status: "assumed",
+    evidence: "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter · ★2026-08-17 IL2CPP 대조 후 **의도적 유지**(il2cpp/SKILL_ENGINE §5-2): 게임은 미지 식별자를 0으로 치환해 식을 계속 평가하고(CalculatorManager.GetValueImpl 0x298F760) Condition 부재는 참이다(0x248E2E0). 그러나 **게임에는 미지 식별자가 없다**(165종 전부 구현) — 그 0 치환은 '없는 변수'용 안전망이지 '어휘 결손'용이 아니다. 우리 결손에 0을 넣으면 `武器の種類 == 剣`이 `0==0`으로 참이 되어 **과대 발동**한다. 결손이 남아 있는 동안은 과소(미적용)가 안전하므로 현행 유지하고, 어휘를 채울 때마다 이 강하가 자연 소멸하게 둔다 · Condition 부재 = 참은 현행도 동일",
   },
   {
     id: "skills.give-sids",
     label: { en: "Granted skills (GiveSids)", ko: "스킬 부여 체계(GiveSids — 몰아붙이기 등)" },
     status: "deferred",
-    evidence: "정식화 완료 — 186행·3단 구조(부여자→효과→発動済み 래치)·GiveTarget 0~4·Life/Cycle(gaps/C §1) · 구현은 부여층 선행(§0 미룸)",
+    evidence:
+      "정식화 완료 — 186행·3단 구조(부여자→효과→発動済み 래치)·GiveTarget 0~4·Life/Cycle(gaps/C §1) · 구현은 부여층 선행(§0 미룸) · ★IL2CPP 경로·수명 전량 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 경로 = MapSkill.TryAddGiveSkill(RVA 0x1F50A20, GiveTarget +0xB0 대조) → Unit.AddGiveSkill(RVA 0x1A5D430/0x1A5D4E0) → Unit.AddPrivateSkill(RVA 0x1A37990) → m_PrivateSkill(+0x100) · 수명 = UpdateAgingImpl(RVA 0x2487F60)이 해당 Cycle 도래마다 age+1 하고 Life > age+1이면 존속, 아니면 RebirthSkill(+0x250) 교체 또는 RemoveAt(0x24882A8) · Life는 Cycle이 PhaseBefore/PhaseAfter면 3배(OnBuild 0x248AB64, PhaseCycle=3) · ☠잔여 = GiveTarget 5값별 대상 선정 호출부",
   },
   {
     id: "skills.aura-give",
     label: { en: "Aura grants from nearby units (Timing=20)", ko: "주위 오라 부여(Timing=20 — 타 유닛이 주는 스킬)" },
     status: "absent",
-    evidence: "주위 부여 25건(白の忠誠·神竜の結束 등) — unitSkillRows가 타 유닛 부여를 수집하지 않음(gaps/C §0)",
+    evidence:
+      "주위 부여 25건(白の忠誠·神竜の結束 등) — unitSkillRows가 타 유닛 부여를 수집하지 않음(gaps/C §0) · ★IL2CPP 소스·주기 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): MapImageUnit.UpdateSupportSkill(RVA 0x20655B0)이 전 유닛의 m_ReceiveSkill(+0x108)·m_SupportedSkill(+0x110)을 **매 호출 전면 초기화 후 전량 재계산**한다(증분 갱신이 아니다 = 이동·사망마다 오라가 통째로 다시 계산된다) · 소스 = 부여자의 GiveSkills(+0x238), 엔트리 태그 0x80000000 = Categorys.Support(8)",
   },
   {
     id: "skills.style-variant",
     label: { en: "Style-variant skill branches", ko: "스타일 분기 스킬(병종별 변형)" },
     status: "absent",
-    evidence: "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5)",
+    evidence:
+      "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5) · ★IL2CPP 범위 확장(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6·SKILL_ENGINE.md §2-8): 인게이지 기술도 같은 경로를 탄다 — GetEngageAttack(RVA 0x2341640)이 최종 단계에서 SkillData.m_StyleSkills[job.Style]로 치환(0x2341A6C) ⇒ 스타일 분기는 스킬·기술 공통 층",
   },
   {
     id: "skills.orphan-sids",
     label: { en: "Orphan SIDs (event-granted, no static source)", ko: "고아 SID(정적 소스 없음 — 이벤트 부여 추정)" },
     status: "absent",
-    evidence: "55행 — CommonSids·SynchroSkills·dispos·EquipSids 어느 소스에도 미참조(gaps/I)",
+    evidence:
+      "55행 — CommonSids·SynchroSkills·dispos·EquipSids 어느 소스에도 미참조(gaps/I) · ★IL2CPP 부분 해소(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 상당수는 런타임 부여 카테고리 후보다 — Categorys.Battle(9)(BattleDetail.AddActiveSkill RVA 0x1E76B30 등 전투 중 부여) 또는 Private(10) · ⇒ '컷 콘텐츠'로 단정할 수 없다",
+  },
+  {
+    id: "skills.source-collection",
+    label: { en: "Skill collection sources (12 categories)", ko: "스킬 수집 소스(Categorys 12종)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-1·§3·§4): 게임의 수집 소스 = SkillData.Categorys 12종(Person/Job/Item/Equip/God/Ring/Hub/Support/Battle/Private/Inheritance/Command)이고 유효 집합은 Unit.m_MaskSkill(+0xF0) 하나로 합류하며 전투는 BattleInfoSide.SetUnitSkill(RVA 0x1E8A080)의 순수 복사다 · 현행 엔진 수집은 Person·God(싱크로)·Private(dispos) **3종뿐** ⇒ gaps/I의 진단 '결손 본체는 어휘가 아니라 수집'을 코드가 확증 · gaps/I §6-2가 제안한 skills.source-job/-item/-engage/-bondring/-terrain 5건은 이 한 기전의 부분집합이라 본 항목으로 통합한다",
+  },
+  {
+    id: "skills.duplicate-priority",
+    label: { en: "Duplicate rejection and Priority override", ko: "중복 배제·Priority 상하위 교체" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): SkillArray.AddImpl(RVA 0x2484780)이 동일 스킬 재추가를 거부하고(Cycle!=0이면 age만 갱신), 동일 Group + PrivateFlags.CanOverride면 SkillData.Priority(+0x94)를 비교해 **하위는 거부·상위는 교체**한다 · 엔트리 = uint 비트팩 index[0:12]/group[12:20]/age[20:28]/category[28:32], 상한 32 · Group은 GroupAssign(RVA 0x248D0C0)이 skill.xml 習得優先度 연속 구간으로 부여(100그룹·412스킬) — 독 3단 승격 사슬과 같은 기구(combat.status-effects) · 엔진은 중복·상하위 배제가 없어 동계열 중첩이 과대",
+  },
+  {
+    id: "skills.layer-exclusive",
+    label: { en: "Layer exclusive slots (A/B/C/D)", ko: "Layer 배타 슬롯(A/B/C/D)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-7·§4): SkillData.Layer(A1/B2/C4/D8)는 **배타 슬롯**이다 — BattleInfoSide.CalcActiveSkill(RVA 0x1E8C358)이 (detail.SkillLayers & skill.Layer) != 0이면 그 스킬을 건너뛰고, BattleDetail.AddActiveSkill(RVA 0x1E769C0)이 발동 시 SkillLayers |= Layer로 슬롯을 잠근다 · 같은 스킬의 재발동도 ActiveSkill 비트마스크가 차단(0x1E8C378) · 엔진 미구현 = 같은 레이어 스킬이 전부 겹쳐 발동(과대)",
+  },
+  {
+    id: "skills.flow-hooks",
+    label: { en: "Combat-flow hooks (damage, counts, exp, ...)", ko: "전투 흐름 훅(ダメージ·回数·取得経験 등)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP로 '어휘 밖' 판정 반증(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): gaps/I가 '훅 밖 ActName 20종'으로 분류한 것은 **전부 정식 훅**이다 — ダメージ=DamageCommand · 回復=HealCommand · 攻撃回数=AttackCountCommand · 行動回数=ActionCountCommand · 手番回数=BattleTimesCommand · 一時変数=TemporaryCommand · 取得経験=GainExpCommand · 拾得アイテム=PickupItemCommand · 吹き飛ばし率/距離=Blow* · エンゲージカウント=EngageCountCommand · スキル確率補正=SkillCorrectCommand · 神将スキル確率補正=GodSkillCorrectCommand · 武器の消費=WeaponExpendCommand · 攻撃結果=BattleSceneResult*(GameCalculator.AddCommandWithReverse<T> 121종 목록) · ⇒ 결손의 정체는 어휘가 아니라 **전투 해결층 상태**(회수·대미지 저장소·경험 파이프)다 · ☠追撃条件은 ActNames에 0회로 게임 어휘가 아니며 13번째 전투 파라미터 훅은 攻撃速度",
+  },
+  {
+    id: "skills.around-ops",
+    label: { en: "Aura operations (AroundName/Operation/Value)", ko: "오라 연산(AroundName·Operation·Value)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): AroundName/AroundOperation/AroundValue는 m_AroundFuncs(+0x298)로 컴파일돼 **ActNames와 동일한 ExecuteImpl 골격**으로 실행된다(ExecuteAround RVA 0x24905C0) = 오라 보정도 Add/Scale 누산기 규칙을 따른다 · 게이트 = AroundCenter(Self1 보유자·Target2 대상·Link3 unit[+0xD8] 파트너)·AroundTarget(Friend1/Enemy2는 MapSituation.IsAllide, Both3 무조건)·AroundCondition(IsArounCondition RVA 0x248E980) · ☠RangeI/RangeO(+0x1F0/+0x1F4) 소비 지점 미확정 · 부여형 오라는 별건(skills.aura-give)",
+  },
+  {
+    id: "skills.work-ops",
+    label: { en: "Work-field operations", ko: "Work 필드 연산(5종)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): SkillData.CalcWork(RVA 0x2489350, 5-way 0x24893D8) 연산 5종 = `=WorkValue` · `WorkValue+v` · `v-WorkValue` · `WorkValue*v` · `v/WorkValue`, 동일 Work 스킬은 순차 체이닝(SkillArray.CalcWork RVA 0x24891D0) · 소비처 = ItemHealScale → MapItemHelper.GetHealPower(RVA 0x1DEDA00) · Job/TotalGrowChange → Unit.GetCapabilityGrow(RVA 0x1A2FF20) = 성장률 변조 스킬(努力の才 등)의 실제 경로",
+  },
+  {
+    id: "skills.weapon-level-merge",
+    label: { en: "WeaponLevel merged by max per slot", ko: "무기 레벨 보정 = 슬롯별 최댓값 병합" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): WeaponLevel은 가산이 아니라 **슬롯별 MAX 병합**이다 — SkillArray.UpdateImpl(RVA 0x24865C0) → WeaponLevels.Add(RVA 0x21C9CF0)가 10슬롯 각각에 Mathf.Max를 적용 ⇒ 杖使い·＋·＋＋ 중첩 불가(합산 배선은 과대)",
+  },
+  {
+    id: "skills.enhance-level",
+    label: { en: "EnhanceLevel = summed gate (>=1)", ko: "EnhanceLevel = 합산 1 이상 게이트" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): EnhanceLevel(+0x208)은 개별 수치가 아니라 **전 스킬 합산이 1 이상인지의 게이트**다 — UnitEnhanceCalculator.AddImpl(RVA 0x1F788C0, 누적 0x1F7893C, 판정 0x1F79138 cmp w19,#1 b.lt)가 그 합으로 성장률 경로를 분기한다",
   },
   {
     id: "skills.crit-unknown",
@@ -545,31 +759,43 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.sync-bond-level",
     label: { en: "Sync skills = union of bond levels 1..N (highest per series)", ko: "싱크로 스킬 = 絆 1..N 합집합·동계열 최고 레벨" },
     status: "assumed",
-    evidence: "絆3 실측 정합(fe17.test.ts 技+2·ブレイク時追撃 — gaps/C §4-3) · 동계열 판별 = SID 명명 규칙 가정 · 레벨값은 편집기(M4) 소유(기본 = god Level)",
+    evidence:
+      "絆3 실측 정합(fe17.test.ts 技+2·ブレイク時追撃 — gaps/C §4-3) · 레벨값은 편집기(M4) 소유(기본 = god Level) · ★IL2CPP로 규칙 확정 + 엔진 근사 반증(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6): 합집합·동계열 대체 자체는 코드가 확인한다 — GodGrowthData.OnCompletedEnd(RVA 0x2332320)가 레벨별 누적 LevelData를 사전 생성하고 LevelData.Add(RVA 0x1CD7500)가 병합을 수행한다 · ☠**동계열의 정본은 SID 명명 규칙이 아니라 SkillData.Group(+0x90)**이고 그 Group은 GroupAssign(RVA 0x248D0C0)이 skill.xml 習得優先度 연속 구간으로 부여한다(100그룹·412스킬) · 대체 게이트 = PrivateFlags.CanOverride(Priority<=99), 승자 = Priority 큰 쪽 · Priority=0은 그룹이 없어 항상 합집합(SID_ブレイク時追撃) · 인게이지 중에는 EngagedSkills로 배열 교체 + EngageSid 치환 · ⇒ fe17.ts의 SID 정규식 근사는 **반증**됐고 Group 필드 사영이 선행이라 assumed 유지",
+  },
+  {
+    id: "emblem.chapter-bond-level",
+    label: { en: "Per-chapter emblem bond level baseline", ko: "챕터별 엠블렘 絆 레벨 기본값" },
+    status: "absent",
+    evidence:
+      "chart.xml 神将 42행×12열 = 504셀 전수(비영 275셀·비영행 39, 상한 20, M011 전열 0 = 반지 상실 구간 정합) — gamedata 60개 XML 헤더 전수 파싱 결과 유일 소유(gaps/O §10-2) · emblem.sync-bond-level과 별개 기전 · ★IL2CPP 대조(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §12): ChartGodData 클래스와 필드 매핑은 실재하나(GetLevel RVA 0x1EA04A0·Gid2Level RVA 0x1EA05C0) **.text 전량 스캔에서 Load·GetLevel 호출자 0건**이고 GodUnit.SetLevel의 유일 호출자도 되돌리기 프리뷰다 — 게임이 이 시트로 絆 레벨을 세팅하는 경로는 미발견(BLR·리플렉션 미검증) · ⇒ 이 시트는 '게임 정본'이 아니라 **시뮬레이터가 채택할 수 있는 유일한 챕터별 데이터**로만 쓸 것",
   },
   {
     id: "emblem.engage-activation",
     label: { en: "Engage activation, meter, duration", ko: "인게이지 발동·카운트·지속" },
     status: "deferred",
-    evidence: "지속(실측 표본 3) = 정규 반지 3턴, 외전 클리어 시 4(마르스 인연10=3이 레벨 가설 기각) · DLC 팔찌 = 4(클로에&디미트리 12 — 조건 미상, 저인연 표본 필요) · 연장 필드 덤프 전무(継続ターン=3뿐) · 한계 EngageCount(7/ルフレ 9)(gaps/C §2) · ★충전 = 전투 참가당 +1(공격·피격 각 1, 대기 무충전 — 실측, 常時 해석 반증) · 설계 선행(§0 미룸)",
+    evidence:
+      "실측 = 충전은 전투 참가당 +1(공격·피격 각 1, 대기 무충전) · 지속 표본 3(정규 반지 3턴·외전 클리어 4·DLC 팔찌 4) · 정수 증감 사례 = TikiEngageAtk+(+3)·JobSkill_ShadowLordR(+1)·MIID_HE_Medicine(+2)(gaps/C §2·N §2-2) · ★IL2CPP 코드로 전 항목 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §3·EXP_CHAIN_ENGAGE.md §3): 초기값 = min(params エンゲージ初期値=7, limit)(Unit.ResetEngageCount RVA 0x1A1A740) · limit = max(0, god.EngageCount − 成長表 Flag SubEngageCountLimit − 스킬 Flag bit42)(RVA 0x1A57B90) · 발동 = count>=limit(CanEngageImpl RVA 0x1A26F70), 발동 시 차감이 아니라 해제 경로에서 0으로 소각(SetEngageImpl RVA 0x1A25D10) · **충전은 전투/지팡이 행동당 +1뿐이고 턴당 자연 증가는 원래 없다**(BattleCalculator.AddEngageCount RVA 0x2470740, 호출자 = CalcAction·CalcRodAttack 둘뿐 · 인게이지 중·체인 참가·지형 NotEngageAdd는 무충전) = 실측과 코드 일치, '턴당 증가량 미상'은 결손이 아니라 부재로 종결 · 지속 = params エンゲージ継続ターン(3) + (成長表 Flag AddEngageTurnLimit ? 1 : 0), 경과는 자기 페이즈 시작마다 +1(ResetPhaseBeginAfter RVA 0x1A19810) · ☠**종전 '마르스 인연10=3이 레벨 가설을 기각한다'는 판정을 철회한다** — 임계는 10이 아니라 **絆 11**(god.xml 成長表 Lv11 Flag=2 AddEngageTurnLimit, 絆 20에서 SubEngageCountLimit, リュール만 Lv20에서 AddEngageTurnLimit·EngageCount=9)이므로 인연 10에서 3턴인 것은 반증이 아니라 임계가 11이라는 증거였다 · 엔진 미구현이라 deferred 유지(설계 선행, §0)",
   },
   {
     id: "emblem.engage-kit",
     label: { en: "Engage weapons and engage skills", ko: "엠블렘 무기·인게이지 기술" },
     status: "deferred",
-    evidence: "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · 스타일 분기 문장사 = ベレト·チキ 2종(相手판은 GrowTable 공유 — gaps/F 정정) · §0 미룸(M2 이월)",
+    evidence:
+      "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · 스타일 분기 문장사 = ベレト·チキ 2종(gaps/F 정정) · §0 미룸(M2 이월) · ★IL2CPP 선택 규칙 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §5·§6): 인게이지 기술 선택 우선순위 = 暴走(GodState.Rampage) > 連動(IsAround 링크 인접) > 기본(GodData +0xB0/+0xB8/+0xA8), 그 뒤 SkillData.m_StyleSkills[job.Style]로 스타일 분기(GetEngageAttack RVA 0x2341640) · 인게이지 중에는 데이터 소스가 GodData.MainData(+0x100)로 치환된다 · 카운트 소비(技コスト)는 전수 9행뿐(三級長 戦技 狂嵐3/無残1/落星1 × 스타일 3)",
   },
   {
     id: "emblem.bond-ring",
     label: { en: "Bond rings (stats, S-rank skills)", ko: "絆지환(스탯 보정·S랭크 스킬)" },
     status: "absent",
-    evidence: "ring.xml 487행 정식화 — 정규 12문장사만 세트 보유(DLC 0건 덤프 확정) · S랭크 EquipSids 28행 전부 Rank=3(gaps/F)",
+    evidence:
+      "ring.xml 487행 정식화 — 정규 12문장사만 세트 보유(DLC 0건 덤프 확정) · S랭크 EquipSids 28행 전부 Rank=3(gaps/F) · ★IL2CPP 적용 경로 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §12): RingData.Enhance(+0x58)가 Unit.CommitEnhance(RVA 0x1A1AAE0, 0x1A1B858~)에서 무기 강화와 **동일한 additive 누산 루프**로 최종 스탯에 합산된다 · Rank 분기 코드는 없다(랭크 차이 = 행별 Enhance 값 차이) · 착용 Gid 제한 코드도 없다(SetRing RVA 0x1A4E000) · 정화(Dirty)는 GetDirtyLevel(RVA 0x2343290)의 UI 0~3 변환뿐 = 스탯 무관 연출 · ☠S랭크 EquipSids 소비 지점은 여전히 미확정",
   },
   {
     id: "emblem.inheritance",
     label: { en: "Skill inheritance (cost, availability)", ko: "스킬 계승(비용·가능 여부)" },
     status: "absent",
-    evidence: "skill.xml InheritanceCost/Sort 확인 · 리유르만 계승 불가(gaps/F) · 사영 복원 완료(growth 255행 레벨별 보존 — projection.test.ts) · 수집·소비 = M4 편집기(요구 189행 중 183행이 ENH 정적 보정, gaps/I)",
+    evidence:
+      "skill.xml InheritanceCost/Sort 확인 · 사영 복원 완료(growth 255행 레벨별 보존 — projection.test.ts) · 수집·소비 = M4 편집기(요구 189행 중 183행이 ENH 정적 보정, gaps/I) · ★IL2CPP로 정본 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·EMBLEM_ENGAGE.md §12): god.xml InheritanceSkills는 **카탈로그일 뿐**이고 실보유 원장은 세이브(GodBond.m_InheritedSkills = GodInheritedSkills, HashSet<int>)다 ⇒ 시뮬에서는 **사용자 선택 입력**으로 모델링해야 한다(정적 데이터로 결정되지 않는다) · 해금 = 成長表 Flag UnlockSkillInheritance(=1) = 19문장사 전원 **Level 5** 행(CanInheritSkills RVA 0x2341360) — '리유르만 계승 불가'는 성장표 부재로 설명된다 · 비용 = SkillData.InheritanceCost(+0x230)를 Unit.m_SkillPoint(+0x1BE)에서 차감, 선행 계승 보유 시 체인 할인(ResetCost RVA 0x24A64A0) · 계승 결과의 배치처 = Unit.m_EquipSkillPool(+0x118) **장착 후보 풀**이며 m_EquipSkill(+0xF8) 자동 편입이 아니다(OnInherite RVA 0x24A6CE0, AddEquipSkill RVA 0x1A35F80) ⇒ 계승 스킬을 곧바로 '적용 대상'으로 취급하면 과대",
   },
   {
     id: "emblem.doubles-multiplier",
@@ -581,7 +807,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "emblem.crest-tile",
     label: { en: "Emblem energy tile effect", ko: "紋章氣(문장기) 효과" },
     status: "absent",
-    evidence: "렌더만 구현(M1.5) — 효과 확정 = 대기 시 인게이지 카운트 풀충전(사용자 실측 2026-08-17, 덤프 부재값 종결 — gaps/C §5) · 발동 구현은 인게이지 시스템 선행",
+    evidence:
+      "렌더만 구현(M1.5) — 효과 = 인게이지 카운트 풀충전(사용자 실측 2026-08-17, gaps/C §5) · 발동 구현은 인게이지 시스템 선행 · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §4·MOVE_TERRAIN.md §3): 판별 = TerrainData Flag bit15 EngageHeal(32768, TID_紋章氣) — IsEngageHeal(RVA 0x21E33C0) · 처리 = MapSequenceMind.EngageHeal(RVA 0x2681CC0)이 그 칸의 설치물(MapOverlap) 지형이 EngageHeal이고 비인게이지·비만충일 때 EngageCount = limit을 **대입**(가산 아님)하고 직후 MapOverlap.Remove로 **타일이 1회성 소멸**한다 ⇒ '회복량' 필드는 존재하지 않는다(덤프 부재값의 정체) · 자매 Flag NotEngageAdd(8192) = 그 칸 전투는 무충전",
   },
 
   // ── 무기·아이템 ──
@@ -604,16 +831,41 @@ export const FIDELITY: readonly FidelityEntry[] = [
     evidence: "item.xml 661건 전수 — Kind=6/Flag bit16 상호배타·반례 0(gaps/B §2, 2026-08-17)",
   },
   {
+    id: "weapons.cannon-hit-model",
+    label: { en: "Cannon (bullet) weapons: dedicated hit formula and range falloff", ko: "포탄 무기 전용 명중식과 거리 감쇠" },
+    status: "anchored",
+    evidence: "skill.xml SID_弾丸命中 = max(技+力+体格+int(幸運/2)+武器命中+支援命中 − cond(거리>=4,(거리-3)*10,0), 0) — 표준 命中値計算(技*2+...)을 대체 · SID_弾丸攻撃力 = ユニット攻撃力(技) 대체 · 텍스트 유도 = patch1~3 MIID_H_Bullet_*(상대가 멀수록 명중 감소, gaps/N §3-2) · A축 calculator 52식 전수에는 없던 skill.xml 전용 항",
+  },
+  {
     id: "weapons.equip-sids",
     label: { en: "Weapon/item granted skills (EquipSids)", ko: "무기·아이템 부여 스킬(EquipSids)" },
     status: "absent",
     evidence: "수집 결손 85행(items.json에 EquipSids 259행 이미 산출 — 배선만 없음, gaps/I 투자 2위)",
   },
   {
+    id: "weapons.add-effect-schema",
+    label: { en: "Item add-effect schema (AddTarget x AddRange x AddType x AddPower x AddSids)", ko: "아이템 부가효과 스키마(AddTarget×AddRange×AddType×AddPower×AddSids)" },
+    status: "anchored",
+    evidence: "item.xml IID_傷薬/特効薬/たいまつ/お弁当 4건 1:1 대조 + patch1.msbt MIID_HE_* 24건(§2-7) — AddType 정의역={0,2,7,18,19,31}, AddType=7=인게이지 카운트 증가·2=HP 회복·19=시야(횃불)·31=생존 보장, 0=AddSids 위임(인챈트)(gaps/N §3-5) · AddType=7+AddPower가 인게이지 카운트 정수 증감의 데이터측 정본",
+  },
+  {
+    id: "weapons.enchant-by-weapon-name",
+    label: { en: "Enchant applies to all weapons sharing a name, lasts until map end", ko: "인챈트 = 동명(同名) 무기 전체 적용, 맵 종료까지 지속" },
+    status: "anchored",
+    evidence: "patch1.msbt MIID_HE_Weapon{Atk,Hit,Avo,Crit,Def}/_Short + item.xml AddTarget=3/AddSids + skill.xml SID_EN_威力上昇(武器攻撃力+=5, Timing=3, Life=0) — 개별 인스턴스가 아닌 무기 이름 단위 강화(gaps/N §2-7, §3-5)",
+  },
+  {
+    id: "weapons.tonic-level-scaling",
+    label: { en: "Tonic items scale stat gain by unit level", ko: "토닉류 아이템 = 유닛 레벨에 비례한 스탯 상승" },
+    status: "absent",
+    evidence: "patch1.msbt MIID_HE_{Hp,Str,Tec,Spd,Mag}Tonic kr/us 일치('레벨에 따라 상승'/'relative to level') — 수치는 텍스트·item.xml AddPower 어디에도 없음, 실행부 또는 미확인 테이블 소관(gaps/N §4-1 #12)",
+  },
+  {
     id: "weapons.forge-engrave",
     label: { en: "Forging and engraving bonuses", ko: "연성·각인 보정" },
     status: "absent",
-    evidence: "3계통 정식화 — 錬成 552행·進化 114행·エンゲージ武器強化 65종×3단계(gaps/B §3, F) · 각인(刻印) = god.xml 神将 시트 소유(22행 채움, gaps/F)",
+    evidence:
+      "3계통 정식화 — 錬成 552행·進化 114행·エンゲージ武器強化 65종×3단계(gaps/B §3, F) · 각인(刻印) = god.xml 神将 시트 소유(22행 채움, gaps/F) · ★IL2CPP 주입 지점 확정(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §4-1·EMBLEM_ENGAGE.md §11·§12): 武器命中 = ItemData.Hit(+0x66) + 연성 RefineData(+0x32) + 각인(+0xF2) + GodWeaponRefineData.GetValueHit의 합(BattleDetail.CalcHit RVA 0x1E74810, 회피·필살도 CalcAvoid/CalcCritical에서 동형) · 각인은 전투 계산 단계 보정이 아니라 **무기 스탯 게터 안에서 무기 수치에 직접 가산**된다(UnitItem.GetPower RVA 0x1FAF600 등 6종, UnitItem.m_Engrave(+0x28)에 GodData 참조로 영구 기록 — 엠블렘 장착 상태와 무관, SetEngrave RVA 0x1FB0080) · 엠블렘 무기 강화 용량 = **그 엠블렘과 絆 10 이상인 아군 유닛 수**(RefineGodWeaponCommon.GetCapacity RVA 0x237FB00, params エンゲージ武器強化限界値絆レベル=10)이고 단계 수는 코드 상수가 아니라 데이터 · 결과 스탯 = Unit.CommitEnhance, 결과 스킬 = UnitItem.GetEquipSkills(RVA 0x1FAFBD0)",
   },
 
   // ── 턴 구조 ──
@@ -631,15 +883,16 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "turn.terrain-heal",
-    label: { en: "Healing tiles at phase boundary", ko: "회복 타일(요새 등) 페이즈 회복" },
+    label: { en: "Terrain heal/damage at turn start", ko: "지형 회복·피해(턴 시작)" },
     status: "absent",
-    evidence: "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3)",
+    evidence:
+      "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-8): 턴 시작에 서 있는 칸의 terrain.Heal로 회복(ProcTerrainHeal.GetHeal RVA 0x1E3BB40), 대칭으로 지형 피해도 존재(ProcTerrainDamage.GetDamage RVA 0x1E3B970) · **비행(IsFly 또는 MoveFly)은 전면 면제**(Flag.FlyEnable 타일 한정이나 그 Flag 보유 타일이 0건) · BmapSize 2 및 3 초과 유닛도 제외",
   },
   {
     id: "turn.chapter-hold-level",
     label: { en: "Chapter hold level (Fell Xenologue)", ko: "챕터 고정 레벨(사룡의 장 HoldLevel)" },
     status: "absent",
-    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28(gaps/L §2-2) · 레벨 영향 실재 = 사용자 전언 정합 · e00x Lua에 레벨 조작 0건 = HoldLevel 단독 소관, 적용식(상하향 클램프)은 덤프에 없음 — E시리즈 변환 시 실측·배선",
+    evidence: "chapter.xml HoldLevel = E001~E006 고정 15~28(gaps/L §2-2) · 레벨 영향 실재 = 사용자 전언 정합 · e00x Lua에 레벨 조작 0건 = HoldLevel 단독 소관, 적용식(상하향 클램프)은 덤프에 없음 — E시리즈 변환 시 실측·배선 · 교차 보강(2026-08-17): E시리즈 적 레벨은 person.xml에 박제(E001 = 15/18/23, HoldLevel 15와 정합) — HoldLevel = 아군 클램프·적 = person 박제 분업 가설 지지(gaps/L 실측 후속 절)",
   },
   {
     id: "turn.rewind",
@@ -651,7 +904,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.map-gimmicks",
     label: { en: "Map gimmicks (spread, hazards, collapse)", ko: "맵 기믹(확산·위험타일·붕괴 등)" },
     status: "absent",
-    evidence: "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴 — 전투 RNG 스트림 공유 여부 실측 필요(gaps/M §4) · 안개 기믹은 원문 0건",
+    evidence:
+      "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴(gaps/M §4) · 안개 기믹은 원문 0건 · ★IL2CPP 구조 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3): 기믹의 그릇 = **MapOverlap**(SingletonClass, MaxCount=128) — Data{X,Z,Index,Hp,Life,Turn,Phase}를 들고 GetMoveCost/GetFlyCost/GetTerrain로 이동·전투 양쪽에 합류한다 ⇒ 지형 2층 합산(combat.terrain-bonus)·오버레이 이동 코스트(movement.range-terrain-cost)·문장기 타일 소멸(emblem.crest-tile)이 전부 이 한 층의 소비처다 · 난수 스트림은 combat.rng-source의 Game 스트림 공유 여부가 여전히 미판정",
   },
   {
     id: "turn.victory-rout",
@@ -675,13 +929,15 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "turn.enemy-ai",
     label: { en: "Automatic enemy phase AI", ko: "적턴 AI 자동 진행" },
     status: "deferred",
-    evidence: "M5 — L1층(루틴 배정·인자 결선·개시 조건·타겟 지정)은 덤프 확정, L2 스코어링 = 실행파일(AI 가드 상수 3종은 params 실재) · 상위 4조합 = 83.3%(gaps/K) · 지원 스코어 상수 3/2/1(gaps/J)",
+    evidence:
+      "M5 — L1층(루틴 배정·인자 결선·개시 조건·타겟 지정)은 덤프 확정 · 지원 스코어 상수 3/2/1(gaps/J) · ★IL2CPP로 L2층까지 전량 판독 완료(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md): 종전 'L2 스코어링 = 실행파일 미판독'은 해소됐다 — 옵코드 사전 App.AIConst 95/95 · 인터프리터 AIThink.Processing(RVA 0x1925420)·ProcessingActive(RVA 0x193AAD0) · 평가함수 AIBattleSimulator.CalculateScore(RVA 0x1928570) 비트필드 3종 · 적턴 페이즈 13단 AIOrder..cctor(RVA 0x1936C70) · 난수 사용 지점까지 특정(동점 시 Random.System 코인플립) ⇒ **선행 결손 없음, 남은 것은 구현 공수뿐** · 조합 집계 재산출 = 상위 3 82.9% / 상위 4 84.1%(gaps/K의 83.3%은 AI_MindName 제외 4열 조합이라 미세 차이)",
   },
   {
     id: "turn.delegate",
     label: { en: "Delegate (auto-battle)", ko: "위임(자동진행)" },
     status: "deferred",
-    evidence: "적턴 AI 모듈 공유(M5) — 표적 우선 = 상위 4조합 83.3%(gaps/K §9)",
+    evidence:
+      "적턴 AI 모듈 공유(M5, gaps/K §9) · ★IL2CPP로 경로 분리 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §6): 위임은 적 AI와 **전투 시뮬·스코어 코어만 공유**하고 정책은 별개 하드코딩 체인이다(ProcessingEntrust RVA 0x1924F00, 위임 전용 페이즈 12단 aFuncEntrust) · 입력도 dispos AI가 아니라 MapSituation.m_Entrust(UnitEntrust.Type 6종, 세이브 직렬화) ⇒ dispos 파라미터로는 위임을 재현할 수 없다 · params.xml 自動プレイ* 12항목은 위임과 접점 0건(리테일 스텁)",
   },
 
   // ── 적 AI 데이터 ──
@@ -689,31 +945,50 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "ai.routine-vocabulary",
     label: { en: "AI routine opcode programs", ko: "AI 루틴(옵코드 프로그램 141종)" },
     status: "deferred",
-    evidence: "ai.xml 802행 = AC32·MI11·AT63·MV35, dispos 실사용 77종 — 옵코드 사전은 실행파일 영역(gaps/K §2) · 선행 = M5",
+    evidence:
+      "ai.xml 802행 = AC32·MI11·AT63·MV35, dispos 실사용 77종(gaps/K §2) · ★IL2CPP로 사전 확정 — 미지 0종(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §3): 옵코드 사전 = App.AIConst(dump.cs:566105)이고 실사용 95종 전부 이름·핸들러 RVA가 확정됐다(종전 '옵코드 사전은 실행파일 영역' 결손 해소) · 루틴의 실체 = **우선순위순 후보 행동 목록**이며 Active 열 = AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} · ☠gaps/K §2-3의 '정형 M41 프롤로그 → M71 → M74 에필로그' 해석은 **반증**됐다(41=HE_MiddleLow 회복 · 71/72/74=MI_Guard/GuardBattleScore/GuardNoMove) · 선행 = M5 구현",
   },
   {
     id: "ai.data-projection",
     label: { en: "AI field projection completeness", ko: "AI 필드 사영 완결성" },
     status: "implemented",
-    evidence: "15필드 전수 사영 복원(존재 여부 기준 — 기본값 75/50 보존, projection.test.ts · FIX_NOTES_2 P4) · battleRate 타입 거짓 정정(문자열) · 소비는 M5",
+    evidence:
+      "15필드 전수 사영 복원(존재 여부 기준 — 기본값 75/50 보존, projection.test.ts · FIX_NOTES_2 P4) · battleRate 타입 거짓 정정(문자열) · 소비는 M5 · ★IL2CPP로 필드 의미 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §8-5·§11-1): shared/index.ts의 주석 '비트 범례가 덤프에 없어 해석 금지'는 **반증**됐다 — 범례는 DisposData.AIFlags(dump.cs:592992)에 전량 있다(1 NotActivateByAttacked·2 Dummy·4 ZeroAttack·8 Heal·16 Break·32 Chain·64 EquipShortAfterLongRange·128 MoveBreak·256 EngageAttackOnce), 런타임 변환은 Unit.SetDisposAi(RVA 0x1A0C0E0) · Break/Chain 비트는 평가함수의 브레이크·연계 항 게이트라 M5에서 무시하면 표적 선정이 통째로 틀어진다",
   },
   {
     id: "ai.move-limit",
     label: { en: "AI movement boxes (hard constraint)", ko: "AI 이동 제한 박스(AI_MoveLimit)" },
     status: "absent",
-    evidence: "36건 — 이동을 물리적으로 자르는 하드 제약(m016·m021·m024·m025 포함, gaps/K)",
+    evidence:
+      "36건 — 이동을 물리적으로 자르는 하드 제약(m016·m021·m024·m025 포함, gaps/K) · ★IL2CPP 파싱·집행식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §9-2): 원문 `(x1,z1),(x2,z2)` → Rect{X:x1, Z:z1, W:x2-x1+1, H:z2-z1+1}(Unit.SetDisposAi RVA 0x1A0C268), 허용 = X <= x < X+W && Z <= z < Z+H 반개구간이되 **자기 발밑 칸은 항상 예외 허용** · 집행 지점은 MapDeployTemplate.UnitAIMoveLimit(RVA 0x2C227C0) 단 1곳이 범위 밖을 코스트 0xff로 막는 방식 · 실데이터 형식은 Rect/None뿐",
   },
   {
     id: "ai.band-activation",
     label: { en: "Band-linked AI activation", ko: "밴드 연동 기동(AI_BandNo)" },
     status: "absent",
-    evidence: "328밴드 — 집단 각성 구조(gaps/K)",
+    evidence:
+      "328밴드 — 집단 각성 구조(gaps/K) · ★IL2CPP 전파식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §8-4): UnitUtil.BandActivate(RVA 0x1C73E30)가 같은 AI_BandNo 전원을 Active=1로 세운다 · 게이트 BandActivation은 AI_BandNo!=0이면 자동 세팅(0x1A0C4C4) · ☠BandActivationMove/Attacked 비트는 **세우는 코드가 없어 정규 플레이에서 항상 0** · 개시 조건 AC_BandRange의 첫 인자는 반경이 아니라 **커버 인원 임계** · 거리 인자 단위는 칸이 아니라 **이동력 백분율(%)**(GetMovePower RVA 0x1943F70)이고 다행 조건은 AND가 아니라 **OR**(§8-1·8-2)",
   },
   {
     id: "ai.sub-routine-swap",
     label: { en: "Conditional AI routine swap", ko: "조건부 서브 AI 치환" },
     status: "absent",
-    evidence: "Code 6/7/4 치환 구조, 68유닛(gaps/K) · Lua BattleAfter 전환은 combat.scripted-modifiers",
+    evidence:
+      "Code 6/7/4 치환 구조, 68유닛(gaps/K) · Lua BattleAfter 전환은 combat.scripted-modifiers · ★IL2CPP로 구조 확정 + 기존 해석 정정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §4-4·§11-3): AI_ChangeSeq(6)의 Mind 열 = **대상 슬롯 번호** · AI_ChangeValue(7) = 인자 결선 · ☠AI_Retry(4)는 '치환 블록 종료'가 아니라 **사고 전체 재시작**이다(Processing 0x1925534 while 루프 — 종전 해석 반증) · Code 2도 '인자 없는 조건'이 아니라 AI_ResultCause(RC_Attack/Talk/Arrive 3종)",
+  },
+  {
+    id: "ai.opcode-interpreter",
+    label: { en: "AI opcode interpreter (slot order, Active gates)", ko: "AI 옵코드 인터프리터(슬롯 순서·Active 게이트)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §4·§7): 슬롯 실행 순서 = Cause → Mind → Attack → Move 고정 · Active 게이트 4종(AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} + 서브상태) · 변경은 Trans에 스테이징했다가 Update에서 반영 · AI_Retry는 Cause부터 재시작 · 적턴 페이즈 13단 테이블 = AIOrder..cctor(RVA 0x1936C70)이고 공격이 3단으로 도는 이유는 유닛이 아니라 **액션**이 걸러지기 때문 · AI_Priority 해석식 = 512*P + 256*enchant + 16 − clamp(removable,0,99), **P < 100이면 Priority 페이즈에서 제외** · ☠gaps/K의 'Trans=-128=무변화'는 코드에 없다(기각) · 선행 = turn.enemy-ai",
+  },
+  {
+    id: "ai.attack-scoring",
+    label: { en: "AI target scoring (bitfield lexicographic)", ko: "AI 표적 평가(비트필드 사전식 비교)" },
+    status: "absent",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §5·§9-4): 표적 평가 = uint32 비트필드의 사전식 비교이고 **AI_BattleRate 3값(Rush/Attack/Chariness)이 비트 레이아웃을 통째로 바꾼다**(AIBattleSimulator.CalculateScore RVA 0x1928570) · 격파 확률이 최상위 비트 = 절대 우선 · 동점이면 Random.System 50% 코인플립(난수 주입 설계 직결 — combat.rng-source의 System 스트림) · 지형 스코어 가중치·가드 3분기(GuardTo RVA 0x194CF60)도 확정 · ☠params.xml AI 가드 3상수(0.3/0.5/0.4)와 CalculateScore의 즉치 0.3/0.5/0.7은 **무관**하다(후자는 하드코딩, GameParam 호출 없음) · 선행 = turn.enemy-ai",
   },
 ];
 

@@ -26,7 +26,7 @@ export const calculator = createCalculator(JSON.parse(calculatorRaw) as Calculat
 const reduce = createReducer(calculator);
 /** 공유 열람(/s/)의 서버 렌더가 같은 재생기를 쓴다 — 스냅숏 계산이 서버·클라에서 갈라지면 안 된다. */
 export const replayer = createReplayer(reduce);
-const liveRng = { roll: () => Math.floor(Math.random() * 100) };
+const liveRng = { next: (bound: number) => Math.floor(Math.random() * bound) };
 
 export interface UnitVisual {
   icon?: string;

@@ -9,6 +9,7 @@ import type {
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
+import { isHit, isProbability100 } from "./formula/probability.js";
 import { movementRange, type MoveType } from "./range.js";
 import type { SkillRow } from "./skills.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
@@ -17,11 +18,15 @@ import { STAT_KEYS, type StatBlock } from "./stats.js";
  * 전투 해결·턴 진행 — 계약: (국면, 행동, 난수소스) → 국면. 순수·불변.
  * 난수 소비 순서(리플레이 재현 계약): 타격마다 명중 롤 → 명중 시에만 필살 롤,
  * 레벨업 시 STAT_KEYS 순서로 스탯당 1롤. 이 순서가 바뀌면 기록 재생이 깨진다.
- * 타격 순서 = 본공격 → 체인어택 → 반격 → 공격측 추격 → 방어측 추격 (체인 위치는 가정 — 실기 반증 시 갱신).
+ * 타격 순서 = 체인어택 → 본공격 → 반격 → 공격측 추격 → 방어측 추격 (체인이 먼저인 것은 코드 확정, il2cpp/SEQUENCE_BREAK).
  */
 export interface RandomSource {
-  /** [0, 100) 정수 — FE 판정 문법. */
-  roll(): number;
+  /**
+   * `[0, bound)` 정수 — 게임의 `Random.GetValue(bound)`에 대응한다.
+   * 판정마다 해상도가 다르다(명중 10000 · 일반 확률 100000 · 성장 100)는 것이 인게임 사실이라
+   * 상한을 호출부가 넘긴다. 기보에는 굴린 값이 그대로 박히므로 이 상한 규약이 곧 리플레이 계약이다.
+   */
+  next(bound: number): number;
 }
 
 export interface BattleWeapon extends CombatantWeapon {
@@ -45,6 +50,8 @@ export interface UnitState {
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
+  /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
+  cap?: StatBlock;
   level: number;
   internalLevel?: number;
   exp: number;
@@ -143,16 +150,62 @@ const manhattan = (a: UnitState, b: UnitState) => Math.abs(a.x - b.x) + Math.abs
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
 
+/** 한 레벨에 이만큼도 못 올리면 다시 굴린다 — Unit.GrowAbortCount. */
+const GROW_ABORT = 2;
+/** 재굴림 포함 최대 시도 수 — Unit.LevelUpRetryMax. */
+const GROW_ATTEMPTS = 4;
+
+/**
+ * 레벨업 성장 롤 — 정본 = App.Unit.LevelUp(RVA 0x1A3A040) GrowMode.Random 경로.
+ *
+ * 게임은 "획득 스탯이 abort 미만이면 최대 4시도까지 다시 굴리고 최선 시도를 채택"한다.
+ * 난수는 시도 사이에 이어지므로(같은 Random 인스턴스) 소비 개수가 결과에 따라 달라진다 —
+ * 기보 재생이 이 소비 순서에 걸려 있으니 시도 구조를 그대로 옮긴다.
+ * 증가 1회마다 상한을 다시 확인하는 것도 원본 그대로다(확정 가산분도 캡을 못 뚫는다).
+ */
+function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
+  let best: Partial<StatBlock> = {};
+  let bestCount = 0;
+  for (let attempt = 0; attempt < GROW_ATTEMPTS; attempt++) {
+    const gains: Partial<StatBlock> = {};
+    let count = 0;
+    for (const key of STAT_KEYS) {
+      // 성장률 상한은 255다 — 100 절사가 아니다(person.Grow 실측 최대 105).
+      let grow = Math.min(Math.max(unit.growth?.[key] ?? 0, 0), 255);
+      if (grow === 0) continue;
+      const cap = unit.cap?.[key];
+      const room = (): boolean => cap === undefined || unit.stats[key] + (gains[key] ?? 0) < cap;
+      const grant = (): void => {
+        if (!room()) return;
+        gains[key] = (gains[key] ?? 0) + 1;
+        count += 1;
+      };
+      while (grow > 99) {
+        grow -= 100;
+        grant();
+      }
+      // 잔여가 0이면 게임도 난수를 보지 않는다(IsProbability100이 percent<=0에서 즉시 false).
+      if (grow > 0 && isProbability100(grow, rng.next(100000))) grant();
+    }
+    if (count > bestCount) {
+      best = gains;
+      bestCount = count;
+    }
+    if (bestCount >= GROW_ABORT) break;
+  }
+  return best;
+}
+
 /** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
 export type SupportEffects = Record<string, Record<string, SupportEffect>>;
 
 /**
- * 인접 아군 지원(絆) 보정 — 表 = reliance.xml 支援効果(archetype × Level 1~4).
- * ★발동 거리 = 인접 1타일(사용자 실기 실측 2026-08-17 — 2칸 이상은 무효).
- * 인접의 4방(맨해튼 1) 해석은 가정이다 — 대각 인접 발동 여부는 미실측이라 제외한다(반증 시 여기만 고친다).
- * archetype 출처 = 파트너의 SupportCategory(지시 정본). gaps/D §1-1은 수혜자 자신의 것이라 추정하나
- * 덤프만으로는 어느 쪽인지 결정되지 않는다 — 뒤집힐 경우 아래 한 줄(row 조회 대상)만 바뀐다.
- * 복수 파트너는 합산(원문에 상한·배타 규정 없음 — 가정).
+ * 인접 아군 지원(絆) 보정 — 表 = reliance.xml 支援効果(archetype × Level 1~4 = C/B/A/A+).
+ * 아래 넷은 전부 실행파일 코드로 확정됐다(il2cpp/SUPPORT.md) — 더는 가정이 아니다:
+ *  - 거리 = 맨해튼 1. SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트라 대각은 미발동.
+ *  - archetype = 파트너의 SupportCategory. TryGetSupportData가 파트너 쪽만 인덱싱한다(수혜자 아님).
+ *  - 복수 파트너 = 단순 합산, 상한 없음(MaxShowUnits=4는 UI 표시 슬롯일 뿐 보정과 무관).
+ *  - 파트너 자격 = 엄격 동일 세력. ☠동맹(우군)까지 넓히는 것은 반증된 변경이다.
  */
 function supportOf(
   u: UnitState,
@@ -276,10 +329,12 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const distance = manhattan(attacker, defender);
         if (!inWeaponRange(attacker, distance)) throw new Error("사거리 밖 공격");
 
-        const attackerC = toCombatant(attacker, state.map, units, supportEffects);
-        const defenderC = toCombatant(defender, state.map, units, supportEffects);
-        const atkF = forecastSide(calc, attackerC, defenderC);
-        const defF = forecastSide(calc, defenderC, attackerC);
+        // 스킬 발동 필터: 전투를 건 쪽(Stand)은 전투 내내 고정이고, 때리는 쪽(Action)은 타격마다 뒤집힌다.
+        const attackerC = { ...toCombatant(attacker, state.map, units, supportEffects), initiator: true };
+        const defenderC = { ...toCombatant(defender, state.map, units, supportEffects), initiator: false };
+        const striking = (c: Combatant, value: boolean): Combatant => ({ ...c, striking: value });
+        const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
+        const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
         const advantage =
           attacker.weapon !== undefined && defender.weapon !== undefined
             ? weaponAdvantage(attacker.weapon.kind, defender.weapon.kind)
@@ -302,14 +357,15 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           numbers: { damage: number; hitRate: number; critRate: number },
         ): void => {
           if (from.dead || to.dead) return;
-          const hit = rng.roll() < numbers.hitRate;
+          const hit = isHit(numbers.hitRate, rng.next(10000));
           // 명중 시에만 필살 롤 — 롤 소비 순서는 리플레이 계약.
-          const crit = hit && numbers.critRate > 0 ? rng.roll() < numbers.critRate : false;
+          const crit = hit && numbers.critRate > 0 ? isProbability100(numbers.critRate, rng.next(100000)) : false;
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
           to.hp = Math.max(to.hp - damage, 0);
           events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit, crit, damage, hpAfter: to.hp });
-          if (hit && kind === "attack" && advantage === 1 && from === attacker) {
-            // 브레이크: 개시측 상성 유리 + 명중. 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
+          if (hit && damage >= 1 && kind === "attack" && advantage === 1 && from === attacker) {
+            // 브레이크 조건(코드 확정) = 명중 + 확정 대미지 1 이상 + 개시측(반격·체인으로는 발생하지 않는다).
+            // 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
             const immune =
               to.style === "重装スタイル" || to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) === true;
             if (!immune && to.weapon !== undefined && !to.broken) {
@@ -323,10 +379,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           }
         };
 
-        // 실기 정본(2026-08-17 사용자 대조): 브레이크 상태로 피격당한 전투가 끝나면 즉시 해제 —
-        // 페이즈 복귀까지 유지하면 같은 턴 후속 공격이 전부 반격 몰수로 과대 계산된다.
+        // 브레이크 해제 = (A) 그 유닛이 참여한 다음 전투의 커밋 시점 또는 (B) 페이즈 종료, 먼저 오는 쪽
+        // (코드 확정: CommitUnit 0x2477B70 · ResetPhaseEnd 0x1A19EF0, SID_気絶 Cycle=3=PhaseAfter).
+        // kr 원문 "한 번 전투를 하거나 다음 턴이 되기 전까지"가 정확히 이 둘이다 — 아래가 (A)에 해당한다.
         const defenderEnteredBroken = defender.broken;
-        strike(attacker, defender, "attack", atkF);
         const chainNumbers = (backup: UnitState) => {
           const env = combatEnv(toCombatant(backup, state.map, units, supportEffects), defenderC);
           return {
@@ -335,7 +391,9 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             critRate: calc.eval("チェインアタック必殺率計算", env) as number,
           };
         };
+        // 체인어택은 공격측 첫 오더 슬롯 직전 = 본공격보다 먼저다(코드 확정 — 종전 '본공격 뒤'는 가정이었다).
         for (const backup of chainUnits) strike(backup, defender, "chain", chainNumbers(backup));
+        strike(attacker, defender, "attack", atkF);
         const canCounter = () =>
           !defender.dead && !defender.broken && inWeaponRange(defender, distance);
         if (canCounter()) strike(defender, attacker, "counter", defF);
@@ -363,17 +421,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             while (attacker.exp >= 100) {
               attacker.exp -= 100;
               attacker.level += 1;
-              const gains: Partial<StatBlock> = {};
+              const gains = rollGrowth(attacker, rng);
               const stats = { ...attacker.stats };
               for (const key of STAT_KEYS) {
-                // 성장률 100 초과(person.Grow 실측 최대 105)는 확정 가산 + 잔여 1롤 —
-                // 롤 소비는 스탯당 항상 1회로 고정한다(리플레이 재현 계약).
-                const grow = Math.max(attacker.growth?.[key] ?? 0, 0);
-                const gain = Math.floor(grow / 100) + (rng.roll() < grow % 100 ? 1 : 0);
-                if (gain > 0) {
-                  stats[key] += gain;
-                  gains[key] = gain;
-                }
+                const gain = gains[key];
+                if (gain !== undefined) stats[key] += gain;
               }
               attacker.stats = stats;
               if (gains.hp !== undefined) attacker.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도

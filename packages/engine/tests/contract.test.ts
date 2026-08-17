@@ -37,7 +37,7 @@ const mkState = (): GameState => ({
   events: [],
 });
 const action: BattleAction = { type: "move", unit: "a", x: 1, y: 0 };
-const recorded: RandomSource = { roll: () => 42 };
+const recorded: RandomSource = { next: () => 42 };
 
 describe("엔진 계약", () => {
   it("reduce는 다음 국면을 반환한다", () => {
@@ -56,8 +56,8 @@ describe("엔진 계약", () => {
   });
 
   it("같은 (국면, 행동, 난수 기록)이면 같은 국면 (결정성 = 리플레이 재현의 전제)", () => {
-    const a = reduce(mkState(), action, { roll: () => 7 });
-    const b = reduce(mkState(), action, { roll: () => 7 });
+    const a = reduce(mkState(), action, { next: () => 7 });
+    const b = reduce(mkState(), action, { next: () => 7 });
     expect(a).toEqual(b);
   });
 

@@ -28,7 +28,13 @@ export interface CombatantWeapon {
   avoid?: number;
   dodge?: number;
   magic?: boolean;
-  /** 특효 배율(武器特効). 특효 발동 시 2, 평시 1. */
+  /**
+   * 특효 배율(武器特効) — 평시 1. ☠발동 시 값은 2가 아니라 **3**이다(`SID_邪竜特効`만 2).
+   * 정본(BattleDetail.CalcAttack 0x1E744E8~): 공격자 스킬의 `Efficacy` 마스크 ∩ (대상 person|job `Attrs`)
+   * ∖ 대상 `EfficacyIgnore`가 비지 않으면, 걸린 스킬들의 `EfficacyValue` **최댓값**(합산 아님).
+   * 곱해지는 곳은 `攻撃力計算 = ユニット攻撃力 + 武器攻撃力 * 武器特効` 한 곳뿐 — **무기 위력에만** 곱한다.
+   * 판정 배선은 아직 없다(선행 = Attrs·Efficacy 마스크를 유닛 데이터에 싣기) — 지금은 주입값을 그대로 쓴다.
+   */
   effective?: number;
 }
 
@@ -39,6 +45,10 @@ export interface Combatant {
   terrain?: { avoid?: number; def?: number };
   /** 전투 시 계산값 보정 스킬(간파 등). 정적 보정(EnhanceValue)은 stats에 이미 반영돼 있어야 한다. */
   skills?: readonly SkillRow[];
+  /** 이 전투를 건 쪽인가 — 스킬 Stand 게이트. 전투 내내 고정이다. */
+  initiator?: boolean;
+  /** 이번 타격에서 때리는 쪽인가 — 스킬 Action 게이트. 공격·반격마다 뒤집힌다. */
+  striking?: boolean;
 }
 
 export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
@@ -74,7 +84,13 @@ export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
     opponent: foe ? () => combatEnv(foe, self) : undefined,
   };
   if (self.skills === undefined || self.skills.length === 0) return plain;
-  return { ...plain, modify: makeSkillModifier(self.skills, plain) };
+  return {
+    ...plain,
+    modify: makeSkillModifier(self.skills, plain, {
+      initiator: self.initiator,
+      striking: self.striking,
+    }),
+  };
 }
 
 export interface SideForecast {
@@ -93,7 +109,9 @@ const displayClamp = (value: FormulaValue): number =>
 export function forecastSide(calc: Calculator, self: Combatant, foe: Combatant): SideForecast {
   const env = combatEnv(self, foe);
   return {
-    damage: calc.eval("威力計算", env) as number,
+    // 威力는 [0,999] 클램프 후 **정수 절사**가 정본이다(SimplePowerParam). 필살 3배는 이 정수에 곱해진다 —
+    // 소수를 들고 가면 trunc(x)*3 과 trunc(x*3) 이 갈려 보정 스킬이 붙는 순간 대미지가 어긋난다.
+    damage: Math.trunc(Math.min(Math.max(calc.eval("威力計算", env) as number, 0), 999)),
     hitRate: displayClamp(calc.eval("命中率計算", env)),
     critRate: displayClamp(calc.eval("必殺率計算", env)),
     attackSpeed: calc.eval("攻撃速度計算", env) as number,
