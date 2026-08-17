@@ -417,6 +417,20 @@
   color: var(--muted, #888);
   opacity: 0.6;
 }
+/* 장비중 무기 마크(인게임 E) — 목록 디폴트 = 장비 무기 */
+.fc-eq {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  background: rgb(240 200 90 / 0.18);
+  border: 1px solid rgb(240 200 90 / 0.5);
+  color: #f0c85a;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.4;
+}
 
 .fc-side {
   display: grid;

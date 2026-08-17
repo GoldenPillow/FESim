@@ -186,13 +186,53 @@ export default function BoardIsland(props: BoardProps) {
     return { query, move, moveSet, attack, attackAll };
   }, [selected, byTile, game, width, height, pending, chosenWeapon]);
 
+  // 호버 예보(인게임 문법): 사거리 안 적에 커서만 올려도 공격 발판이 정해지고 즉시 예보가 뜬다.
+  // 발판 우선순위 = 유저가 그린 마지막 경로 끝점 → 제자리 → 최소 이동비용 지점.
+  const hoverEnemy = useMemo(() => {
+    if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
+    const u = byTileView.get(tileKey(hover.x, hover.y));
+    if (u === undefined || u.force === selected.force) return undefined;
+    return range?.attackAll.has(tileKey(hover.x, hover.y)) === true ? u : undefined;
+  }, [selected, hover, byTileView, range, target]);
+
+  const lastPathEnd = useRef<Tile | undefined>(undefined);
+  useEffect(() => {
+    lastPathEnd.current = undefined;
+  }, [selectedId, game]);
+
+  const engageAt = useMemo(() => {
+    const w = chosenWeapon;
+    const foe = target ?? hoverEnemy;
+    if (selected === undefined || w === undefined || foe === undefined) return undefined;
+    if (pending !== undefined) return pending; // 잠정 이동은 유저 확정 — 항상 그 기준
+    const origin = { x: selected.x, y: selected.y };
+    if (target !== undefined) return origin;
+    const dist = (p: Tile) => Math.abs(p.x - foe.x) + Math.abs(p.y - foe.y);
+    const standable = (p: Tile) =>
+      range?.moveSet.has(tileKey(p.x, p.y)) === true &&
+      (!byTile.has(tileKey(p.x, p.y)) || (p.x === origin.x && p.y === origin.y));
+    const ok = (p: Tile) => dist(p) >= w.rangeMin && dist(p) <= w.rangeMax && standable(p);
+    const end = lastPathEnd.current;
+    if (end !== undefined && ok(end)) return end;
+    if (ok(origin)) return origin;
+    const spots = (range?.move ?? []).filter(ok).sort((a, b) => a.cost - b.cost);
+    return spots[0];
+  }, [selected, target, hoverEnemy, pending, range, byTile, chosenWeapon]);
+
   const path = useMemo(() => {
-    if (range === undefined || hover === undefined || selected === undefined) return undefined;
-    if (!range.moveSet.has(tileKey(hover.x, hover.y))) return undefined;
-    if (byTile.has(tileKey(hover.x, hover.y))) return undefined;
-    const tiles = movementPath(range.query, hover);
+    if (range === undefined || hover === undefined || selected === undefined || pending !== undefined) return undefined;
+    // 적 호버 중엔 공격 발판까지의 경로를 유지한다(경로가 사라지지 않는 인게임 문법).
+    const goal = hoverEnemy !== undefined ? engageAt : hover;
+    if (goal === undefined || !range.moveSet.has(tileKey(goal.x, goal.y))) return undefined;
+    if (byTile.has(tileKey(goal.x, goal.y))) return undefined;
+    const tiles = movementPath(range.query, goal);
     return tiles !== null && tiles.length > 1 ? tiles : undefined;
-  }, [range, hover, byTile, selected]);
+  }, [range, hover, byTile, selected, pending, hoverEnemy, engageAt]);
+
+  // 일반 이동 호버의 경로 끝점을 기억 — 적 호버로 넘어갈 때 이 지점이 공격 발판이 된다.
+  useEffect(() => {
+    if (path !== undefined && hoverEnemy === undefined) lastPathEnd.current = path[path.length - 1];
+  }, [path, hoverEnemy]);
 
   const distance =
     selectedAt !== undefined && target !== undefined
@@ -207,26 +247,34 @@ export default function BoardIsland(props: BoardProps) {
     distance <= w.rangeMax;
   const canAttack = target !== undefined && inRangeOf(chosenWeapon);
 
+  // 예보 대상: 클릭 확정 타겟이 우선, 없으면 호버 타겟(즉시 예보). 기준 위치 = 공격 발판.
+  const fcTarget = target ?? hoverEnemy;
+  const fcAt = (target !== undefined ? selectedAt : engageAt) ?? selectedAt;
+
   const forecast = useMemo(() => {
-    if (selected === undefined || selectedAt === undefined || target === undefined) return undefined;
-    // 예보는 잠정 위치·활성 무기(호버 프리뷰 우선) 기준 — 확정 시 엔진이 같은 입력으로 판정한다.
-    const aU: UnitState = { ...selected, x: selectedAt.x, y: selectedAt.y, weapon: activeWeapon };
+    if (selected === undefined || fcAt === undefined || fcTarget === undefined) return undefined;
+    // 예보는 발판 위치·활성 무기(호버 프리뷰 우선) 기준 — 확정 시 엔진이 같은 입력으로 판정한다.
+    const aU: UnitState = { ...selected, x: fcAt.x, y: fcAt.y, weapon: activeWeapon };
     const a = toCombatant(aU, game.map, game.units);
-    const d = toCombatant(target, game.map, game.units);
-    const dist = Math.abs(selectedAt.x - target.x) + Math.abs(selectedAt.y - target.y);
-    const inRange = inRangeOf(activeWeapon);
+    const d = toCombatant(fcTarget, game.map, game.units);
+    const dist = Math.abs(fcAt.x - fcTarget.x) + Math.abs(fcAt.y - fcTarget.y);
+    const inRange =
+      !selected.acted &&
+      activeWeapon !== undefined &&
+      dist >= activeWeapon.rangeMin &&
+      dist <= activeWeapon.rangeMax;
     const engageDist = inRange ? dist : activeWeapon?.rangeMax ?? 1;
     const counterable =
-      target.weapon !== undefined &&
-      !target.broken &&
-      engageDist >= target.weapon.rangeMin &&
-      engageDist <= target.weapon.rangeMax;
+      fcTarget.weapon !== undefined &&
+      !fcTarget.broken &&
+      engageDist >= fcTarget.weapon.rangeMin &&
+      engageDist <= fcTarget.weapon.rangeMax;
     const attack = activeWeapon !== undefined ? forecastSide(calculator, a, d) : undefined;
     const counter = counterable ? forecastSide(calculator, d, a) : undefined;
     // 예상 잔여 HP — 전 타격 명중 가정(인게임 예보 문법), 엔진 타격 순서 그대로:
     // 본공격 → (생존·미브레이크 시) 반격 → 추격 → 반격측 추격. 브레이크면 반격 몰수. 체인어택 제외.
-    const brk = attack !== undefined && attack.damage >= 1 && canBreak(aU, target);
-    let targetHp = target.hp;
+    const brk = attack !== undefined && attack.damage >= 1 && canBreak(aU, fcTarget);
+    let targetHp = fcTarget.hp;
     let selfHp = selected.hp;
     const counters = counter !== undefined && !brk;
     if (attack !== undefined) targetHp -= attack.damage;
@@ -236,8 +284,7 @@ export default function BoardIsland(props: BoardProps) {
     targetHp = Math.max(targetHp, 0);
     selfHp = Math.max(selfHp, 0);
     return { attack, counter, inRange, brk, selfHp, targetHp };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, selectedAt, target, game, activeWeapon, distance]);
+  }, [selected, fcAt, fcTarget, game, activeWeapon]);
 
   const describe = (events: BattleEvent[]): string[] => {
     const t = labels.logTags;
@@ -323,6 +370,14 @@ export default function BoardIsland(props: BoardProps) {
           return;
         }
         setTargetId(clicked.id);
+        // 호버로 정해진 공격 발판을 잠정 이동으로 굳힌다(인게임: 경로 결정 → 교전 확정).
+        if (
+          pending === undefined &&
+          engageAt !== undefined &&
+          !(engageAt.x === selected.x && engageAt.y === selected.y)
+        ) {
+          setPending({ x: engageAt.x, y: engageAt.y });
+        }
         return;
       }
       if (clicked.id === selectedId) {
@@ -442,7 +497,7 @@ export default function BoardIsland(props: BoardProps) {
         </div>
       )}
 
-      {forecast !== undefined && selected !== undefined && target !== undefined && (
+      {forecast !== undefined && selected !== undefined && fcTarget !== undefined && (
         <div
           className={weapons.length > 0 ? "forecast" : "forecast no-arm"}
           role="status"
@@ -459,6 +514,7 @@ export default function BoardIsland(props: BoardProps) {
                     onFocus={() => setWeaponHover(i)}
                     onClick={() => setWeaponPick(i)}
                   >
+                    {i === equippedIdx && <em className="fc-eq" title="Equipped">E</em>}
                     {w.name ?? "—"}
                   </button>
                 </li>
@@ -474,7 +530,7 @@ export default function BoardIsland(props: BoardProps) {
           />
           <div className="fc-mid">
             <span className="fc-vs" aria-hidden="true">⚔</span>
-            {canAttack && (
+            {canAttack && target !== undefined && (
               <button
                 type="button"
                 className="fc-go"
@@ -490,8 +546,8 @@ export default function BoardIsland(props: BoardProps) {
             )}
           </div>
           <ForecastSide
-            unit={target}
-            visual={visuals.get(target.id)}
+            unit={fcTarget}
+            visual={visuals.get(fcTarget.id)}
             side={forecast.brk ? undefined : forecast.counter}
             hpAfter={forecast.targetHp}
             brk={forecast.brk}
