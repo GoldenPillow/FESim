@@ -208,6 +208,16 @@ const TILE_OVERRIDE: Record<string, string> = {
   TID_大柱: "#6e675c",
   TID_瓦礫: "#4b463f",
   TID_空: "#151a20",
+  // MP3 전맵 증설(육안 실측 — 원본 ColorRGB가 실기 톤과 어긋나는 고빈도 특수 지형)
+  TID_砂漠: "#b09a63",
+  TID_流砂: "#997f4e",
+  TID_砦: "#7d8a70",
+  TID_回復床: "#6f8f7d",
+  TID_防衛床: "#68789a",
+  TID_宝箱: "#8a7448",
+  TID_民家入口: "#8a6f4f",
+  TID_砲台: "#5d6166",
+  TID_篝火: "#8a5a3a",
 };
 
 const hex = (r: number, g: number, b: number): string =>
