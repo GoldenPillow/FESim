@@ -47,6 +47,7 @@ interface Strings {
   victory: string;
   defeat: string;
   reset: string;
+  undoCmd: string;
   copyRecord: string;
   copied: string;
   logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
@@ -120,6 +121,7 @@ export const UI: Record<Locale, Strings> = {
     victory: "Victory!",
     defeat: "Defeat...",
     reset: "Reset",
+    undoCmd: "Undo",
     copyRecord: "Copy record",
     copied: "Copied",
     logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
@@ -198,6 +200,7 @@ export const UI: Record<Locale, Strings> = {
     victory: "승리!",
     defeat: "패배...",
     reset: "초기화",
+    undoCmd: "물리기",
     copyRecord: "기보 복사",
     copied: "복사됨",
     logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },

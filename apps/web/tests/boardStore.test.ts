@@ -77,6 +77,72 @@ describe("게스트 자동 저장", () => {
   });
 });
 
+describe("setup 초기 세팅 diff (M4 편집기 백본)", () => {
+  const setup = {
+    units: {
+      u0: { x: 3, y: 3, level: 9, stats: { hp: 40, str: 14, mag: 0, dex: 11, spd: 12, lck: 6, def: 8, res: 4, bld: 6 } },
+      u1: { removed: true },
+    },
+  };
+
+  it("플레이 모드 생성 인자로 실리면 초기 국면에 위치·레벨·스탯 스냅숏·제거가 반영된다", () => {
+    // 왜 위험한가: 스냅숏이 초기화의 정본이어야 열람 경로(/s/)가 원천 테이블 없이
+    // 같은 국면을 재구성한다 — 여기가 어긋나면 편집 전략의 공유 재생이 통째로 다른 판이 된다.
+    const store = createBoardStore(props, undefined, setup);
+    const u0 = store.getState().game.units.find((u) => u.id === "u0")!;
+    expect([u0.x, u0.y]).toEqual([3, 3]);
+    expect(u0.level).toBe(9);
+    expect(u0.hp).toBe(40);
+    expect(u0.stats.str).toBe(14);
+    expect(store.getState().game.units.find((u) => u.id === "u1")).toBeUndefined();
+  });
+
+  it("toFile에 setup이 실리고, 게스트 저장 복원과 리플레이 생성이 같은 국면을 만든다", () => {
+    const store = createBoardStore(props, undefined, setup);
+    store.getState().dispatch({ type: "wait", unit: "u0" });
+    const file = store.getState().toFile();
+    expect(file.setup).toEqual(setup);
+
+    const replayed = createBoardStore(props, { file });
+    expect(displayState(replayed.getInitialState()).units.find((u) => u.id === "u0")?.stats.str).toBe(14);
+
+    const revived = createBoardStore(props, undefined, setup);
+    revived.getState().restore();
+    expect(revived.getState().game.units).toEqual(store.getState().game.units);
+  });
+});
+
+describe("플레이 언두 (M4 수순층)", () => {
+  it("마지막 행동을 물리고 국면·기보가 직전 시점과 일치한다 — 빈 기보에선 무동작", () => {
+    // 왜 위험한가: 언두 재구성은 이벤트 절대값 재적용(applyStep)이라 실굴림과 무관하게 결정적이어야 한다 —
+    // reduce 재굴림으로 되감으면 난수가 새로 소비돼 다른 국면이 된다.
+    const store = createBoardStore(props);
+    store.getState().undo(); // 빈 기보 — 무동작
+    expect(store.getState().recording).toHaveLength(0);
+
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const afterMove = store.getState().game;
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    store.getState().undo();
+    expect(store.getState().recording).toHaveLength(1);
+    expect(store.getState().game.units).toEqual(afterMove.units);
+    // 언두 후 이어 플레이가 합법이어야 한다(내부 상태 표류 검출).
+    const next = store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(next).not.toBe(afterMove);
+    expect(store.getState().recording).toHaveLength(2);
+  });
+
+  it("언두는 게스트 저장 슬롯에도 반영된다", () => {
+    const store = createBoardStore(props);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 2 });
+    store.getState().dispatch({ type: "wait", unit: "u0" });
+    store.getState().undo();
+    const revived = createBoardStore(props);
+    revived.getState().restore();
+    expect(revived.getState().recording).toHaveLength(1);
+  });
+});
+
 describe("리플레이", () => {
   const recorded = () => {
     const store = createBoardStore(props);

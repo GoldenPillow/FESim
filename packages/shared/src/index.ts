@@ -23,7 +23,9 @@ export {
   serializeEphemeris,
   type EphemerisFile,
   type EphemerisHeader,
+  type EphemerisSetup,
   type EphemerisStep,
+  type SetupUnit,
 } from "./ephemeris.js";
 
 /**

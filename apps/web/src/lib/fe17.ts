@@ -580,6 +580,7 @@ export interface BoardProps {
     victory: string;
     defeat: string;
     reset: string;
+    undoCmd: string;
     copyRecord: string;
     copied: string;
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
@@ -719,6 +720,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     diffNames: { n: t.diffN, h: t.diffH, l: t.diffL },
     forceNames: [t.player, t.enemy, t.ally],
     endPhase: t.endPhase,
+    undoCmd: t.undoCmd,
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
     turnPhase: t.turnPhase,

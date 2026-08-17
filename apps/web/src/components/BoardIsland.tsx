@@ -37,6 +37,7 @@ export default function BoardIsland(props: BoardProps) {
   const scenario = useBoard(store, (s) => s.scenario);
   const mode = useBoard(store, (s) => s.mode);
   const visuals = useBoard(store, (s) => s.visuals);
+  const recorded = useBoard(store, (s) => s.recording.length);
   const [ready, setReady] = useState(false);
   const urlWritten = useRef(false);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -458,6 +459,16 @@ export default function BoardIsland(props: BoardProps) {
           disabled={game.outcome !== undefined || mode === "replay"}
         >
           {labels.endPhase}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            store.getState().undo();
+            clearLocal();
+          }}
+          disabled={recorded === 0 || mode === "replay"}
+        >
+          {labels.undoCmd}
         </button>
         <button
           type="button"
