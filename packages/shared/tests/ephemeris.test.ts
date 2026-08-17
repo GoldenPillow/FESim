@@ -41,6 +41,25 @@ describe(".eph 기보", () => {
     expect(parseEphemeris(serializeEphemeris(minimal))).toEqual(minimal);
   });
 
+  it("setup(초기 세팅 diff)이 왕복하고, 뼈대가 불량이면 던진다", () => {
+    // 왜 위험한가: setup은 편집기 산출물이자 공유 열람의 초기 국면 입력이다 —
+    // 스냅숏(stats·hp)이 정본이라 열람 경로가 원천 테이블 없이 결정적으로 재구성한다.
+    const withSetup: EphemerisFile = {
+      ...file,
+      setup: {
+        units: {
+          u0: { x: 3, y: 4, level: 5, stats: { hp: 30, str: 12, mag: 0, dex: 9, spd: 11, lck: 6, def: 7, res: 4, bld: 5 } },
+          u1: { removed: true },
+          u2: { items: ["IID_鉄の剣"], sids: ["SID_力＋１"], god: "GID_マルス", bond: 3 },
+        },
+      },
+    };
+    expect(parseEphemeris(serializeEphemeris(withSetup))).toEqual(withSetup);
+    expect(() => parseEphemeris(JSON.stringify({ ...file, setup: [] }))).toThrow();
+    expect(() => parseEphemeris(JSON.stringify({ ...file, setup: { units: [] } }))).toThrow();
+    expect(() => parseEphemeris(JSON.stringify({ ...file, setup: { units: { u0: 1 } } }))).toThrow();
+  });
+
   it("깨진 입력은 던진다 (파싱은 신뢰 경계)", () => {
     expect(() => parseEphemeris("{")).toThrow();
     expect(() => parseEphemeris("[]")).toThrow();

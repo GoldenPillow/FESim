@@ -1,13 +1,14 @@
 import type {
   BattleAction,
   BattleEvent,
+  BattleWeapon,
   Difficulty,
   StrikeKind,
   SupportEffect,
   SupportLevel,
 } from "@fesim/shared";
 import type { Calculator } from "./formula/calculator.js";
-import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
+import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
 import { movementRange, type MoveType } from "./range.js";
@@ -29,13 +30,7 @@ export interface RandomSource {
   next(bound: number): number;
 }
 
-export interface BattleWeapon extends CombatantWeapon {
-  rangeMin: number;
-  rangeMax: number;
-  /** items.json Kind — 상성 판정의 입력. */
-  kind: number;
-  name?: string;
-}
+export type { BattleWeapon } from "@fesim/shared";
 
 export interface UnitState {
   id: string;
@@ -47,6 +42,8 @@ export interface UnitState {
   /** stats.hp = 최대 HP. */
   stats: StatBlock;
   weapon?: BattleWeapon;
+  /** 소지 공격 무기 목록 — attack.weapon 인덱스의 해석 대상. 부재 = 장비 무기 고정. */
+  weapons?: BattleWeapon[];
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
@@ -146,6 +143,17 @@ const BREAK_IMMUNE_SIDS = new Set([
 ]);
 
 const manhattan = (a: UnitState, b: UnitState) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/**
+ * 브레이크 가능 판정(명중·대미지 조건 제외) — 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ * 코드 확정 조건: 상성 유리 + 대상 무장 + 미브레이크, 중장 스타일·브레이크무효 SID 면역.
+ */
+export function canBreak(from: UnitState, to: UnitState): boolean {
+  if (from.weapon === undefined || to.weapon === undefined || to.broken) return false;
+  if (weaponAdvantage(from.weapon.kind, to.weapon.kind) !== 1) return false;
+  if (to.style === "重装スタイル") return false;
+  return to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) !== true;
+}
 
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
@@ -326,6 +334,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const defender = require(action.target);
         assertActable(attacker);
         if (attacker.force === defender.force) throw new Error("같은 군은 공격할 수 없다");
+        if (action.weapon !== undefined) {
+          const chosen = attacker.weapons?.[action.weapon];
+          if (chosen === undefined) throw new Error(`불법 무기 인덱스: ${action.weapon}`);
+          attacker.weapon = chosen; // 무기 선택 = 장비 전환(인게임 문법) — 이후 피격 반격도 이 무기
+        }
         const distance = manhattan(attacker, defender);
         if (!inWeaponRange(attacker, distance)) throw new Error("사거리 밖 공격");
 
@@ -335,10 +348,6 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const striking = (c: Combatant, value: boolean): Combatant => ({ ...c, striking: value });
         const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
         const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
-        const advantage =
-          attacker.weapon !== undefined && defender.weapon !== undefined
-            ? weaponAdvantage(attacker.weapon.kind, defender.weapon.kind)
-            : 0;
 
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
         const chainUnits = units.filter(
@@ -363,15 +372,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
           to.hp = Math.max(to.hp - damage, 0);
           events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit, crit, damage, hpAfter: to.hp });
-          if (hit && damage >= 1 && kind === "attack" && advantage === 1 && from === attacker) {
-            // 브레이크 조건(코드 확정) = 명중 + 확정 대미지 1 이상 + 개시측(반격·체인으로는 발생하지 않는다).
-            // 중장·브레이크무효 스킬 면역. 무기 없으면 무의미.
-            const immune =
-              to.style === "重装スタイル" || to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) === true;
-            if (!immune && to.weapon !== undefined && !to.broken) {
-              to.broken = true;
-              events.push({ type: "break", unit: to.id });
-            }
+          // 브레이크 조건(코드 확정) = 명중 + 확정 대미지 1 이상 + 개시측(반격·체인으로는 발생하지 않는다).
+          if (hit && damage >= 1 && kind === "attack" && from === attacker && canBreak(from, to)) {
+            to.broken = true;
+            events.push({ type: "break", unit: to.id });
           }
           if (to.hp === 0 && !to.dead) {
             to.dead = true;

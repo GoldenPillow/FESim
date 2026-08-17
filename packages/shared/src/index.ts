@@ -2,7 +2,10 @@ export {
   STAT_KEYS,
   type BattleAction,
   type BattleEvent,
+  type BattleWeapon,
+  type CombatantWeapon,
   type Difficulty,
+  type SkillRow,
   type StatBlock,
   type StatKey,
   type StrikeKind,
@@ -23,7 +26,9 @@ export {
   serializeEphemeris,
   type EphemerisFile,
   type EphemerisHeader,
+  type EphemerisSetup,
   type EphemerisStep,
+  type SetupUnit,
 } from "./ephemeris.js";
 
 /**

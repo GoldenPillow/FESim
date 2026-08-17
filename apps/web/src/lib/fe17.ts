@@ -313,8 +313,38 @@ export function toView(unit: DisposUnit, group: string, locale: Locale): UnitVie
   };
 }
 
+/** chapter 객체 → mapId 역인덱스 — cid(CID_M003)와 mapId(m003)는 표기가 다르다. */
+const mapIdOfChapter = new Map<ChapterData, string>(
+  Object.entries(chapters).map(([id, ch]) => [ch, id]),
+);
+
+const hasAttackItem = (u: DisposUnit): boolean =>
+  u.items.some((entry) => {
+    const row = items[entry.iid];
+    return row !== undefined && WEAPON_KINDS.has(row.Kind ?? 0) && (row.RangeO ?? 0) >= 1;
+  });
+
+/**
+ * 소지품 인계 근사 — 후속장 dispos의 자군 items는 빈 배열이다(인게임에선 세이브가 소유·인계).
+ * 공격 무기가 없는 자군 유닛은 앞선 챕터의 같은 인물 소지품을 그대로 쓴다.
+ * ☠구매·강화·교환 진행은 재현 대상 아님(진행 소유) — 최후 등장 dispos가 근사의 정본이다.
+ */
+const inheritItems = (chapter: ChapterData, u: DisposUnit): DisposUnit => {
+  if (u.force !== 0 || hasAttackItem(u)) return u;
+  const mapId = mapIdOfChapter.get(chapter);
+  if (mapId === undefined) return u;
+  for (const prevId of [...mapIds].reverse()) {
+    if (prevId >= mapId) continue;
+    for (const g of chapters[prevId].groups) {
+      const prev = g.units.find((v) => v.pid === u.pid && v.force === 0);
+      if (prev !== undefined && hasAttackItem(prev)) return { ...u, items: prev.items };
+    }
+  }
+  return u;
+};
+
 export const unitsFor = (chapter: ChapterData, locale: Locale): UnitView[] =>
-  chapter.groups.flatMap((g) => g.units.map((u) => toView(u, g.name, locale)));
+  chapter.groups.flatMap((g) => g.units.map((u) => toView(inheritItems(chapter, u), g.name, locale)));
 
 /** 맵 오브젝트 표시명 — tid의 메시지 라벨(MTID_Engage 등), 없으면 pid 폴백. */
 export const objectName = (locale: Locale, obj: MapObject): string =>
@@ -508,6 +538,8 @@ export interface BoardUnitProp {
   stats?: Record<Difficulty, StatBlock | undefined>;
   /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
   weapon?: BoardWeaponProp;
+  /** 소지 공격 무기 전체(소지품 순) — 예보 패널 무기 목록·attack.weapon 인덱스의 해석 대상. */
+  weapons?: BoardWeaponProp[];
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -548,6 +580,12 @@ export interface BoardProps {
     victory: string;
     defeat: string;
     reset: string;
+    undoCmd: string;
+    editCmd: string;
+    editExit: string;
+    editHint: string;
+    removeCmd: string;
+    restoreCmd: string;
     copyRecord: string;
     copied: string;
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
@@ -574,11 +612,12 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
 /** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
 const MAGIC_FLAG = 0x10000;
 
-const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | undefined => {
+export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp[] => {
+  const list: BoardWeaponProp[] = [];
   for (const entry of unit.items) {
     const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
     if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) continue;
-    return {
+    list.push({
       name: namedOr(items, locale, entry.iid),
       might: Number(row["Power"] ?? 0),
       hit: Number(row["Hit"] ?? 0),
@@ -589,9 +628,9 @@ const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | und
       rangeMin: row.RangeI ?? 1,
       rangeMax: row.RangeO ?? 1,
       kind: row.Kind ?? 0,
-    };
+    });
   }
-  return undefined;
+  return list;
 };
 
 export function boardProps(
@@ -629,7 +668,10 @@ export function boardProps(
       moveType,
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
-      weapon: equippedWeapon(v.unit, locale),
+      ...(() => {
+        const weapons = attackWeapons(v.unit, locale);
+        return weapons.length > 0 ? { weapon: weapons[0], weapons } : {};
+      })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
       growth: person === undefined ? undefined : statBlock(person, "Grow."),
@@ -683,6 +725,12 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     diffNames: { n: t.diffN, h: t.diffH, l: t.diffL },
     forceNames: [t.player, t.enemy, t.ally],
     endPhase: t.endPhase,
+    undoCmd: t.undoCmd,
+    editCmd: t.editCmd,
+    editExit: t.editExit,
+    editHint: t.editHint,
+    removeCmd: t.removeCmd,
+    restoreCmd: t.restoreCmd,
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
     turnPhase: t.turnPhase,

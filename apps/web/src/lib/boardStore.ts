@@ -12,7 +12,7 @@ import {
   type UnitState,
   type VerifyResult,
 } from "@fesim/engine";
-import type { CalculatorData, Difficulty, EphemerisFile, EphemerisStep } from "@fesim/shared";
+import type { CalculatorData, Difficulty, EphemerisFile, EphemerisSetup, EphemerisStep } from "@fesim/shared";
 import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
 import type { BoardProps } from "./fe17";
 import { clearSlot, loadSlot, saveSlot, type SaveKey } from "./guestSave";
@@ -48,6 +48,8 @@ export interface BoardState {
   mode: "play" | "replay";
   difficulty: Difficulty;
   scenario?: string;
+  /** 초기 세팅 diff(M4 편집) — 부재 = dispos 기본. 스냅숏이 초기화 정본(shared/ephemeris.ts). */
+  setup?: EphemerisSetup;
   game: GameState;
   visuals: Map<string, UnitVisual>;
   recording: EphemerisStep[];
@@ -57,6 +59,10 @@ export interface BoardState {
   setScenario: (scenario: string | undefined) => void;
   reset: () => void;
   restore: () => void;
+  /** 플레이 언두 — 마지막 행동을 물린다(이벤트 절대값 재적용 = 결정적, 난수 재소비 없음). */
+  undo: () => void;
+  /** 세팅 diff 교체 — 새 판을 연다(기보·슬롯 리셋: 이전 로그는 새 초기 국면과 정합이 깨진다). */
+  setSetup: (setup: EphemerisSetup | undefined) => void;
   dispatch: (action: BattleAction) => GameState;
   toFile: (meta?: EphemerisFile["meta"]) => EphemerisFile;
   loadReplay: (file: EphemerisFile) => void;
@@ -71,14 +77,18 @@ export function initGame(
   props: BoardProps,
   difficulty: Difficulty,
   scenario: string | undefined,
+  setup?: EphemerisSetup,
 ): { game: GameState; visuals: Map<string, UnitVisual> } {
   const visuals = new Map<string, UnitVisual>();
   const units: UnitState[] = [];
   props.units.forEach((u, i) => {
     if (u.phase !== undefined && scenario !== undefined && u.phase !== scenario) return;
-    const stats = u.stats?.[difficulty];
-    if (stats === undefined) return;
     const id = `u${i}`;
+    // setup diff(M4 편집): 스냅숏(stats)이 초기화의 정본 — 열람 경로가 원천 테이블 없이 재구성한다.
+    const su = setup?.units?.[id];
+    if (su?.removed === true) return;
+    const stats = su?.stats ?? u.stats?.[difficulty];
+    if (stats === undefined) return;
     visuals.set(id, {
       icon: u.icon, abbr: u.abbr, name: u.name, job: u.job, ring: u.ring, chip: u.chip, phase: u.phase,
     });
@@ -86,14 +96,15 @@ export function initGame(
       id,
       name: u.name,
       force: u.force,
-      x: u.x,
-      y: u.y,
+      x: su?.x ?? u.x,
+      y: su?.y ?? u.y,
       hp: stats.hp,
       stats,
-      weapon: u.weapon,
-      skills: u.skills,
+      weapon: su?.weapons?.[0] ?? u.weapon,
+      weapons: su?.weapons ?? u.weapons,
+      skills: su?.skills ?? u.skills,
       growth: u.growth,
-      level: u.levels[difficulty],
+      level: su?.level ?? u.levels[difficulty],
       internalLevel: u.internalLevel,
       exp: 0,
       movePoints: u.movePoints,
@@ -157,9 +168,14 @@ const sessionOf = (base: GameState, file: EphemerisFile): ReplaySession => ({
   verify: replayer.verify(base, file.log),
 });
 
-export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): BoardStore {
+export function createBoardStore(
+  props: BoardProps,
+  replayInit?: ReplayInit,
+  setup?: EphemerisSetup,
+): BoardStore {
   const start = replayInit?.file.chapter;
-  const initial = initGame(props, start?.difficulty ?? "l", start?.scenario);
+  const startSetup = replayInit?.file.setup ?? setup;
+  const initial = initGame(props, start?.difficulty ?? "l", start?.scenario, startSetup);
   const session = replayInit === undefined ? undefined : sessionOf(initial.game, replayInit.file);
 
   return createStore<BoardState>((set, get) => {
@@ -171,7 +187,7 @@ export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): Bo
     });
 
     const fresh = (difficulty: Difficulty, scenario: string | undefined) => {
-      const next = initGame(props, difficulty, scenario);
+      const next = initGame(props, difficulty, scenario, get().setup);
       set({
         mode: "play",
         difficulty,
@@ -188,6 +204,7 @@ export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): Bo
       mode: session === undefined ? "play" : "replay",
       difficulty: start?.difficulty ?? "l",
       scenario: start?.scenario,
+      setup: startSetup,
       game: initial.game,
       visuals: initial.visuals,
       recording: session === undefined ? [] : [...session.file.log],
@@ -215,15 +232,33 @@ export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): Bo
         const key = saveKey();
         const file = loadSlot(key);
         if (file === undefined || file.log.length === 0) return;
-        const base = initGame(props, key.difficulty, key.scenario);
+        const base = initGame(props, key.difficulty, key.scenario, file.setup ?? get().setup);
         try {
           let state = base.game;
           for (const step of file.log) state = replayer.applyStep(state, step);
-          set({ game: state, visuals: base.visuals, recording: [...file.log] });
+          set({ game: state, visuals: base.visuals, recording: [...file.log], setup: file.setup ?? get().setup });
         } catch (e) {
           console.warn("게스트 저장 복원 실패 — 새 판으로 시작한다", e);
           clearSlot(key);
         }
+      },
+
+      setSetup(setup) {
+        if (get().mode === "replay") return;
+        clearSlot(saveKey());
+        set({ setup });
+        fresh(get().difficulty, get().scenario);
+      },
+
+      undo() {
+        const { mode, recording, difficulty, scenario, setup: currentSetup } = get();
+        if (mode === "replay" || recording.length === 0) return;
+        const log = recording.slice(0, -1);
+        const base = initGame(props, difficulty, scenario, currentSetup);
+        let state = base.game;
+        for (const step of log) state = replayer.applyStep(state, step);
+        set({ game: state, recording: log });
+        saveSlot(saveKey(), get().toFile());
       },
 
       dispatch(action) {
@@ -247,12 +282,13 @@ export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): Bo
       },
 
       toFile(meta) {
-        const { difficulty, scenario, recording } = get();
+        const { difficulty, scenario, recording, setup: currentSetup } = get();
         return {
           eph: 1,
           game: GAME_ID,
           ruleVersion: RULE_VERSION,
           chapter: { cid: props.mapId, difficulty, scenario },
+          ...(currentSetup === undefined ? {} : { setup: currentSetup }),
           log: recording,
           ...(meta === undefined ? {} : { meta }),
         };
@@ -261,11 +297,12 @@ export function createBoardStore(props: BoardProps, replayInit?: ReplayInit): Bo
       loadReplay(file) {
         const difficulty = file.chapter.difficulty;
         const scenario = file.chapter.scenario;
-        const base = initGame(props, difficulty, scenario);
+        const base = initGame(props, difficulty, scenario, file.setup);
         set({
           mode: "replay",
           difficulty,
           scenario,
+          setup: file.setup,
           game: base.game,
           visuals: base.visuals,
           recording: [...file.log],

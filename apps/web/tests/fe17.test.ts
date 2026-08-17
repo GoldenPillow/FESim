@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -34,6 +34,34 @@ describe("unitStats — 스탯 상한(Limit) 배선", () => {
     expect(unitStats(disposUnit({}), "n")).toEqual({
       hp: 22, str: 6, mag: 0, dex: 5, spd: 7, lck: 5, def: 5, res: 3, bld: 4,
     });
+  });
+});
+
+describe("attackWeapons — 소지품 → 무기 목록 사영", () => {
+  it("공격 무기만 소지 순서대로, 지팡이·소모품 제외 (목록[0] = 장비 무기)", () => {
+    // 왜 위험한가: 예보 무기 목록과 attack.weapon 인덱스가 이 배열을 공유한다 —
+    // 필터·순서가 흔들리면 기보의 무기 인덱스가 다른 무기를 가리켜 재생이 어긋난다.
+    const u = disposUnit({
+      items: ["IID_傷薬", "IID_鉄の剣", "IID_ライブ", "IID_鉄の弓"].map((iid) => ({ iid, drop: false })),
+    });
+    const list = attackWeapons(u, "ko");
+    expect(list.map((w) => w.kind)).toEqual([1, 4]); // 검, 활 — 상약·지팡이 제외
+    expect(list[0].rangeMax).toBe(1);
+    expect(list[1].rangeMin).toBe(2);
+  });
+});
+
+describe("소지품 인계 — dispos가 비운 자군 무기", () => {
+  it("m003 자군은 m002 소지품을 인계받아 무장한다 (인게임 = 세이브 인계의 근사)", () => {
+    // 왜 위험한가: 후속장 dispos의 자군 items는 빈 배열(세이브가 소유)이라
+    // 인계 없이는 자군 전원이 비무장 — 공격 범위·전투 예보·공격이 통째로 성립하지 않는다(3장 실측).
+    const props = boardPropsFor("m003", "ko");
+    const ruell = props.units.find((u) => u.name === "뤼에르");
+    expect(ruell?.weapon?.kind).toBe(1); // 철의 검
+    expect(ruell?.rangeMax).toBe(1);
+    // 무회귀: 자체 소지가 있는 유닛은 그대로
+    const boss = props.units.find((u) => u.force === 1 && u.weapon !== undefined);
+    expect(boss).toBeDefined();
   });
 });
 

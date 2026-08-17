@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData, SupportsTable } from "@fesim/shared";
 import {
+  canBreak,
   createCalculator,
   createReducer,
   forecastSide,
@@ -80,6 +81,19 @@ describe("상성 (검>도끼>창>검 · 체술>활/단검/마도서)", () => {
     expect(weaponAdvantage(8, 4)).toBe(1); // 체술 > 활
     expect(weaponAdvantage(4, 8)).toBe(-1); // 우위는 방향 불문(활이 체술을 이기지는 못함)
     expect(weaponAdvantage(1, 1)).toBe(0);
+  });
+});
+
+describe("브레이크 가능 판정(canBreak) — 예보 UI와 reduce의 단일 정본", () => {
+  it("상성 유리 + 대상 무장 시만 참, 중장·무효 스킬·기브레이크는 거짓", () => {
+    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword });
+    const e = unit({ id: "e", force: 1, x: 1, y: 0, weapon: axe });
+    expect(canBreak(a, e)).toBe(true);
+    expect(canBreak(e, a)).toBe(false); // 상성 불리
+    expect(canBreak(a, { ...e, weapon: undefined })).toBe(false);
+    expect(canBreak(a, { ...e, broken: true })).toBe(false);
+    expect(canBreak(a, { ...e, style: "重装スタイル" })).toBe(false);
+    expect(canBreak(a, { ...e, skills: [{ Sid: "SID_ブレイク無効" } as SkillRow] })).toBe(false);
   });
 });
 
@@ -216,6 +230,27 @@ describe("전투 해결", () => {
     expect(afterSecond.units.find((u) => u.id === "e")!.broken).toBe(false); // 직후 해제
     const afterThird = reduce(afterSecond, { type: "attack", unit: "a3", target: "e" }, alwaysHit);
     expect(afterThird.units.find((u) => u.id === "a3")!.hp).toBeLessThan(30); // 반격 재개
+  });
+
+  it("무기 지정 공격(weapon 인덱스): 지정 무기로 판정·장비하고, 사거리 심판도 그 무기 기준", () => {
+    // 왜 위험한가: 무기 선택이 액션에 실리지 않으면 기보 재생이 '당시 장비'를 복원하지 못해
+    // 데미지·반격 판정이 통째로 어긋난다 — 무기 선택 = 리플레이 계약의 일부.
+    const bow = { might: 6, hit: 100, crit: 0, weight: 5, kind: 4, rangeMin: 2, rangeMax: 2 };
+    const enemyStats = { hp: 30, str: 8, mag: 0, dex: 4, spd: 10, lck: 10, def: 2, res: 0, bld: 5 };
+    const mk = () =>
+      state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: bow, weapons: [bow, sword] }),
+        unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 30, weapon: sword }),
+      ]);
+    // 거리 1: 장비(활 2-2)로는 사거리 밖 — 지정 무기(검 1-1)로는 합법
+    expect(() => reduce(mk(), { type: "attack", unit: "a", target: "e" }, alwaysHit)).toThrow();
+    const next = reduce(mk(), { type: "attack", unit: "a", target: "e", weapon: 1 }, alwaysHit);
+    // 검 데미지 = (10+5) - 2 = 13, 동종 무기라 반격 8
+    expect(next.units.find((u) => u.id === "e")!.hp).toBe(30 - 13);
+    expect(next.units.find((u) => u.id === "a")!.hp).toBe(30 - 8);
+    expect(next.units.find((u) => u.id === "a")!.weapon).toEqual(sword); // 선택 = 장비 전환(인게임 문법)
+    // 없는 인덱스 = 불법 행동
+    expect(() => reduce(mk(), { type: "attack", unit: "a", target: "e", weapon: 5 }, alwaysHit)).toThrow();
   });
 
   it("빗나감 = 데미지 0, 필살 = 3배 (롤 소비: 명중 → 명중시 필살)", () => {
