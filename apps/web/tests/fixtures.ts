@@ -57,10 +57,10 @@ const LABELS: BoardProps["labels"] = {
   board: "", forecast: "", hit: "", crit: "", damage: "", currentPosNote: "", difficulty: "",
   diffNames: { n: "n", h: "h", l: "l" },
   forceNames: ["player", "enemy", "ally"],
-  endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", turnPhase: "", turnWord: "",
+  endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", engageCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
-  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "" },
+  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "" },
 };
 
 /** 6x6 평지, 자군 u0(1,1) · 적군 u1(2,1) 인접 — 이동·대기·공격·페이즈 종료가 전부 합법인 최소 판. */

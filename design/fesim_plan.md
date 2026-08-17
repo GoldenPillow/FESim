@@ -48,7 +48,10 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [x] MP1-1 아이템 사용 (2026-08-18) — item 액션 계약(ConsumableItem 스냅숏·인덱스 계약 = 사용형 전부 적재)·AddType 2 범위 회복(傷薬: 자신+반경 2 아군 +15 고정·잃은 HP 상한·경험 없음)·itemTargets 엔진 공용(UI 중복 금지)·커맨드 바 UI·절대 재생 횟수 복원. TDD 엔진 5건+웹 1건, 헤드리스 실측(손상 반드레 턴2 상처약 +9). 잔여 AddType(7·18·19·31) 정직 거부
     - [ ] MP1-2 교환(Trade) — 인접 소지품 이동, trade 액션(무기 인덱스 재계산 주의 — attack.weapon 계약과 정합). ⚠선행 = 행동 소모 여부 실기 판별(사용자: 교환 후 그 유닛이 회색화되는지 확인 요청)
     - [x] MP1-3 춤(재행동) (2026-08-18) — dance 액션·refresh 이벤트(절대 재생 복원)·인접 1·행동 완료 대상·acted/moved 리셋·踊り経験計算(노멀 13·루나틱 clamp 1 정확값)·canDance 자격 판정. TDD 5건. ☠UI 이월 = 무희 실재 맵 변환 시(MP3)
-    - [ ] MP1-4 인게이지 시스템 — 개시/해제·엠블렘 무기·세부기 6종(Flags 1:1)·충전(전투/지팡이 +1)·지속 턴 — EMBLEM_ENGAGE.md 판독 소비 (최대 덩어리)
+    - [ ] MP1-4 인게이지 시스템 — EMBLEM_ENGAGE.md 판독 소비 (최대 덩어리)
+      - [x] 4a 상태 기계 (2026-08-18) — EngageState(게이지·지속)·engage 액션(행동 무소모)·충전(전투 양측 +1, 지팡이 = 가정)·페이즈 소비·해제·charge/engage/disengage 이벤트(절대 재생)·성장표 Flag 파이프라인(絆11 = 4턴·絆20 = 상한-1)·게이지 UI(커맨드 바). TDD 6건. ☠발현 = 자군 gid가 dispos에 없음(세이브 소유) — 적측은 m008~ 변환 시 자연 발현, 자군 = 편집기 god 의도·캠페인층(chart.xml)
+      - [ ] 4b 인게이지 효과 — 스킬 세트 교체(EngagedSkills·EngageSid 치환)·엠블렘 무기(EngageItems — weapons 뒤에 증설, 인덱스 계약 유지)·紋章氣 만충 소비
+      - [ ] 4c 세부기 6종·기술 선택(暴走>連動>기본·스타일 분기) — 선행 = skills.style-variant
     - [ ] MP1-5 지팡이 잔여 — 방해 지팡이 명중식(RATES_FORMULA §6)·워프·상태 지팡이(선행 = 상태 시스템)
     - [ ] MP1-6 체인가드 지정(GuardMenuItem·GuardType) + チェインガード経験計算
     - [ ] 이월: 지형 커맨드(파괴·대포·횃불) = MP3 구조물 렌더와 연동 · 문·상자·방문·대화 = MP2(Lua) · 특수(인챈트·환영늑대·수송정거장·문장변경·계약·강행돌파·탈출) = 발현 시 흡수(장부 등재됨)

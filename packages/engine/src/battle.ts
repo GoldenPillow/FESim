@@ -4,6 +4,7 @@ import type {
   BattleWeapon,
   ConsumableItem,
   Difficulty,
+  EngageState,
   StaffItem,
   StrikeKind,
   SupportEffect,
@@ -50,6 +51,8 @@ export interface UnitState {
   staves?: StaffItem[];
   /** 사용형 아이템 목록 — item.item 인덱스의 해석 대상. 잔여 횟수는 국면 상태다. */
   consumables?: ConsumableItem[];
+  /** 인게이지 게이지 — 엠블렘 장착 유닛만. limit·turnLimit 산출은 데이터층(스냅숏) 소관. */
+  engage?: EngageState;
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
@@ -314,6 +317,18 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
     return { lookup: (n) => selfVars[n], opponent: () => foeEnv };
   }
 
+  /**
+   * 인게이지 충전 — 전투 1회 참가당 +1(상한 클램프). 코드 확정(AddEngageCount 0x2470740):
+   * 인게이지 중·체인 참가는 충전 없음, 턴당 자연 증가는 기전 자체가 없다. 사망자는 무의미라 생략.
+   * ☠NotEngageAdd 지형(8192) 게이트는 미배선 — BattleMap.terrain 스키마 확장 선행(§0 미룸과 동건).
+   */
+  function chargeEngage(u: UnitState, events: BattleEvent[]): void {
+    const g = u.engage;
+    if (g === undefined || g.engaging || u.dead || g.count >= g.limit) return;
+    u.engage = { ...g, count: Math.min(g.count + 1, g.limit) };
+    events.push({ type: "charge", unit: u.id, count: u.engage.count });
+  }
+
   /** 경험치 가산 + 100 단위 레벨업(성장 롤 소비) — 전투·지팡이가 같은 경로를 쓴다(중복 구현 금지). */
   function grantExp(u: UnitState, gained: number, events: BattleEvent[], rng: RandomSource): void {
     if (gained <= 0) return;
@@ -468,6 +483,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           events.push({ type: "breakRelease", unit: defender.id });
         }
 
+        // 인게이지 충전 = 공격·피격 양측 각 +1 (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
+        chargeEngage(attacker, events);
+        chargeEngage(defender, events);
+
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
 
@@ -504,6 +523,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         target.hp += amount;
         events.push({ type: "heal", unit: healer.id, target: target.id, amount, hpAfter: target.hp });
         healer.staves = healer.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
+        // 지팡이도 전투 계산기 경로라 술자 +1 — 가정(코드 확정은 전투뿐, 실측 대조 대상: 장부 actions.engage).
+        chargeEngage(healer, events);
         healer.acted = true;
         healer.moved = false; // 행동이 재이동(시구르드) 창을 연다
         if (healer.force === 0) {
@@ -567,20 +588,48 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         break;
       }
 
+      case "engage": {
+        const u = require(action.unit);
+        if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
+        if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
+        const g = u.engage;
+        if (g === undefined) throw new Error("엠블렘 미장착");
+        if (g.engaging) throw new Error("이미 인게이지 중");
+        // 발동 조건 = 만충(CanEngageImpl 0x1A26F70). 행동은 소모하지 않는다 — 발동 후 이동·공격 가능.
+        if (g.limit < 1 || g.count < g.limit) throw new Error("게이지 미만충");
+        u.engage = { ...g, engaging: true, turn: 0 };
+        events.push({ type: "engage", unit: u.id });
+        break;
+      }
+
       case "endPhase": {
         const forces = [...new Set(units.filter((u) => !u.dead).map((u) => u.force))].sort();
         if (forces.length > 0) {
           const idx = forces.indexOf(state.phase);
           const nextForce = forces[(idx + 1) % forces.length] ?? forces[0];
           const wrapped = forces.indexOf(nextForce) <= idx || idx < 0;
+          const phaseEvents: BattleEvent[] = [{ type: "phase", phase: nextForce, turn: state.turn }];
           const next: GameState = {
             ...state,
             phase: nextForce,
             turn: wrapped && nextForce === forces[0] ? state.turn + 1 : state.turn,
-            units: units.map((u) =>
-              u.force === nextForce ? { ...u, acted: false, broken: false, moved: false } : u,
-            ),
-            events: [{ type: "phase", phase: nextForce, turn: state.turn }],
+            units: units.map((u) => {
+              if (u.force !== nextForce) return u;
+              const fresh: UnitState = { ...u, acted: false, broken: false, moved: false };
+              // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
+              const g = fresh.engage;
+              if (g?.engaging === true && !fresh.dead) {
+                const turn = g.turn + 1;
+                if (turn >= g.turnLimit) {
+                  fresh.engage = { ...g, engaging: false, turn: 0, count: 0 };
+                  phaseEvents.push({ type: "disengage", unit: u.id });
+                } else {
+                  fresh.engage = { ...g, turn };
+                }
+              }
+              return fresh;
+            }),
+            events: phaseEvents,
           };
           return next;
         }

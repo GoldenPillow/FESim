@@ -387,6 +387,12 @@ export default function BoardIsland(props: BoardProps) {
             return `${name(ev.unit)} → ${name(ev.target)} +${ev.amount} HP`;
           case "refresh":
             return `${name(ev.unit)} ${t.refresh}`;
+          case "engage":
+            return `${name(ev.unit)} ${t.engage}`;
+          case "disengage":
+            return `${name(ev.unit)} ${t.disengage}`;
+          case "charge":
+            return ""; // 게이지 변화는 로그 소음 — 커맨드 바 게이지가 보여준다
           case "break":
             return `${name(ev.unit)} ${t.brk}`;
           case "death":
@@ -629,9 +635,25 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {!editing && itemButtons.length > 0 && mode !== "replay" && (
+      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
-          <span className="edit-hint">{labels.itemCmd}</span>
+          {selected.engage !== undefined && (
+            <span className="edit-hint">
+              ⚡{" "}
+              {selected.engage.engaging
+                ? `${labels.engageCmd} ${selected.engage.turnLimit - selected.engage.turn}`
+                : `${selected.engage.count}/${selected.engage.limit}`}
+            </span>
+          )}
+          {selected.engage !== undefined &&
+            !selected.engage.engaging &&
+            !selected.acted &&
+            selected.engage.limit > 0 &&
+            selected.engage.count >= selected.engage.limit && (
+              <button type="button" onClick={() => void tryDispatch({ type: "engage", unit: selected.id })}>
+                {labels.engageCmd}
+              </button>
+            )}
           {itemButtons.map(({ c, i }) => (
             <button
               key={i}

@@ -1,4 +1,4 @@
-import type { BattleAction, BattleEvent, BattleWeapon, ConsumableItem, Difficulty, SkillRow, StaffItem, StatBlock } from "./battle.js";
+import type { BattleAction, BattleEvent, BattleWeapon, ConsumableItem, Difficulty, EngageState, SkillRow, StaffItem, StatBlock } from "./battle.js";
 
 /**
  * ephemeris(.eph) 기보 포맷 헤더 — 타이틀 중립 원칙:
@@ -50,6 +50,8 @@ export interface SetupUnit {
   consumables?: ConsumableItem[];
   /** 장착 스킬 행 스냅숏 — sids 의도의 산출 결과(행 원형 그대로) */
   skills?: SkillRow[];
+  /** 인게이지 게이지 스냅숏 — god·bond 의도의 산출 결과 */
+  engage?: EngageState;
 }
 
 /** 초기 세팅 diff 전체 — dispos 기본 대비 변경분만 담는다. */
@@ -74,7 +76,7 @@ function assert(ok: unknown, why: string): asserts ok {
 }
 
 const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
-const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "wait", "endPhase"];
+const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "wait", "endPhase"];
 
 /**
  * 남이 만든 파일이 들어오는 신뢰 경계 — 뼈대만 검사한다.

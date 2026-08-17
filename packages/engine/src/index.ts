@@ -56,7 +56,7 @@ export {
   type Tile,
 } from "./range.js";
 export { makeSkillModifier, staticEnhances, type SkillRow } from "./skills.js";
-export type { ConsumableItem, StaffItem } from "@fesim/shared";
+export type { ConsumableItem, EngageState, StaffItem } from "@fesim/shared";
 export {
   deriveStats,
   grownLevels,

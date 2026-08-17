@@ -44,6 +44,7 @@ interface Strings {
   attackCmd: string;
   staffCmd: string;
   itemCmd: string;
+  engageCmd: string;
   turnPhase: string;
   turnWord: string;
   victory: string;
@@ -57,7 +58,7 @@ interface Strings {
   restoreCmd: string;
   copyRecord: string;
   copied: string;
-  logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string };
+  logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string };
   chapterSelect: string;
   comingSoon: string;
   categories: { main: string; paralogue: string; divine: string; fell: string };
@@ -125,6 +126,7 @@ export const UI: Record<Locale, Strings> = {
     attackCmd: "Attack",
     staffCmd: "Staff",
     itemCmd: "Item",
+    engageCmd: "Engage",
     turnPhase: "Phase",
     turnWord: "Turn",
     victory: "Victory!",
@@ -138,7 +140,7 @@ export const UI: Record<Locale, Strings> = {
     restoreCmd: "Restore",
     copyRecord: "Copy record",
     copied: "Copied",
-    logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!", refresh: "dances again" },
+    logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!", refresh: "dances again", engage: "Engage!", disengage: "engage ended" },
     chapterSelect: "Chapters",
     comingSoon: "Coming soon",
     categories: { main: "Main Story", paralogue: "Paralogues", divine: "Divine Paralogues", fell: "Fell Xenologue" },
@@ -211,6 +213,7 @@ export const UI: Record<Locale, Strings> = {
     attackCmd: "공격",
     staffCmd: "지팡이",
     itemCmd: "아이템",
+    engageCmd: "인게이지",
     turnPhase: "페이즈",
     turnWord: "턴",
     victory: "승리!",
@@ -224,7 +227,7 @@ export const UI: Record<Locale, Strings> = {
     restoreCmd: "복원",
     copyRecord: "기보 복사",
     copied: "복사됨",
-    logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!", refresh: "재행동" },
+    logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!", refresh: "재행동", engage: "인게이지!", disengage: "인게이지 종료" },
     chapterSelect: "챕터 선택",
     comingSoon: "준비 중",
     categories: { main: "본편", paralogue: "외전", divine: "신룡의 장", fell: "사룡의 장" },

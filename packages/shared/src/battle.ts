@@ -104,11 +104,30 @@ export interface ConsumableItem {
   name?: string;
 }
 
+/**
+ * 인게이지 게이지 상태 — 정본 = il2cpp/EMBLEM_ENGAGE §3(전부 코드 확정).
+ * limit·turnLimit 산출은 데이터층 소관: limit = god.EngageCount - 성장표 Flag4(絆20) - 스킬 Flag bit42,
+ * turnLimit = 3 + 성장표 Flag2(絆11, リュール만 20). 초기 count = min(7, limit).
+ */
+export interface EngageState {
+  count: number;
+  limit: number;
+  /** 인게이지 지속 페이즈 수(자기 페이즈 시작마다 1 소비). */
+  turnLimit: number;
+  /** 인게이지 경과 턴 — engaging일 때만 의미. */
+  turn: number;
+  engaging: boolean;
+}
+
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
   /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
   | { type: "refresh"; unit: string }
+  /** 인게이지 게이지 변화 — count = 변화 후 절대값(절대 재생이 이 값을 그대로 쓴다). */
+  | { type: "charge"; unit: string; count: number }
+  | { type: "engage"; unit: string }
+  | { type: "disengage"; unit: string }
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
@@ -127,5 +146,7 @@ export type BattleAction =
   | { type: "item"; unit: string; item?: number }
   /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
   | { type: "dance"; unit: string; target: string }
+  /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). */
+  | { type: "engage"; unit: string }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

@@ -124,8 +124,10 @@ def build_gods(src: Path, out: Path) -> None:
             current = row["Ggid"]
             growth[current] = {}
         elif current and row.get("Level"):
+            # Flag(비트) 의미 = 코드 확정(il2cpp/EMBLEM_ENGAGE §3-4): 1=계승 해금(Lv5) ·
+            # 2=지속 턴 +1(Lv11, リュール만 Lv20) · 4=게이지 상한 -1(Lv20)
             growth[current][str(row["Level"])] = {
-                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems", "InheritanceSkills")
+                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems", "InheritanceSkills", "Flag")
                 if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})

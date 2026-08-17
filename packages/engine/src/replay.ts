@@ -142,6 +142,21 @@ function applyEvents(
         u.moved = false;
         break;
       }
+      case "charge": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, count: ev.count };
+        break;
+      }
+      case "engage": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, engaging: true, turn: 0 };
+        break;
+      }
+      case "disengage": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, engaging: false, turn: 0, count: 0 };
+        break;
+      }
       case "break":
         require(ev.unit).broken = true;
         break;

@@ -186,9 +186,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.engage",
     label: { en: "Engage activation command", ko: "인게이지 발동 명령" },
-    status: "deferred",
+    status: "implemented",
     evidence:
-      "엠블렘 시스템 설계 선행(§0 미룸) · 메뉴 세부 확정 = 개시/해제 + 세부기 6종(EngageAttack/Rewarp/Rod/Charge/Wait/Summon)이 SkillData.Flags(EMBLEM_ENGAGE)와 1:1 클래스 대응(MAP_COMMANDS §1-2)",
+      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = 인게이지 중 스킬 세트 교체·엠블렘 무기·세부기 6종·NotEngageAdd 지형·紋章氣 만충(별항) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
   },
   {
     id: "actions.destroy",
