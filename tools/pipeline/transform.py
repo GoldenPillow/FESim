@@ -313,6 +313,112 @@ def build_chapter(src: Path, out: Path, chapter: str) -> None:
     write_json(out / "chapters" / f"{tail.lower()}.json", data)
 
 
+def strip_lua_comments(source: str) -> str:
+    """주석 제거 + 공백 정리 + `!=` → `~=` 정규화 — 립 원문 재배포를 피하는 가공 최소선(의미 보존).
+
+    원본 런타임(MoonSharp)은 C풍 `!=`를 허용하지만 표준 Lua(fengari)는 문법 오류다 — 전 코퍼스에서
+    비표준 문법은 이것 하나뿐(227건 실측). 문자열('…', "…", [[…]]) 안은 건드리지 않는다(상태 기계 스캔).
+    """
+    out: list[str] = []
+    i, n = 0, len(source)
+    while i < n:
+        c = source[i]
+        if c in "'\"":
+            out.append(c)
+            i += 1
+            while i < n:
+                out.append(source[i])
+                if source[i] == "\\" and i + 1 < n:
+                    out.append(source[i + 1])
+                    i += 2
+                    continue
+                if source[i] == c:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "[":
+            j = i + 1
+            while j < n and source[j] == "=":
+                j += 1
+            if j < n and source[j] == "[":  # 긴 괄호 문자열
+                close = "]" + "=" * (j - i - 1) + "]"
+                end = source.find(close, j + 1)
+                end = n if end < 0 else end + len(close)
+                out.append(source[i:end])
+                i = end
+                continue
+        if c == "-" and i + 1 < n and source[i + 1] == "-":
+            j = i + 2
+            if j < n and source[j] == "[":
+                k = j + 1
+                while k < n and source[k] == "=":
+                    k += 1
+                if k < n and source[k] == "[":  # 블록 주석
+                    close = "]" + "=" * (k - j - 1) + "]"
+                    end = source.find(close, k + 1)
+                    i = n if end < 0 else end + len(close)
+                    continue
+            end = source.find("\n", i)  # 줄 주석
+            i = n if end < 0 else end
+            continue
+        if c == "!" and i + 1 < n and source[i + 1] == "=":
+            out.append("~=")
+            i += 2
+            continue
+        # 식별자 토큰 — MoonSharp는 유니코드 식별자(イベント登録 등)를 허용하지만 표준 Lua는 거부한다.
+        # 비ASCII 포함 토큰은 코드포인트 헥스로 결정적 맹글링(파일 간 일관 — 챕터가 common의 함수를 부른다).
+        # ☠문자열 키("勝利" 등)는 문자열 분기가 이미 소유하므로 여기 오지 않는다(원문 유지).
+        if c.isalpha() or c == "_" or ord(c) >= 0x80:
+            j = i
+            while j < n and (source[j].isalnum() or source[j] == "_" or ord(source[j]) >= 0x80):
+                j += 1
+            token = source[i:j]
+            if any(ord(ch) >= 0x80 for ch in token):
+                token = "_u" + "_".join(f"{ord(ch):x}" if ord(ch) >= 0x80 else ch for ch in token)
+            out.append(token)
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    lines = [line.rstrip() for line in "".join(out).split("\n")]
+    cleaned: list[str] = []
+    for line in lines:
+        if line == "" and (not cleaned or cleaned[-1] == ""):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip() + "\n"
+
+
+INCLUDE_RE = __import__("re").compile(r'Include\(\s*"([^"]+)"\s*\)')
+
+
+def build_scripts(src: Path, out: Path, chapter: str) -> None:
+    """챕터 이벤트 스크립트(+Include 의존 전이 폐포)를 가공해 동봉한다. 소비 = 엔진 이벤트 레이어."""
+    cid = chapter if chapter.startswith("CID_") else f"CID_{chapter}"
+    tail = cid[len("CID_"):]
+    _, chapters = load_sheet(src / "gamedata" / "chapter.xml")
+    row = next((r for r in chapters if r.get("Cid") == cid), None)
+    if row is None:
+        raise SystemExit(f"no such chapter: {cid}")
+    name = expand(row.get("ScriptBmap", "*"), tail).lower()
+    pending, done = [name], set()
+    while pending:
+        current = pending.pop()
+        if current in done:
+            continue
+        done.add(current)
+        path = src / "scripts" / f"{current}.txt"
+        if not path.exists():
+            raise SystemExit(f"no such script: {path}")
+        text = strip_lua_comments(path.read_text(encoding="utf-8"))
+        pending.extend(m.lower() for m in INCLUDE_RE.findall(text))
+        dest = out / "scripts" / f"{current}.lua"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text, encoding="utf-8")
+        print(f"wrote {dest.relative_to(REPO) if REPO in dest.parents else dest} ({dest.stat().st_size:,}B)")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--src", type=Path, default=DEFAULT_SRC)
@@ -329,6 +435,7 @@ def main() -> int:
         build_names(args.src, args.out)
     for chapter in args.chapter or (["M002"] if everything else []):
         build_chapter(args.src, args.out, chapter)
+        build_scripts(args.src, args.out, chapter)
     return 0
 
 

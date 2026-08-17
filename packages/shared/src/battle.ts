@@ -178,6 +178,10 @@ export type BattleEvent =
   | { type: "warp"; unit: string; target: string; x: number; y: number }
   /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
   | { type: "refresh"; unit: string }
+  /** 체인가드 지정 — unit이 스탠스에 들어간다(해제는 자기 페이즈 복귀가 소유 — 이벤트 없음). */
+  | { type: "guard"; unit: string }
+  /** 체인가드 치환 — unit(가드)이 target 대신 damage를 받았다. hpAfter = 가드 잔여(절대 재생용). */
+  | { type: "guardBlock"; unit: string; target: string; damage: number; hpAfter: number }
   /** 인게이지 게이지 변화 — count = 변화 후 절대값(절대 재생이 이 값을 그대로 쓴다). */
   | { type: "charge"; unit: string; count: number }
   | { type: "engage"; unit: string }
@@ -187,12 +191,41 @@ export type BattleEvent =
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
+  /** 이벤트 스폰(Dispos) — 유닛 전체 스냅숏을 실어 절대 재생이 세션 없이 복원한다. */
+  | { type: "spawn"; unit: Record<string, unknown> }
+  /** 이벤트 제거(UnitDelete) — 사망과 구별되는 퇴장(판정상은 동일하게 비존재). */
+  | { type: "despawn"; unit: string }
+  /** 세력 전환(UnitTransfer·UnitJoin) — force = 전환 후 절대값. */
+  | { type: "transfer"; unit: string; force: number }
+  /** 이벤트 좌표 이동(UnitSetPos) — 절대 좌표. */
+  | { type: "setPos"; unit: string; x: number; y: number }
+  /** 게임 변수(GameVariable) 변경 — 발화 플래그 잠금 포함, value = 변경 후 절대값. */
+  | { type: "variable"; key: string; value: number | string }
+  /** 승패 규칙 파라미터 변경(WinRuleSet*) — 절대값 병합. */
+  | { type: "winRule"; enemyLessThan?: number; destroyBoss?: boolean; limitTurn?: number }
+  /** 유닛 스킬 부여/해제(PrivateSkill) — row 실림 = 부여(절대 재생용), 없음 = 해제. */
+  | { type: "privateSkill"; unit: string; sid: string; row?: Record<string, unknown> }
+  /** 엠블렘 유닛화(UnitSetGodUnit) — patch = 데이터층이 산출한 유닛 필드 패치(절대 재생용). */
+  | { type: "godUnit"; unit: string; gid: string; patch?: Record<string, unknown> }
+  /** AI 재설정(AiSetSequence류) — 기록만(소비 = MP4 AI 실행기). params = 원문 인자. */
+  | { type: "ai"; unit: string; params: (string | number | boolean)[] }
+  /** 紋章氣 타일 생성(MapOverlapSetOne) — crest(소비)와 대칭. */
+  | { type: "crestAdd"; x: number; y: number }
+  /** 유닛 파라미터 초기화(UnitResetParam) — HP 절대값 복원 + 상태·브레이크 해제(⚠범위는 가정). */
+  | { type: "reset"; unit: string; hpAfter: number }
+  /** 상태이상 비트 해제(UnitClearStatus) — badState 비트가 걸린 상태를 제거. */
+  | { type: "statusClear"; unit: string; badState: number }
   | { type: "exp"; unit: string; amount: number; total: number }
   | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }
   | { type: "phase"; phase: number; turn: number }
   | { type: "outcome"; outcome: "victory" | "defeat" };
 
 export type BattleAction =
+  /**
+   * 챕터 이벤트 초기화(Startup·MapOpening·1턴 개시 발화) — 스크립트 있는 챕터의 기보 첫 스텝.
+   * 이벤트 리듀서가 소유(전투 리듀서에선 무변화) — 스폰·변수 절대 이벤트가 실려 열람 경로가 복원한다.
+   */
+  | { type: "setup" }
   | { type: "move"; unit: string; x: number; y: number }
   /** weapon = 유닛 weapons 목록 인덱스 — 지정 시 그 무기로 장비 전환 후 판정(부재 = 현 장비). 기보 재현 계약의 일부. */
   | { type: "attack"; unit: string; target: string; weapon?: number }
@@ -205,6 +238,8 @@ export type BattleAction =
   | { type: "item"; unit: string; item?: number }
   /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
   | { type: "dance"; unit: string; target: string }
+  /** 체인가드 지정 — 행동을 소모하고 스탠스 진입. 자격 = 엔진 canChainGuard(만HP·기공 스타일). */
+  | { type: "guard"; unit: string }
   /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
   | { type: "engage"; unit: string }
   /** 인게이지 기술(공격기) — engaging 중에만. 기술 스냅숏(engageArt)이 흐름·무기·비용을 소유한다. */

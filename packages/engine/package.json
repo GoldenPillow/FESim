@@ -3,14 +3,16 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./events": "./src/events/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@fesim/shared": "workspace:*"
+    "@fesim/shared": "workspace:*",
+    "fengari-web": "0.1.4"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

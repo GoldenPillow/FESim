@@ -14,7 +14,6 @@ import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
-import { phaseOfGroup } from "./phases";
 import { UI, type Locale } from "./i18n";
 
 export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
@@ -133,6 +132,16 @@ const items =
       import: "default",
     }) as Record<string, string>,
   ) ?? {};
+
+const scriptFiles = Object.fromEntries(
+  Object.entries(
+    import.meta.glob("../../../../data/fe17/scripts/*.lua", {
+      eager: true,
+      query: "?raw",
+      import: "default",
+    }) as Record<string, string>,
+  ).map(([path, src]) => [path.replace(/^.*\//, "").replace(/\.lua$/, ""), src]),
+);
 
 const skills =
   optional<Record<string, NamedRow>>(
@@ -620,7 +629,10 @@ export interface BoardUnitProp {
   x: number;
   y: number;
   force: number;
-  phase?: string;
+  /** dispos 그룹명 — 이벤트 스폰(Dispos)의 주소. 스크립트 없는 챕터는 전 그룹 즉시 배치. */
+  group: string;
+  /** dispos Pid — 이벤트 스크립트가 유닛을 부르는 주소. */
+  pid: string;
   icon?: string;
   abbr: string;
   name: string;
@@ -673,6 +685,21 @@ export interface BoardProps {
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
   units: BoardUnitProp[];
+  /**
+   * 챕터 이벤트 스크립트 팩(MP2) — 있으면 보드가 이벤트 구동으로 초기 배치·증원·승리조건을 돌린다.
+   * ☠클라이언트 아일랜드는 원천 테이블이 없다 — 스크립트가 쓰는 스킬 행·엠블렘 사영을 여기 굳힌다.
+   */
+  script?: {
+    chapter: string;
+    /** Include 해석용 소스(chapter + common*) — 세션이 이름으로 찾는다. */
+    sources: Record<string, string>;
+    /** 스크립트가 정적으로 Dispos하는 그룹 — 초기 배치에서 제외(이벤트가 소환). */
+    disposGroups: string[];
+    /** 스크립트가 부르는 SID 행 사영(UnitSetPrivateSkill용). */
+    skills: Record<string, SkillRow>;
+    /** 스크립트가 부르는 GID 사영(UnitSetGodUnit 패치 — 기술(art)은 미배선·발현 시 흡수). */
+    gods: Record<string, { engage: EngageState; engageWeapons?: BoardWeaponProp[] }>;
+  };
   labels: {
     board: string;
     forecast: string;
@@ -688,6 +715,7 @@ export interface BoardProps {
     attackCmd: string;
     staffCmd: string;
     itemCmd: string;
+    guardCmd: string;
     warpPick: string;
     engageCmd: string;
     tradeCmd: string;
@@ -705,7 +733,7 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
-    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string };
+    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
   };
 }
 
@@ -891,7 +919,8 @@ export function boardProps(
       x: v.unit.x,
       y: v.unit.y,
       force: v.unit.force,
-      phase: phaseOfGroup(mapId, v.group),
+      group: v.group,
+      pid: v.unit.pid,
       icon: v.icon,
       abbr: v.abbr,
       name: v.name,
@@ -963,6 +992,28 @@ export function boardProps(
     })),
     units,
     labels,
+    ...(() => {
+      const src = scriptFiles[mapId];
+      if (src === undefined) return {};
+      const sources: Record<string, string> = { [mapId]: src };
+      for (const [name, text] of Object.entries(scriptFiles)) {
+        if (name.startsWith("common")) sources[name] = text;
+      }
+      const disposGroups = [...new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]))];
+      const sidRows: Record<string, SkillRow> = {};
+      for (const m of src.matchAll(/"(SID_[^"]+)"/g)) {
+        const row = slimSkill(m[1]);
+        if (row !== undefined) sidRows[m[1]] = row;
+      }
+      const gods: NonNullable<BoardProps["script"]>["gods"] = {};
+      for (const m of src.matchAll(/"(GID_[^"]+)"/g)) {
+        const engage = engageStateFor(m[1]);
+        if (engage === undefined) continue;
+        const engageWeapons = emblemEngageWeapons(m[1], locale);
+        gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
+      }
+      return { script: { chapter: mapId, sources, disposGroups, skills: sidRows, gods } };
+    })(),
   };
 }
 
@@ -996,6 +1047,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     attackCmd: t.attackCmd,
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
+    guardCmd: t.guardCmd,
     warpPick: t.warpPick,
     engageCmd: t.engageCmd,
     tradeCmd: t.tradeCmd,

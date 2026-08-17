@@ -2,7 +2,6 @@
 import { fidelitySummary, type ChapterData } from "@fesim/shared";
 import EmblemMark from "./EmblemMark.astro";
 import { objectName, tileColor, tileName, unitsFor } from "../lib/fe17";
-import { phasesFor, phaseOfGroup } from "../lib/phases";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
@@ -14,7 +13,7 @@ const { locale, mapId, chapter } = Astro.props;
 const t = UI[locale];
 const map = chapter.map;
 const units = unitsFor(chapter, locale);
-const phases = phasesFor(mapId);
+void mapId;
 const objectNames = [...new Set((map.objects ?? []).map((o) => objectName(locale, o)))];
 
 /** 平地·道는 공식 표시명이 같다(둘 다 Ground) — 이름으로 묶고 스와치만 나열한다. */
@@ -35,13 +34,6 @@ const counts = [
     return {
       label: c.label,
       n: list.length,
-      byPhase:
-        c.force !== 0 && phases.length > 1
-          ? phases.map((p) => ({
-              id: p.id,
-              n: list.filter((u) => (phaseOfGroup(mapId, u.group) ?? p.id) === p.id).length,
-            }))
-          : [],
     };
   })
   .filter((c) => c.n > 0);
@@ -66,17 +58,7 @@ const counts = [
         <>
           <dt>{c.label}</dt>
           <dd class="text-ink">
-            {c.byPhase.length > 0 ? (
-              c.byPhase.map((p) => (
-                <span data-phase={p.id}>
-                  {p.n} {t.units}
-                </span>
-              ))
-            ) : (
-              <>
-                {c.n} {t.units}
-              </>
-            )}
+            {c.n} {t.units}
           </dd>
         </>
       ))

@@ -3,7 +3,10 @@ import {
   attackRange,
   BAD_STATE,
   canBreak,
+  canChainGuard,
   canterPower,
+  chainGuardFor,
+  hasChainGuardSkill,
   effectiveWeapons,
   forecastSide,
   hasBadState,
@@ -28,18 +31,66 @@ import { serializeEphemeris } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
 import { visibleObjects } from "../lib/boards";
-import { calculator, createBoardStore, displayState, useBoard, type UnitVisual } from "../lib/boardStore";
+import type { EventHost } from "@fesim/engine/events";
+import {
+  baseReduce,
+  calculator,
+  createBoardStore,
+  displayState,
+  projectUnit,
+  useBoard,
+  type BoardStore,
+  type EventWiring,
+  type UnitVisual,
+} from "../lib/boardStore";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import BoardView from "./BoardView";
 import "./board.css";
 
 /**
  * 보드 아일랜드 — 인터랙션 셸: 선택·호버·명령 배선만 하고 국면은 스토어(boardStore)가 소유한다.
- * 그림은 BoardView, 룰은 엔진. 국면(시나리오) 라디오는 무JS 폴백으로 남기고 정본은 스토어다.
+ * 그림은 BoardView, 룰은 엔진. 이벤트 챕터(script 팩)는 여기서 세션을 만들어 스토어에 주입한다 —
+ * ☠fengari가 이 아일랜드 청크에만 실린다(제작 경로 — 열람 /s/는 절대 이벤트 복원).
  */
+
+/**
+ * 이벤트 배선 — 새 판마다 새 세션(Startup 재등록 중복 방지). 호스트 = props 사영(원천 테이블 무반입).
+ * ☠이벤트 모듈은 동적 임포트로만 — fengari(-web interop)가 임포트 시점에 Function()을 실행해
+ * SSR(CF 워커 러너 = 코드 생성 금지)이 죽는다. 클라이언트 하이드레이션 후에만 로드한다.
+ */
+type EventsModule = typeof import("@fesim/engine/events");
+
+function eventWiringFor(props: BoardProps, mod: EventsModule): EventWiring | undefined {
+  const script = props.script;
+  if (script === undefined) return undefined;
+  return {
+    create(difficulty) {
+      const host: EventHost = {
+        spawnGroup: (group, state) =>
+          props.units.flatMap((u, i) => {
+            if (u.group !== group) return [];
+            // ☠id 계약(u{i} = visuals 조회 키)상 같은 그룹 재스폰은 미재현 — 원기는 중복 허용(장부 events.dispos).
+            if (state.units.some((placed) => placed.id === `u${i}`)) return [];
+            const unit = projectUnit(props, i, difficulty);
+            return unit === undefined ? [] : [unit];
+          }),
+        skillRow: (sid) => script.skills[sid],
+        godUnit: (_unit, gid) => {
+          const god = script.gods[gid];
+          if (god === undefined) return undefined;
+          // 기술(engageArt)·인게이지 스킬 세트는 미배선(발현 시 흡수) — 게이지·엠블렘 무기까지 사영.
+          return { engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
+        },
+      };
+      const session = mod.createEventSession({ sources: script.sources, chapter: script.chapter, host });
+      return mod.createEventedReducer(baseReduce, session);
+    },
+  };
+}
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, objects, labels } = props;
-  const [store] = useState(() => createBoardStore(props));
+  // 이벤트 챕터는 스토어를 두 단계로 연다 — SSR·초기 렌더 = 무이벤트 원시판, 모듈 로드 후 이벤트판으로 교체.
+  const [store, setStore] = useState<BoardStore>(() => createBoardStore(props));
   const game = useBoard(store, displayState);
   const difficulty = useBoard(store, (s) => s.difficulty);
   const scenario = useBoard(store, (s) => s.scenario);
@@ -77,23 +128,26 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   useEffect(() => {
-    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input.phase-input"));
-    const query = readMapQuery(window.location.search);
-    const fromUrl = inputs.find((i) => i.id === `phase-${query.p}`);
-    if (fromUrl !== undefined) fromUrl.checked = true;
-    const checked = () => inputs.find((i) => i.checked)?.id.replace(/^phase-/, "");
-    if (query.d !== undefined) store.getState().setDifficulty(query.d);
-    store.getState().setScenario(checked());
-    store.getState().restore();
-    setReady(true);
-    const sync = () => {
-      store.getState().setScenario(checked());
-      store.getState().restore();
-      clearLocal();
+    // 국면 프리셋 폐지(MP2) — 국면 전이는 이벤트 엔진이 소유한다. URL의 d(난이도)만 읽는다.
+    const boot = (target: BoardStore) => {
+      const query = readMapQuery(window.location.search);
+      if (query.d !== undefined) target.getState().setDifficulty(query.d);
+      target.getState().restore();
+      setReady(true);
     };
-    for (const input of inputs) input.addEventListener("change", sync);
+    if (props.script === undefined) {
+      boot(store);
+      return;
+    }
+    let dead = false;
+    void import("@fesim/engine/events").then((mod) => {
+      if (dead) return;
+      const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod));
+      setStore(next);
+      boot(next);
+    });
     return () => {
-      for (const input of inputs) input.removeEventListener("change", sync);
+      dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -436,19 +490,21 @@ export default function BoardIsland(props: BoardProps) {
       engageDist <= fcTarget.weapon.rangeMax;
     const attack = activeWeapon !== undefined ? forecastSide(calculator, a, d) : undefined;
     const counter = counterable ? forecastSide(calculator, d, a) : undefined;
+    // 체인가드 — 대상이 지켜지면 본공격·추격 대미지는 가드에게 치환된다(판정 = 엔진 chainGuardFor 공용).
+    const guarded = chainGuardFor(fcTarget, game.units) !== undefined;
     // 예상 잔여 HP — 전 타격 명중 가정(인게임 예보 문법), 엔진 타격 순서 그대로:
     // 본공격 → (생존·미브레이크 시) 반격 → 추격 → 반격측 추격. 브레이크면 반격 몰수. 체인어택 제외.
-    const brk = attack !== undefined && attack.damage >= 1 && canBreak(aU, fcTarget);
+    const brk = attack !== undefined && attack.damage >= 1 && !guarded && canBreak(aU, fcTarget);
     let targetHp = fcTarget.hp;
     let selfHp = selected.hp;
     const counters = counter !== undefined && !brk;
-    if (attack !== undefined) targetHp -= attack.damage;
+    if (attack !== undefined && !guarded) targetHp -= attack.damage;
     if (counters && targetHp > 0) selfHp -= counter.damage;
-    if (attack?.followUp === true && targetHp > 0) targetHp -= attack.damage;
+    if (attack?.followUp === true && !guarded && targetHp > 0) targetHp -= attack.damage;
     if (counters && counter.followUp && targetHp > 0 && selfHp > 0) selfHp -= counter.damage;
     targetHp = Math.max(targetHp, 0);
     selfHp = Math.max(selfHp, 0);
-    return { attack, counter, inRange, brk, selfHp, targetHp };
+    return { attack, counter, inRange, brk, selfHp, targetHp, guarded };
   }, [selected, fcAt, fcTarget, game, activeWeapon, staffMode]);
 
   const describe = (events: BattleEvent[]): string[] => {
@@ -477,6 +533,10 @@ export default function BoardIsland(props: BoardProps) {
             return `${name(ev.target)} ${t.warp}`;
           case "refresh":
             return `${name(ev.unit)} ${t.refresh}`;
+          case "guard":
+            return `${name(ev.unit)} ${t.guard}`;
+          case "guardBlock":
+            return `${name(ev.unit)} ${t.guard} −${ev.damage}`;
           case "engage":
             return `${name(ev.unit)} ${t.engage}`;
           case "disengage":
@@ -494,10 +554,25 @@ export default function BoardIsland(props: BoardProps) {
             const gains = Object.entries(ev.gains).map(([k, v]) => `${k}+${v}`).join(" ");
             return `${name(ev.unit)} Lv ${ev.level}! ${gains}`;
           }
+          case "spawn":
+            return `${(ev.unit as { name?: string }).name ?? String((ev.unit as { id?: string }).id)} ${t.spawn}`;
+          case "transfer":
+            return ev.force === 0 ? `${name(ev.unit)} ${t.join}` : "";
+          case "despawn":
+            return `${name(ev.unit)} ${t.despawn}`;
           case "breakRelease":
           case "phase":
           case "outcome":
-            return "";
+          case "setPos":
+          case "variable":
+          case "winRule":
+          case "privateSkill":
+          case "godUnit":
+          case "ai":
+          case "crestAdd":
+          case "reset":
+          case "statusClear":
+            return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }
       })
       .filter((s) => s !== "");
@@ -771,7 +846,7 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2)) && (
+      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2) || hasChainGuardSkill(selected)) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
           {selected.engage !== undefined && (
             <span className="edit-hint">
@@ -791,6 +866,22 @@ export default function BoardIsland(props: BoardProps) {
                 {labels.engageCmd}
               </button>
             )}
+          {/* 체인가드 지정 — 만HP 미달이면 비활성(인게임 GuardType.NotEnoughHP 문법). */}
+          {hasChainGuardSkill(selected) && !selected.acted && selected.force === game.phase && (
+            <button
+              type="button"
+              className={selected.guarding === true ? "on" : undefined}
+              disabled={selected.guarding === true || !canChainGuard(selected)}
+              onClick={() => {
+                if (commitMove() && tryDispatch({ type: "guard", unit: selected.id })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                }
+              }}
+            >
+              {labels.guardCmd}
+            </button>
+          )}
           {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}
           {usableStaves.some(({ s }) => s.rodType !== 2) &&
             !selected.acted &&
@@ -977,7 +1068,11 @@ export default function BoardIsland(props: BoardProps) {
             brk={forecast.brk}
             labels={labels}
           />
-          <small className="fc-note">{forecast.inRange ? "" : labels.currentPosNote}</small>
+          <small className="fc-note">
+            {[forecast.guarded ? labels.logTags.guard : "", forecast.inRange ? "" : labels.currentPosNote]
+              .filter(Boolean)
+              .join(" · ")}
+          </small>
         </div>
       )}
 

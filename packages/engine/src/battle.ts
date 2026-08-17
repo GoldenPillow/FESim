@@ -40,6 +40,12 @@ export type { BattleWeapon } from "@fesim/shared";
 export interface UnitState {
   id: string;
   name?: string;
+  /** dispos Pid 원문 — 이벤트 스크립트가 유닛을 부르는 주소(동일 pid 복수 유닛 가능 — 환영병). */
+  pid?: string;
+  /** 보스 표지(WinRuleDestroyBoss 판정 대상) — ⚠dispos flag 비트 의미 미판독, 사영은 데이터층 가정. */
+  boss?: boolean;
+  /** 이벤트의 AI 재설정 기록(AiSetSequence류 원문 인자 누적) — 소비 = MP4 AI 실행기. */
+  aiScript?: (string | number | boolean)[][];
   force: number;
   x: number;
   y: number;
@@ -93,6 +99,11 @@ export interface UnitState {
   moved?: boolean;
   /** 이 활성화에서 교환·수송대를 썼는가 — 인게이지 발동만 봉쇄(실기 판별 2026-08-18). 페이즈 복귀 시 리셋. */
   traded?: boolean;
+  /**
+   * 체인가드 스탠스(Unit.Status.ChainGuard 64) — 인접 아군이 받을 타격을 대신 받는다.
+   * 수명 = 자기 군 페이즈 복귀까지(춤 재행동 시 지속은 가정 — 실측 대조 대상, 장부 actions.guard).
+   */
+  guarding?: boolean;
   /**
    * 걸린 상태이상(BadState 스킬) — 인게임 실체는 스킬 배열(m_PrivateSkill)이지만 엔진은
    * 소비 비트만 사영한다. 지속 = 페이즈 종료마다 age+1, life×3 도달 시 소멸(life 0 = 무제한).
@@ -162,6 +173,19 @@ export interface BattleMap {
 
 export type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
 
+/**
+ * 승패 규칙 파라미터 — Lua WinRuleSet*의 사영(MapSituation 필드, il2cpp/_wip_winrule).
+ * 미지정 = 기본값: 적 전멸 승리(enemyLessThan 0 상당) · 자군 전멸 패배.
+ */
+export interface WinRule {
+  /** 적 잔존 수 <= N 승리. **음수 = 판정 무효화**(m002가 -1로 전멸 승리를 끈다). */
+  enemyLessThan?: number;
+  /** 보스(unit.boss) 전멸 승리 스위치. */
+  destroyBoss?: boolean;
+  /** ⚠가정: 양수 = N턴 완료 생존 승리 · 음수 = |N|턴 내 미클리어 패배(판정 시점 = 턴 랩). */
+  limitTurn?: number;
+}
+
 export interface GameState {
   turn: number;
   /** 현재 페이즈의 군 (0 자군 · 1 적군 · 2 우군). */
@@ -169,6 +193,10 @@ export interface GameState {
   difficulty?: Difficulty;
   map: BattleMap;
   units: UnitState[];
+  /** 게임 변수(GameVariable 사영) — 이벤트 발화 플래그·勝利/敗北 포함. 쓰기는 이벤트 레이어만. */
+  variables?: Record<string, number | string>;
+  /** 승패 규칙 파라미터(WinRuleSet* 사영) — reduce의 승패 판정이 소비한다. */
+  winRule?: WinRule;
   /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
   crests?: { x: number; y: number }[];
   outcome?: "victory" | "defeat";
@@ -331,6 +359,31 @@ export function warpDestinations(
 /** 춤(재행동) 시전 자격 — 무희 직업 스킬 SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4). UI 공용. */
 export function canDance(u: UnitState): boolean {
   return effectiveSkills(u)?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
+}
+
+/** 체인가드 자격 스킬 — 원천 = 気功スタイル(styles.json이 SID_チェインガード許可 부여). 스킬 직접 보유도 인정. */
+export function hasChainGuardSkill(u: UnitState): boolean {
+  return u.style === "気功スタイル" || effectiveSkills(u)?.some((s) => s.Sid === "SID_チェインガード許可") === true;
+}
+
+/**
+ * 체인가드 지정 가능 — GetGuardType(0x1A34F50) 디스어셈블 확정: 스킬 게이트 + **만HP && HP 2 이상**
+ * (미달 = GuardType.NotEnoughHP). 차단 상태 비트 0x4D0 중 엔진 사영분은 기절뿐이다. UI 버튼과 reduce 공용.
+ */
+export function canChainGuard(u: UnitState): boolean {
+  if (!hasChainGuardSkill(u) || hasBadState(u, BAD_STATE.stun)) return false;
+  return u.hp === u.stats.hp && u.hp >= 2;
+}
+
+/**
+ * 이 유닛을 지키는 체인가드 — 스탠스 중·같은 군·생존(BattleInfo.CanChainGuard 0x1E7ACA0 게이트).
+ * ⚠인접 1 = 공식 도움말 원문("隣接する味方") 앵커 — 열거 코드(CalcChain)는 미판독. 복수 가드 시
+ * 선두 선택은 유닛 목록 순 가정. 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ */
+export function chainGuardFor(target: UnitState, units: readonly UnitState[]): UnitState | undefined {
+  return units.find(
+    (g) => !g.dead && g.guarding === true && g.id !== target.id && g.force === target.force && manhattan(g, target) === 1,
+  );
 }
 
 /**
@@ -547,6 +600,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
         const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
 
+        // 체인가드: 대상을 지키는 스탠스 유닛 — 본공격·추격만 치환(체인어택은 무효 — CalcChainGuardSide).
+        const guard = chainGuardFor(defender, units);
+        let guardBlocks = 0;
+
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
         const chainUnits = units.filter(
           (u) =>
@@ -565,6 +622,18 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         ): void => {
           if (from.dead || to.dead) return;
           const hit = isHit(numbers.hitRate, rng.next(10000));
+          if (hit && to === defender && kind !== "chain" && guard !== undefined) {
+            // 체인가드 치환 — 가드가 서면 CalcAttackHit(대미지·필살 롤)를 통째로 건너뛴다(CalcAttack 0x24716BC).
+            // 대상 대미지 0(브레이크도 없음), 가드 = trunc(자기 현재 HP*0.2)·하한 없음(GetChainGuardDamage 0x24720C0).
+            const gd = Math.trunc(
+              calc.eval("チェインガードダメージ", combatEnv({ stats: { ...guard.stats, maxHp: guard.stats.hp, hp: guard.hp } })) as number,
+            );
+            guard.hp = Math.max(guard.hp - gd, 0);
+            guardBlocks += 1;
+            events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit: true, crit: false, damage: 0, hpAfter: to.hp });
+            events.push({ type: "guardBlock", unit: guard.id, target: to.id, damage: gd, hpAfter: guard.hp });
+            return;
+          }
           // 명중 시에만 필살 롤 — 롤 소비 순서는 리플레이 계약.
           const crit = hit && numbers.critRate > 0 ? isProbability100(numbers.critRate, rng.next(100000)) : false;
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
@@ -623,6 +692,15 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             calc.eval(formula, expEnv(attacker, defender, chainCount, difficulty)) as number,
           );
           grantExp(attacker, gained, events, rng);
+        }
+        // 가드 경험치 — チェインガード経験計算(상대 = 지킨 아군 = m_Parent, GetGuardExp 0x1E94390).
+        // 다타격을 받아도 전투당 1회. 공격측 경험 뒤 = 사이드 순서(Offense 0 < ChainDefense 26+) 가정.
+        if (guardBlocks > 0 && guard !== undefined && guard.force === 0 && !guard.dead) {
+          const difficulty = state.difficulty ?? "n";
+          const gained = Math.floor(
+            calc.eval("チェインガード経験計算", expEnv(guard, defender, 0, difficulty)) as number,
+          );
+          grantExp(guard, gained, events, rng);
         }
         break;
       }
@@ -759,6 +837,21 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           );
           grantExp(dancer, gained, events, rng);
         }
+        break;
+      }
+
+      case "guard": {
+        const u = require(action.unit);
+        assertActable(u);
+        if (!hasChainGuardSkill(u)) throw new Error("체인가드 자격 없음(気功 스타일)");
+        // 만HP && HP≥2 게이트 — 미달이 인게임 GuardType.NotEnoughHP(GetGuardType 0x1A34F50 판독).
+        if (!canChainGuard(u)) throw new Error("체인가드 불가 — HP가 가득해야 한다");
+        u.guarding = true;
+        events.push({ type: "guard", unit: u.id });
+        u.acted = true;
+        u.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(u);
+        // 인게이지 충전 없음 — AddEngageCount는 전투·지팡이 행동만(지정 자체는 전투가 아니다).
         break;
       }
 
@@ -929,6 +1022,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
               if (aged.force !== nextForce) return aged;
               const fresh: UnitState = { ...aged, acted: false, broken: false, moved: false };
               delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
+              delete fresh.guarding; // 체인가드 스탠스 해제 — 수명 = 자기 활성화 복귀까지
               // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
               const g = fresh.engage;
               if (g?.engaging === true && !fresh.dead) {
@@ -948,21 +1042,42 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             }),
             events: phaseEvents,
           };
-          return next;
+          const wrapped2 = next.turn > state.turn;
+          return settleOutcome(next, wrapped2 ? state.turn : undefined);
         }
         break;
       }
     }
 
-    // 승패 판정: 적군 전멸 = 승리, 자군 전멸 = 패배 (챕터 고유 조건은 후속 — Lua 이벤트 엔진 몫).
-    let outcome = state.outcome;
-    if (outcome === undefined) {
-      const alive = (force: number) => units.some((u) => u.force === force && !u.dead);
-      if (!alive(1) && units.some((u) => u.force === 1)) outcome = "victory";
-      else if (!alive(0) && units.some((u) => u.force === 0)) outcome = "defeat";
-      if (outcome !== undefined) events.push({ type: "outcome", outcome });
-    }
-
-    return { ...state, units, ...(crests === undefined ? {} : { crests }), events, outcome };
+    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), events });
   };
+}
+
+/**
+ * 승패 판정 — 기본(적 전멸/자군 전멸) + winRule 파라미터(WinRuleSet* 사영) + 勝利/敗北 변수(스크립트 직접 판정).
+ * 이벤트 레이어(변수 변경)도 같은 판정을 써야 한다(중복 구현 금지). completedTurn = 턴 랩 시 방금 끝난 턴 번호.
+ */
+export function settleOutcome(state: GameState, completedTurn?: number): GameState {
+  if (state.outcome !== undefined) return state;
+  const rule = state.winRule;
+  const enemies = state.units.filter((u) => u.force === 1);
+  const aliveEnemies = enemies.filter((u) => !u.dead).length;
+  const bosses = enemies.filter((u) => u.boss === true);
+  // enemyLessThan 음수 = 잔존 수 판정 통째 무효화 — GameEndCheck 0x1F4A900 분기 그대로.
+  const routDisabled = rule?.enemyLessThan !== undefined && rule.enemyLessThan < 0;
+  let outcome: GameState["outcome"];
+  if (state.variables?.["勝利"] === 1) outcome = "victory";
+  else if (state.variables?.["敗北"] === 1) outcome = "defeat";
+  else if (!routDisabled && enemies.length > 0 && aliveEnemies <= Math.max(rule?.enemyLessThan ?? 0, 0)) {
+    outcome = "victory";
+  } else if (rule?.destroyBoss === true && bosses.length > 0 && bosses.every((u) => u.dead)) {
+    outcome = "victory";
+  } else if (!state.units.some((u) => u.force === 0 && !u.dead) && state.units.some((u) => u.force === 0)) {
+    outcome = "defeat";
+  } else if (completedTurn !== undefined && rule?.limitTurn !== undefined && rule.limitTurn !== 0) {
+    // ⚠가정: 판정 시점 = 턴 랩(제한턴은 MapSituation.TurnEnd 소관 — 랩 세부 미판독).
+    if (completedTurn >= Math.abs(rule.limitTurn)) outcome = rule.limitTurn > 0 ? "victory" : "defeat";
+  }
+  if (outcome === undefined) return state;
+  return { ...state, outcome, events: [...state.events, { type: "outcome", outcome }] };
 }

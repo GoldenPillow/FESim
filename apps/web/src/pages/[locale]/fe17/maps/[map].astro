@@ -5,7 +5,6 @@ import Board from "../../../../components/Board.astro";
 import Roster from "../../../../components/Roster.astro";
 import Brief from "../../../../components/Brief.astro";
 import { chapterTitle, chapters, mapIds } from "../../../../lib/fe17";
-import { phasesFor } from "../../../../lib/phases";
 import { DEFAULT_LOCALE, LOCALES, UI, isLocale } from "../../../../lib/i18n";
 
 export function getStaticPaths() {
@@ -17,7 +16,6 @@ const mapId = Astro.params.map ?? "";
 const chapter = chapters[mapId];
 if (chapter === undefined) throw new Error(`unknown map: ${mapId}`);
 const t = UI[locale];
-const phases = phasesFor(mapId);
 const title = chapterTitle(chapter, locale);
 const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
 ---
@@ -26,22 +24,7 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
   <TopBar locale={locale} context={heading} sub={title.place} />
 
   <div class="board-frame">
-    {
-      phases.map((p, i) => (
-        <input class="phase-input" type="radio" name="phase" id={`phase-${p.id}`} checked={i === 0} />
-      ))
-    }
-
     <main class="order-1 min-w-0 justify-self-center lg:order-2 lg:col-start-2">
-      {
-        phases.length > 1 && (
-          <nav class="phase-switch" aria-label={t.phase}>
-            {phases.map((p) => (
-              <label for={`phase-${p.id}`}>{p.label[locale]}</label>
-            ))}
-          </nav>
-        )
-      }
       <Board locale={locale} mapId={mapId} />
     </main>
     <aside class="order-2 w-full lg:order-1 lg:col-start-1 lg:row-start-1 lg:w-[19rem]">
@@ -53,63 +36,8 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
   </div>
 
   <style>
-    /* 국면 전환 = 라디오 + :checked (정적 우선, JS 없음). 1회전이 기본값. */
-    .phase-input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-    }
-    #phase-1:checked ~ * :global([data-phase="2"]),
-    #phase-2:checked ~ * :global([data-phase="1"]) {
-      display: none;
-    }
-
     main {
       position: relative;
-    }
-    .phase-switch {
-      position: absolute;
-      bottom: calc(100% + 3.4rem);
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 0.3rem;
-      white-space: nowrap;
-    }
-    .phase-switch label {
-      padding: 0.25rem 0.75rem;
-      border: 1px solid var(--rule);
-      border-radius: 9999px;
-      font-size: 11px;
-      color: var(--muted);
-      cursor: pointer;
-      transition:
-        color 150ms ease,
-        border-color 150ms ease,
-        background 150ms ease;
-    }
-    .phase-switch label:hover {
-      color: var(--ink);
-    }
-    #phase-1:checked ~ * label[for="phase-1"],
-    #phase-2:checked ~ * label[for="phase-2"] {
-      color: var(--gold);
-      border-color: var(--gold);
-      background: var(--panel);
-    }
-    #phase-1:focus-visible ~ * label[for="phase-1"],
-    #phase-2:focus-visible ~ * label[for="phase-2"] {
-      outline: 2px solid var(--gold);
-      outline-offset: 2px;
-    }
-    @media (max-width: 1023px) {
-      .phase-switch {
-        position: static;
-        transform: none;
-        justify-content: center;
-        margin-bottom: 1.25rem;
-      }
     }
 
     /* 양쪽 사이드를 동일한 minmax(19rem,1fr)로 두면 가운데 auto 열이 뷰포트 정중앙에 온다. */
