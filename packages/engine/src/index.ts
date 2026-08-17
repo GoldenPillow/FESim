@@ -123,7 +123,10 @@ export {
   movePosition,
   moveIdle,
   moveTo,
+  interferenceRank,
+  interferenceScore,
   rodHealTo,
+  rodInterferenceTo,
   targetFilter,
   type HandlerContext,
 } from "./ai/handlers.js";

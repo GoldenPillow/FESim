@@ -33,7 +33,14 @@ const terrainTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/terr
 >;
 const itemTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/items.json"), "utf-8")) as Record<
   string,
-  { Kind?: number; Power?: number; RangeI?: number; RangeO?: number; RodType?: number; Endurance?: number; Hit?: number; RodExp?: number }
+  {
+    Kind?: number; Power?: number; RangeI?: number; RangeO?: number; RodType?: number;
+    Endurance?: number; Hit?: number; RodExp?: number; UseType?: number; GiveSids?: string[];
+  }
+>;
+const skillTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/skills.json"), "utf-8")) as Record<
+  string,
+  { BadState?: number; Life?: number }
 >;
 const aiTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/ai.json"), "utf-8")) as Record<
   string,
@@ -59,6 +66,15 @@ const staffOf = (iid: string): StaffItem | undefined => {
     uses: row.Endurance ?? 0,
     rodType: row.RodType ?? 0,
     rodExp: row.RodExp ?? 0,
+    ...(row.UseType !== undefined ? { useType: row.UseType } : {}),
+    // 방해 지팡이 GiveSids → 상태 사영(웹 staffItemFor와 같은 계약). 없으면 reduce가 정직 거부한다.
+    ...(() => {
+      const gives = (row.GiveSids ?? []).flatMap((sid) => {
+        const sk = skillTable[sid];
+        return sk === undefined ? [] : [{ sid, badState: Number(sk.BadState ?? 0), life: Number(sk.Life ?? 0) }];
+      });
+      return gives.length > 0 ? { gives } : {};
+    })(),
     ...(row.Hit !== undefined ? { hit: row.Hit } : {}),
   };
 };

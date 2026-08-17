@@ -712,6 +712,111 @@ export function moveBreakDown(ctx: HandlerContext): ActionResult {
 }
 
 /**
+ * 방해 지팡이 등급 — `AIInterferenceSimulator$$CalculateScore`(0x1930740)의 `rank` 항.
+ * ☠**이름이 아니라 `ItemData.UseType` 수치로 판별한다** — `コラプス`(Collapse)의 UseType은 `Stun(29)`이고,
+ * `Sleep(10)`·`Charm(12)` 등 다른 상태이상은 이 분기에서 **전부 0**이다(M_rod_breakdown §1-5-A).
+ */
+export function interferenceRank(useType: number | undefined): number {
+  if (useType === 27) return 4; // Draw
+  if (useType === 29) return 3; // Stun
+  if (useType === 11) return 2; // Silence
+  if (useType === 9) return 1; // Freeze
+  return 0;
+}
+
+/**
+ * 방해 스코어 조립식 — `P + ((100 - 맨해튼거리) << 9) + (magicVal << 17) + (rank << 25)`.
+ * ⇒ **아이템 등급 ≫ 대상 마력 ≫ 근접도 ≫ 위력**.
+ */
+export function interferenceScore(p: number, distance: number, magicVal: number, rank: number): number {
+  return p + (100 - distance) * 2 ** 9 + magicVal * 2 ** 17 + rank * 2 ** 25;
+}
+
+/** 침묵 적합성 — 대상 소지품에 `(Kind & ~1) == 6`(마도서 계열)이 있어야 한다(0x1930924~). */
+const hasTome = (u: UnitState): boolean =>
+  (u.weapons ?? (u.weapon === undefined ? [] : [u.weapon])).some((w) => (w.kind & ~1) === 6)
+  || (u.staves ?? []).length > 0; // 지팡이 Kind 7도 (7 & ~1) == 6이다
+
+/**
+ * `AIThink$$ActionRodInterference`(0x1948350) → `InterferenceTo`(0x1948360) — `IR_*(30~36)`.
+ *
+ * 게이트: `m_Think`가 AttackLongRange(4)·AttackHigh(5)면 실행하지 않는다 · 대형 유닛 제외.
+ * 도색은 `weaponFlag = InterferenceRod`(☠`IgnoreSilent` **없음** — AC_InterferenceRange와 다르다).
+ * 표적은 `EachEnemyUnit` 전수 + 옵코드 필터, 점수는 위 조립식 최대, 동점은 50% 코인플립.
+ * 커밋 = `MapMind.Type = RodInterference(30)`.
+ *
+ * ☠**엔진 경계**: reduce는 `gives`가 빈 방해 지팡이(= `ドロー`, UseType 27)를 **정직하게 거부**한다
+ * (효과 경로 미판독). AI가 그걸 고르면 액션이 튕기므로 후보에서 빼고, 그것뿐이면 정직 결손으로 올린다.
+ * ⚠`P` 항은 Draw에서만 `Min(대상 위력, 511)`이고 나머지는 0인데, Draw가 실행 불가라 실질 항상 0이다.
+ * ⚠`IR_Frequency(36)`는 `prohibitRod`(사용 빈도 잠금) 상태를 요구하는데 국면에 없어 결손으로 올린다.
+ */
+export function rodInterferenceTo(ctx: HandlerContext, opcode: number): ActionResult {
+  if (ctx.think === AI_THINK.attackLongRange || ctx.think === AI_THINK.attackHigh) return NONE;
+  if (opcode === ACT.rodInterferenceFrequency) {
+    return { kind: "deficit", reason: "IR_Frequency 미배선: prohibitRod(사용 빈도 잠금) 국면 미모델" };
+  }
+  const actor = ctx.unit;
+  const rods = (actor.staves ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.rodType === 3 && s.uses > 0);
+  if (rods.length === 0) return NONE;
+  const usable = rods.filter(({ s }) => (s.gives ?? []).length > 0);
+  if (usable.length === 0) {
+    return { kind: "deficit", reason: "방해 지팡이 효과 미배선: ドロー(UseType 27) 경로는 reduce가 정직 거부" };
+  }
+  // HighMagic(31)/LowMagic(32)만 마력 항을 켠다.
+  const high = opcode === ACT.rodInterferenceHighMagic;
+  const low = opcode === ACT.rodInterferenceLowMagic;
+  const image = moveImageOf(ctx.state, actor);
+
+  let best: { score: number; target: string; staff: number; x: number; y: number } | undefined;
+  for (const foe of eachEnemyUnit(ctx.state, actor)) {
+    if (!isAttackPermission(ctx.state, foe)) continue;
+    const ok = interferenceTargetFilter(opcode, ctx.args, foe);
+    if (ok === undefined) return { kind: "deficit", reason: `방해 표적 필터 미사영: IR ${opcode}` };
+    if (!ok) continue;
+    for (const { s, i } of usable) {
+      if (s.useType === 11 && !hasTome(foe)) continue; // 침묵시킬 것이 없으면 부적합
+      for (const tile of enumerateRing(foe.x, foe.y, s.rangeMin, s.rangeMax, ctx.state.map.width, ctx.state.map.height)) {
+        if (!image.has(key(ctx.state, tile.x, tile.y))) continue;
+        const d = Math.abs(tile.x - foe.x) + Math.abs(tile.y - foe.y);
+        if (s.useType === 27 && d <= 3) continue; // Draw 근접 부적합
+        const magicVal = high ? foe.stats.mag : low ? 255 - foe.stats.mag : 0;
+        const score = interferenceScore(0, d, magicVal, interferenceRank(s.useType));
+        if (best !== undefined) {
+          if (score < best.score) continue;
+          if (score === best.score && aiIsRandom(ctx.rng)) continue;
+        }
+        best = { score, target: foe.id, staff: i, x: tile.x, y: tile.y };
+      }
+    }
+  }
+  if (best === undefined) return NONE;
+  const actions: BattleAction[] = [];
+  if (best.x !== actor.x || best.y !== actor.y) {
+    actions.push({ type: "move", unit: actor.id, x: best.x, y: best.y });
+  }
+  actions.push({ type: "staff", unit: actor.id, target: best.target, staff: best.staff });
+  return { kind: "decide", actions };
+}
+
+/** 방해 계열 옵코드의 표적 필터(`IsAttackPermissionOnlyCommand` 표 — H_handlers §1-5). */
+function interferenceTargetFilter(opcode: number, args: readonly string[], t: UnitState): boolean | undefined {
+  switch (opcode) {
+    case ACT.rodInterference:
+    case ACT.rodInterferenceHighMagic:
+    case ACT.rodInterferenceLowMagic:
+      return true;
+    case ACT.rodInterferencePerson:
+      return t.pid === args[0];
+    case ACT.rodInterferenceExcludePerson:
+      return t.pid !== args[0];
+    case ACT.rodInterferenceWeapon:
+      return t.weapon === undefined ? false : t.weapon.kind === Number(args[0]);
+    default:
+      return undefined;
+  }
+}
+
+/**
  * `AIThink$$ActionMovePerson`(0x194F2E0) — `MV_Person(90)`.
  *
  * 판독(MP4 3라운드 직접 디스어셈블):
