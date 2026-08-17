@@ -193,6 +193,10 @@ export function initGame(
           };
         }),
       ),
+      // 조사 지점 — AI 이동 목적지(MI_Treasure·MV_Escape)의 입력. 표시용 사영과 같은 원천을 쓴다.
+      ...(props.interactions !== undefined && props.interactions.length > 0
+        ? { interactions: props.interactions }
+        : {}),
       ...(props.overlays !== undefined && props.overlays.length > 0
         ? {
             overlays: props.overlays.map((o) => ({
@@ -409,8 +413,12 @@ export function createBoardStore(
         let next: GameState;
         try {
           next = (live ?? reduce)(game, action, rng);
-        } catch {
-          return game; // 불법 행동 = 무시 (엔진이 심판)
+        } catch (e) {
+          // 불법 행동 = 무시 (엔진이 심판). ☠단 **조용히** 삼키면 안 된다 —
+          // m001에서 미등록 네이티브 하나가 endPhase를 영구 거부했는데 화면·콘솔이 전부 침묵해
+          // "AI 무한루프"로 오진됐다(2026-08-18). 거부 사유는 개발 콘솔에 반드시 남긴다.
+          console.warn("[FESim] 거부된 행동", action, e);
+          return game;
         }
         const rolls = rng.drain();
         const step: EphemerisStep = { action };

@@ -650,13 +650,41 @@ end
  * 정직 결손 — 정확 구현이 불가능해 **일부러 등록하지 않은** 네이티브. 등록하면 호출이 조용히 no-op가 되어
  * 국면이 틀린 채 진행된다(☠오재현 > 강하). 여기 목록은 구현되면 지운다(그때 이 테스트가 빨개진다).
  */
+/**
+ * `UnitSetHp` — 종전에는 "절대 재생 계약이 선행"을 이유로 **미등록 결손**이었다.
+ * ☠그 전제는 이미 충족돼 있었다 — `heal` 이벤트가 `hpAfter`(절대값)를 싣고
+ * `replay.ts`가 그것을 그대로 대입한다. 반면 미등록인 채로 두니 **m001 턴3 쌍자이탈이
+ * `endPhase`를 통째로 거부**했고, 그 결과 적턴 자동이 페이즈를 영영 못 닫았다(2026-08-18 실측).
+ * 왜 위험했나 = 하나의 미등록 네이티브가 "AI 무한루프"로 오진될 만큼 먼 곳에서 발현한다.
+ */
+describe("UnitSetHp — HP 절대 대입", () => {
+  const hurt = (hp: number): UnitState => ({ ...unit({ id: "p", force: 0, x: 0, y: 0 }), hp });
+  const run = (body: string, u: UnitState) =>
+    createEventSession({
+      sources: { common: COMMON_MIN, hp: `Include("Common")\nfunction Startup() ${body} end` },
+      chapter: "hp", host: host(),
+    }).setup(state([u]));
+
+  it("HP를 절대값으로 세우고 최대치로 클램프한다", () => {
+    const r = run(`UnitSetHp("PID_p", 999)`, hurt(5));
+    expect(r.state.units[0].hp).toBe(r.state.units[0].stats.hp);
+  });
+
+  it("절대 재생 — 기록 이벤트만으로 HP가 복원된다(세션 무반입)", () => {
+    const r = run(`UnitSetHp("PID_p", 12)`, hurt(5));
+    expect(r.state.units[0].hp).toBe(12);
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(state([hurt(5)]), { action: { type: "setup" }, events: r.events });
+    expect(replayed.units[0].hp).toBe(12);
+  });
+});
+
 describe("정직 결손 — 미등록 유지 네이티브", () => {
   const GAPS: [string, string, string][] = [
     ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
     ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
     ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
     ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
-    ["UnitSetHp", `UnitSetHp("PID_p", 1)`, "HP 절대 대입 이벤트 미정의(절대 재생 계약이 선행)"],
     ["Battle", `Battle("PID_p", "PID_p")`, "이벤트 전투 실행 — 난수·대미지 파이프라인 주입 필요"],
     ["BattleSetAttack", `BattleSetAttack("PID_p", "IID_鉄の剣")`, "위와 같음"],
     ["BattleAddTarget", `BattleAddTarget("PID_p")`, "위와 같음"],

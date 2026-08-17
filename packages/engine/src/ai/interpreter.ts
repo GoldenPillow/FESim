@@ -22,6 +22,11 @@ export const NONE: ActionResult = { kind: "none" };
 export interface ThinkRuntime {
   /** `UnitAI.m_Active` — 0 = 비활성. `Trans`가 스테이징하고 `Update`가 반영한다(§4-3). */
   active: number;
+  /**
+   * `UnitAI.m_aSequence` 치환분 — `AI_ChangeSeq`가 갈아끼운 슬롯별 루틴명(슬롯 번호 → 루틴명).
+   * ☠맵 전역 상태다(사고 1회로 끝나지 않는다) — 호출측이 `AiMemory`에 보관해 다음 호출로 넘긴다.
+   */
+  sequences?: Partial<Record<number, string>>;
 }
 
 export interface SlotSource {
@@ -31,14 +36,16 @@ export interface SlotSource {
   args: readonly string[];
 }
 
-/** dispos 사영 → 4슬롯 루틴명·인자. */
-export function slotsOf(ai: AiSnapshot | undefined): SlotSource[] {
-  return [
+/** dispos 사영 → 4슬롯 루틴명·인자. `swapped`가 있으면 그 슬롯의 루틴명을 덮는다(AI_ChangeSeq). */
+export function slotsOf(ai: AiSnapshot | undefined, swapped?: Partial<Record<number, string>>): SlotSource[] {
+  const base: SlotSource[] = [
     { name: ai?.action, args: argsOf(ai?.actionVal) },
     { name: ai?.mind, args: argsOf(ai?.mindVal) },
     { name: ai?.attack, args: argsOf(ai?.attackVal) },
     { name: ai?.move, args: argsOf(ai?.moveVal) },
   ];
+  if (swapped === undefined) return base;
+  return base.map((slot, i) => (swapped[i] === undefined ? slot : { ...slot, name: swapped[i] }));
 }
 
 export interface OpcodeHandlers {
@@ -71,7 +78,7 @@ export interface ProcessingOutput {
  * ★직전에 실행된 명령과 `(Code, Mind, v0, v1)`이 전부 같으면 스킵한다(연속 중복 억제).
  */
 function processingActive(slot: number, input: ProcessingInput, deficits: string[]): { result: ActionResult; retry: boolean } {
-  const source = slotsOf(input.ai)[slot]!;
+  const source = slotsOf(input.ai, input.runtime.sequences)[slot]!;
   const list: AiCommand[] | undefined =
     source.name === undefined ? undefined : input.ai?.routines?.[source.name];
   if (source.name === undefined || source.name === "") return { result: NONE, retry: false };
@@ -143,9 +150,19 @@ function processingActive(slot: number, input: ProcessingInput, deficits: string
         if (staged !== undefined) input.runtime.active = staged;
         staged = undefined;
         break;
-      case AI_CODE.changeSeq:
+      case AI_CODE.changeSeq: {
+        // ★`cmd.Mind`가 **대상 슬롯 번호**이고 `StrValue0`이 새 루틴명이다(§4-4 — 자기 슬롯이 아니어도 된다).
+        //   ProcessingActive에 인라인돼 있어 즉시 반영되며, UpdateFlag.Active만 세운다
+        //   ⇒ Update가 **현재 스테이징된 Trans**(없으면 0)를 그대로 써넣는다(B_interp §8).
+        const next = cmd.StrValue0;
+        if (next === undefined || next === "") break;
+        input.runtime.sequences = { ...(input.runtime.sequences ?? {}), [cmd.Mind]: next };
+        if (staged === undefined) staged = input.runtime.active;
+        break;
+      }
       case AI_CODE.changeValue:
-        deficits.push(`서브 AI 치환 미구현: Code ${cmd.Code} → 슬롯 ${cmd.Mind} (${source.name})`);
+        // ☠`cmd.Mind == order`일 때만 동작한다(§4-4). 실데이터(AI_MV_TreasureToEscape)는
+        //   Move 슬롯(3)에서 Mind=1을 쓰므로 **무동작이 판독대로의 정답**이다 — 인자 결선은 일어나지 않는다.
         break;
       default:
         break;

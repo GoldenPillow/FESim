@@ -9,20 +9,31 @@ import {
   allianceOf,
   effectiveWeapons,
   canChainGuard,
+  effectiveSkills,
   makeCostAt,
+  staffHealAmount,
   movePower,
   movePredicates,
   moveBudgetOn,
   type BattleAction,
+  type BattleMap,
   type GameState,
   type RandomSource,
   type UnitState,
 } from "../battle.js";
-import { attackRange, movementRange } from "../range.js";
-import { getAttackPosition, getAttackScore, moveImageOf, aiIsRandom, type AttackContext, type AttackEvaluation } from "./attack.js";
-import { movePowerOf } from "./cause.js";
+import { attackRange, movementRange, type MoveType } from "../range.js";
+import {
+  aiIsRandom,
+  betterAttack,
+  getAttackPosition,
+  getAttackScore,
+  moveImageOf,
+  type AttackContext,
+  type AttackEvaluation,
+} from "./attack.js";
+import { movePowerOf, parsePos } from "./cause.js";
 import { NONE, type ActionResult } from "./interpreter.js";
-import { terrainScoreAt } from "./position.js";
+import { enumerateRing, healRodPositionScore, terrainScoreAt } from "./position.js";
 import { ACT, AI_FLAG, AI_THINK, AI_VALUE, ATTACK_FLAG } from "./types.js";
 import { aiHealCondition, moveLimitAllows, parseMoveLimit } from "./unit.js";
 
@@ -86,8 +97,13 @@ export function targetFilter(opcode: number, args: readonly string[], target: Un
       const want = FORCE_TOKENS[args[0] ?? ""];
       return want === undefined ? undefined : target.force === want;
     }
+    case ACT.attackHero:
+      // ★`PersonData$$IsHero`(0x1F2A0B0) = `CommonSkills`에 `SkillData.s_HeroSkill`이 서 있는가이고,
+      //   그 정적 필드는 `OnCompletedEnd`(0x248D3F8)에서 **`SID_主人公`**로 채워진다.
+      //   ⇒ "보스"가 아니라 **주인공 지정**이다(전 1523인물 중 PID_リュール 1건).
+      return effectiveSkills(target)?.some((sk) => sk.Sid === "SID_主人公") === true;
     default:
-      // AT_Hero(3)는 PersonData.IsHero, AT_Job(7/8)은 Job 사영이 필요한데 UnitState에 없다.
+      // AT_Job(7/8)은 Job 사영이 UnitState에 없다.
       return undefined;
   }
 }
@@ -117,7 +133,7 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
     if (!ok) continue;
     const cand = getAttackScore(ctx, actor, target, 0, image);
     if (cand === undefined) continue;
-    if (best === undefined || betterTarget(cand, best, ctx.targeted, ctx.rng)) best = cand;
+    if (best === undefined || betterAttack(cand, best, ctx.rng)) best = cand;
   }
   if (unsupported !== undefined) return { kind: "deficit", reason: unsupported };
   if (best === undefined) return NONE;
@@ -133,20 +149,6 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
   }
   actions.push({ type: "attack", unit: actor.id, target: best.target, weapon: best.weapon });
   return { kind: "decide", actions };
-}
-
-/** `CheckAttackPriorityImpl`의 파레토 비교(연계수 → 밀치기 → 스코어 → 동점 코인플립). */
-function betterTarget(
-  next: AttackEvaluation,
-  cur: AttackEvaluation,
-  _targeted: Record<string, number>,
-  rng: RandomSource,
-): boolean {
-  if (next.chainCount < cur.chainCount) return false;
-  if (next.chainCount > cur.chainCount) return true;
-  if (next.battle < cur.battle) return false;
-  if (next.battle !== cur.battle) return true;
-  return rng.next(2) === 0;
 }
 
 /**
@@ -344,6 +346,323 @@ function bestPositionAnyWeapon(
  * (Decide는 `ProcessingMutation`이 행동을 갈아끼웠을 때뿐 — 그 경로는 미배선).
  */
 export function moveIdle(): ActionResult {
+  return NONE;
+}
+
+/**
+ * `AIThink$$CalcHealRodScore`(0x19598B0) — 회복 지팡이 **대상+아이템** 선택 키.
+ *
+ * ☠**AI_ENGINE §5-5의 비트 위치는 8비트씩 높게 적혀 있었다**(MP4 2라운드 직접 재판독으로 정정).
+ * 실제 꼬리(0x19599A4~0x19599CC):
+ * ```
+ * cset w8, eq ; lsl w21, w8, #8     ; inPlace << 8
+ * w0 = Math.Max(heal, 0) + w21
+ * add w8, w19, w0, lsl #8           ; ★score = damage + (max(heal,0) << 8) + (inPlace << 16)
+ * ```
+ * 플레이어 진영 경로(0x1959958)는 `inPlace` 항을 빼고 `damage + (max(heal,0) << 8)`만 만든다.
+ * `inPlace` = 시전 위치가 **자기 현재 칸**인가(`cneg`/`cset eq`로 |dx|,|dz| 동시 0 판정).
+ * ⇒ 우선순위 자체는 §5-5와 같다: **제자리 ≫ 회복량 ≫ 부수 대미지**.
+ * ☠**`damage`는 "부수 대미지"가 아니라 대상의 부족 HP**(maxHp - hp)다
+ * (`GetHealRodScoreImpl` 0x1959E48 `str w21,[x19,#0x14]`, w21 = maxHp - hp) — AI_ENGINE §5-5의 오독을 정정한다.
+ * `heal`은 `Min(지팡이 회복력, 부족분)`이라 만피에 가까운 대상은 heal이 깎이고 damage만 남는다
+ * ⇒ **"많이 회복되는 대상 우선, 같으면 더 많이 다친 대상 우선"**.
+ */
+export function calcHealRodScore(heal: number, damage: number, inPlace: boolean, isPlayerForce: boolean): number {
+  const base = damage + (Math.max(heal, 0) << 8);
+  return isPlayerForce ? base : base + ((inPlace ? 1 : 0) << 16);
+}
+
+/**
+ * `AIThink$$GetHealRodPosition`(0x1958120) — 회복 시전 위치.
+ * ☠공격 위치와 **층위가 정반대**다(AI_ENGINE §5-A-8): `score = ((100 - move) << 4) + 지형`
+ * — 힐러는 좋은 지형보다 **덜 움직이는 것**을 우선한다. 동점은 `AI.IsRandom` 코인플립.
+ */
+function healRodPosition(
+  ctx: HandlerContext,
+  target: UnitState,
+  staff: { rangeMin: number; rangeMax: number },
+  image: Map<number, number>,
+): { moveX: number; moveY: number; move: number } | undefined {
+  let best: { moveX: number; moveY: number; move: number; score: number } | undefined;
+  for (const tile of enumerateRing(
+    target.x, target.y, staff.rangeMin, staff.rangeMax, ctx.state.map.width, ctx.state.map.height,
+  )) {
+    const move = image.get(key(ctx.state, tile.x, tile.y));
+    if (move === undefined) continue;
+    const terrain = terrainScoreAt(ctx.state.map, ctx.unit, tile.x, tile.y, ctx.state.terrainPatches);
+    const score = healRodPositionScore(move, terrain);
+    if (best !== undefined) {
+      if (score < best.score) continue;
+      if (score === best.score && aiIsRandom(ctx.rng)) continue;
+    }
+    best = { moveX: tile.x, moveY: tile.y, move, score };
+  }
+  return best === undefined ? undefined : { moveX: best.moveX, moveY: best.moveY, move: best.move };
+}
+
+/**
+ * `AIThink$$RodHealTo`(0x1946A00) — `RD_Heal(20)`. `ActionRodHeal`(0x19469F0)은 `b RodHealTo` 썽크다.
+ *
+ * 판독(MP4 2라운드 직접 디스어셈블):
+ * ```
+ * 0x01946B20  HasHealRod(unit, 0) 거짓  → None(0)
+ * 0x01946B94  UnitAIMove(deploy, unit, movePower = -1, flag = 2, weaponFlag = 0x8000000)
+ * 0x01946C90  MapFor$$EachAllyUnit(ForceCursor, UnitFunction(<RodHealTo>b__0))   ; ★아군 전수
+ * 0x01946C9C  dc.itemIndex == -1 이면 → None(0)
+ * 0x01946D04~ mind.ItemIndex / mind.X / mind.Z 커밋
+ * ```
+ * `<RodHealTo>b__0(ally)` 0x294BF60 = 대상의 셀마다 `GetHealRodScore` → **최댓값 채택, 동점 `AI.IsRandom`**.
+ * `GetHealRodScore` 0x1959E80 = 슬롯 0..7 중 `ItemData.UseType(0x50) == 2`만 순회 →
+ * `GetHealRodScoreImpl` 0x19599F0(= `IsHealRodPermission` + **자기 자신 제외** + `ItemData[0x80] == 2`(RodType 회복)
+ * + `GetHealRodPosition`) → `CalcHealRodScore` 최댓값.
+ *
+ * ☠**미판독 잔여**: `IsHealRodPermission`(0x19594E0) 본문 전량. AI_ENGINE §9-1이 이 함수를 `AskHealA`의
+ * 소비처로 명시하므로 **AskHealA(대상 HP% < healRateA) + 피해 있음**으로 이식하고 장부에 assumed로 남긴다.
+ */
+export function rodHealTo(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  const staves = (actor.staves ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.rodType === 2 && s.uses > 0);
+  if (staves.length === 0) return NONE; // HasHealRod 게이트
+  const image = moveImageOf(ctx.state, actor);
+  let best: { score: number; target: string; staff: number; moveX: number; moveY: number } | undefined;
+
+  for (const ally of ctx.state.units) {
+    if (ally.dead || ally.id === actor.id || ally.force !== actor.force) continue;
+    const missing = ally.stats.hp - ally.hp;
+    if (missing < 1) continue;
+    // `IsHealRodPermission`(0x19594E0) 5·6단: 비플레이어 진영 대상은 `AskHealA | AskHealB` 중 하나,
+    // 플레이어 진영 대상은 `hp*100/maxHp < 75` 고정. ★aiHealCondition이 force 0에 75/30을 강제하므로
+    //   두 규칙 모두 `askHealA || askHealB`로 정확히 표현된다.
+    const ask = aiHealCondition(ally);
+    if (!ask.askHealA && !ask.askHealB) continue;
+    for (const { s, i } of staves) {
+      const pos = healRodPosition(ctx, ally, s, image);
+      if (pos === undefined) continue;
+      const healed = Math.min(staffHealAmount(actor, ally, s), missing);
+      const score = calcHealRodScore(
+        healed, missing, pos.moveX === actor.x && pos.moveY === actor.y, actor.force === 0,
+      );
+      if (best !== undefined) {
+        if (score < best.score) continue;
+        if (score === best.score && ctx.rng.next(2) !== 0) continue;
+      }
+      best = { score, target: ally.id, staff: i, moveX: pos.moveX, moveY: pos.moveY };
+    }
+  }
+  if (best === undefined) return NONE;
+  const actions: BattleAction[] = [];
+  if (best.moveX !== actor.x || best.moveY !== actor.y) {
+    actions.push({ type: "move", unit: actor.id, x: best.moveX, y: best.moveY });
+  }
+  actions.push({ type: "staff", unit: actor.id, target: best.target, staff: best.staff });
+  return { kind: "decide", actions };
+}
+
+/**
+ * `AIThink$$ActionMovePosition`(0x194F5A0) — `MV_Position(91)`.
+ *
+ * 판독(MP4 2라운드 직접 디스어셈블):
+ * ```
+ * 0x0194F6A4  Unit$$CanUnlockDoor(unit, 1) → moveFlag 베이스 0x1200 : 0x1000
+ * 0x0194F6F0  mov w2, #0x64
+ * 0x0194F704  UnitAIMove(deploy, unit, movePower = 100, flag, weaponFlag = 0)   ; ★맵 전역 이미지
+ * 0x0194F71C  x = v0.get_X() ; 0x0194F72C  z = v0.get_Z()                       ; dispos `pos(x,z)`
+ * 0x0194F784  tbnz w8, #0x1f → None(0)                                          ; 목표 칸 도달 불가
+ * 0x0194F7B4  mov w3, #0x10 → MoveTo(this, x, z, MoveFlag.Door(16))
+ * ```
+ * ★`Door(16)`은 `MoveTo` 칸 채점에 쓰이지 않는다(채점이 보는 것은 Ignore/Back/IgnoreIceTile뿐) —
+ * 확정 뒤 `ToDoor`로 문을 여는 데만 쓰이며, 그 부수효과는 엔진 미모델링이다.
+ */
+export function movePosition(ctx: HandlerContext): ActionResult {
+  const pos = parsePos(ctx.args[0]);
+  if (pos === undefined) return { kind: "deficit", reason: "MV_Position 좌표 인자(pos(x,z)) 부재" };
+  // 목표 칸이 **맵 전역 이동 이미지**에 없으면(도달 불가) None.
+  const wide = moveImageOf(ctx.state, ctx.unit, -1);
+  if (!wide.has(key(ctx.state, pos.x, pos.y))) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, pos.x, pos.y, MOVE_FLAG.door, ctx.rng);
+  // ★이미 목표 칸에 있으면 MoveTo의 초기 임계를 넘는 칸이 없어 `UnitAI.Idle`만 서고 None이 된다.
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/** 국면의 조사 지점 중 종별 일치분. */
+const interactionsOf = (ctx: HandlerContext, kind: string): { x: number; y: number; pid?: string }[] =>
+  (ctx.state.map.interactions ?? []).filter((i) => i.kind === kind);
+
+/**
+ * `AIThink$$ActionMoveEscape`(0x1950C40) — `MV_Escape(96)`/`MV_EscapeSlow`.
+ *
+ * 판독(I_handlers2 §5): A버퍼 = movePower 100 이동 이미지, 후보는 `IsEscapePosition`(0x195FDF0)인 칸,
+ * 점수 `100 - costA` 최대(= 가장 싸게 닿는 이탈점), 동점 코인플립. 끝은
+ * `MoveTo(tx, tz, flag = Through|Break|Door(0x13))`.
+ * ★**도착해도 이 핸들러는 유닛을 제거하지 않는다**(488명령 전수에 제거 계열 호출 없음) —
+ * 이탈 소멸은 별도 계층이므로 **이동 축만 배선해도 오재현이 아니다**.
+ *
+ * ☠`IsEscapePosition`의 두 갈래 중 **"플레이 영역 테두리" 갈래는 미배선**이다 —
+ * 엔진에 PlayArea 사각형 사영이 없어(맵 경계와 다르다) 지어낼 수 없다.
+ * 조사 지점(`MapInspectors.IsEnable(Kind.Escape)`) 갈래만 소비하고, 지점이 아예 없으면 정직 결손으로 올린다.
+ */
+export function moveEscape(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  // 이탈점에 인물이 걸려 있으면 그 유닛 전용이다(S015 반지 소지 적).
+  const claimed = (ctx.state.map.interactions ?? []).filter(
+    (i) => i.kind === "escape" && i.pid !== undefined && i.pid !== actor.pid,
+  );
+  const isClaimedByOther = (x: number, y: number): boolean => claimed.some((c) => c.x === x && c.y === y);
+  const image = moveImageOf(ctx.state, actor, -1); // 목표 선정은 맵 전역 도달성으로
+  const spots: { x: number; y: number }[] = [];
+  for (const k of image.keys()) {
+    const x = k % ctx.state.map.width;
+    const y = Math.floor(k / ctx.state.map.width);
+    if (!isEscapePosition(ctx.state.map, x, y, actor.moveType)) continue;
+    if (isClaimedByOther(x, y)) continue;
+    spots.push({ x, y });
+  }
+  if (spots.length === 0) return NONE;
+  return moveToward(ctx, spots, MOVE_FLAG.through | MOVE_FLAG.break | MOVE_FLAG.door);
+}
+
+
+/**
+ * `AIThink$$ActionMindTreasure`(0x194AC70) — `MI_Treasure(61)`.
+ *
+ * 판독(I_handlers2 §6): `MapFor.EachPoke(Kind.Tbox(5))` 열거 → 도달 가능·칸 비어 있음 필터 →
+ * 점수 `100 - costA` 최대(동점 코인플립 없음) → `MapMind.Type = TreasureBox(23)`, 목적지 = 이동칸.
+ *
+ * ☠**이동 축만 배선한다** — 상자 개방 실행(내용물 취득·상자 소멸)은 국면에 상자 상태가 없어 미배선이다.
+ * ⚠그 결과 도달한 유닛은 이후 턴에 제자리에서 아무것도 하지 않는다(MoveTo가 목표 칸에서 None을 내므로
+ * 대기로 흘러간다). 원기라면 열고 떠났을 것이므로 **이 고착은 알려진 오재현**이다(장부 ai.action-handlers).
+ */
+export function mindTreasure(ctx: HandlerContext): ActionResult {
+  const chests = interactionsOf(ctx, "chest");
+  if (chests.length === 0) return { kind: "deficit", reason: "상자 미사영: chest 조사 지점 없음" };
+  return moveToward(ctx, chests, 0);
+}
+
+/** 후보 지점들 중 **이동 코스트가 가장 싼** 곳으로 향한다(`100 - costA` 최대와 동치). */
+function moveToward(
+  ctx: HandlerContext,
+  spots: readonly { x: number; y: number }[],
+  flag: number,
+): ActionResult {
+  const image = moveImageOf(ctx.state, ctx.unit, -1); // movePower 100 = 맵 전역 도달성
+  const occupied = new Set(
+    ctx.state.units.filter((u) => !u.dead && u.id !== ctx.unit.id).map((u) => key(ctx.state, u.x, u.y)),
+  );
+  let goal: { x: number; y: number; cost: number } | undefined;
+  for (const s of spots) {
+    const k = key(ctx.state, s.x, s.y);
+    const cost = image.get(k);
+    if (cost === undefined || occupied.has(k)) continue;
+    if (goal === undefined || cost < goal.cost) goal = { x: s.x, y: s.y, cost };
+  }
+  if (goal === undefined) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, goal.x, goal.y, flag, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/**
+ * `IsEscapePosition`(0x195FDF0) — 이탈 가능 칸.
+ *
+ * ★**플레이 영역은 맵 전체가 아니라 "맵에서 바깥 1칸 테두리를 뺀 사각형"**이다.
+ * 유일한 기입자 `MapImage$$SetSize(w, h)`(0x1DE2BA0)가 `PlayAreaX = PlayAreaZ = 1`,
+ * `PlayAreaX2 = w - 2`, `PlayAreaZ2 = h - 2`를 **상수로** 박고, 호출자는
+ * `MapTerrain$$UpdateMapImage`(0x201C400)가 `m_Width`/`m_Height`만 넘기는 곳 하나뿐이다
+ * (☠`m_X`/`m_Z`는 쓰이지 않는다 — "플레이 영역 = 맵 사각형"이라는 가설은 반증됐다).
+ * 실데이터 대조: 전 54챕터 6090유닛 중 6088이 이 사각형 안이고, 예외 2건은 (0,0) 대기 유닛이다.
+ *
+ * 판정 = **플레이 영역 테두리 칸이면서 바깥 한 칸이 통행 가능**, 아니면 **Escape 조사 지점**.
+ */
+export function isEscapePosition(map: BattleMap, x: number, y: number, moveType: MoveType): boolean {
+  if ((map.interactions ?? []).some((i) => i.kind === "escape" && i.x === x && i.y === y)) return true;
+  const x1 = 1;
+  const y1 = 1;
+  const x2 = map.width - 2;
+  const y2 = map.height - 2;
+  if (x < x1 || y < y1 || x > x2 || y > y2) return false;
+  const outside =
+    x === x1 ? { x: 0, y } : x === x2 ? { x: map.width - 1, y } : y === y1 ? { x, y: 0 } : y === y2 ? { x, y: map.height - 1 } : undefined;
+  if (outside === undefined) return false;
+  // `IsNoMove` = 이동타입 진입 코스트가 0xFE 초과.
+  return (map.costs[moveType]?.[outside.y]?.[outside.x] ?? 255) <= 0xfe;
+}
+
+/**
+ * `AIThink$$ActionMindEscape`(0x194B390) — `MI_Escape(63)` / `MI_EscapeSlow(64)`.
+ *
+ * 판독(K_interference_escape §P4): 게이트는 `BmapSize > 1`(대형 유닛) 하나뿐이고,
+ * `MapFor.EachPlayArea` + `IsEscapePosition`으로 후보를 모아 **`100 - costA` 최대**를 고른다
+ * (☠동점 코인플립이 **없다** — 나중 후보가 이긴다). 칸에 유닛이 있으면 제외.
+ * 커밋은 `MapMind.X/Z` + **`MapMind.Type = Escape(19)`**이고 `MoveTo`를 부르지 않는다.
+ *
+ * ☠**이탈 실행은 이 핸들러가 하지 않는다** — `ProcEscape.OnDispose`(0x1E3A130)가
+ * `SetStatus(PureHide|EscapeHere)`로 **은닉+표식**할 뿐이고(사망 아님), 소지품은 유닛과 함께 사라진다.
+ * 관측 훅은 `EventSequence.Poke(Kind.Escape)`라 **Lua 층**이다(S015의 "반지 소지 적 이탈 = 패배"가 그것).
+ * ⇒ 엔진에는 은닉 상태가 없어 **이동만 배선**한다. 도달한 적이 사라지지 않는 것은 **알려진 오재현**이다.
+ */
+export function mindEscape(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  // ★`UnitAIMove(movePower = -1)`은 "무제한"이 아니라 **유닛 실이동력**이다(H_handlers §1-1).
+  //   맵 전역 이미지를 쓰면 이번 턴에 못 닿는 칸을 목적지로 골라 reduce가 이동을 거부한다
+  //   (다턴 소크 게이트가 s015에서 실제로 잡았다 — "불법 이동: (14,27)는 이동 범위 밖").
+  const image = moveImageOf(ctx.state, actor);
+  const occupied = new Set(
+    ctx.state.units.filter((u) => !u.dead && u.id !== actor.id).map((u) => key(ctx.state, u.x, u.y)),
+  );
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const [k, cost] of image) {
+    if (occupied.has(k)) continue;
+    const x = k % ctx.state.map.width;
+    const y = Math.floor(k / ctx.state.map.width);
+    if (!isEscapePosition(ctx.state.map, x, y, actor.moveType)) continue;
+    // 점수 = 100 - costA 최대 ⇒ 코스트 최소. 동점은 **나중 후보가 이긴다**(코인플립 없음).
+    if (best === undefined || cost <= best.cost) best = { x, y, cost };
+  }
+  if (best === undefined) return NONE;
+  if (best.x === actor.x && best.y === actor.y) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: actor.id, x: best.x, y: best.y },
+      { type: "wait", unit: actor.id },
+    ],
+  };
+}
+
+/**
+ * `AIThink$$ActionMindTorch`(0x194CAF0) — `MI_Torch(70)`.
+ *
+ * ★☠**횃불 아이템이 아니라 맵의 조사 지점이다.** 본문이 도는 것은
+ * `MapFor.EachPoke(MapInspector.Kind.Torch = 7, b__0)`(0x194CC34 `mov w0,#7` → 0x1DC2E00)이고,
+ * 후보 술어 `b__0`(0x2947850)은 `(sbyte)AIDeploy.MoveImage[x|z<<5] < 0`이면 기각(도달 불가)한 뒤
+ * `MapImage` 층 판정을 통과한 칸만 채택한다. 채택되면 `mind.X/Z` + `MapMind.Type = Torch(22)`.
+ *
+ * ★**None(0)으로 빠지는 경로 3개**(전부 코드 확정):
+ *  (1) `person.BmapSize(0x8C) > 1` — 대형 유닛(0x194CBB0)
+ *  (2) ☠**`IsAttackableEnemy`(0x194CD10)가 참이면 즉시 None**(0x194CBC8) —
+ *      즉 **때릴 적이 있으면 횃불을 켜지 않고 공격하러 간다**. 슬롯 순서가 Mind→Attack이라
+ *      이 게이트가 없었다면 횃불 유닛은 영영 공격을 못 했을 것이다.
+ *  (3) 후보 칸을 못 찾으면 `dc.x == -1`로 남아 None(0x194CC4C)
+ *
+ * ⇒ ☠**FESim은 Torch 조사 지점을 모델링하지 않는다** — 파이프라인이 추출하는 interaction 종별은
+ * chest·visit·door·escape·destroy·defendArea뿐이고 torch는 0건이며, `GameState`에도 조사 지점 층이 없다.
+ * 따라서 (3)이 **항상** 성립해 이 옵코드는 **None을 반환하는 것이 코드상 정답**이다(근거 없는 대기 강하가 아니다).
+ * 시야(전장의 안개) 자체도 미모델링이라 횃불로 바뀔 국면이 없다.
+ */
+export function mindTorch(): ActionResult {
   return NONE;
 }
 
