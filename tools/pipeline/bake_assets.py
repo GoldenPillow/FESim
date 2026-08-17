@@ -90,9 +90,25 @@ def chapter_units(chapter: dict, persons: dict, jobs: dict):
     return list(seen.values())
 
 
-def bake(args) -> int:
+def load_assets(romfs: Path) -> dict:
+    """번들 로드는 챕터마다 반복할 이유가 없다 — 전수 베이크(--all)에서 54회 재파싱을 피한다."""
+    unit_root = romfs / "ui_icon" / "unit"
+    indexes = load_sprites(unit_root / "unitindexes.bundle")
+    by_pair = {}
+    for name in indexes:
+        pal, icon, weapon = split_name(name)
+        by_pair.setdefault((pal, icon), {})[weapon] = name
+    return {
+        "indexes": indexes,
+        "palettes": {n: palette_table(o) for n, o in load_sprites(unit_root / "unitpallettes.bundle").items()},
+        "faces": load_sprites(romfs / "ui_facethumb" / "facethumb.bundle"),
+        "by_pair": by_pair,
+    }
+
+
+def bake(args, chapter_name: str, assets: dict) -> int:
     data = args.data
-    chapter_path = data / "chapters" / f"{args.chapter.lower()}.json"
+    chapter_path = data / "chapters" / f"{chapter_name.lower()}.json"
     if not chapter_path.is_file():
         print(f"chapter not found: {chapter_path}", file=sys.stderr)
         return 2
@@ -102,15 +118,8 @@ def bake(args) -> int:
     jobs = json.loads((data / "tables" / "jobs.json").read_text(encoding="utf-8"))
     items = json.loads((data / "tables" / "items.json").read_text(encoding="utf-8"))
 
-    unit_root = args.romfs / "ui_icon" / "unit"
-    indexes = load_sprites(unit_root / "unitindexes.bundle")
-    palettes = {n: palette_table(o) for n, o in load_sprites(unit_root / "unitpallettes.bundle").items()}
-    faces = load_sprites(args.romfs / "ui_facethumb" / "facethumb.bundle")
-
-    by_pair = {}
-    for name in indexes:
-        pal, icon, weapon = split_name(name)
-        by_pair.setdefault((pal, icon), {})[weapon] = name
+    indexes, palettes = assets["indexes"], assets["palettes"]
+    faces, by_pair = assets["faces"], assets["by_pair"]
 
     icon_dir = data / "assets" / "mapicons"
     face_dir = data / "assets" / "faces"
@@ -192,13 +201,8 @@ def bake(args) -> int:
     manifest["faces"] = dict(sorted(manifest["faces"].items()))
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
-    if args.dump_png:
-        args.dump_png.mkdir(parents=True, exist_ok=True)
-        for src in sorted(icon_dir.glob("*.webp")) + sorted(face_dir.glob("*.webp")):
-            Image.open(src).save(args.dump_png / f"{src.stem}.png")
-
-    print(f"mapicons: {len(list(icon_dir.glob('*.webp')))} files ({baked_icons} new)")
-    print(f"faces: {len(list(face_dir.glob('*.webp')))} files")
+    print(f"{chapter['cid']} mapicons: {len(list(icon_dir.glob('*.webp')))} files ({baked_icons} new)")
+    print(f"{chapter['cid']} faces: {len(list(face_dir.glob('*.webp')))} files")
     for kind, names in chapter_missing.items():
         if names:
             print(f"missing {kind}: {names}")
@@ -208,10 +212,34 @@ def bake(args) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chapter", default="M002")
+    parser.add_argument("--all", action="store_true", help="chapterlist.json의 전 챕터 베이크")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
-    return bake(parser.parse_args())
+    args = parser.parse_args()
+
+    chapters = [args.chapter]
+    if args.all:
+        listing = args.data / "tables" / "chapterlist.json"
+        if not listing.is_file():
+            print(f"chapterlist not found: {listing} (먼저 ./dev transform --tables)", file=sys.stderr)
+            return 2
+        chapters = [e["cid"] for e in json.loads(listing.read_text(encoding="utf-8"))]
+
+    assets = load_assets(args.romfs)
+    failed = 0
+    for chapter in chapters:
+        failed += 1 if bake(args, chapter, assets) else 0
+
+    if args.dump_png:
+        args.dump_png.mkdir(parents=True, exist_ok=True)
+        for src in sorted((args.data / "assets" / "mapicons").glob("*.webp")) + \
+                sorted((args.data / "assets" / "faces").glob("*.webp")):
+            Image.open(src).save(args.dump_png / f"{src.stem}.png")
+
+    if args.all:
+        print(f"== bake --all: {len(chapters) - failed}/{len(chapters)} chapters ==")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
