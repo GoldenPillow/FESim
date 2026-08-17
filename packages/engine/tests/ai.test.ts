@@ -28,10 +28,13 @@ import {
   guardTo,
   isEscapePosition,
   killScoreNormalize,
+  mindBreakDown,
   mindTorch,
   mindTreasure,
+  moveBreakDown,
   moveEscape,
   moveIdle,
+  movePerson,
   movePosition,
   movePowerOf,
   targetFilter,
@@ -752,5 +755,113 @@ describe("이탈 지점 판정 (IsEscapePosition 0x195FDF0)", () => {
   it("조사 지점(escape)은 위치와 무관하게 이탈 지점이다", () => {
     const map = mapOf(12, 16, [{ kind: "escape", x: 5, y: 5 }]);
     expect(isEscapePosition(map, 5, 5, "foot")).toBe(true);
+  });
+});
+
+describe("AT_Job(7) — 직업 지정 표적 (IsAttackPermissionOnlyCommand)", () => {
+  const t = (over: Partial<UnitState>) => unit({ id: "t", force: 0, x: 0, y: 0, ...over });
+
+  it("★대상의 jid가 인자와 일치해야 한다", () => {
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({ jid: "JID_ソードマスター" }))).toBe(true);
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({ jid: "JID_パラディン" }))).toBe(false);
+  });
+
+  it("☠jid가 사영되지 않은 유닛은 정직 결손 — 거짓으로 눌러 감추지 않는다", () => {
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({}))).toBeUndefined();
+  });
+});
+
+describe("MV_Person(90) — 지정 인물 추적 (ActionMovePerson 0x194F2E0)", () => {
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const map = flatMap(14, 14);
+  const chaser = () => unit({ id: "me", force: 1, x: 2, y: 2, movePoints: 3, weapon: sword, weapons: [sword] });
+  const ctx = (units: UnitState[], args: string[]): HandlerContext =>
+    ({
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!, args, rng: { next: () => 1 }, think: 8, allowIdle: false, targeted: {},
+    }) as unknown as HandlerContext;
+
+  it("★지정 PID 쪽으로 이동한다 — 진영을 가리지 않는다(EachUnit)", () => {
+    const target = unit({ id: "t", force: 0, x: 10, y: 2, pid: "PID_모브" });
+    const r = movePerson(ctx([chaser(), target], ["PID_모브"]));
+    expect(r.kind).toBe("decide");
+    const move = (r.kind === "decide" ? r.actions : []).find((a) => a.type === "move");
+    if (move !== undefined && move.type === "move") expect(move.x).toBeGreaterThan(2);
+  });
+
+  it("대상이 없으면 아무것도 하지 않는다(None)", () => {
+    expect(movePerson(ctx([chaser(), unit({ id: "t", force: 0, x: 10, y: 2, pid: "PID_다른" })], ["PID_모브"])).kind)
+      .toBe("none");
+  });
+
+  it("☠인자가 없으면 정직 결손", () => {
+    expect(movePerson(ctx([chaser()], [])).kind).toBe("deficit");
+  });
+});
+
+describe("AC_HealRange(8) — 회복 지팡이 사정권 (ActiveCauseHealRange 0x1944A30)", () => {
+  const map = flatMap(14, 14);
+  const rod = { power: 10, rangeMin: 1, rangeMax: 2, uses: 5, rodType: 2, rodExp: 0 };
+  const healer = (over: Partial<UnitState> = {}) =>
+    unit({ id: "me", force: 1, x: 2, y: 2, movePoints: 2, staves: [rod], ai: { healRateA: 75, healRateB: 50 }, ...over });
+  const ally = (x: number, y: number, hp: number) =>
+    unit({ id: "a", force: 1, x, y, hp, ai: { healRateA: 75, healRateB: 50 } });
+  const ask = (units: UnitState[]) =>
+    evaluateCause(AC.healRange, 100, undefined, {
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!,
+      args: [],
+    });
+
+  it("★이동범위 + 회복 지팡이 사거리 안에 **회복 자격 아군**이 있으면 기동", () => {
+    expect(ask([healer(), ally(2, 6, 5)])).toBe(true); // 이동2 + 사거리2 = 4칸
+    expect(ask([healer(), ally(2, 9, 5)])).toBe(false);
+  });
+
+  it("☠회복 자격이 없는(멀쩡한) 아군은 세지 않는다", () => {
+    expect(ask([healer(), ally(2, 4, 30)])).toBe(false);
+  });
+
+  it("☠회복 지팡이가 없으면 항상 false (HasHealRod 게이트)", () => {
+    expect(ask([healer({ staves: [] }), ally(2, 4, 5)])).toBe(false);
+  });
+
+  it("★자기 자신은 대상에서 제외된다", () => {
+    expect(ask([healer({ hp: 5 })])).toBe(false);
+  });
+});
+
+describe("MI/MV_BreakDown(65/100) — 방어 바닥 도달 (M_rod_breakdown §P2)", () => {
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const board = (interactions: BattleMap["interactions"]): BattleMap => ({ ...flatMap(14, 14), interactions });
+  const me = () => unit({ id: "me", force: 1, x: 2, y: 2, movePoints: 3, weapon: sword, weapons: [sword] });
+  const ctx = (map: BattleMap, units: UnitState[]): HandlerContext =>
+    ({
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!, args: [], rng: { next: () => 1 }, think: 8, allowIdle: false, targeted: {},
+    }) as unknown as HandlerContext;
+
+  it("★대상은 BreakdownEnemy poke = 파이프라인의 defendArea(방어 바닥)다", () => {
+    const map = board([{ kind: "defendArea", x: 4, y: 2 }]);
+    const r = mindBreakDown(ctx(map, [me()]));
+    expect(r.kind).toBe("decide");
+    const acts0 = r.kind === "decide" ? r.actions : [];
+    expect(acts0.find((a) => a.type === "move")).toMatchObject({ x: 4, y: 2 });
+  });
+
+  it("MI_BreakDown은 **이번 턴에 닿는** 칸만 고른다 — 멀면 None", () => {
+    expect(mindBreakDown(ctx(board([{ kind: "defendArea", x: 12, y: 12 }]), [me()])).kind).toBe("none");
+  });
+
+  it("★MV_BreakDown은 맵 전역 도달성으로 목표를 잡고 접근한다", () => {
+    const r = moveBreakDown(ctx(board([{ kind: "defendArea", x: 12, y: 2 }]), [me()]));
+    expect(r.kind).toBe("decide");
+    const move = (r.kind === "decide" ? r.actions : []).find((a) => a.type === "move");
+    if (move !== undefined && move.type === "move") expect(move.x).toBeGreaterThan(2);
+  });
+
+  it("☠방어 바닥이 국면에 없으면 정직 결손", () => {
+    expect(mindBreakDown(ctx(board(undefined), [me()])).kind).toBe("deficit");
+    expect(moveBreakDown(ctx(board(undefined), [me()])).kind).toBe("deficit");
   });
 });

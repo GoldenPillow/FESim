@@ -14,10 +14,13 @@ import {
   healMindTo,
   moveAttackRange,
   mindTorch,
+  mindBreakDown,
   mindEscape,
   mindTreasure,
+  moveBreakDown,
   moveEscape,
   moveIdle,
+  movePerson,
   movePosition,
   rodHealTo,
   type HandlerContext,
@@ -109,6 +112,9 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     //   MI_Escape와 같이 취급한다(장부 ai.action-handlers에 근사로 명기).
     if (opcode === ACT.mindEscape || opcode === ACT.mindEscapeSlow) return mindEscape(ctx);
     if (opcode === ACT.movePosition) return movePosition(ctx);
+    if (opcode === ACT.movePerson) return movePerson(ctx);
+    if (opcode === ACT.mindBreakDown) return mindBreakDown(ctx);
+    if (opcode === ACT.moveBreakDown) return moveBreakDown(ctx);
     if (opcode === ACT.rodHeal) return rodHealTo(ctx);
     if (GUARD_OPCODES.has(opcode)) return guardTo(ctx);
     if (opcode === ACT.healMiddleLow || opcode === ACT.healDefault) return healMindTo(ctx, opcode);

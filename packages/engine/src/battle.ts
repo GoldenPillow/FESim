@@ -43,6 +43,8 @@ export interface UnitState {
   name?: string;
   /** dispos Pid 원문 — 이벤트 스크립트가 유닛을 부르는 주소(동일 pid 복수 유닛 가능 — 환영병). */
   pid?: string;
+  /** dispos Jid 원문 — 직업 지정 AI(`AT_Job`)의 판별 주소. 부재 = 미사영(판정 시 정직 결손). */
+  jid?: string;
   /** 보스 표지(WinRuleDestroyBoss 판정 대상) — ⚠dispos flag 비트 의미 미판독, 사영은 데이터층 가정. */
   boss?: boolean;
   /** 이벤트의 AI 재설정 기록(AiSetSequence류 원문 인자 누적) — 소비 = MP4 AI 실행기. */
@@ -1440,7 +1442,12 @@ export function settleOutcome(state: GameState, completedTurn?: number): GameSta
   // enemyLessThan 음수 = 잔존 수 판정 통째 무효화 — GameEndCheck 0x1F4A900 분기 그대로.
   const routDisabled = rule?.enemyLessThan !== undefined && rule.enemyLessThan < 0;
   let outcome: GameState["outcome"];
-  if (state.variables?.["勝利"] === 1) outcome = "victory";
+  // 주인공(SID_主人公) 사망 = 상시 패배 — 파라미터 없는 즉시 판정이라 승리 변수보다 앞선다
+  // (MapSituation.GameEndCheckUnitDead DeadHero=6, 사망 처리 시점 — _wip_winrule §1.2·§1.5.
+  //  실측: m002 자율 플레이에서 뤼에르 사망 후 '승리'까지 진행된 오재현이 이 결손의 발현이었다).
+  if (state.units.some((u) => u.dead && u.skills?.some((s) => s.Sid === "SID_主人公") === true)) {
+    outcome = "defeat";
+  } else if (state.variables?.["勝利"] === 1) outcome = "victory";
   else if (state.variables?.["敗北"] === 1) outcome = "defeat";
   else if (!routDisabled && enemies.length > 0 && aliveEnemies <= Math.max(rule?.enemyLessThan ?? 0, 0)) {
     outcome = "victory";

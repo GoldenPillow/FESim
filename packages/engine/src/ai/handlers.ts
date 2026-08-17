@@ -102,8 +102,11 @@ export function targetFilter(opcode: number, args: readonly string[], target: Un
       //   그 정적 필드는 `OnCompletedEnd`(0x248D3F8)에서 **`SID_主人公`**로 채워진다.
       //   ⇒ "보스"가 아니라 **주인공 지정**이다(전 1523인물 중 PID_リュール 1건).
       return effectiveSkills(target)?.some((sk) => sk.Sid === "SID_主人公") === true;
+    case ACT.attackJob:
+    case ACT.attackJobNearestPosition:
+      // `t.m_Job(0x48) == v0.GetJob()` — 8(JobNearestPosition)은 7과 판정이 완전히 동일하다(점프테이블 동일 분기).
+      return target.jid === undefined ? undefined : target.jid === args[0];
     default:
-      // AT_Job(7/8)은 Job 사영이 UnitState에 없다.
       return undefined;
   }
 }
@@ -638,6 +641,118 @@ export function mindEscape(ctx: HandlerContext): ActionResult {
     actions: [
       { type: "move", unit: actor.id, x: best.x, y: best.y },
       { type: "wait", unit: actor.id },
+    ],
+  };
+}
+
+/**
+ * `MI_BreakDown(65)` — `ActionMindBreakDown`(0x194C290) · `MV_BreakDown(100)` — `ActionMoveBreakDown`(0x1951E20).
+ *
+ * ☠**이름과 달리 "구조물 파괴"가 아니다.** 대상은 오직
+ * **`MapFor.EachPoke(MapInspector.Kind.BreakdownEnemy = 12)`가 주는 좌표 집합**이고,
+ * 구조물의 HP·종별·`Destroyer`는 선택에 **전혀 관여하지 않는다**(전수 확인).
+ * 파이프라인은 이 인스펙터를 `EventEntryBreakdownEnemy` → **`defendArea`**로 사영하고 있으며,
+ * 실측된 타일이 `TID_防衛床`(방어 바닥)이다 ⇒ **"적이 방어 지점으로 밀고 들어가는" 이동 축**이다.
+ *
+ * 차이:
+ * - `MI_BreakDown` = 실이동력 이미지 · 후보 칸이 **비어 있어야** 함 · `100 - cost` 최대 ·
+ *   ☠**동점 코인플립 없음**(뒤 poke가 이긴다) · 커밋 = `MapMind.Type = BreakdownEnemy(18)` + 그 칸.
+ * - `MV_BreakDown` = movePower 100 + `BlockFree|DoorFree` 이미지 · 점유 검사 **없음** ·
+ *   `100 - cost` 최대 · 동점 **코인플립** · `MoveTo(x, z, MoveFlag.Break(2))`.
+ */
+export function mindBreakDown(ctx: HandlerContext): ActionResult {
+  const spots = interactionsOf(ctx, "defendArea");
+  if (spots.length === 0) return { kind: "deficit", reason: "방어 지점 미사영: BreakdownEnemy(defendArea) 조사 지점 없음" };
+  const image = moveImageOf(ctx.state, ctx.unit); // 실이동력
+  const occupied = new Set(
+    ctx.state.units.filter((u) => !u.dead && u.id !== ctx.unit.id).map((u) => key(ctx.state, u.x, u.y)),
+  );
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const s of spots) {
+    const k = key(ctx.state, s.x, s.y);
+    if (occupied.has(k)) continue;
+    const cost = image.get(k);
+    if (cost === undefined) continue;
+    // `100 - cost` 최대 = 코스트 최소. 동점은 **뒤 후보가 이긴다**(코인플립 없음).
+    if (best === undefined || cost <= best.cost) best = { x: s.x, y: s.y, cost };
+  }
+  if (best === undefined) return NONE;
+  if (best.x === ctx.unit.x && best.y === ctx.unit.y) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: best.x, y: best.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+export function moveBreakDown(ctx: HandlerContext): ActionResult {
+  const spots = interactionsOf(ctx, "defendArea");
+  if (spots.length === 0) return { kind: "deficit", reason: "방어 지점 미사영: BreakdownEnemy(defendArea) 조사 지점 없음" };
+  // movePower 100 + BlockFree — 점유를 무시한 맵 전역 도달성으로 목표만 고른다.
+  const image = moveImageOf(ctx.state, ctx.unit, -1, true);
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const s of spots) {
+    const cost = image.get(key(ctx.state, s.x, s.y));
+    if (cost === undefined) continue;
+    if (best === undefined || cost < best.cost) best = { x: s.x, y: s.y, cost };
+    else if (cost === best.cost && !aiIsRandom(ctx.rng)) best = { x: s.x, y: s.y, cost };
+  }
+  if (best === undefined) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, best.x, best.y, MOVE_FLAG.break, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/**
+ * `AIThink$$ActionMovePerson`(0x194F2E0) — `MV_Person(90)`.
+ *
+ * 판독(MP4 3라운드 직접 디스어셈블):
+ * ```
+ * 0x0194F488  mov w2, #0x64 ; UnitAIMove(deploy, unit, movePower = 100, ...)   ; ★맵 전역 이미지
+ * 0x0194F4BC  mov w8, #0x65 ; dc.best = 101                                     ; 코스트 최솟값 탐색용 센티널
+ * 0x0194F518  bl MapFor$$EachUnit(UnitFunction(b__0))                           ; ★전 유닛(진영 무관)
+ * 0x0194F530  bl AIThink$$MoveTo(this, tx, tz, flag = 0)
+ * ```
+ * `b__0`(0x2948540) = `CheckMoveTargetWithAttack` → **`unit.m_Person == v0.GetPerson()`** →
+ * 대상 셀마다 `cost = (sbyte)MoveImage[x|z<<5]`, `cost < 0`이면 기각, `dc.best < cost`면 기각
+ * ⇒ **가장 싸게 닿는 칸을 고르고 동점은 50% 코인플립**이다.
+ *
+ * ☠`CheckMoveTargetWithAttack`(0x195FA90)은 미판독이다 — 후보를 **좁히는** 필터라 누락 시 후보가 넓어질 뿐이고,
+ * PID 일치 조건이 이미 대상을 거의 1건으로 좁힌다.
+ */
+export function movePerson(ctx: HandlerContext): ActionResult {
+  const pid = ctx.args[0];
+  if (pid === undefined || pid === "") return { kind: "deficit", reason: "MV_Person 인물 인자 부재" };
+  // ★도색은 `moveFlag = BlockFree`라 **유닛 점유를 무시**한다 — 대상이 선 칸 자체가 목적지이므로
+  //   점유를 보면 후보가 통째로 사라진다.
+  const image = moveImageOf(ctx.state, ctx.unit, -1, true);
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const u of ctx.state.units) {
+    if (u.dead || u.id === ctx.unit.id || u.pid !== pid) continue;
+    const cost = image.get(key(ctx.state, u.x, u.y));
+    if (cost === undefined) continue;
+    if (best === undefined || cost < best.cost) {
+      best = { x: u.x, y: u.y, cost };
+    } else if (cost === best.cost && !aiIsRandom(ctx.rng)) {
+      best = { x: u.x, y: u.y, cost }; // ★동점은 50% 코인플립(뒤 후보가 이길 확률 1/2)
+    }
+  }
+  if (best === undefined) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, best.x, best.y, 0, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
     ],
   };
 }

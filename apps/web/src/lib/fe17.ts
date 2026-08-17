@@ -773,6 +773,8 @@ export interface BoardUnitProp {
   group: string;
   /** dispos Pid — 이벤트 스크립트가 유닛을 부르는 주소. */
   pid: string;
+  /** dispos Jid — 직업 지정 AI(AT_Job)의 판별 주소. */
+  jid: string;
   icon?: string;
   abbr: string;
   name: string;
@@ -1147,6 +1149,7 @@ export function boardProps(
       force: v.unit.force,
       group: v.group,
       pid: v.unit.pid,
+      jid: v.unit.jid,
       icon: v.icon,
       abbr: v.abbr,
       name: v.name,

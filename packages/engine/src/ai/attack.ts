@@ -41,8 +41,14 @@ export const aiIsRandom = (rng: RandomSource): boolean => rng.next(2) !== 0;
 /**
  * 도달 가능 칸 → 이동 코스트 이미지(`AIDeploy.MoveImage`). ★턴 1회 캐시가 아니라 **행동 시도 단위 재계산**(§5-A-4).
  * `factor` = `GetMovePower`의 백분율 인자(음수 = 100 = 사실상 무제한). 기본 = 유닛 실이동력.
+ * `blockFree` = 유닛 점유를 무시(`MoveFlag.BlockFree`) — 목적지 도달성만 볼 때 쓴다.
  */
-export function moveImageOf(state: GameState, u: UnitState, factor?: number): Map<number, number> {
+export function moveImageOf(
+  state: GameState,
+  u: UnitState,
+  factor?: number,
+  blockFree = false,
+): Map<number, number> {
   const image = new Map<number, number>();
   const budget = moveBudgetOn(state.map, u, state.terrainPatches);
   if (budget === undefined || state.map.costs[u.moveType] === undefined) return image;
@@ -53,7 +59,8 @@ export function moveImageOf(state: GameState, u: UnitState, factor?: number): Ma
     movePoints: factor === undefined ? budget : movePowerOf(budget, factor),
     start: { x: u.x, y: u.y },
     costAt: makeCostAt(state.map, state.structures, u.moveType, state.terrainPatches),
-    ...movePredicates(state.map, state.units, u),
+    // ★`MoveFlag.BlockFree`(0x1000) — 유닛 점유를 무시하고 도색한다(MV_Person 등 "도달성만" 보는 경로).
+    ...(blockFree ? {} : movePredicates(state.map, state.units, u)),
   })) {
     if (!moveLimitAllows(rect, u, t.x, t.y)) continue;
     image.set(t.y * state.map.width + t.x, Math.min(t.cost, 99));
