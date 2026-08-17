@@ -175,6 +175,8 @@ export interface EventSession {
   battle(state: GameState, kinds: ("battleBefore" | "battleTalk" | "battleAfter")[], attackerId: string, defenderId: string): HookResult;
   /** 유닛 행동 종료 폴링(Fixed, terminal일 때만) + 영역 진입(Area) — ⚠발화 시점 근사(장부 참조). */
   acted(state: GameState, unitId: string, terminal: boolean): HookResult;
+  /** 파괴 완파 발화(Destroy) — 완파된 구조물 사각과 교차하는 EventEntryDestroy 트리거. */
+  destroyed(state: GameState, rects: { x1: number; y1: number; x2: number; y2: number }[]): HookResult;
   /** 미배선·미지 네이티브 호출 기록(정직성 표면) — [함수명, 호출 수]. */
   unknownCalls(): [string, number][];
 }
@@ -1067,6 +1069,14 @@ export function createEventSession(opts: {
           i.rect !== undefined &&
           isValue(i.force, unit.force) &&
           unit.x >= i.rect.x1 && unit.x <= i.rect.x2 && unit.y >= i.rect.y1 && unit.y <= i.rect.y2,
+        );
+      });
+    },
+    destroyed(state, rects) {
+      return withDraft(state, {}, () => {
+        fire("destroy", (i) =>
+          i.rect !== undefined &&
+          rects.some((r) => r.x1 <= i.rect!.x2 && i.rect!.x1 <= r.x2 && r.y1 <= i.rect!.y2 && i.rect!.y1 <= r.y2),
         );
       });
     },

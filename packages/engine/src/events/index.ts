@@ -41,6 +41,21 @@ export function createEventedReducer(base: Reduce, session: EventSession): Reduc
     collected = [...collected, ...next.events];
     let after: GameState = { ...next, events: collected };
 
+    // 파괴 완파 발화(Destroy) — 파괴 커맨드·EventOpenDoor로 hp 0에 도달한 구조물 사각 기준.
+    const razed = next.events.filter(
+      (e): e is Extract<BattleEvent, { type: "destroy" }> => e.type === "destroy" && e.hpAfter === 0,
+    );
+    if (razed.length > 0) {
+      const rects = razed.flatMap((e) => {
+        const st = (cur.structures ?? next.structures)?.[e.structure];
+        return st === undefined ? [] : [{ x1: st.x, y1: st.y, x2: st.x + st.w - 1, y2: st.y + st.h - 1 }];
+      });
+      if (rects.length > 0) {
+        const r = session.destroyed(after, rects);
+        after = settle({ ...r, state: { ...r.state, events: [...collected, ...r.events] } });
+        collected = after.events;
+      }
+    }
     // 사망 발화(Die) — 이벤트 스크립트의 격파 트리거(예: m002 루미엘 1차 격파 → 국면 전환 플래그).
     const deaths = next.events.filter((e): e is Extract<BattleEvent, { type: "death" }> => e.type === "death");
     if (deaths.length > 0) {

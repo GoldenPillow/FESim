@@ -211,7 +211,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Destroy terrain/structures", ko: "파괴(구조물 부수기)" },
     status: "anchored",
     evidence:
-      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·EventEntryDestroy 발화 접점(이벤트 세션과 합류 시)",
+      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·~~EventEntryDestroy 발화 접점~~(2026-08-18 배선 — 완파 사각 교차 destroyed 훅, events.test.ts)",
   },
   {
     id: "actions.cannon",

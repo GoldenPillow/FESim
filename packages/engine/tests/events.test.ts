@@ -113,6 +113,37 @@ FORCE_ALLY = 2
 const mkSession = (h = host(), script = SCRIPT) =>
   createEventSession({ sources: { common: COMMON_MIN, test: script }, chapter: "test", host: h });
 
+describe("파괴 트리거(EventEntryDestroy) — 완파 시 발화", () => {
+  const SCRIPT_D = `
+Include("Common")
+function Startup()
+  WinRuleSetEnemyNumberLessThanOrEqualTo(-1)
+  EventEntryDestroy(onBreak, 1, 0, 1, 0)
+end
+function onBreak()
+  VariableSet("파괴발화", 1)
+end
+`;
+  const mk = () =>
+    createEventSession({ sources: { common: COMMON_MIN, test: SCRIPT_D }, chapter: "test", host: host() });
+
+  it("destroy 액션으로 범위 내 구조물이 완파되면 콜백이 돈다 — 부분 파괴는 침묵", () => {
+    const session = mk();
+    const reduce = createEventedReducer(base, session);
+    const p = unit({ id: "p", force: 0, x: 0, y: 0, weapon: sword });
+    const e = unit({ id: "e", force: 1, x: 7, y: 7 });
+    const s0raw = state([p, e]);
+    s0raw.structures = [{ x: 1, y: 0, w: 1, h: 1, tid: "TID_壊れる壁", group: 0, hp: 45, costs: { foot: 255 } }];
+    let s = session.setup(s0raw).state;
+    s = reduce(s, { type: "destroy", unit: "p", x: 1, y: 0 }, noRolls); // 45 − 40 = 5 잔존
+    expect(s.variables?.["파괴발화"]).toBeUndefined();
+    for (const _ of [1, 2]) s = reduce(s, { type: "endPhase" }, noRolls);
+    s = reduce(s, { type: "destroy", unit: "p", x: 1, y: 0 }, noRolls); // 완파
+    expect(s.structures?.[0]?.hp).toBe(0);
+    expect(s.variables?.["파괴발화"]).toBe(1);
+  });
+});
+
 describe("이벤트 세션 — 등록·발화·조건", () => {
   it("setup: Startup 규칙·변수 + MapOpening 스폰 + 1턴 Turn 발화(조건 함수 = 상태 질의)", () => {
     const h: EventHost = {
