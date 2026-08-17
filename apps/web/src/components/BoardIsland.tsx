@@ -861,6 +861,7 @@ export default function BoardIsland(props: BoardProps) {
         objects={visibleObjects(objects, game.crests)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}
+        interactions={props.interactions}
         units={viewUnits}
         byTile={byTileView}
         visuals={visuals}

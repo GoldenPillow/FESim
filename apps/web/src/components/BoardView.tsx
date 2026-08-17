@@ -19,6 +19,8 @@ export interface BoardViewProps {
   structures?: BoardProps["structures"];
   /** 지속 오버레이(정적) — 반투명 틴트로 베이스 타일 위에 얹는다. */
   overlays?: BoardProps["overlays"];
+  /** 상호작용 마커(상자·민가·문·이탈점·파괴) — 표시 전용(실행은 이벤트 엔진 이월). */
+  interactions?: BoardProps["interactions"];
   units: UnitState[];
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
@@ -40,6 +42,7 @@ export default function BoardView({
   objects,
   structures,
   overlays,
+  interactions,
   units,
   byTile,
   visuals,
@@ -164,6 +167,39 @@ export default function BoardView({
             </span>
           ))}
         </div>
+
+        {interactions !== undefined && interactions.length > 0 && (
+          <div className="layer marks">
+            {interactions.map((it, i) => (
+              <span
+                key={`i${i}`}
+                className="cell"
+                style={{ gridColumn: col(it.x), gridRow: row(it.y) }}
+                title={`${coordLabel(it.x, it.y)} ${it.kind}${it.name !== undefined ? ` ${it.name}` : ""}`}
+              >
+                <svg className={`tile-mark mark-${it.kind}`} viewBox="0 0 32 32" aria-hidden="true">
+                  {it.kind === "chest" ? (
+                    <>
+                      <rect x="7" y="12" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                      <path d="M7 17 H25" stroke="currentColor" strokeWidth="2" />
+                      <rect x="14" y="15.5" width="4" height="4" fill="currentColor" />
+                    </>
+                  ) : it.kind === "visit" ? (
+                    <path d="M8 25 V14 L16 7 L24 14 V25 H18 V19 H14 V25 Z" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : it.kind === "escape" ? (
+                    <path d="M16 25 V10 M10 15 L16 8 L22 15" fill="none" stroke="currentColor" strokeWidth="2.8" />
+                  ) : it.kind === "door" ? (
+                    <path d="M10 25 V9 H22 V25 M22 25 H10 M18.5 17 h.01" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : it.kind === "defendArea" ? (
+                    <path d="M16 6 L25 9 V16 C25 21 21 25 16 27 C11 25 7 21 7 16 V9 Z" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : (
+                    <path d="M9 9 L23 23 M23 9 L9 23" stroke="currentColor" strokeWidth="3" />
+                  )}
+                </svg>
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="vignette"></div>
 

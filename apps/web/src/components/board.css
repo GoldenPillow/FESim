@@ -116,9 +116,19 @@
 }
 .board .layer.overlays,
 .board .layer.structures,
-.board .layer.roofs {
+.board .layer.roofs,
+.board .layer.marks {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
 }
+/* 상호작용 마커 — 종별 색(상자 호박·민가 초록·이탈 하늘·문 회백·방위 보라·파괴 적) */
+.board .mark-chest { color: #d9a94a; }
+.board .mark-visit { color: #7fc06e; }
+.board .mark-escape { color: #6fb6d9; }
+.board .mark-door { color: #b9b2a4; }
+.board .mark-defendArea { color: #a98fd0; }
+.board .mark-destroy { color: #d97a6f; }
 
 /* 인게임 문법: 파랑 = 이동 가능, 빨강 = 공격 범위(이동 불가·공격만 닿는 테두리) */
 .board .ov.move {

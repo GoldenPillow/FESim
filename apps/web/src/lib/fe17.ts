@@ -771,6 +771,8 @@ export interface BoardProps {
   structures?: BoardStructureProp[];
   /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
   overlays?: BoardOverlayProp[];
+  /** 상호작용 지점(Lua 추출 — 상자·민가·문·이탈점·파괴 트리거) — 표시 마커 전용(실행 = MP2 이월). */
+  interactions?: { kind: string; x: number; y: number; x2?: number; y2?: number; name?: string }[];
   units: BoardUnitProp[];
   /**
    * 챕터 이벤트 스크립트 팩(MP2) — 있으면 보드가 이벤트 구동으로 초기 배치·증원·승리조건을 돌린다.
@@ -1153,9 +1155,18 @@ export function boardProps(
           ...opt("flyCost", row?.FlyCost),
         };
       });
+      const interactions = (map.interactions ?? []).map((it) => ({
+        kind: it.kind,
+        x: it.x,
+        y: it.y,
+        ...(it.x2 !== undefined ? { x2: it.x2 } : {}),
+        ...(it.y2 !== undefined ? { y2: it.y2 } : {}),
+        ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid) } : {}),
+      }));
       return {
         ...(structures.length > 0 ? { structures } : {}),
         ...(overlays.length > 0 ? { overlays } : {}),
+        ...(interactions.length > 0 ? { interactions } : {}),
       };
     })(),
     units,
