@@ -385,6 +385,8 @@ export default function BoardIsland(props: BoardProps) {
           }
           case "heal":
             return `${name(ev.unit)} → ${name(ev.target)} +${ev.amount} HP`;
+          case "refresh":
+            return `${name(ev.unit)} ${t.refresh}`;
           case "break":
             return `${name(ev.unit)} ${t.brk}`;
           case "death":

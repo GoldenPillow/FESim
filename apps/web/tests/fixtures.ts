@@ -60,7 +60,7 @@ const LABELS: BoardProps["labels"] = {
   endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
-  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "" },
+  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "" },
 };
 
 /** 6x6 평지, 자군 u0(1,1) · 적군 u1(2,1) 인접 — 이동·대기·공격·페이즈 종료가 전부 합법인 최소 판. */

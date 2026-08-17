@@ -5,6 +5,7 @@
  */
 export {
   canBreak,
+  canDance,
   createReducer,
   canterPower,
   itemTargets,

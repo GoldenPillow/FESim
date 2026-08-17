@@ -107,6 +107,8 @@ export interface ConsumableItem {
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
+  /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
+  | { type: "refresh"; unit: string }
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
@@ -123,5 +125,7 @@ export type BattleAction =
   | { type: "staff"; unit: string; target: string; staff?: number }
   /** item = 유닛 consumables 목록 인덱스(부재 = 0). 대상 지정 없음 — 효과 범위는 아이템이 소유(자신 중심). */
   | { type: "item"; unit: string; item?: number }
+  /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
+  | { type: "dance"; unit: string; target: string }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

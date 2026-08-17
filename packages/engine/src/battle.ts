@@ -219,6 +219,11 @@ export function staffHealAmount(healer: UnitState, target: UnitState, staff: Sta
   return Math.min(staff.power + Math.floor(healer.stats.mag / 2), missing);
 }
 
+/** 춤(재행동) 시전 자격 — 무희 직업 스킬 SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4). UI 공용. */
+export function canDance(u: UnitState): boolean {
+  return u.skills?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
+}
+
 /**
  * 아이템 범위 회복 대상 — 자신 포함, 같은 군, 반경(맨해튼) 내, 손상 유닛만.
  * 傷薬 = "자신과 주위 2칸 아군 회복"(공식 도움말 원문). 예보 UI와 reduce가 같은 판정을 쓴다(중복 구현 금지).
@@ -533,6 +538,32 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         user.acted = true;
         user.moved = false; // 행동이 재이동(시구르드) 창을 연다
         // 경험치 없음 — calculator에 아이템 경험식이 없다(杖·踊り·チェインガード만 존재).
+        break;
+      }
+
+      case "dance": {
+        const dancer = require(action.unit);
+        const target = require(action.target);
+        assertActable(dancer);
+        if (!canDance(dancer)) throw new Error("춤 스킬 없음");
+        if (dancer.force !== target.force) throw new Error("춤은 같은 군만 대상이다");
+        if (dancer === target) throw new Error("자기 자신은 춤 대상이 아니다");
+        // 인접 1칸·행동 완료 대상 — 실기 확인(2026-08-17 decisions) + 게임 메뉴가 대상 필터를 이렇게 건다.
+        if (manhattan(dancer, target) !== 1) throw new Error("춤은 인접 1칸만");
+        if (!target.acted) throw new Error("행동 완료 유닛만 재행동 대상이다");
+        target.acted = false;
+        target.moved = false; // 이동 창까지 새로 연다 — 안 풀면 이동 없는 반쪽 재행동
+        events.push({ type: "refresh", unit: target.id });
+        dancer.acted = true;
+        dancer.moved = false;
+        if (dancer.force === 0) {
+          const difficulty = state.difficulty ?? "n";
+          // 踊り経験計算 = clamp(踊り基本値(자기 레벨) + 補助レベル差減衰値(레벨차), 1, 100).
+          const gained = Math.floor(
+            calc.eval("踊り経験計算", expEnv(dancer, target, 0, difficulty)) as number,
+          );
+          grantExp(dancer, gained, events, rng);
+        }
         break;
       }
 

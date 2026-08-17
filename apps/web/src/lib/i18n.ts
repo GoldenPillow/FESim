@@ -57,7 +57,7 @@ interface Strings {
   restoreCmd: string;
   copyRecord: string;
   copied: string;
-  logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
+  logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string };
   chapterSelect: string;
   comingSoon: string;
   categories: { main: string; paralogue: string; divine: string; fell: string };
@@ -138,7 +138,7 @@ export const UI: Record<Locale, Strings> = {
     restoreCmd: "Restore",
     copyRecord: "Copy record",
     copied: "Copied",
-    logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
+    logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!", refresh: "dances again" },
     chapterSelect: "Chapters",
     comingSoon: "Coming soon",
     categories: { main: "Main Story", paralogue: "Paralogues", divine: "Divine Paralogues", fell: "Fell Xenologue" },
@@ -224,7 +224,7 @@ export const UI: Record<Locale, Strings> = {
     restoreCmd: "복원",
     copyRecord: "기보 복사",
     copied: "복사됨",
-    logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },
+    logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!", refresh: "재행동" },
     chapterSelect: "챕터 선택",
     comingSoon: "준비 중",
     categories: { main: "본편", paralogue: "외전", divine: "신룡의 장", fell: "사룡의 장" },

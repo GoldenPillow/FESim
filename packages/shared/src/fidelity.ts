@@ -179,9 +179,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.dance",
     label: { en: "Dance (grant another action)", ko: "춤(재행동 부여)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "원문 절차 확보(gaps/E §1-7) + 실기 확인 = 커맨드로 인접 아군 재행동(사용자 2026-08-17) · 경험치 = combat.exp-dance · 코드 근거 추가 = DanceMenuItem + SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4)",
+      "엔진 배선(2026-08-18, dance.test.ts) — dance 액션·refresh 이벤트(절대 재생 복원)·인접 1칸·행동 완료 대상만·acted/moved 리셋·踊り経験計算 원문(노멀 13·루나틱 clamp 1 정확값) · 자격 = canDance(SID_踊り/SID_特別な踊り — MAP_COMMANDS §1-4) · ☠UI 이월 = 무희 실재 맵 변환 시(MP3) · 원문 절차 gaps/E §1-7 + 실기 확인(2026-08-17)",
   },
   {
     id: "actions.engage",

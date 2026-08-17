@@ -116,7 +116,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function applyEvents(
   state: GameState,
-  action: Extract<BattleAction, { type: "attack" | "staff" | "item" }>,
+  action: Extract<BattleAction, { type: "attack" | "staff" | "item" | "dance" }>,
   events: readonly BattleEvent[],
 ): GameState {
   const units = state.units.map((u) => ({ ...u }));
@@ -136,6 +136,12 @@ function applyEvents(
       case "heal":
         require(ev.target).hp = ev.hpAfter;
         break;
+      case "refresh": {
+        const u = require(ev.unit);
+        u.acted = false;
+        u.moved = false;
+        break;
+      }
       case "break":
         require(ev.unit).broken = true;
         break;
@@ -194,7 +200,10 @@ export function createReplayer(reduce: Reduce) {
    */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
     if (
-      (step.action.type === "attack" || step.action.type === "staff" || step.action.type === "item") &&
+      (step.action.type === "attack" ||
+        step.action.type === "staff" ||
+        step.action.type === "item" ||
+        step.action.type === "dance") &&
       step.events !== undefined
     ) {
       return applyEvents(state, step.action, step.events);
