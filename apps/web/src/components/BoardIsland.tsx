@@ -85,6 +85,8 @@ function eventWiringFor(
             return unit === undefined ? [] : [unit];
           }),
         skillRow: (sid) => script.skills[sid],
+        // IID → 채널·스냅숏 — SSG가 굳힌 script.items만 안다(클라이언트엔 items 표가 없다).
+        gainItem: (iid) => script.items?.[iid] as never,
         // TID → 지형 1칸 — SSG가 굳힌 script.terrains만 안다(클라이언트엔 terrain 표가 없다).
         terrainCell: (tid) => {
           const row = script.terrains?.[tid];
@@ -610,6 +612,7 @@ export default function BoardIsland(props: BoardProps) {
           case "unitFlags":
           case "equip":
           case "terrainSet":
+          case "gain":
           case "putOff":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }

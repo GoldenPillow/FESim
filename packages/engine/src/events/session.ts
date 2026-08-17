@@ -1,5 +1,5 @@
 import { lua, lauxlib, lualib, to_luastring, to_jsstring, type LuaState } from "fengari-web";
-import type { BattleEvent, SkillRow, StatusGive } from "@fesim/shared";
+import type { BattleEvent, BattleWeapon, ConsumableItem, SkillRow, StaffItem, StatusGive } from "@fesim/shared";
 import { equipCandidates, makeCostAt, overlayAt, structureAt, terrainPatchAt, type GameState, type RandomSource, type StructureState, type TerrainCell, type TerrainPatch, type UnitState, type WinRule } from "../battle.js";
 
 /**
@@ -17,8 +17,17 @@ export interface EventHost {
   skillRow?(sid: string): SkillRow | undefined;
   /** 엠블렘 유닛화(UnitSetGodUnit) — 유닛 필드 패치 산출(engage·engagedSkills 등). */
   godUnit?(unit: Readonly<UnitState>, gid: string): Partial<UnitState> | undefined;
-  /** 아이템 지급(ItemGain) — 유닛 필드 패치 산출(소지품 확장). */
-  gainItem?(unit: Readonly<UnitState>, iid: string): Partial<UnitState> | undefined;
+  /**
+   * IID → 소지품 채널·스냅숏(ItemGain). 데이터층이 챕터 폐포의 "IID_..." 전수를 굳혀 넘긴다(script.items).
+   * kind "none" = 맵 국면에 효과가 없는 종별(귀중품·도구·금전) — 지급해도 국면이 안 변한다.
+   * 부재(표에 아예 없음) = 정직 거부.
+   */
+  gainItem?(iid: string):
+    | { kind: "weapon"; item: BattleWeapon }
+    | { kind: "staff"; item: StaffItem }
+    | { kind: "consumable"; item: ConsumableItem }
+    | { kind: "none" }
+    | undefined;
   /** PersonGetIndex — person.xml 행 인덱스(AI 예약 변수에 저장됨, 소비 = MP4). 부재 = 0. */
   personIndex?(pid: string): number;
   /**
@@ -482,16 +491,24 @@ export function createEventSession(opts: {
     }
     return 0;
   });
-  register("ItemGain", () => {
-    const u = unitAt(1);
-    const iid = str(2);
-    if (u !== undefined) {
-      const patch = host.gainItem?.(u, iid);
-      if (patch !== undefined) Object.assign(u, patch);
-      else unknown.set(`ItemGain:${iid}`, (unknown.get(`ItemGain:${iid}`) ?? 0) + 1);
-    }
-    return 0;
-  });
+  for (const name of ["ItemGain", "ItemGainSilent"]) {
+    register(name, () => {
+      // 1번 인자 nil = 수송대(맵 밖 창고) 지급 — 국면(맵)에 실체가 없다. GodSaveEquip과 같은 층.
+      if (lua.lua_type(A, 1) === lua.LUA_TNIL) return 0;
+      const u = unitAt(1);
+      const iid = str(2);
+      if (u === undefined) return 0;
+      const row = host.gainItem?.(iid);
+      if (row === undefined) return lauxlib.luaL_error(A, to_luastring(`${name}: 아이템 사영 없음 ${iid}`));
+      if (row.kind === "none") return 0; // 데이터가 "맵 효과 없음"을 명시한 종별 — 조용한 no-op이 아니다
+      const item = JSON.parse(JSON.stringify(row.item)) as never;
+      if (row.kind === "weapon") u.weapons = [...(u.weapons ?? []), item];
+      else if (row.kind === "staff") u.staves = [...(u.staves ?? []), item];
+      else u.consumables = [...(u.consumables ?? []), item];
+      emit({ type: "gain", unit: u.id, kind: row.kind, item: row.item as unknown as Record<string, unknown> });
+      return 0;
+    });
+  }
   register("EventOpenDoor", () => {
     // 문 개방 = 구조물 소멸(통행 개방·같은 group 지붕 걷힘) — 파괴 타격과 같은 국면 변이라 destroy로 사영한다.
     const d = draft();

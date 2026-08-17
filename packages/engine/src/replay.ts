@@ -297,6 +297,14 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         }
         break;
       }
+      case "gain": {
+        const u = require(ev.unit);
+        const item = JSON.parse(JSON.stringify(ev.item)) as never;
+        if (ev.kind === "weapon") u.weapons = [...(u.weapons ?? []), item];
+        else if (ev.kind === "staff") u.staves = [...(u.staves ?? []), item];
+        else u.consumables = [...(u.consumables ?? []), item];
+        break;
+      }
       case "putOff": {
         const u = require(ev.unit);
         const list = ev.kind === "weapon" ? u.weapons : ev.kind === "staff" ? u.staves : u.consumables;

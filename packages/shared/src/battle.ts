@@ -222,6 +222,8 @@ export type BattleEvent =
    * attack.weapon과 **같은 공간**이다(기보 계약 재사용). index 부재 = 장비 해제.
    */
   | { type: "equip"; unit: string; index?: number }
+  /** 아이템 지급(ItemGain) — 채널 + 스냅숏 전문(putOff의 역). 표를 안 든 열람 경로가 이 행만으로 복원한다. */
+  | { type: "gain"; unit: string; kind: "weapon" | "staff" | "consumable"; item: Record<string, unknown> }
   /** 소지품 회수(UnitPutOffItem) — 제거 직전 목록의 절대 인덱스. 장비 중이던 무기면 해제까지. */
   | { type: "putOff"; unit: string; kind: "weapon" | "staff" | "consumable"; index: number }
   /**

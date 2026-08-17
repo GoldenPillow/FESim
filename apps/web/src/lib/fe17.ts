@@ -813,6 +813,11 @@ export interface BoardProps {
      * 스크립트가 부르는 TID 사영(TerrainSet·TerrainSetOne — 런타임 지형 교체).
      * ☠클라이언트엔 terrain 표가 없다 — 챕터 Lua 폐포(챕터 + common*)의 "TID_..." 전수를 여기 굳힌다.
      */
+    /**
+     * 스크립트가 부르는 IID 사영(ItemGain — 아이템 지급). 채널·스냅숏 전문.
+     * ☠클라이언트엔 items 표가 없다 — 챕터 Lua 폐포의 "IID_..." 전수를 여기 굳힌다.
+     */
+    items: Record<string, { kind: "weapon" | "staff" | "consumable" | "none"; item?: BoardWeaponProp | StaffItem | ConsumableItem }>;
     terrains: Record<string, {
       /** 엔진 TerrainCell 그대로(표시 필드 제외 — 색·이름은 아래가 소유, 중복 직렬화 금지). */
       cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean };
@@ -968,37 +973,46 @@ export const emblemEngageWeapons = (gid: string, locale: Locale, bondLevel?: num
     .filter((w): w is BoardWeaponProp => w !== undefined);
 };
 
-/** 소지 지팡이 스냅숏 — power는 기본값(연성·각인은 진행 소유라 dispos 근사에 없음). */
+/**
+ * 지팡이 1개 스냅숏 — 소지품 사영과 이벤트 지급(ItemGain)이 **같은 것**을 써야 한다(☠중복 구현 금지).
+ * power는 기본값(연성·각인은 진행 소유라 dispos 근사에 없음).
+ */
+const staffItemFor = (iid: string, locale: Locale): StaffItem | undefined => {
+  const row = items[iid] as (ItemRow & Record<string, unknown>) | undefined;
+  if (row === undefined || row.Kind !== STAFF_KIND) return undefined;
+  // 방해 지팡이 GiveSids → 상태 스킬 행(BadState·Life) 사영 — 엔진 status 이벤트의 원천.
+  const gives = ((row["GiveSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+    const s = skills[sid] as Record<string, unknown> | undefined;
+    if (s === undefined) return [];
+    return [{
+      sid,
+      badState: Number(s["BadState"] ?? 0),
+      life: Number(s["Life"] ?? 0),
+      name: namedOr(skills, locale, sid),
+    }];
+  });
+  return {
+    iid,
+    name: namedOr(items, locale, iid),
+    power: Number(row["Power"] ?? 0),
+    rangeMin: row.RangeI ?? 1,
+    rangeMax: row.RangeO ?? 1,
+    uses: Number(row["Endurance"] ?? 0),
+    rodType: Number(row["RodType"] ?? 0),
+    useType: Number(row["UseType"] ?? 0),
+    hit: Number(row["Hit"] ?? 0),
+    distance: Number(row["Distance"] ?? 0),
+    ...(gives.length > 0 ? { gives } : {}),
+    rodExp: Number(row["RodExp"] ?? 0),
+  };
+};
+
+/** 소지 지팡이 스냅숏 — 소지품 순서 유지(staff.staff 인덱스의 해석 대상). */
 export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
   const list: StaffItem[] = [];
   for (const entry of unit.items) {
-    const row = items[entry.iid] as (ItemRow & Record<string, unknown>) | undefined;
-    if (row === undefined || row.Kind !== STAFF_KIND) continue;
-    // 방해 지팡이 GiveSids → 상태 스킬 행(BadState·Life) 사영 — 엔진 status 이벤트의 원천.
-    const gives = ((row["GiveSids"] as string[] | undefined) ?? []).flatMap((sid) => {
-      const s = skills[sid] as Record<string, unknown> | undefined;
-      if (s === undefined) return [];
-      return [{
-        sid,
-        badState: Number(s["BadState"] ?? 0),
-        life: Number(s["Life"] ?? 0),
-        name: namedOr(skills, locale, sid),
-      }];
-    });
-    list.push({
-      iid: entry.iid,
-      name: namedOr(items, locale, entry.iid),
-      power: Number(row["Power"] ?? 0),
-      rangeMin: row.RangeI ?? 1,
-      rangeMax: row.RangeO ?? 1,
-      uses: Number(row["Endurance"] ?? 0),
-      rodType: Number(row["RodType"] ?? 0),
-      useType: Number(row["UseType"] ?? 0),
-      hit: Number(row["Hit"] ?? 0),
-      distance: Number(row["Distance"] ?? 0),
-      ...(gives.length > 0 ? { gives } : {}),
-      rodExp: Number(row["RodExp"] ?? 0),
-    });
+    const item = staffItemFor(entry.iid, locale);
+    if (item !== undefined) list.push(item);
   }
   return list;
 };
@@ -1010,18 +1024,44 @@ export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
 export const consumableItems = (unit: DisposUnit, locale: Locale): ConsumableItem[] => {
   const list: ConsumableItem[] = [];
   for (const entry of unit.items) {
-    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
-    if (row === undefined || row.Kind !== 10 || Number(row["AddTarget"] ?? 0) === 0) continue;
-    list.push({
-      iid: entry.iid,
-      name: namedOr(items, locale, entry.iid),
-      addType: Number(row["AddType"] ?? 0),
-      power: Number(row["AddPower"] ?? 0),
-      range: Number(row["AddRange"] ?? 0),
-      uses: Number(row["Endurance"] ?? 0),
-    });
+    const item = consumableItemFor(entry.iid, locale);
+    if (item !== undefined) list.push(item);
   }
   return list;
+};
+
+/** 사용형 아이템 1개 스냅숏 — 소지품 사영과 ItemGain 공용(☠중복 구현 금지). */
+const consumableItemFor = (iid: string, locale: Locale): ConsumableItem | undefined => {
+  const row = items[iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+  if (row === undefined || row.Kind !== 10 || Number(row["AddTarget"] ?? 0) === 0) return undefined;
+  return {
+    iid,
+    name: namedOr(items, locale, iid),
+    addType: Number(row["AddType"] ?? 0),
+    power: Number(row["AddPower"] ?? 0),
+    range: Number(row["AddRange"] ?? 0),
+    uses: Number(row["Endurance"] ?? 0),
+  };
+};
+
+/**
+ * IID → 소지품 채널·스냅숏(ItemGain 사영). 세 채널 판별은 setup 사영과 **같은 규칙**이라
+ * 런타임 지급 아이템이 초기 배치 아이템과 구별되지 않는다.
+ * kind "none" = 맵 국면에 효과가 없는 종별(Kind 10·AddTarget 0 매각 귀중품 · 13 도구 · 18 금전) —
+ * ☠조용한 누락이 아니라 "효과 없음"을 데이터가 **명시**하는 자리다. 표에 없는 IID는 아예 안 실린다(정직 거부).
+ */
+const gainItemFor = (
+  iid: string,
+  locale: Locale,
+): { kind: "weapon" | "staff" | "consumable" | "none"; item?: BoardWeaponProp | StaffItem | ConsumableItem } | undefined => {
+  if (items[iid] === undefined) return undefined;
+  const weapon = attackWeaponProp(iid, locale);
+  if (weapon !== undefined) return { kind: "weapon", item: weapon };
+  const staff = staffItemFor(iid, locale);
+  if (staff !== undefined) return { kind: "staff", item: staff };
+  const consumable = consumableItemFor(iid, locale);
+  if (consumable !== undefined) return { kind: "consumable", item: consumable };
+  return { kind: "none" };
 };
 
 export function boardProps(
@@ -1232,6 +1272,15 @@ export function boardProps(
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
       }
+      // 아이템 사영 — 폐포 = 챕터 + common*(공용 헬퍼가 상자·민가 지급을 소유한다).
+      const itemPack: NonNullable<BoardProps["script"]>["items"] = {};
+      for (const name of [mapId, ...commons]) {
+        for (const m of (scriptFiles[name] ?? "").matchAll(/"(IID_[^"]+)"/g)) {
+          if (itemPack[m[1]] !== undefined) continue;
+          const row = gainItemFor(m[1], locale);
+          if (row !== undefined) itemPack[m[1]] = row;
+        }
+      }
       // 지형 사영 — 폐포 = 챕터 + common*(공용 헬퍼도 TerrainSet을 부른다). 실사용 TID만 담긴다(종별 선형).
       const terrains: NonNullable<BoardProps["script"]>["terrains"] = {};
       for (const name of [mapId, ...commons]) {
@@ -1258,7 +1307,7 @@ export function boardProps(
           };
         }
       }
-      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods, terrains } };
+      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods, terrains, items: itemPack } };
     })(),
   };
 }

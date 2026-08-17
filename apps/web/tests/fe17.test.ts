@@ -240,3 +240,30 @@ describe("script.terrains — 런타임 지형 교체 사영 (MP3)", () => {
     expect("color" in door.cell).toBe(false);
   });
 });
+
+describe("script.items — ItemGain 아이템 사영 (MP3)", () => {
+  it("챕터 Lua 폐포의 IID 전수를 채널·스냅숏으로 굳힌다 — 표에 없는 IID만 빠진다(정직 거부의 근거)", () => {
+    // 왜 위험한가: 이벤트 ItemGain이 이 사영만 보고 소지품을 늘린다. 채널 판별이 setup 사영과
+    // 어긋나면 런타임 지급 아이템이 초기 배치 아이템과 다른 물건이 된다(인덱스·위력 계약 붕괴).
+    const board = boardPropsFor("s009", "ko");
+    const pack = board.script?.items ?? {};
+    expect(Object.keys(pack).length).toBeGreaterThan(0);
+    // 여신상 = Kind 10 · AddTarget 0 · AddType/AddPower 0(매각 귀중품) → 맵 국면 효과 없음을 명시.
+    expect(pack["IID_女神の像"]).toEqual({ kind: "none" });
+  });
+
+  it("무기·지팡이·사용형은 setup 사영과 같은 스냅숏을 준다(중복 구현 금지의 증거)", () => {
+    const board = boardPropsFor("m004", "ko");
+    const pack = board.script?.items ?? {};
+    const u = { pid: "x", jid: "y", force: 0, x: 0, y: 0, level: { n: 1, h: 1, l: 1 }, items: [], sids: [] } as unknown as DisposUnit;
+    for (const [iid, row] of Object.entries(pack)) {
+      if (row.kind === "none") continue;
+      const one = { ...u, items: [{ iid, drop: false }] } as DisposUnit;
+      const mirror =
+        row.kind === "weapon" ? attackWeapons(one, "ko")[0]
+          : row.kind === "staff" ? staffItems(one, "ko")[0]
+            : consumableItems(one, "ko")[0];
+      expect(row.item).toEqual(mirror);
+    }
+  });
+});

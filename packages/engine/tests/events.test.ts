@@ -433,10 +433,28 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     def: terrainTable[tid]?.Defense ?? 0,
   });
 
+  // IID → 소지품 채널·스냅숏 — 보드 script.items(fe17.ts)가 굳혀 넘기는 것과 같은 계약.
+  const gainItemOf = (iid: string): ReturnType<NonNullable<EventHost["gainItem"]>> => {
+    const row = itemTable[iid];
+    if (row === undefined) return undefined;
+    const w = weaponOf(iid);
+    if (w !== undefined) return { kind: "weapon", item: w };
+    if (row.Kind === 7) {
+      return { kind: "staff", item: { iid, power: row.Power ?? 0, rangeMin: row.RangeI ?? 1, rangeMax: row.RangeO ?? 1, uses: row.Endurance ?? 0, rodType: row.RodType ?? 0, rodExp: 0 } };
+    }
+    if (row.Kind === 10 && (row.AddTarget ?? 0) !== 0) {
+      return { kind: "consumable", item: { iid, addType: row.AddType ?? 0, power: row.AddPower ?? 0, range: row.AddRange ?? 0, uses: row.Endurance ?? 0 } };
+    }
+    return { kind: "none" }; // 귀중품·도구·금전 — 맵 국면 효과 없음
+  };
+
   // 무기 종별(items.json Kind) — 공격 무기만 weapons에 실린다(fe17.ts WEAPON_KINDS와 같은 기준).
   const itemTable = JSON.parse(
     readFileSync(new URL("../../../data/fe17/tables/items.json", import.meta.url), "utf-8"),
-  ) as Record<string, { Kind?: number; Power?: number; RangeI?: number; RangeO?: number }>;
+  ) as Record<string, {
+    Kind?: number; Power?: number; RangeI?: number; RangeO?: number; RodType?: number;
+    Endurance?: number; AddType?: number; AddPower?: number; AddRange?: number; AddTarget?: number;
+  }>;
   const godsTable = JSON.parse(
     readFileSync(new URL("../../../data/fe17/tables/gods.json", import.meta.url), "utf-8"),
   ) as {
@@ -535,7 +553,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
       spawnGroup: project,
       skillRow: (sid) => ({ Sid: sid }),
       godUnit: () => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
-      gainItem: () => ({}),
+      gainItem: (iid) => gainItemOf(iid),
       terrainCell: terrainCellOf,
     };
     const gap = HONEST_GAPS[cid];
@@ -858,5 +876,113 @@ describe("런타임 지형 교체 — terrainPatches", () => {
     const replayed = applyStep(s0(), { action: { type: "setup" }, events: r.events });
     expect(replayed.terrainPatches?.[0]?.tid).toBe("TID_橋");
     expect(makeCostAt(replayed.map, undefined, "foot", replayed.terrainPatches)(1, 1)).toBe(2);
+  });
+});
+
+/**
+ * 아이템 지급(ItemGain) — UnitPutOffItem의 역. 데이터층이 IID → 채널·스냅숏을 굳혀 넘긴다(script.items).
+ * ☠맵 국면에 효과가 없는 종별(귀중품·도구·금전 Kind 10/AddTarget 0·13·18)은 "none"으로 **명시 사영**한다 —
+ * 조용한 no-op이 아니라 "효과 없음"이 데이터에 선언된 것이다. 표에 아예 없는 IID만 정직 거부한다.
+ */
+describe("이벤트 아이템 지급 — ItemGain", () => {
+  const spear: BattleWeapon = { ...sword, iid: "IID_手槍", might: 7, rangeMax: 2, kind: 2 };
+  const rescue = { iid: "IID_レスキュー", power: 0, rangeMin: 1, rangeMax: 8, uses: 5, rodType: 0, useType: 5, rodExp: 0 };
+  const potion = { iid: "IID_特効薬", addType: 7, power: 2, range: 1, uses: 3 };
+  const ITEMS: Record<string, { kind: "weapon" | "staff" | "consumable" | "none"; item?: unknown }> = {
+    IID_手槍: { kind: "weapon", item: spear },
+    IID_レスキュー: { kind: "staff", item: rescue },
+    IID_特効薬: { kind: "consumable", item: potion },
+    // 여신상 = Kind 10 · AddTarget 0 · AddType/AddPower 0 — 매각 귀중품(전투 효과 필드가 전무하다).
+    IID_女神の像: { kind: "none" },
+  };
+  const h = (): EventHost => ({ ...host(), gainItem: (iid) => ITEMS[iid] as never });
+  const bare = () => unit({ id: "p", force: 0, x: 0, y: 0 });
+  const run = (body: string) => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, gi: `Include("Common")\nfunction Startup() ${body} end` },
+      chapter: "gi", host: h(),
+    });
+    return session.setup(state([bare()]));
+  };
+
+  it("채널별로 소지품에 들어간다 + gain 이벤트(putOff의 역)", () => {
+    const r = run(`ItemGain("PID_p", "IID_手槍")\nItemGain("PID_p", "IID_レスキュー")\nItemGain("PID_p", "IID_特効薬")`);
+    const u = r.state.units[0];
+    expect(u.weapons?.map((w) => w.iid)).toEqual(["IID_手槍"]);
+    expect(u.staves?.map((s) => s.iid)).toEqual(["IID_レスキュー"]);
+    expect(u.consumables?.map((c) => c.iid)).toEqual(["IID_特効薬"]);
+    expect(r.events).toContainEqual({ type: "gain", unit: "p", kind: "weapon", item: spear });
+  });
+
+  it("맵 효과 없는 종별(none)·수송대 지급(unit = nil)은 국면을 바꾸지 않고 오류도 아니다", () => {
+    const r = run(`ItemGain("PID_p", "IID_女神の像")\nItemGain(nil, "IID_手槍")`);
+    expect(r.state.units[0].weapons).toBeUndefined();
+    expect(r.events.filter((e) => e.type === "gain")).toEqual([]);
+  });
+
+  it("☠사영에 없는 IID는 조용히 넘기지 않고 거부한다", () => {
+    expect(() => run(`ItemGain("PID_p", "IID_未知")`)).toThrow(/IID_未知/);
+  });
+
+  it("절대 재생 — 기록 이벤트만으로 지급이 복원된다(세션 무반입)", () => {
+    const r = run(`ItemGain("PID_p", "IID_手槍")\nItemGain("PID_p", "IID_特効薬")`);
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(state([bare()]), { action: { type: "setup" }, events: r.events });
+    expect(replayed.units[0].weapons?.map((w) => w.iid)).toEqual(["IID_手槍"]);
+    expect(replayed.units[0].consumables?.map((c) => c.iid)).toEqual(["IID_特効薬"]);
+  });
+});
+
+/**
+ * s009 여신상 — EventEntryArea 진입 획득의 실 스크립트 실측(ItemGain 배선의 발현 지점).
+ * `EventEntryArea(アイテム入手, 25,26, 25,26, FORCE_PLAYER, "アイテム_済")` — 자군이 그 칸에 서면 발화.
+ */
+describe("이벤트 세션 — 실 스크립트 통합(s009 여신상 획득)", () => {
+  const dir = fileURLToPath(new URL("../../../data/fe17/scripts/", import.meta.url));
+  const sources = Object.fromEntries(
+    readdirSync(dir).filter((f) => f.endsWith(".lua")).map((n) => [n.slice(0, -4), readFileSync(`${dir}${n}`, "utf-8")]),
+  );
+  const chapter = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/chapters/s009.json", import.meta.url), "utf-8"),
+  ) as { map: { width: number; height: number }; groups: { name: string; units: { pid: string; force: number; x: number; y: number }[] }[] };
+  const terrainRows = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/terrain.json", import.meta.url), "utf-8"),
+  ) as Record<string, { Avoid?: number; Defense?: number }>;
+
+  it("자군이 (25,26)에 서면 여신상이 지급된다 — 국면 효과 없는 종별이라 소지품은 그대로, 발화 플래그는 잠긴다", () => {
+    const gains: string[] = [];
+    const h: EventHost = {
+      spawnGroup: (group) =>
+        (chapter.groups.find((x) => x.name === group)?.units ?? []).map((u, i) =>
+          unit({ id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y }),
+        ),
+      gainItem: (iid) => {
+        gains.push(iid);
+        return { kind: "none" }; // 여신상 = Kind 10 · AddTarget 0(매각 귀중품) — 데이터가 효과 없음을 명시
+      },
+      terrainCell: (tid) => {
+        const row = terrainRows[tid];
+        return row === undefined ? undefined : { cell: { tid, avoid: row.Avoid ?? 0, def: row.Defense ?? 0 } };
+      },
+    };
+    const session = createEventSession({ sources, chapter: "s009", host: h });
+    session.setRng(rolls([0]));
+    const { width, height } = chapter.map;
+    const s0: GameState = {
+      turn: 1,
+      phase: 0,
+      difficulty: "n",
+      map: { width, height, costs: { foot: Array.from({ length: height }, () => Array.from({ length: width }, () => 1)) } },
+      units: [unit({ id: "hero", force: 0, x: 0, y: 0 })],
+      events: [],
+    };
+    let s = session.setup(s0).state;
+    expect(s.variables?.["アイテム_済"]).toBe(0); // 조건 문자열 = 1회성 발화 플래그(미발화)
+    // 진입 = 그 칸에 선 뒤 행동 종료 폴링(acted) — Area 인스펙터가 좌표 사각형으로 잡는다.
+    s = { ...s, units: s.units.map((u) => (u.id === "hero" ? { ...u, x: 25, y: 26 } : u)) };
+    const r = session.acted(s, "hero", true);
+    expect(gains).toEqual(["IID_女神の像"]);
+    expect(r.state.variables?.["アイテム_済"]).toBe(1); // 발화 후 잠금 — 두 번 안 준다
+    expect(r.events.filter((e) => e.type === "gain")).toEqual([]); // none = 국면 무변화
   });
 });
