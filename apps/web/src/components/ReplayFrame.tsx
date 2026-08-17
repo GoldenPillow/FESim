@@ -12,7 +12,7 @@ import "./replay.css";
  * 넘는 순간 LCP 게이트가 깨지고, 실전 기보 로그는 그 예산에 절대 들어가지 않는다.
  */
 export interface ReplayFrameProps {
-  board: Pick<BoardProps, "width" | "height" | "tiles" | "objects" | "labels">;
+  board: Pick<BoardProps, "width" | "height" | "tiles" | "objects" | "structures" | "overlays" | "labels">;
   address?: StepAddress;
   badge?: { text: string; ok: boolean };
   at: number;
@@ -54,6 +54,8 @@ export default function ReplayFrame(p: ReplayFrameProps) {
         height={p.board.height}
         tiles={p.board.tiles}
         objects={p.board.objects}
+        structures={p.board.structures}
+        overlays={p.board.overlays}
         units={p.alive}
         byTile={p.byTile}
         visuals={p.visuals}

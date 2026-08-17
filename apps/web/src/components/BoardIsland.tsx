@@ -33,7 +33,7 @@ import {
 import { serializeEphemeris } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
-import { visibleObjects } from "../lib/boards";
+import { visibleObjects, visibleStructures } from "../lib/boards";
 import type { EventHost } from "@fesim/engine/events";
 import {
   baseReduce,
@@ -829,6 +829,8 @@ export default function BoardIsland(props: BoardProps) {
         height={height}
         tiles={tiles}
         objects={visibleObjects(objects, game.crests)}
+        structures={visibleStructures(props.structures, game.structures)}
+        overlays={props.overlays}
         units={viewUnits}
         byTile={byTileView}
         visuals={visuals}

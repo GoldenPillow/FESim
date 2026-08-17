@@ -13,6 +13,10 @@ export interface BoardViewProps {
   height: number;
   tiles: BoardProps["tiles"];
   objects: BoardProps["objects"];
+  /** 표시할 구조물 — 호출측이 visibleStructures로 걸러 넘긴다(파괴·지붕 걷힘 판별은 boards.ts 소유). */
+  structures?: BoardProps["structures"];
+  /** 지속 오버레이(정적) — 반투명 틴트로 베이스 타일 위에 얹는다. */
+  overlays?: BoardProps["overlays"];
   units: UnitState[];
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
@@ -31,6 +35,8 @@ export default function BoardView({
   height,
   tiles,
   objects,
+  structures,
+  overlays,
   units,
   byTile,
   visuals,
@@ -82,6 +88,38 @@ export default function BoardView({
             )),
           )}
         </div>
+
+        {overlays !== undefined && overlays.length > 0 && (
+          <div className="layer overlays">
+            {overlays.map((o) => (
+              <i
+                key={tileKey(o.x, o.y)}
+                className="ovl"
+                title={`${coordLabel(o.x, o.y)} ${o.name}`}
+                style={{ gridColumn: col(o.x), gridRow: row(o.y), background: o.color }}
+              />
+            ))}
+          </div>
+        )}
+
+        {structures !== undefined && structures.some((s) => s.roof !== true) && (
+          <div className="layer structures">
+            {structures.map((s, i) =>
+              s.roof === true ? null : (
+                <i
+                  key={`s${i}`}
+                  className="structure"
+                  title={`${coordLabel(s.x, s.y)} ${s.name}`}
+                  style={{
+                    gridColumn: `${col(s.x)} / span ${s.w}`,
+                    gridRow: `${row(s.y + s.h - 1)} / span ${s.h}`,
+                    background: s.color,
+                  }}
+                />
+              ),
+            )}
+          </div>
+        )}
 
         {range !== undefined && (
           <div className="layer range">
@@ -152,6 +190,25 @@ export default function BoardView({
             );
           })}
         </div>
+
+        {structures !== undefined && structures.some((s) => s.roof === true) && (
+          <div className="layer roofs">
+            {structures.map((s, i) =>
+              s.roof === true ? (
+                <i
+                  key={`r${i}`}
+                  className="roof"
+                  title={`${coordLabel(s.x, s.y)} ${s.name}`}
+                  style={{
+                    gridColumn: `${col(s.x)} / span ${s.w}`,
+                    gridRow: `${row(s.y + s.h - 1)} / span ${s.h}`,
+                    background: s.color,
+                  }}
+                />
+              ) : null,
+            )}
+          </div>
+        )}
 
         {banner !== undefined && <div className={bannerStay ? "banner stay" : "banner"}>{banner}</div>}
       </div>
