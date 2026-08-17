@@ -152,6 +152,71 @@ describe("구조물 레이어 — 통행 치환·지붕 렌더 전용 (§2-13)",
   });
 });
 
+describe("지형 회복·피해 — 자기 페이즈 시작·2층 합산·사망 불가 (FIX-10, ProcTerrainDamage 판독)", () => {
+  // ☠판독 확정(MP3_READINGS §1·§2): 피해도 회복도 canDie=false 경로 — hp = max(hp±합, 1), 사망 없음.
+  // 면제 = JobData.Attrs bit3(Fly)이지 moveType이 아니다 — 용(邪竜류)은 면제 대상이 아니다.
+  const endPhase = { type: "endPhase" } as const;
+
+  it("砦(+10): 자기 페이즈 시작에 잃은 HP 상한 회복 · 비행(flying)은 전면 면제", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { readFileSync } = await import("node:fs");
+    const data = JSON.parse(
+      readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8"),
+    );
+    const reduce = createReducer(createCalculator(data));
+    const fort: TerrainCell = { avoid: 0, def: 0, heal: 10 };
+    const map = flatMap(4, 1, fort);
+    const hurt = { ...unit({ id: "a", force: 0, x: 0, y: 0 }), hp: 15, acted: true };
+    const fly = { ...unit({ id: "b", force: 0, x: 1, y: 0, moveType: "fly" as const, flying: true }), hp: 15, acted: true };
+    const foe = { ...unit({ id: "e", force: 1, x: 3, y: 0 }), hp: 20 };
+    const s = { turn: 1, phase: 0, difficulty: "n" as const, map, units: [hurt, fly, foe], events: [] };
+    const enemyPhase = reduce(s, endPhase, { next: () => 0 });
+    const playerPhase = reduce(enemyPhase, endPhase, { next: () => 0 });
+    const a = playerPhase.units.find((u) => u.id === "a");
+    const b = playerPhase.units.find((u) => u.id === "b");
+    expect(a?.hp).toBe(25);
+    expect(b?.hp).toBe(15); // 비행 면제
+    expect(playerPhase.events.some((e) => e.type === "terrainHeal" && e.unit === "a" && e.hpAfter === 25)).toBe(true);
+  });
+
+  it("炎上(−10): 피해는 하한 1 — 지형으로는 죽지 않는다 · 만HP 회복은 무이벤트", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { readFileSync } = await import("node:fs");
+    const data = JSON.parse(
+      readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8"),
+    );
+    const reduce = createReducer(createCalculator(data));
+    const flame: TerrainCell = { avoid: 0, def: 0, heal: -10 };
+    const map = flatMap(4, 1, flame);
+    (map.terrain as TerrainCell[][])[0][1] = { avoid: 0, def: 0, heal: 10 }; // full-HP 회복 칸
+    const frail = { ...unit({ id: "a", force: 0, x: 0, y: 0 }), hp: 5, acted: true };
+    const full = unit({ id: "b", force: 0, x: 1, y: 0 });
+    const foe = { ...unit({ id: "e", force: 1, x: 3, y: 0 }), hp: 20 };
+    const s = { turn: 1, phase: 0, difficulty: "n" as const, map, units: [frail, full, foe], events: [] };
+    const back = reduce(reduce(s, endPhase, { next: () => 0 }), endPhase, { next: () => 0 });
+    expect(back.units.find((u) => u.id === "a")?.hp).toBe(1); // max(5-10, 1)
+    expect(back.units.find((u) => u.id === "b")?.hp).toBe(30);
+    expect(back.events.some((e) => e.type === "terrainHeal" && e.unit === "b")).toBe(false); // 변화 0 = 무이벤트
+  });
+
+  it("베이스 + 오버레이 합산 — 합 0이면 스킵(판독: base+overlap 합으로 1회 적용)", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { readFileSync } = await import("node:fs");
+    const data = JSON.parse(
+      readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8"),
+    );
+    const reduce = createReducer(createCalculator(data));
+    const fort: TerrainCell = { avoid: 0, def: 0, heal: 10 };
+    const map = flatMap(3, 1, fort);
+    map.overlays = [{ x: 0, y: 0, cell: { avoid: 0, def: 0, heal: -10 } }];
+    const hurt = { ...unit({ id: "a", force: 0, x: 0, y: 0 }), hp: 15, acted: true };
+    const foe = { ...unit({ id: "e", force: 1, x: 2, y: 0 }), hp: 20 };
+    const s = { turn: 1, phase: 0, difficulty: "n" as const, map, units: [hurt, foe], events: [] };
+    const back = reduce(reduce(s, endPhase, { next: () => 0 }), endPhase, { next: () => 0 });
+    expect(back.units.find((u) => u.id === "a")?.hp).toBe(15); // +10 −10 = 0 → 스킵
+  });
+});
+
 describe("NotWarp(Flag bit17) 워프 목적지 제외", () => {
   it("notWarp 타일은 반경 안이어도 목적지에서 빠진다 (NotTarget bit16과 별개)", () => {
     const plain: TerrainCell = { avoid: 0, def: 0 };

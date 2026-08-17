@@ -24,6 +24,7 @@ export {
   allianceOf,
   terrainBonusAt,
   makeCostAt,
+  destroyTargets,
   overlayAt,
   structureAt,
   staffHealAmount,

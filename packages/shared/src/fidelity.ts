@@ -209,9 +209,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.destroy",
     label: { en: "Destroy terrain/structures", ko: "파괴(구조물 부수기)" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3)",
+      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·EventEntryDestroy 발화 접점(이벤트 세션과 합류 시)",
   },
   {
     id: "actions.cannon",
@@ -971,9 +971,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "turn.terrain-heal",
     label: { en: "Terrain heal/damage at turn start", ko: "지형 회복·피해(턴 시작)" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-8): 턴 시작에 서 있는 칸의 terrain.Heal로 회복(ProcTerrainHeal.GetHeal RVA 0x1E3BB40), 대칭으로 지형 피해도 존재(ProcTerrainDamage.GetDamage RVA 0x1E3B970) · **비행(IsFly 또는 MoveFly)은 전면 면제**(Flag.FlyEnable 타일 한정이나 그 Flag 보유 타일이 0건) · BmapSize 2 및 3 초과 유닛도 제외",
+      "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-8): 턴 시작에 서 있는 칸의 terrain.Heal로 회복(ProcTerrainHeal.GetHeal RVA 0x1E3BB40), 대칭으로 지형 피해도 존재(ProcTerrainDamage.GetDamage RVA 0x1E3B970) · **비행(IsFly 또는 MoveFly)은 전면 면제**(Flag.FlyEnable 타일 한정이나 그 Flag 보유 타일이 0건) · BmapSize 2 및 3 초과 유닛도 제외 · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §1·§2): 적용 = ProcTerrainDamage/Heal(0x1B6FB80) — 피해·회복 = 베이스+오버레이 Heal 합(합 0 = 스킵), canDie=false 상수라 **hp 하한 1(지형 사망 불가)**, 면제 = JobData.IsFly = Attrs bit3(☠moveType 아님 — 용 비면제)·BmapSize 2/>3 제외 · ★배선 완료(MP3 3-1): endPhase 자기 페이즈 시작 적용 + terrainHeal 이벤트 절대 재생 — terrain.test.ts 3건",
   },
   {
     id: "turn.chapter-hold-level",

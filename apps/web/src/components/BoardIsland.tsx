@@ -6,6 +6,7 @@ import {
   canChainGuard,
   canterPower,
   chainGuardFor,
+  destroyTargets,
   hasChainGuardSkill,
   effectiveWeapons,
   forecastSide,
@@ -319,6 +320,12 @@ export default function BoardIsland(props: BoardProps) {
 
   // 호버 예보(인게임 문법): 사거리 안 적에 커서만 올려도 공격 발판이 정해지고 즉시 예보가 뜬다.
   // 발판 우선순위 = 유저가 그린 마지막 경로 끝점 → 제자리 → 최소 이동비용 지점.
+  // 파괴 가능 인접 대상 — 잠정 이동(pending) 위치 기준. 열거의 정본 = 엔진 destroyTargets(C4 중복 금지).
+  const breakables = useMemo(() => {
+    if (selected === undefined || selectedAt === undefined) return [];
+    return destroyTargets(game.structures, selectedAt.x, selectedAt.y, selected.force);
+  }, [selected, selectedAt, game]);
+
   const hoverEnemy = useMemo(() => {
     if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 적 호버가 지팡이 문법을 탄다
     if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
@@ -551,6 +558,10 @@ export default function BoardIsland(props: BoardProps) {
             return `${name(ev.unit)} ${t.guard}`;
           case "guardBlock":
             return `${name(ev.unit)} ${t.guard} −${ev.damage}`;
+          case "destroy":
+            return `${name(ev.unit)} ${labels.destroyCmd} → ${ev.hpAfter}`;
+          case "terrainHeal":
+            return `${name(ev.unit)} ${ev.amount > 0 ? "+" : ""}${ev.amount}`;
           case "engage":
             return `${name(ev.unit)} ${t.engage}`;
           case "disengage":
@@ -897,6 +908,21 @@ export default function BoardIsland(props: BoardProps) {
               }}
             >
               {labels.guardCmd}
+            </button>
+          )}
+          {/* 파괴 — 인접 파괴 가능물(Destroyer 자격) 존재 시. 열거 = 엔진 destroyTargets 단일 정본(C4). */}
+          {!selected.acted && selected.force === game.phase && breakables.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const t = breakables[0];
+                if (commitMove() && tryDispatch({ type: "destroy", unit: selected.id, x: t.x, y: t.y })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                }
+              }}
+            >
+              {labels.destroyCmd}
             </button>
           )}
           {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}

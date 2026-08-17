@@ -109,6 +109,11 @@ export interface UnitState {
    * 소비 비트만 사영한다. 지속 = 페이즈 종료마다 age+1, life×3 도달 시 소멸(life 0 = 무제한).
    */
   statuses?: StatusEffect[];
+  /**
+   * 직업 Attrs bit3(Fly) — 지형 회복·피해 전면 면제 판정(JobData.IsFly 0x2055D30, MP3_READINGS §2).
+   * ☠moveType으로 갈음 금지 — 용(邪竜류, MoveType 4)은 Fly 비트가 없어 면제 대상이 아니다.
+   */
+  flying?: boolean;
 }
 
 /** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
@@ -197,6 +202,10 @@ export function moveBudget(u: UnitState): number | undefined {
  * 비대칭 항(Player·Enemy 계열)은 우군(2+)에 가산되지 않는다(CalcDefense/CalcAvoid 0x1E746C0/0x1E74900).
  */
 export interface TerrainCell {
+  /** 지형 TID(terrain.xml Tid) — 이벤트 질의(TerrainGet) 정본. 부재 = 미배선(질의 시 정직 오류). */
+  tid?: string;
+  /** 코스트 종별(terrain.xml CostName, 예 COST_空 = 비행 전용) — TerrainGetMoveCost 사영. */
+  costName?: string;
   avoid: number;
   def: number;
   playerAvoid?: number;
@@ -218,6 +227,8 @@ export interface TerrainCell {
 export interface OverlaySpot {
   x: number;
   y: number;
+  /** 오버레이 TID — 이벤트 질의(MapOverlapGet)가 문자열 비교로 소비한다. */
+  tid?: string;
   cell: TerrainCell;
   moveCost?: number;
   flyCost?: number;
@@ -239,6 +250,8 @@ export interface StructureState {
   roof?: boolean;
   /** 구조물 TID의 이동 코스트(치환용) — 부재 시 베이스 코스트 유지. */
   costs?: Partial<Record<MoveType, number>>;
+  /** terrain.json Destroyer — 0 양군 · 1 자군만 · 2 적군만(BreakdownMenuItem GetForce 판독). */
+  destroyer?: number;
   name?: string;
 }
 
@@ -270,6 +283,34 @@ export function structureAt(
   return structures?.find(
     (s) => !s.roof && s.hp > 0 && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
   );
+}
+
+/**
+ * 파괴 가능 인접 대상 열거 — (x, y)에 선 force 유닛이 부술 수 있는 구조물의 인접 칸.
+ * UI 버튼과 reduce 합법성이 이것 하나를 소비한다(☠중복 구현 금지 — C4).
+ * Destroyer 필터 = 0 양군 · 1 자군만 · 2 적군만 · 지붕·파괴 불가(hp 0)는 대상 아님.
+ */
+export function destroyTargets(
+  structures: readonly StructureState[] | undefined,
+  x: number,
+  y: number,
+  force: number,
+): { x: number; y: number; structure: number }[] {
+  const out: { x: number; y: number; structure: number }[] = [];
+  (structures ?? []).forEach((s, i) => {
+    if (s.roof === true || s.hp <= 0) return;
+    if (s.destroyer === 1 && force !== 0) return;
+    if (s.destroyer === 2 && force !== 1) return;
+    const gapX = Math.max(s.x - x, 0, x - (s.x + s.w - 1));
+    const gapY = Math.max(s.y - y, 0, y - (s.y + s.h - 1));
+    if (gapX + gapY !== 1) return;
+    out.push({
+      x: Math.min(Math.max(x, s.x), s.x + s.w - 1),
+      y: Math.min(Math.max(y, s.y), s.y + s.h - 1),
+      structure: i,
+    });
+  });
+  return out;
 }
 
 /**
@@ -712,6 +753,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
     };
     let crests = state.crests;
+    let structures: StructureState[] | undefined;
     /**
      * 紋章氣 소비 — MapSequenceMind.EngageHeal(0x2681CC0) 코드 확정: 비인게이지·비만충일 때
      * count = limit **대입** + 타일 1회성 소멸(MapOverlap.Remove). '회복량' 수치는 존재하지 않는다.
@@ -748,6 +790,34 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         u.x = action.x;
         u.y = action.y;
         u.moved = true;
+        break;
+      }
+
+      case "destroy": {
+        // ★파괴 = 전투가 아니라 결정론적 공격력 차감(MP3_READINGS §3 — CalcDestroy 판독):
+        // 명중 롤·필살·반격·난수 소비 전무. 대미지 = min((int)clamp(공격력, 0, 999), 잔여 HP) × 타격 횟수.
+        const u = require(action.unit);
+        assertActable(u);
+        const legal = destroyTargets(state.structures, u.x, u.y, u.force).find(
+          (t) => t.x === action.x && t.y === action.y,
+        );
+        if (legal === undefined) throw new Error(`파괴 대상 없음: (${action.x}, ${action.y})`);
+        const idx = legal.structure;
+        const target = state.structures![idx];
+        const self = { ...toCombatant(u, state.map, units, supportEffects), initiator: true, striking: true };
+        const env = combatEnv(self);
+        const atk = Math.trunc(Math.min(Math.max(calc.eval("攻撃力計算", env) as number, 0), 999));
+        const flow = makeSkillModifier(effectiveSkills(u) ?? [], env, { initiator: true, striking: true });
+        const strikes = Math.max(Math.trunc(flow("攻撃回数", 1)), 1);
+        let hp = target.hp;
+        for (let i = 0; i < strikes && hp > 0; i++) {
+          hp -= Math.min(atk, hp);
+          events.push({ type: "destroy", unit: u.id, structure: idx, tid: target.tid, hpAfter: hp });
+        }
+        structures = (structures ?? state.structures ?? []).map((s, i) => (i === idx ? { ...s, hp } : s));
+        u.acted = true;
+        u.moved = false; // 행동 = 재이동(시구르드) 창을 연다(커맨드 공통 문법)
+        consumeCrest(u);
         break;
       }
 
@@ -1219,6 +1289,20 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
                   fresh.engage = { ...g, turn };
                 }
               }
+              // 지형 회복·피해(자기 페이즈 시작) — 베이스+오버레이 Heal 합, 합 0 = 스킵(ProcTerrainDamage).
+              // ☠사망 불가: canDie=false 상수 경로라 하한 1(max) · 회복은 잃은 HP 상한. 비행(Attrs Fly) 전면 면제.
+              if (!fresh.dead && fresh.flying !== true) {
+                const net =
+                  (state.map.terrain?.[fresh.y]?.[fresh.x]?.heal ?? 0) +
+                  (overlayAt(state.map, fresh.x, fresh.y)?.cell.heal ?? 0);
+                if (net !== 0) {
+                  const after = net > 0 ? Math.min(fresh.hp + net, fresh.stats.hp) : Math.max(fresh.hp + net, 1);
+                  if (after !== fresh.hp) {
+                    phaseEvents.push({ type: "terrainHeal", unit: fresh.id, amount: after - fresh.hp, hpAfter: after });
+                    fresh.hp = after;
+                  }
+                }
+              }
               return fresh;
             }),
             events: phaseEvents,
@@ -1230,7 +1314,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       }
     }
 
-    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), events });
+    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), ...(structures === undefined ? {} : { structures }), events });
   };
 }
 

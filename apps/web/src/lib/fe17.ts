@@ -23,6 +23,8 @@ import { forceStyle } from "./grid";
 export interface TerrainRow {
   Tid: string;
   Name: string;
+  /** 코스트 종별(COST_*) — 이벤트 질의 TerrainGetMoveCost가 문자열로 비교한다. */
+  CostName?: string;
   ColorR: number;
   ColorG: number;
   ColorB: number;
@@ -41,6 +43,8 @@ export interface TerrainRow {
   Hp_N?: number;
   Hp_H?: number;
   Hp_L?: number;
+  /** 파괴 자격 — 0 양군 · 1 자군만 · 2 적군만(BreakdownMenuItem GetForce). */
+  Destroyer?: number;
   /** ☠지붕 판별자 아님 — m_Layers 실사용 TID 전수가 1(레이어 배치 표식). 지붕 = TID_屋根. */
   Layer?: number;
   /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
@@ -62,6 +66,8 @@ export interface JobRow {
   MoveType?: number;
   "Base.Move"?: number;
   "Limit.Move"?: number;
+  /** SkillData.Attrs 마스크 — bit3(8) = Fly(지형 회복·피해 면제 판정, JobData.IsFly). ☠용(16)은 별개 비트. */
+  Attrs?: number;
   StyleName?: string;
 }
 
@@ -631,6 +637,8 @@ export interface BoardStructureProp {
   hp: { n: number; h: number; l: number };
   /** TID_屋根 = 지붕(렌더 전용 — 통행·전투 무관, 문 개방 시 걷힘). ☠Layer 필드는 판별자 아님(전 레이어 TID가 1). */
   roof?: boolean;
+  /** 파괴 자격(terrain.json Destroyer) — 0 양군 · 1 자군만 · 2 적군만. */
+  destroyer?: number;
   /** 구조물 TID의 이동 코스트(통행 치환용). */
   costs?: Partial<Record<MoveType, number>>;
 }
@@ -659,6 +667,8 @@ export interface BoardOverlayProp {
 /** 팔레트 항목 = 타일 종별 표시·판정 필드 + 이동 코스트(격자 파생용). */
 export interface BoardPaletteEntry extends BoardTileProp {
   tid: string;
+  /** terrain.json CostName — 엔진 TerrainCell.costName(이벤트 TerrainGetMoveCost)의 원천. */
+  costName?: string;
   cost?: Partial<Record<MoveType, number>>;
 }
 
@@ -712,6 +722,8 @@ export interface BoardUnitProp {
   chip: string;
   movePoints: number;
   moveType: MoveType;
+  /** 직업 Attrs bit3(Fly) — 지형 회복·피해 면제(☠moveType 판별 금지 — 용은 비면제). */
+  flying?: boolean;
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
@@ -793,6 +805,7 @@ export interface BoardProps {
     staffCmd: string;
     itemCmd: string;
     guardCmd: string;
+    destroyCmd: string;
     warpPick: string;
     engageCmd: string;
     tradeCmd: string;
@@ -1011,6 +1024,7 @@ export function boardProps(
         Number(person?.["Limit.Move"] ?? 0),
       ),
       moveType,
+      ...(((Number(job?.Attrs ?? 0)) & 8) !== 0 ? { flying: true } : {}),
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
       ...(() => {
@@ -1066,6 +1080,7 @@ export function boardProps(
     const row = terrain[tid];
     return {
       tid,
+      ...(row?.CostName !== undefined ? { costName: row.CostName } : {}),
       color: tileColor(tid),
       name: tileName(locale, tid),
       blocked: isBlocked(tid),
@@ -1113,6 +1128,7 @@ export function boardProps(
           // 지붕 판별 = TID (m_Layers 실사용 11종 전수에서 Layer=1 공통이라 Layer는 판별자가 아니다 —
           // TID_屋根만 Hp 0·렌더 전용, 2026-08-18 전수 실측).
           ...(s.tid === "TID_屋根" ? { roof: true } : {}),
+          ...opt("destroyer", row?.Destroyer),
           ...(row?.cost !== undefined ? { costs: row.cost } : {}),
         };
       });
@@ -1200,6 +1216,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
     guardCmd: t.guardCmd,
+    destroyCmd: t.destroyCmd,
     warpPick: t.warpPick,
     engageCmd: t.engageCmd,
     tradeCmd: t.tradeCmd,

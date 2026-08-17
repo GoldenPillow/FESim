@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData } from "@fesim/shared";
 import {
@@ -321,4 +322,114 @@ describe("이벤트 세션 — 실 스크립트 통합(m002 다국면)", () => {
     expect(s.crests).toContainEqual({ x: 8, y: 4 }); // MapOverlapSetOne 紋章氣
     expect(s.outcome).toBeUndefined(); // 전멸 승리는 -1로 꺼져 있다
   });
+});
+
+/**
+ * 변환 챕터 전수 세션 부트 스모크 — 스크립트가 실린 모든 챕터가 스텝 0(setup)을 오류 0으로 통과해야 한다.
+ * ☠미등록 네이티브는 Lua 오류로 터진다(정직 거부) → 보드가 원시판으로 강하한다. 신규 챕터를 변환하면
+ * 이 스모크가 먼저 빨개져서 "어느 네이티브가 없나"를 실패 메시지로 뱉는다.
+ * 구현 불가로 남긴 결손은 HONEST_GAPS에 박제한다(몰래 스킵 금지 — 목록이 곧 미구현 장부다).
+ */
+describe("변환 챕터 전수 세션 부트 스모크", () => {
+  const scriptDir = fileURLToPath(new URL("../../../data/fe17/scripts/", import.meta.url));
+  const chapterDir = fileURLToPath(new URL("../../../data/fe17/chapters/", import.meta.url));
+  const scriptNames = readdirSync(scriptDir).filter((f) => f.endsWith(".lua")).map((f) => f.slice(0, -4));
+  const commons = scriptNames.filter((n) => n.startsWith("common"));
+  const chapters = scriptNames.filter((n) => !n.startsWith("common")).sort();
+  const sources = Object.fromEntries(
+    scriptNames.map((n) => [n, readFileSync(`${scriptDir}${n}.lua`, "utf-8")]),
+  );
+
+  /** 부트를 못 하는 챕터 = 미구현 네이티브(정직 결손). 비어 있어야 정상. */
+  const HONEST_GAPS: Record<string, string[]> = {};
+
+  // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
+  const terrainTable = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/terrain.json", import.meta.url), "utf-8"),
+  ) as Record<string, { CostName?: string; Avoid?: number; Defense?: number; Hp_N?: number }>;
+  const cellOf = (tid: string) => ({
+    tid,
+    ...(terrainTable[tid]?.CostName !== undefined ? { costName: terrainTable[tid].CostName } : {}),
+    avoid: terrainTable[tid]?.Avoid ?? 0,
+    def: terrainTable[tid]?.Defense ?? 0,
+  });
+
+  interface ChapterJson {
+    map: {
+      width: number;
+      height: number;
+      terrain: string[][];
+      overlays?: { x: number; y: number; tid: string }[];
+      structures?: { x: number; y: number; w: number; h: number; tid: string; group: number }[];
+    };
+    groups: { name: string; units: { pid: string; force: number; x: number; y: number }[] }[];
+  }
+
+  it(`스크립트가 있는 챕터 전수(${chapters.join(", ")})가 스크립트+데이터 짝을 갖는다`, () => {
+    expect(chapters.length).toBeGreaterThanOrEqual(8);
+    expect(commons).toContain("common");
+  });
+
+  for (const cid of chapters) {
+    const json = JSON.parse(readFileSync(`${chapterDir}${cid}.json`, "utf-8")) as ChapterJson;
+    const src = sources[cid];
+    // 자동 배치 = Dispos로 소환되지 않는 그룹(웹 초기 배치 규칙과 동일 — fe17.ts disposGroups).
+    const disposed = new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]));
+    const project = (group: string): UnitState[] => {
+      const g = json.groups.find((x) => x.name === group);
+      return (g?.units ?? []).map((u, i) =>
+        unit({ id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y }),
+      );
+    };
+    const initial = json.groups.filter((g) => !disposed.has(g.name)).flatMap((g) => project(g.name));
+    const { width, height } = json.map;
+    const s0: GameState = {
+      turn: 1,
+      phase: 0,
+      difficulty: "n",
+      map: {
+        width,
+        height,
+        costs: { foot: Array.from({ length: height }, () => Array.from({ length: width }, () => 1)) },
+        terrain: json.map.terrain.map((line) => line.map(cellOf)),
+        ...(json.map.overlays === undefined
+          ? {}
+          : { overlays: json.map.overlays.map((o) => ({ x: o.x, y: o.y, tid: o.tid, cell: cellOf(o.tid) })) }),
+      },
+      ...(json.map.structures === undefined
+        ? {}
+        : {
+            structures: json.map.structures.map((s) => ({
+              ...s,
+              hp: terrainTable[s.tid]?.Hp_N ?? 0,
+              ...(s.tid === "TID_屋根" ? { roof: true } : {}),
+            })),
+          }),
+      units: initial,
+      events: [],
+    };
+    const h: EventHost = {
+      spawnGroup: project,
+      skillRow: (sid) => ({ Sid: sid }),
+      godUnit: () => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
+      gainItem: () => ({}),
+    };
+    const gap = HONEST_GAPS[cid];
+
+    if (gap !== undefined) {
+      it(`${cid}: 정직 결손 — 미구현 네이티브 ${gap.join(", ")}로 부트가 거부된다`, () => {
+        const boot = () => createEventSession({ sources, chapter: cid, host: h }).setup(s0);
+        expect(boot).toThrow(new RegExp(gap.join("|")));
+      });
+      continue;
+    }
+
+    it(`${cid}: createEventSession + setup(스텝 0)이 오류 0`, () => {
+      const session = createEventSession({ sources, chapter: cid, host: h });
+      const r = session.setup(s0);
+      expect(r.state.units.length).toBeGreaterThan(0);
+      // 미지 호출은 실패가 아니라 표면 — 있으면 무엇이 미배선인지 남는다(정직성).
+      expect(session.unknownCalls().map(([n]) => n)).toEqual([]);
+    });
+  }
 });

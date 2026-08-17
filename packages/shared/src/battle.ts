@@ -172,6 +172,10 @@ export interface EngageArt {
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
+  /** 자기 페이즈 시작 지형 회복(+)/피해(−) — hpAfter 절대값. ☠사망 불가(하한 1 — ProcTerrainDamage canDie=false). */
+  | { type: "terrainHeal"; unit: string; amount: number; hpAfter: number }
+  /** 구조물 파괴 타격 — structure = 국면 structures 인덱스, hpAfter = 잔여(0 = 소멸·통행 개방·지붕 걷힘). */
+  | { type: "destroy"; unit: string; structure: number; tid: string; hpAfter: number }
   /** 방해 지팡이 명중 → 상태 부여 — 절대 재생이 이 행을 그대로 대상에 싣는다(age 0). */
   | { type: "status"; unit: string; target: string; sid: string; badState: number; life: number; name?: string }
   /** 방해 지팡이 빗나감 — 상태 무부여(사용 횟수·행동 소모는 액션 복원이 소유). */
@@ -251,5 +255,7 @@ export type BattleAction =
    * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.
    */
   | { type: "trade"; unit: string; target: string; kind: "weapon" | "staff" | "consumable"; index: number; back?: boolean }
+  /** 파괴 — 인접 구조물(x·y가 덮인 칸)에 공격력 결정 차감. ☠난수 무소비(명중·필살·반격 없음 — MP3_READINGS §3). */
+  | { type: "destroy"; unit: string; x: number; y: number }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

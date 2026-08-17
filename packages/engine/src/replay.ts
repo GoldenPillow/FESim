@@ -127,6 +127,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
 
   let outcome = state.outcome;
   let crests = state.crests;
+  let structures = state.structures;
   let variables = state.variables;
   let winRule = state.winRule;
   for (const ev of events) {
@@ -137,6 +138,15 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
       case "heal":
         require(ev.target).hp = ev.hpAfter;
         break;
+      case "terrainHeal":
+        require(ev.unit).hp = ev.hpAfter;
+        break;
+      case "destroy": {
+        const s = structures?.[ev.structure];
+        if (s === undefined) throw new ReplayDesyncError(`기록의 구조물이 국면에 없다: #${ev.structure}`);
+        structures = structures!.map((v, i) => (i === ev.structure ? { ...v, hp: ev.hpAfter } : v));
+        break;
+      }
       case "status": {
         // reduce와 동일 계약 — 재부여는 치환(age 리셋).
         const u = require(ev.target);
@@ -292,6 +302,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
     ...state,
     units,
     ...(crests === undefined ? {} : { crests }),
+    ...(structures === undefined ? {} : { structures }),
     ...(variables === undefined ? {} : { variables }),
     ...(winRule === undefined ? {} : { winRule }),
     events: [...events],

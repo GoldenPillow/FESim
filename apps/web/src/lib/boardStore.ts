@@ -123,6 +123,7 @@ export function projectUnit(
     exp: 0,
     movePoints: u.movePoints,
     moveType: u.moveType,
+    ...(u.flying === true ? { flying: true } : {}),
     style: u.style,
     acted: false,
     dead: false,
@@ -172,6 +173,8 @@ export function initGame(
         line.map((i) => {
           const t = props.palette[i] ?? { avoid: 0, def: 0 };
           return {
+            ...(t.tid !== undefined ? { tid: t.tid } : {}),
+            ...(t.costName !== undefined ? { costName: t.costName } : {}),
             avoid: t.avoid,
             def: t.def,
             ...(t.playerAvoid !== undefined ? { playerAvoid: t.playerAvoid } : {}),
@@ -189,6 +192,7 @@ export function initGame(
             overlays: props.overlays.map((o) => ({
               x: o.x,
               y: o.y,
+              tid: o.tid,
               cell: {
                 avoid: o.avoid,
                 def: o.def,
@@ -223,6 +227,7 @@ export function initGame(
       group: s.group,
       hp: s.hp[difficulty] ?? 0,
       ...(s.roof === true ? { roof: true } : {}),
+      ...(s.destroyer !== undefined ? { destroyer: s.destroyer } : {}),
       ...(s.costs !== undefined ? { costs: s.costs } : {}),
       name: s.name,
     }));
