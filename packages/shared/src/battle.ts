@@ -191,6 +191,30 @@ export type BattleEvent =
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
+  /** 이벤트 스폰(Dispos) — 유닛 전체 스냅숏을 실어 절대 재생이 세션 없이 복원한다. */
+  | { type: "spawn"; unit: Record<string, unknown> }
+  /** 이벤트 제거(UnitDelete) — 사망과 구별되는 퇴장(판정상은 동일하게 비존재). */
+  | { type: "despawn"; unit: string }
+  /** 세력 전환(UnitTransfer·UnitJoin) — force = 전환 후 절대값. */
+  | { type: "transfer"; unit: string; force: number }
+  /** 이벤트 좌표 이동(UnitSetPos) — 절대 좌표. */
+  | { type: "setPos"; unit: string; x: number; y: number }
+  /** 게임 변수(GameVariable) 변경 — 발화 플래그 잠금 포함, value = 변경 후 절대값. */
+  | { type: "variable"; key: string; value: number | string }
+  /** 승패 규칙 파라미터 변경(WinRuleSet*) — 절대값 병합. */
+  | { type: "winRule"; enemyLessThan?: number; destroyBoss?: boolean; limitTurn?: number }
+  /** 유닛 스킬 부여/해제(PrivateSkill) — row 실림 = 부여(절대 재생용), 없음 = 해제. */
+  | { type: "privateSkill"; unit: string; sid: string; row?: Record<string, unknown> }
+  /** 엠블렘 유닛화(UnitSetGodUnit) — patch = 데이터층이 산출한 유닛 필드 패치(절대 재생용). */
+  | { type: "godUnit"; unit: string; gid: string; patch?: Record<string, unknown> }
+  /** AI 재설정(AiSetSequence류) — 기록만(소비 = MP4 AI 실행기). params = 원문 인자. */
+  | { type: "ai"; unit: string; params: (string | number | boolean)[] }
+  /** 紋章氣 타일 생성(MapOverlapSetOne) — crest(소비)와 대칭. */
+  | { type: "crestAdd"; x: number; y: number }
+  /** 유닛 파라미터 초기화(UnitResetParam) — HP 절대값 복원 + 상태·브레이크 해제(⚠범위는 가정). */
+  | { type: "reset"; unit: string; hpAfter: number }
+  /** 상태이상 비트 해제(UnitClearStatus) — badState 비트가 걸린 상태를 제거. */
+  | { type: "statusClear"; unit: string; badState: number }
   | { type: "exp"; unit: string; amount: number; total: number }
   | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }
   | { type: "phase"; phase: number; turn: number }

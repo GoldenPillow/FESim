@@ -40,6 +40,12 @@ export type { BattleWeapon } from "@fesim/shared";
 export interface UnitState {
   id: string;
   name?: string;
+  /** dispos Pid 원문 — 이벤트 스크립트가 유닛을 부르는 주소(동일 pid 복수 유닛 가능 — 환영병). */
+  pid?: string;
+  /** 보스 표지(WinRuleDestroyBoss 판정 대상) — ⚠dispos flag 비트 의미 미판독, 사영은 데이터층 가정. */
+  boss?: boolean;
+  /** 이벤트의 AI 재설정 기록(AiSetSequence류 원문 인자 누적) — 소비 = MP4 AI 실행기. */
+  aiScript?: (string | number | boolean)[][];
   force: number;
   x: number;
   y: number;
@@ -167,6 +173,19 @@ export interface BattleMap {
 
 export type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
 
+/**
+ * 승패 규칙 파라미터 — Lua WinRuleSet*의 사영(MapSituation 필드, il2cpp/_wip_winrule).
+ * 미지정 = 기본값: 적 전멸 승리(enemyLessThan 0 상당) · 자군 전멸 패배.
+ */
+export interface WinRule {
+  /** 적 잔존 수 <= N 승리. **음수 = 판정 무효화**(m002가 -1로 전멸 승리를 끈다). */
+  enemyLessThan?: number;
+  /** 보스(unit.boss) 전멸 승리 스위치. */
+  destroyBoss?: boolean;
+  /** ⚠가정: 양수 = N턴 완료 생존 승리 · 음수 = |N|턴 내 미클리어 패배(판정 시점 = 턴 랩). */
+  limitTurn?: number;
+}
+
 export interface GameState {
   turn: number;
   /** 현재 페이즈의 군 (0 자군 · 1 적군 · 2 우군). */
@@ -174,6 +193,10 @@ export interface GameState {
   difficulty?: Difficulty;
   map: BattleMap;
   units: UnitState[];
+  /** 게임 변수(GameVariable 사영) — 이벤트 발화 플래그·勝利/敗北 포함. 쓰기는 이벤트 레이어만. */
+  variables?: Record<string, number | string>;
+  /** 승패 규칙 파라미터(WinRuleSet* 사영) — reduce의 승패 판정이 소비한다. */
+  winRule?: WinRule;
   /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
   crests?: { x: number; y: number }[];
   outcome?: "victory" | "defeat";
@@ -1019,21 +1042,42 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             }),
             events: phaseEvents,
           };
-          return next;
+          const wrapped2 = next.turn > state.turn;
+          return settleOutcome(next, wrapped2 ? state.turn : undefined);
         }
         break;
       }
     }
 
-    // 승패 판정: 적군 전멸 = 승리, 자군 전멸 = 패배 (챕터 고유 조건은 후속 — Lua 이벤트 엔진 몫).
-    let outcome = state.outcome;
-    if (outcome === undefined) {
-      const alive = (force: number) => units.some((u) => u.force === force && !u.dead);
-      if (!alive(1) && units.some((u) => u.force === 1)) outcome = "victory";
-      else if (!alive(0) && units.some((u) => u.force === 0)) outcome = "defeat";
-      if (outcome !== undefined) events.push({ type: "outcome", outcome });
-    }
-
-    return { ...state, units, ...(crests === undefined ? {} : { crests }), events, outcome };
+    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), events });
   };
+}
+
+/**
+ * 승패 판정 — 기본(적 전멸/자군 전멸) + winRule 파라미터(WinRuleSet* 사영) + 勝利/敗北 변수(스크립트 직접 판정).
+ * 이벤트 레이어(변수 변경)도 같은 판정을 써야 한다(중복 구현 금지). completedTurn = 턴 랩 시 방금 끝난 턴 번호.
+ */
+export function settleOutcome(state: GameState, completedTurn?: number): GameState {
+  if (state.outcome !== undefined) return state;
+  const rule = state.winRule;
+  const enemies = state.units.filter((u) => u.force === 1);
+  const aliveEnemies = enemies.filter((u) => !u.dead).length;
+  const bosses = enemies.filter((u) => u.boss === true);
+  // enemyLessThan 음수 = 잔존 수 판정 통째 무효화 — GameEndCheck 0x1F4A900 분기 그대로.
+  const routDisabled = rule?.enemyLessThan !== undefined && rule.enemyLessThan < 0;
+  let outcome: GameState["outcome"];
+  if (state.variables?.["勝利"] === 1) outcome = "victory";
+  else if (state.variables?.["敗北"] === 1) outcome = "defeat";
+  else if (!routDisabled && enemies.length > 0 && aliveEnemies <= Math.max(rule?.enemyLessThan ?? 0, 0)) {
+    outcome = "victory";
+  } else if (rule?.destroyBoss === true && bosses.length > 0 && bosses.every((u) => u.dead)) {
+    outcome = "victory";
+  } else if (!state.units.some((u) => u.force === 0 && !u.dead) && state.units.some((u) => u.force === 0)) {
+    outcome = "defeat";
+  } else if (completedTurn !== undefined && rule?.limitTurn !== undefined && rule.limitTurn !== 0) {
+    // ⚠가정: 판정 시점 = 턴 랩(제한턴은 MapSituation.TurnEnd 소관 — 랩 세부 미판독).
+    if (completedTurn >= Math.abs(rule.limitTurn)) outcome = rule.limitTurn > 0 ? "victory" : "defeat";
+  }
+  if (outcome === undefined) return state;
+  return { ...state, outcome, events: [...state.events, { type: "outcome", outcome }] };
 }

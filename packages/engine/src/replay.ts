@@ -1,6 +1,7 @@
 import type { BattleAction, BattleEvent, EphemerisStep, StatKey } from "@fesim/shared";
 import { effectiveWeapons, type GameState, type RandomSource, type UnitState } from "./battle.js";
 
+
 /**
  * 기록·재생 — 공유 링크가 남의 화면에서 같은 국면을 내게 하는 층.
  * 재생 정본은 기록된 events(절대값 적용)다: 공식이 나중에 바뀌어도 남이 만든 기보의 열람 결과는 불변이다.
@@ -13,7 +14,7 @@ import { effectiveWeapons, type GameState, type RandomSource, type UnitState } f
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-5";
+export const RULE_VERSION = "fe17-6";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -114,11 +115,8 @@ function deepEqual(a: unknown, b: unknown): boolean {
   );
 }
 
-function applyEvents(
-  state: GameState,
-  action: Extract<BattleAction, { type: "attack" | "engageAttack" | "staff" | "item" | "dance" }>,
-  events: readonly BattleEvent[],
-): GameState {
+/** 이벤트 목록의 절대 적용(행동 복원 제외) — attack류 재생과 endPhase 훅 오버레이가 공용한다. */
+function applyEventList(state: GameState, events: readonly BattleEvent[]): GameState {
   const units = state.units.map((u) => ({ ...u }));
   const byId = new Map(units.map((u) => [u.id, u]));
   const require = (id: string): UnitState => {
@@ -129,6 +127,8 @@ function applyEvents(
 
   let outcome = state.outcome;
   let crests = state.crests;
+  let variables = state.variables;
+  let winRule = state.winRule;
   for (const ev of events) {
     switch (ev.type) {
       case "strike":
@@ -219,10 +219,99 @@ function applyEvents(
       case "outcome":
         outcome = ev.outcome;
         break;
+      case "spawn": {
+        const u = ev.unit as unknown as UnitState;
+        units.push({ ...u });
+        byId.set(u.id, units[units.length - 1]);
+        break;
+      }
+      case "despawn":
+        require(ev.unit).dead = true;
+        break;
+      case "transfer":
+        require(ev.unit).force = ev.force;
+        break;
+      case "setPos": {
+        const u = require(ev.unit);
+        u.x = ev.x;
+        u.y = ev.y;
+        break;
+      }
+      case "variable":
+        variables = { ...variables, [ev.key]: ev.value };
+        break;
+      case "winRule": {
+        const { type: _t, ...patch } = ev;
+        winRule = { ...winRule, ...patch };
+        break;
+      }
+      case "privateSkill": {
+        const u = require(ev.unit);
+        const kept = (u.statuses ?? []).filter((s) => s.sid !== ev.sid);
+        if (ev.row !== undefined) {
+          const row = ev.row as { badState?: number; life?: number };
+          kept.push({ sid: ev.sid, badState: row.badState ?? 0, life: row.life ?? 0, age: 0 });
+        }
+        u.statuses = kept;
+        if (kept.length === 0) delete u.statuses;
+        break;
+      }
+      case "godUnit": {
+        const u = require(ev.unit);
+        if (ev.patch !== undefined) Object.assign(u, ev.patch as Partial<UnitState>);
+        break;
+      }
+      case "ai": {
+        const u = require(ev.unit);
+        u.aiScript = [...(u.aiScript ?? []), ev.params];
+        break;
+      }
+      case "crestAdd":
+        crests = [...(crests ?? []), { x: ev.x, y: ev.y }];
+        break;
+      case "reset": {
+        const u = require(ev.unit);
+        u.hp = ev.hpAfter;
+        u.broken = false;
+        delete u.statuses;
+        break;
+      }
+      case "statusClear": {
+        const u = require(ev.unit);
+        if (u.statuses !== undefined) {
+          u.statuses = u.statuses.filter((s) => (s.badState & ev.badState) === 0);
+          if (u.statuses.length === 0) delete u.statuses;
+        }
+        break;
+      }
       case "phase":
         break;
     }
   }
+  return {
+    ...state,
+    units,
+    ...(crests === undefined ? {} : { crests }),
+    ...(variables === undefined ? {} : { variables }),
+    ...(winRule === undefined ? {} : { winRule }),
+    events: [...events],
+    outcome,
+  };
+}
+
+function applyEvents(
+  state: GameState,
+  action: Extract<BattleAction, { type: "attack" | "engageAttack" | "staff" | "item" | "dance" }>,
+  events: readonly BattleEvent[],
+): GameState {
+  const next = applyEventList(state, events);
+  const units = next.units;
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const require = (id: string): UnitState => {
+    const u = byId.get(id);
+    if (u === undefined) throw new ReplayDesyncError(`기록의 유닛이 국면에 없다: ${id}`);
+    return u;
+  };
   const actor = require(action.unit);
   // reduce와 동일 계약 복원 — 장비 전환·지팡이 횟수 소모는 이벤트에 없어 행동에서 되살린다.
   // 안 하면 절대 적용 경로의 국면이 표류한다(이후 스텝의 반격 무기·잔여 횟수가 어긋난다).
@@ -240,14 +329,19 @@ function applyEvents(
   }
   actor.acted = true;
   actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
-  return { ...state, units, ...(crests === undefined ? {} : { crests }), events: [...events], outcome };
+  return next;
 }
 
-export function createReplayer(reduce: Reduce) {
+export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
   /**
    * 재생 1스텝. 공격은 기록 events 절대값 적용 — 단 events가 없으면 rolls로 reduce 재계산(정본 부재 폴백).
    * 그 외 행동은 reduce 재사용(롤 무소비 — 소비하면 던진다). events·rolls 둘 다 없는 공격은
    * ReplayDesyncError로 끝난다(수기·LLM 기보의 정합 검증은 M4 검증기 몫 — 호출측이 잡아서 표시한다).
+   *
+   * endPhase에 events가 실려 있으면(이벤트 엔진 = MP2) baseReduce로 결정 전이(에이징·해제)를 재계산한 뒤
+   * 훅 전용 이벤트(HOOK_EVENT_TYPES)만 절대 오버레이한다 — 열람(/s/) 경로가 Lua 없이 증원·전이를 복원하는
+   * 문법. ⚠훅이 전이 '이전'에 발화한 기록을 '이후'에 얹으므로 이론상 표류 여지가 있다 — verify(재계산)가
+   * 정본 대조를 소유한다(절대값 이벤트라 관측 케이스에선 수렴).
    */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
     if (
@@ -259,6 +353,12 @@ export function createReplayer(reduce: Reduce) {
       step.events !== undefined
     ) {
       return applyEvents(state, step.action, step.events);
+    }
+    if (step.action.type === "endPhase" && step.events !== undefined) {
+      const next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
+      // 기록 이벤트 전체를 오버레이 — 전부 절대값(hpAfter·count·좌표) 또는 멱등이라 base 재계산분과
+      // 겹쳐도 수렴한다. 부분집합 필터는 훅의 사망(UnitDie)류를 놓친다.
+      return applyEventList(next, step.events);
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));
   }
