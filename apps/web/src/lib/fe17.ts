@@ -29,6 +29,13 @@ export interface TerrainRow {
   Prohibition: number;
   Avoid?: number;
   Defense?: number;
+  PlayerAvoid?: number;
+  PlayerDefense?: number;
+  EnemyAvoid?: number;
+  EnemyDefense?: number;
+  Heal?: number;
+  MoveFirst?: number;
+  Flag?: number;
   /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
   cost?: Record<MoveType, number>;
 }
@@ -611,6 +618,17 @@ export interface BoardTileProp {
   /** 지형 회피/방어 보정 — 전투 공식의 地形回避/地形防御 입력. */
   avoid: number;
   def: number;
+  /** 진영 비대칭 보정(瘴気류) — 0은 생략(직렬화 절약). 소비 = 엔진 terrainBonusAt. */
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  /** 자기 페이즈 시작 회복(+)/피해(−) — terrain.json Heal. */
+  heal?: number;
+  /** 출발 칸 이동력 보정 — terrain.json MoveFirst. */
+  moveFirst?: number;
+  /** 워프 착지 금지 — terrain.json Flag bit17. */
+  notWarp?: boolean;
 }
 
 export interface BoardWeaponProp {
@@ -982,13 +1000,25 @@ export function boardProps(
     width: map.width,
     height: map.height,
     tiles: map.terrain.map((line, y) =>
-      line.map((tid, x) => ({
-        color: tileColorAt(tid, x, y),
-        name: tileName(locale, tid),
-        blocked: isBlocked(tid),
-        avoid: terrain[tid]?.Avoid ?? 0,
-        def: terrain[tid]?.Defense ?? 0,
-      })),
+      line.map((tid, x) => {
+        const row = terrain[tid];
+        const opt = (key: keyof BoardTileProp, value: number | undefined): Record<string, number> =>
+          typeof value === "number" && value !== 0 ? { [key]: value } : {};
+        return {
+          color: tileColorAt(tid, x, y),
+          name: tileName(locale, tid),
+          blocked: isBlocked(tid),
+          avoid: row?.Avoid ?? 0,
+          def: row?.Defense ?? 0,
+          ...opt("playerAvoid", row?.PlayerAvoid),
+          ...opt("playerDef", row?.PlayerDefense),
+          ...opt("enemyAvoid", row?.EnemyAvoid),
+          ...opt("enemyDef", row?.EnemyDefense),
+          ...opt("heal", row?.Heal),
+          ...opt("moveFirst", row?.MoveFirst),
+          ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+        };
+      }),
     ),
     costs,
     objects: (map.objects ?? []).map((o) => ({

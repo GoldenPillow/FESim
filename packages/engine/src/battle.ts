@@ -192,16 +192,63 @@ export function moveBudget(u: UnitState): number | undefined {
   return canterPower(u);
 }
 
+/**
+ * 지형 셀 소비 스키마 — terrain.json 행의 전투·이동 소비분(0/false는 생략 가능).
+ * 비대칭 항(Player·Enemy 계열)은 우군(2+)에 가산되지 않는다(CalcDefense/CalcAvoid 0x1E746C0/0x1E74900).
+ */
+export interface TerrainCell {
+  avoid: number;
+  def: number;
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  /** 자기 페이즈 시작 회복(+)/피해(−) — terrain.json Heal. 비행 면제(FIX-10). */
+  heal?: number;
+  /** 출발 칸 이동력 보정 — terrain.json MoveFirst(流砂 −3·氷床 +2). 비행·용 면제. */
+  moveFirst?: number;
+  /** 워프 착지 금지 — terrain.json Flag bit17(NotTarget bit16과 별개). */
+  notWarp?: boolean;
+}
+
 export interface BattleMap {
   width: number;
   height: number;
   costs: Partial<Record<MoveType, number[][]>>;
-  terrain?: { avoid: number; def: number }[][];
+  terrain?: TerrainCell[][];
   /**
    * 진영 동맹표 — force 인덱스 → 진영 번호(MapSituation.IsAllide 0x1F48EC0 사영).
    * 기본 [0,1,0]: 자군(0)↔우군(2) 같은 진영 = 상호 통과 가능, 적(1)은 양쪽과 차단.
    */
   alliance?: number[];
+}
+
+/**
+ * 지형 전투 보정 — 진영 비대칭 합산의 단일 정본(예보·전투·지팡이 명중이 전부 이것만 소비).
+ * force 0 → +Player항 · 1 → +Enemy항 · 2 이상 → 무가산 (CalcDefense/CalcAvoid 동형).
+ */
+export function terrainBonusAt(map: BattleMap, x: number, y: number, force: number): { avoid: number; def: number } {
+  const t = map.terrain?.[y]?.[x];
+  if (t === undefined) return { avoid: 0, def: 0 };
+  const side = force === 0
+    ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
+    : force === 1
+      ? { avoid: t.enemyAvoid ?? 0, def: t.enemyDef ?? 0 }
+      : { avoid: 0, def: 0 };
+  return { avoid: t.avoid + side.avoid, def: t.def + side.def };
+}
+
+/**
+ * 출발 칸 MoveFirst를 반영한 실이동 예산 — reduce·UI 공용(☠중복 구현 금지).
+ * 정본 = GetMovePowerImpl 경로: 예산 ≥ 1일 때만 clamp(예산 + moveFirst, 0, 100), 비행·용 면제.
+ * 재이동도 동일 루틴이라 자동 적용된다(MOVE_TERRAIN.md FIX-6).
+ */
+export function moveBudgetOn(map: BattleMap, u: UnitState): number | undefined {
+  const budget = moveBudget(u);
+  if (budget === undefined || budget < 1) return budget;
+  if (u.moveType === "fly" || u.moveType === "dragon") return budget;
+  const first = map.terrain?.[u.y]?.[u.x]?.moveFirst ?? 0;
+  return clamp(budget + first, 0, 100);
 }
 
 const DEFAULT_ALLIANCE = [0, 1, 0] as const;
@@ -383,10 +430,9 @@ export function staffHitRate(
     stats: { ...caster.stats, maxHp: caster.stats.hp, hp: caster.hp },
     weapon: { might: 0, hit: staff.hit ?? 0, crit: 0, weight: 0 },
   });
-  const tile = map.terrain?.[target.y]?.[target.x];
   const targetEnv = combatEnv({
     stats: { ...target.stats, maxHp: target.stats.hp, hp: target.hp },
-    terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
+    terrain: terrainBonusAt(map, target.x, target.y, target.force),
   });
   const hit = clamp(calc.eval("妨害杖命中値計算", casterEnv) as number, 0, 999);
   const avoid = clamp(calc.eval("妨害杖回避値計算", targetEnv) as number, 0, 999);
@@ -396,8 +442,8 @@ export function staffHitRate(
 /**
  * 워프 목적지 열거 — UI 오버레이와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
  * 정본 = MapDeployTemplate.UnitWarp(0x2C1F880) 디스어셈블: 중심 = **워프되는 대상의 현재 좌표**,
- * 반경 = ItemData.Distance(마력 의존 아님), 맨해튼, 유효 = Unit.CanWarp(비통행 제외·점유 제외).
- * ☠지형 IsNotWarp(Flag bit17)·스킬 RangeAdd 확장은 스키마 결손으로 미배선(장부 movement.warp).
+ * 반경 = ItemData.Distance(마력 의존 아님), 맨해튼, 유효 = Unit.CanWarp(비통행·점유·NotWarp 타일 제외).
+ * ☠스킬 RangeAdd 확장은 미배선(장부 movement.warp).
  */
 export function warpDestinations(
   target: UnitState,
@@ -413,6 +459,7 @@ export function warpDestinations(
     for (let x = Math.max(target.x - radius, 0); x <= Math.min(target.x + radius, map.width - 1); x++) {
       if (Math.abs(x - target.x) + Math.abs(y - target.y) > radius) continue;
       if ((grid[y]?.[x] ?? 255) >= 255) continue;
+      if (map.terrain?.[y]?.[x]?.notWarp === true) continue;
       if (units.some((u) => !u.dead && u.id !== target.id && u.x === x && u.y === y)) continue;
       out.push({ x, y });
     }
@@ -506,11 +553,10 @@ export function toCombatant(
   units: readonly UnitState[] = [],
   supportEffects?: SupportEffects,
 ): Combatant {
-  const tile = map.terrain?.[u.y]?.[u.x];
   return {
     stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
     weapon: u.weapon,
-    terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
+    terrain: terrainBonusAt(map, u.x, u.y, u.force),
     skills: effectiveSkills(u),
     support: supportOf(u, units, supportEffects),
   };
@@ -606,7 +652,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
         if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
-        const budget = moveBudget(u);
+        const budget = moveBudgetOn(state.map, u);
         if (budget === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
         const grid = state.map.costs[u.moveType];
         if (grid === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);

@@ -114,14 +114,14 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Warp and other staff/item movement", ko: "지팡이·아이템 이동(워프 등)" },
     status: "implemented",
     evidence:
-      "ワープ(UseType 5) 배선 완료(2026-08-17 MP1-5, staffWarp.test.ts — warp 액션·warp 이벤트 절대 재생·warpDestinations 엔진·UI 공용) · ★목적지 규칙 신규 디스어셈블(MapDeployTemplate.UnitWarp RVA 0x2C1F880): 반경 = ItemData.Distance(마력 의존 아님)·중심 = **워프되는 대상의 현재 좌표**·맨해튼·스킬 RangeTarget==Kind면 RangeAdd 가산(상한 255, ☠스냅숏 미탑재라 미배선) · 타일 유효 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 시 BmapSize<=1 && !Defect/Lockon) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17**) — 엔진은 비통행(코스트 255)·점유만 배선, ☠IsNotWarp 플래그는 BattleMap.terrain 스키마 결손으로 미배선(지형 스키마 확장과 동건) · ☠レスキュー(UseType 6)·リワープ(8)는 별도 경로(UnitRewarp 0x2C1FE40 계열) 미판독 — reduce가 정직 거부",
+      "ワープ(UseType 5) 배선 완료(2026-08-17 MP1-5, staffWarp.test.ts — warp 액션·warp 이벤트 절대 재생·warpDestinations 엔진·UI 공용) · ★목적지 규칙 신규 디스어셈블(MapDeployTemplate.UnitWarp RVA 0x2C1F880): 반경 = ItemData.Distance(마력 의존 아님)·중심 = **워프되는 대상의 현재 좌표**·맨해튼·스킬 RangeTarget==Kind면 RangeAdd 가산(상한 255, ☠스냅숏 미탑재라 미배선) · 타일 유효 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 시 BmapSize<=1 && !Defect/Lockon) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17**) — 엔진은 비통행(코스트 255)·점유만 배선, ★IsNotWarp(Flag bit17) 배선 완료(2026-08-18, MP3 3-1 — TerrainCell.notWarp, terrain.test.ts, bit16 NotTarget과 구분) · ☠レスキュー(UseType 6)·リワープ(8)는 별도 경로(UnitRewarp 0x2C1FE40 계열) 미판독 — reduce가 정직 거부",
   },
   {
     id: "movement.move-first",
     label: { en: "Departure-tile movement bonus (MoveFirst)", ko: "출발 칸 이동력 보정(MoveFirst)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·§3A 11행): 탐색 시작 전 이동력이 clamp(movePower + 베이스지형.MoveFirst + 오버레이.MoveFirst, 0, 100)로 한 번 보정된다(비행·용은 면제) · 재이동에도 같은 루틴이라 재적용된다 · 엔진 range.ts는 이 항이 없다 = 특정 지형 출발 시 이동 범위가 갈린다",
+      "★IL2CPP 코드 확정(il2cpp/MOVE_TERRAIN.md §2-10·§3A 11행): 탐색 시작 전 이동력 = clamp(movePower + 베이스지형.MoveFirst + 오버레이.MoveFirst, 0, 100), 비행·용 면제, 재이동 동일 루틴. ★배선(2026-08-18, MP3 3-1): 엔진 moveBudgetOn(예산≥1일 때만 보정)이 reduce·BoardIsland 공용 — terrain.test.ts 流砂·氷床·비행 면제 · 잔여 = 오버레이 층 MoveFirst(3-2에서 합산)",
   },
   {
     id: "movement.zoc",
@@ -477,9 +477,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.terrain-asymmetric",
     label: { en: "Force-asymmetric terrain modifiers", ko: "자군/적군 비대칭 지형 보정(瘴気 등)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-4·MOVE_TERRAIN.md §3): TerrainDefense = terrain.Defense + (force==Player ? PlayerDefense(+0x5E) : force==Enemy ? EnemyDefense(+0x5F) : 0), 회피도 동형이며 **우군(Ally) 이상은 가산 없음** — BattleDetail.CalcDefense(RVA 0x1E746C0, 분기 0x1E7470C~0x1E74764) · 오버레이 층도 같은 규칙으로 추가 합산 · ⇒ 데이터·식 모두 확보 = 스키마 확장만 하면 즉시 배선 가능",
+      "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-4·MOVE_TERRAIN.md §3): TerrainDefense = terrain.Defense + (force==Player ? PlayerDefense(+0x5E) : force==Enemy ? EnemyDefense(+0x5F) : 0), 회피도 동형이며 **우군(Ally) 이상은 가산 없음** — BattleDetail.CalcDefense(RVA 0x1E746C0, 분기 0x1E7470C~0x1E74764) · 오버레이 층도 같은 규칙으로 추가 합산 · ★배선(2026-08-18, MP3 3-1): TerrainCell 비대칭 4필드 + terrainBonusAt 단일 정본(toCombatant·staffHitRate 소비) — terrain.test.ts 瘴気 자군 −20/적군 +20/우군 0 · 잔여 = 오버레이 층 합산(3-2)",
   },
   {
     id: "combat.support-bonus",

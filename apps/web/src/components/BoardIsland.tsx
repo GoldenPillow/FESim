@@ -12,6 +12,7 @@ import {
   hasBadState,
   itemTargets,
   moveBudget,
+  moveBudgetOn,
   movePredicates,
   movementPath,
   movementRange,
@@ -267,8 +268,8 @@ export default function BoardIsland(props: BoardProps) {
 
   const range = useMemo(() => {
     if (selected === undefined) return undefined;
-    // 이동 예산의 정본은 엔진 moveBudget — UI 중복 구현 금지(C4 표류 방지, verification.md §2-3).
-    const budget = moveBudget(selected);
+    // 이동 예산의 정본은 엔진 moveBudgetOn(MoveFirst 출발 보정 포함) — UI 중복 구현 금지(C4, §2-3).
+    const budget = moveBudgetOn(game.map, selected);
     if (budget === undefined) return undefined;
     const grid = game.map.costs[selected.moveType];
     if (grid === undefined) return undefined;
