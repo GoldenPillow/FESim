@@ -143,7 +143,7 @@ function queryFor(state: GameState, u: UnitState, budget: number): MoveQuery {
 }
 
 const noRolls: RandomSource = {
-  roll() {
+  next() {
     throw new Error("이동·대기는 롤을 소비하지 않는다");
   },
 };
@@ -152,9 +152,9 @@ const noRolls: RandomSource = {
 const lcg = (seed: number): RandomSource => {
   let s = seed >>> 0;
   return {
-    roll() {
+    next(bound) {
       s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-      return s % 100;
+      return s % bound;
     },
   };
 };
@@ -164,7 +164,7 @@ function playout(initial: GameState, seed: number, length: number): EphemerisSte
   const steps: EphemerisStep[] = [];
   const pick = lcg(seed ^ 0x9e3779b9);
   const rec = recordingSource(lcg(seed));
-  const rand = (n: number) => pick.roll() % n;
+  const rand = (n: number) => pick.next(n);
   let state = initial;
   for (let i = 0; i < length; i++) {
     if (state.outcome !== undefined) break;

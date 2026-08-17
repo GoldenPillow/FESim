@@ -579,8 +579,7 @@ describe("발동 필터 배선 — Stand는 전투 주도권을 따른다", () =
  *   (3) 획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택한다
  */
 describe("레벨업 성장 — 상한 게이트·재굴림", () => {
-  const STAT_KEY_ORDER = ["hp", "str", "mag", "dex", "spd", "lck", "def", "res", "bld"] as const;
-  const zeroGrowth = Object.fromEntries(STAT_KEY_ORDER.map((k) => [k, 0])) as StatBlock;
+  const zeroGrowth: StatBlock = { hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
   const levelUpOnce = (
     growth: Partial<StatBlock>,
     rolls: number[],
