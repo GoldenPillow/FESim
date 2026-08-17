@@ -33,6 +33,8 @@ const stats = (over: Partial<StatBlock> = {}): StatBlock => ({
 });
 
 const unit = (over: Partial<BoardUnitProp> & Pick<BoardUnitProp, "x" | "y" | "force">): BoardUnitProp => ({
+  group: "Test",
+  pid: `PID_${over.x},${over.y}`,
   abbr: "U",
   name: `unit-${over.x},${over.y}`,
   job: "job",
@@ -61,7 +63,7 @@ const LABELS: BoardProps["labels"] = {
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   warpPick: "", guardCmd: "",
-  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "" },
+  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
 };
 
 /** 6x6 평지, 자군 u0(1,1) · 적군 u1(2,1) 인접 — 이동·대기·공격·페이즈 종료가 전부 합법인 최소 판. */

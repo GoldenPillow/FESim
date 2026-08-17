@@ -1,5 +1,5 @@
 ---
-status: building
+status: done
 target: packages/engine/src/events/ + tools/pipeline(스크립트 사영) + apps/web(phases.ts 대체)
 ---
 

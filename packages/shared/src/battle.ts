@@ -221,6 +221,11 @@ export type BattleEvent =
   | { type: "outcome"; outcome: "victory" | "defeat" };
 
 export type BattleAction =
+  /**
+   * 챕터 이벤트 초기화(Startup·MapOpening·1턴 개시 발화) — 스크립트 있는 챕터의 기보 첫 스텝.
+   * 이벤트 리듀서가 소유(전투 리듀서에선 무변화) — 스폰·변수 절대 이벤트가 실려 열람 경로가 복원한다.
+   */
+  | { type: "setup" }
   | { type: "move"; unit: string; x: number; y: number }
   /** weapon = 유닛 weapons 목록 인덱스 — 지정 시 그 무기로 장비 전환 후 판정(부재 = 현 장비). 기보 재현 계약의 일부. */
   | { type: "attack"; unit: string; target: string; weapon?: number }

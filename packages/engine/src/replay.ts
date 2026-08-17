@@ -354,6 +354,10 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
     ) {
       return applyEvents(state, step.action, step.events);
     }
+    if (step.action.type === "setup" && step.events !== undefined) {
+      // 챕터 초기화 스텝 — 기록 이벤트(스폰·변수·규칙) 절대 적용만으로 초기 국면이 완성된다.
+      return applyEventList(state, step.events);
+    }
     if (step.action.type === "endPhase" && step.events !== undefined) {
       const next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
       // 기록 이벤트 전체를 오버레이 — 전부 절대값(hpAfter·count·좌표) 또는 멱등이라 base 재계산분과

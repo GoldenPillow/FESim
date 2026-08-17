@@ -14,6 +14,10 @@ export function createEventedReducer(base: Reduce, session: EventSession): Reduc
     settleOutcome({ ...r.state, events: r.state.events });
 
   return function reduce(state: GameState, action: BattleAction, rng: RandomSource): GameState {
+    if (action.type === "setup") {
+      // 챕터 초기화 = 기보 스텝 0 — Startup(등록)·MapOpening(초기 스폰)·1턴 개시 발화가 이벤트로 실린다.
+      return settle(session.setup(state));
+    }
     if (action.type === "endPhase") {
       // TurnEnd(현 페이즈) → 전환 → Turn·TurnAfter(새 페이즈) — MapSequence 발화 순서(LUA_BINDINGS §7).
       const pre = settle(session.turnEnd(state));

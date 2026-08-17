@@ -1,7 +1,6 @@
 ---
 import type { ChapterData } from "@fesim/shared";
 import { unitsFor, forceStyle } from "../lib/fe17";
-import { phasesFor, phaseOfGroup } from "../lib/phases";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
 const { locale, mapId, chapter } = Astro.props;
 const t = UI[locale];
 const units = unitsFor(chapter, locale);
-const phases = phasesFor(mapId);
+void mapId;
 /** force 0/1/2 = 아군/적군/우군 — 우군을 적군 절에 섞지 않는다. */
 const sections = [
   { title: t.player, force: 0 },
@@ -23,7 +22,6 @@ const sections = [
     title: sec.title,
     accent: forceStyle(sec.force).ring,
     list: units.filter((u) => u.unit.force === sec.force),
-    byPhase: sec.force !== 0 && phases.length > 1,
   }))
   .filter((sec) => sec.list.length > 0);
 ---
@@ -35,20 +33,12 @@ const sections = [
         <h2 class="mb-2 flex items-baseline gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
           <span style={`color:${s.accent}`}>{s.title}</span>
           <span class="h-px flex-1" style={`background:${s.accent};opacity:.35`} />
-          {s.byPhase ? (
-            phases.map((p) => (
-              <span class="text-muted" data-phase={p.id}>
-                {s.list.filter((u) => (phaseOfGroup(mapId, u.group) ?? p.id) === p.id).length}
-              </span>
-            ))
-          ) : (
-            <span class="text-muted">{s.list.length}</span>
-          )}
+          <span class="text-muted">{s.list.length}</span>
         </h2>
 
         <ul class="flex flex-col gap-1">
           {s.list.map((u) => (
-            <li data-phase={phaseOfGroup(mapId, u.group)}>
+            <li>
               <details class="card" style={`--force:${forceStyle(u.unit.force).ring}`}>
                 <summary>
                   {u.face ? (

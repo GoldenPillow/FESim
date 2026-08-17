@@ -203,6 +203,26 @@ end`);
   });
 });
 
+describe("setup = 기보 스텝 0", () => {
+  it("evented reduce의 setup 액션이 초기 스폰·규칙을 만들고, 기록 이벤트만으로 절대 복원된다", () => {
+    const h: EventHost = {
+      spawnGroup: (group) => (group === "Opening" ? [unit({ id: "op", force: 1, x: 6, y: 6 })] : []),
+    };
+    const session = mkSession(h);
+    const reduce = createEventedReducer(base, session);
+    const raw = state([unit({ id: "p", force: 0, x: 3, y: 0 })]);
+    const done = reduce(raw, { type: "setup" }, noRolls);
+    expect(done.units.some((u) => u.id === "op")).toBe(true);
+    expect(done.winRule?.enemyLessThan).toBe(-1);
+    // 열람 경로 상정 — 세션 없이 base 재생기로 setup 스텝을 절대 복원.
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(raw, { action: { type: "setup" }, events: done.events });
+    expect(replayed.units.some((u) => u.id === "op")).toBe(true);
+    expect(replayed.winRule?.enemyLessThan).toBe(-1);
+    expect(replayed.variables?.["카운터"]).toBe(done.variables?.["카운터"]);
+  });
+});
+
 describe("이벤트 세션 — 실 스크립트 통합(m003)", () => {
   const sources = {
     common: readFileSync(new URL("../../../data/fe17/scripts/common.lua", import.meta.url), "utf-8"),
@@ -240,6 +260,65 @@ describe("이벤트 세션 — 실 스크립트 통합(m003)", () => {
     const session = createEventSession({ sources, chapter: "m003", host: h });
     session.setup(state(project("Enemy")));
     // m003 경로에서 미지 호출이 있었다면 unknownCalls에 남는다 — 있어도 실패는 아니다(정직성 검사).
-    expect(Array.isArray(session.unknownCalls())).toBe(true);
+    expect(session.unknownCalls()).toEqual([]); // m003 전 경로 = 미지 호출 0(전 표면 커버 실측)
+  });
+});
+
+describe("이벤트 세션 — 실 스크립트 통합(m002 다국면)", () => {
+  const sources = {
+    common: readFileSync(new URL("../../../data/fe17/scripts/common.lua", import.meta.url), "utf-8"),
+    m002: readFileSync(new URL("../../../data/fe17/scripts/m002.lua", import.meta.url), "utf-8"),
+  };
+  const chapter = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/chapters/m002.json", import.meta.url), "utf-8"),
+  ) as { groups: { name: string; units: { pid: string; force: number; x: number; y: number }[] }[] };
+
+  it("루미엘 1차 격파 → 적 페이즈 종료에 1회전 종료·2회전 개시(삭제·재배치·스폰·엠블렘·紋章氣)", () => {
+    const spawned = new Set<string>();
+    const project = (group: string): UnitState[] => {
+      if (spawned.has(group)) return []; // 웹 호스트와 동일 계약 — 같은 그룹 재스폰 미재현
+      spawned.add(group);
+      const g = chapter.groups.find((x) => x.name === group);
+      return (g?.units ?? []).map((u, i) =>
+        unit({ id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y }),
+      );
+    };
+    const h: EventHost = {
+      spawnGroup: project,
+      skillRow: (sid) => ({ Sid: sid }),
+      godUnit: (_u, gid) => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false, ...(gid === "" ? {} : {}) } }),
+    };
+    const session = createEventSession({ sources, chapter: "m002", host: h });
+    const reduce = createEventedReducer(base, session);
+    // 자동 배치 = Dispos 없는 그룹(Player·Enemy) — 웹 초기 배치 규칙과 동일.
+    let s = session.setup(state([...project("Player"), ...project("Enemy")])).state;
+    const rumiere = () => s.units.filter((u) => u.pid === "PID_M002_ルミエル" && !u.dead);
+    expect(rumiere()[0]?.force).toBe(1); // MapOpening UnitTransfer(FORCE_ENEMY)
+    expect(s.units.filter((u) => u.id.startsWith("EnemyIllusion#")).length).toBe(2); // 환영병 소환
+    // 뤼르로 루미엘 공격 — HP 20 vs 위력 30 = 즉사(테스트 스탯). Die 이벤트 → 1차 격파 플래그.
+    const lueur = s.units.find((u) => u.pid === "PID_リュール")!;
+    const boss = rumiere()[0];
+    s = { ...s, units: s.units.map((u) => (u.id === lueur.id ? { ...u, x: boss.x - 1, y: boss.y, weapon: sword } : u)) };
+    s = reduce(s, { type: "attack", unit: lueur.id, target: boss.id }, rolls([0]));
+    // ★1회전 종료는 같은 행동 안에서 연쇄한다 — Die(1차 격파 플래그) → Fixed(pid="" 와일드카드,
+    // "자군이 죽였을 때" 경로) → 一回戦終了(잔적 정리·재배치·Enemy2 소환·스킬 장비).
+    expect(s.units.find((u) => u.id === "Enemy#0")!.dead).toBe(true); // 1회전 루미엘 = UnitDelete
+    expect(s.units.filter((u) => u.id.startsWith("EnemyIllusion#") && !u.dead).length).toBe(0); // 잔적 전멸
+    const boss2 = s.units.find((u) => u.id.startsWith("Enemy2#") && !u.dead);
+    expect(boss2).toBeDefined();
+    expect(boss2!.statuses?.some((st) => st.sid === "SID_相手の必殺０")).toBe(true); // スキル装備
+    // 자군 4명 재배치·전회복(UnitSetPos + UnitResetParam) — 뤼르 (6,3).
+    const l2 = s.units.find((u) => u.pid === "PID_リュール")!;
+    expect({ x: l2.x, y: l2.y }).toEqual({ x: 6, y: 3 });
+    expect(l2.hp).toBe(l2.stats.hp);
+    // 二回戦開始 = 다음 자군 턴 개시 발화(EventEntryTurn -1,-1,PLAYER + 조건) — 페이즈를 돌린다.
+    s = reduce(s, { type: "endPhase" }, noRolls); // 자군 → 적군
+    s = reduce(s, { type: "endPhase" }, noRolls); // 적군 → 자군 턴 2: 二回戦開始
+    const boss3 = s.units.find((u) => u.id.startsWith("Enemy2#") && !u.dead)!;
+    expect(boss3.engage).toBeDefined(); // UnitCreateGodUnit — 엠블렘 유닛화
+    expect(boss3.engage!.count).toBe(7); // UnitSetEngageCount(7)
+    expect(s.units.filter((u) => u.id.startsWith("EnemyIllusion2_") && !u.dead).length).toBe(5);
+    expect(s.crests).toContainEqual({ x: 8, y: 4 }); // MapOverlapSetOne 紋章氣
+    expect(s.outcome).toBeUndefined(); // 전멸 승리는 -1로 꺼져 있다
   });
 });

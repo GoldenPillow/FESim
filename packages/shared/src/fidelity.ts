@@ -36,6 +36,7 @@ export const FIDELITY_CATEGORIES: readonly FidelityCategory[] = [
   { id: "weapons", label: { en: "Weapons & Items", ko: "무기·아이템" } },
   { id: "turn", label: { en: "Turn Structure", ko: "턴 구조" } },
   { id: "ai", label: { en: "Enemy AI Data", ko: "적 AI 데이터" } },
+  { id: "events", label: { en: "Chapter Events (Lua)", ko: "챕터 이벤트(Lua)" } },
 ];
 
 export const FIDELITY: readonly FidelityEntry[] = [
@@ -1075,6 +1076,48 @@ export const FIDELITY: readonly FidelityEntry[] = [
     status: "absent",
     evidence:
       "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §5·§9-4): 표적 평가 = uint32 비트필드의 사전식 비교이고 **AI_BattleRate 3값(Rush/Attack/Chariness)이 비트 레이아웃을 통째로 바꾼다**(AIBattleSimulator.CalculateScore RVA 0x1928570) · 격파 확률이 최상위 비트 = 절대 우선 · 동점이면 Random.System 50% 코인플립(난수 주입 설계 직결 — combat.rng-source의 System 스트림) · 지형 스코어 가중치·가드 3분기(GuardTo RVA 0x194CF60)도 확정 · ☠params.xml AI 가드 3상수(0.3/0.5/0.4)와 CalculateScore의 즉치 0.3/0.5/0.7은 **무관**하다(후자는 하드코딩, GameParam 호출 없음) · 선행 = turn.enemy-ai",
+  },
+  {
+    id: "events.engine",
+    label: { en: "Event engine (full Lua runtime)", ko: "이벤트 엔진(풀 Lua 실행)" },
+    status: "implemented",
+    evidence:
+      "배선(2026-08-18 MP2, events.test.ts 11건) — 챕터 스크립트 원문(파이프라인 가공: 주석 제거·!= 정규화·유니코드 식별자 맹글링)을 fengari(순 JS Lua 5.3)로 실행 · 콜백 = 코루틴 완주(WaitTime 실 yield) · 연출 API = no-op 테이블(결정 2026-08-18) · 미등록 네이티브 = 정직 오류 · m002·m003 전 경로 미지 호출 0 실측 · setup = 기보 스텝 0(절대 이벤트로 열람 경로 복원 — fengari는 제작 경로 지연 청크만, /s/ 무반입) · 조사 정본 = extracted/lua/LUA_USAGE.md + il2cpp/LUA_BINDINGS.md",
+  },
+  {
+    id: "events.triggers",
+    label: { en: "Event triggers (inspectors)", ko: "이벤트 트리거(인스펙터 26종)" },
+    status: "assumed",
+    evidence:
+      "EventEntry 26종 등록 전수 배선(인자 규약 = 인스펙터 기반 클래스 5+3종, 와일드카드 -1 = IsValue 0x1DE5690, 조건 3형·조건 문자열 = 1회성 발화 플래그 기계 SetCondition/IsCondition/Completed 그대로) · 발화 배선 = Turn/TurnAfter/TurnEnd(페이즈 훅 — MapSequence 순서 코드 확정)·Die·BattleBefore/Talk/After·Fixed(⚠행동 종료 폴링 근사)·Area(⚠이동 포함 근사) · ☠발화 이월 = Pickup/TargetSelect(선택은 기보 행동이 아님 — 발화하면 리플레이 어휘 밖 변이)·Tbox/Visit/Door/Destroy/Escape/Breakdown류(지형 커맨드 = MP3)·Revive(부활 시스템)·EngageBefore/After·UnitCommand류 — 등록·조건 잠금까지는 동작",
+  },
+  {
+    id: "events.dispos",
+    label: { en: "Event spawn (Dispos) & initial placement", ko: "이벤트 스폰(Dispos)·초기 배치" },
+    status: "assumed",
+    evidence:
+      "배선(2026-08-18) — 스폰 = 호스트(데이터층) 사영 + spawn 이벤트(유닛 전체 스냅숏 = 절대 재생) · 초기 배치 규칙 = 스크립트가 Dispos하지 않는 그룹만 자동 배치(m002 Player·Enemy / m003 Enemy — 실측 정합) · UnitTransfer/UnitJoin이 force를 동적 변경(m002 루미엘 우군→적·m003 필렌 가세 실측) · ⚠편차 = 같은 그룹 재스폰 미재현(원기는 중복 허용 — id·visuals 계약, 현행 스크립트 무발현) · 난이도 필터·레벨은 스냅숏(데이터층) 소관",
+  },
+  {
+    id: "events.variables",
+    label: { en: "Game variables (GameVariable)", ko: "게임 변수(GameVariable)" },
+    status: "assumed",
+    evidence:
+      "GameState.variables 사영 — 단일 저장소(GameUserData.m_Variable 코드 확정)·variable 이벤트 절대 재생 · ⚠편차 = VariableSet이 미등록 키를 자동 등록한다(원기는 Set = 기존 갱신 전용·무시 — 그러나 勝利 등 엔진측 사전 등록 키가 실재해 그 층을 대신함) · 키 접두사 수명(S_/G_/무접두사)은 캠페인층(MP5) 소관",
+  },
+  {
+    id: "events.win-rules",
+    label: { en: "Win/lose rules", ko: "승패 규칙(챕터 고유)" },
+    status: "assumed",
+    evidence:
+      "이원화 그대로(il2cpp/_wip_winrule) — (1) 엔진 내장: enemyLessThan(음수 = 전멸 판정 무효화 — GameEndCheck 분기 그대로)·destroyBoss(⚠보스 표지 = 유닛 boss 필드, dispos flag 비트 사영 미판독 = 데이터층 미배선)·limitTurn(⚠부호·판정 시점 가정) (2) 스크립트 직접 = 勝利/敗北 변수 감시(settleOutcome — m002 실측) · MID = 표시 텍스트(사상 없음·UX 과제)",
+  },
+  {
+    id: "events.ai-rewrite",
+    label: { en: "Event AI rewrite (record only)", ko: "이벤트 AI 재설정(기록만)" },
+    status: "deferred",
+    evidence:
+      "AiSetSequence(코퍼스 369회 — 게임플레이 API 최다)·AiSetActive·AiSetRejectPower0Attack·AiClearMoveLimit = 유닛 aiScript에 원문 인자 기록 + ai 이벤트(결정 2026-08-18: 소비 = MP4 AI 실행기) · ⚠AiGetActive 질의는 false 강하(미소비 상태 — MP4에서 실상태로 교체)",
   },
 ];
 
