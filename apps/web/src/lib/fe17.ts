@@ -508,6 +508,8 @@ export interface BoardUnitProp {
   stats?: Record<Difficulty, StatBlock | undefined>;
   /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
   weapon?: BoardWeaponProp;
+  /** 소지 공격 무기 전체(소지품 순) — 예보 패널 무기 목록·attack.weapon 인덱스의 해석 대상. */
+  weapons?: BoardWeaponProp[];
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -574,11 +576,12 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
 /** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
 const MAGIC_FLAG = 0x10000;
 
-const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | undefined => {
+export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp[] => {
+  const list: BoardWeaponProp[] = [];
   for (const entry of unit.items) {
     const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
     if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) continue;
-    return {
+    list.push({
       name: namedOr(items, locale, entry.iid),
       might: Number(row["Power"] ?? 0),
       hit: Number(row["Hit"] ?? 0),
@@ -589,9 +592,9 @@ const equippedWeapon = (unit: DisposUnit, locale: Locale): BoardWeaponProp | und
       rangeMin: row.RangeI ?? 1,
       rangeMax: row.RangeO ?? 1,
       kind: row.Kind ?? 0,
-    };
+    });
   }
-  return undefined;
+  return list;
 };
 
 export function boardProps(
@@ -629,7 +632,10 @@ export function boardProps(
       moveType,
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
-      weapon: equippedWeapon(v.unit, locale),
+      ...(() => {
+        const weapons = attackWeapons(v.unit, locale);
+        return weapons.length > 0 ? { weapon: weapons[0], weapons } : {};
+      })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
       growth: person === undefined ? undefined : statBlock(person, "Grow."),

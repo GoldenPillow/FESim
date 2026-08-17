@@ -34,6 +34,7 @@ export type BattleEvent =
 
 export type BattleAction =
   | { type: "move"; unit: string; x: number; y: number }
-  | { type: "attack"; unit: string; target: string }
+  /** weapon = 유닛 weapons 목록 인덱스 — 지정 시 그 무기로 장비 전환 후 판정(부재 = 현 장비). 기보 재현 계약의 일부. */
+  | { type: "attack"; unit: string; target: string; weapon?: number }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

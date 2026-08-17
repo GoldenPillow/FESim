@@ -91,6 +91,7 @@ export function initGame(
       hp: stats.hp,
       stats,
       weapon: u.weapon,
+      weapons: u.weapons,
       skills: u.skills,
       growth: u.growth,
       level: u.levels[difficulty],

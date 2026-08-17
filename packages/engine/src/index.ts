@@ -4,6 +4,7 @@
  * (기록 재생 = 리플레이 · 실굴림 = 샌드박스 · 열거 = 솔버가 같은 코어를 공유).
  */
 export {
+  canBreak,
   createReducer,
   canterPower,
   moveBudget,

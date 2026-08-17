@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   attackRange,
+  canBreak,
   canterPower,
   forecastSide,
   moveBudget,
   movementPath,
   movementRange,
+  toCombatant,
   type BattleAction,
   type BattleEvent,
-  type Combatant,
+  type BattleWeapon,
   type GameState,
   type MoveQuery,
   type SideForecast,
@@ -27,16 +29,6 @@ import "./board.css";
  * 보드 아일랜드 — 인터랙션 셸: 선택·호버·명령 배선만 하고 국면은 스토어(boardStore)가 소유한다.
  * 그림은 BoardView, 룰은 엔진. 국면(시나리오) 라디오는 무JS 폴백으로 남기고 정본은 스토어다.
  */
-const toCombatant = (u: UnitState, game: GameState): Combatant => ({
-  stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
-  weapon: u.weapon,
-  terrain: {
-    avoid: game.map.terrain?.[u.y]?.[u.x]?.avoid ?? 0,
-    def: game.map.terrain?.[u.y]?.[u.x]?.def ?? 0,
-  },
-  skills: u.skills,
-});
-
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, objects, labels } = props;
   const [store] = useState(() => createBoardStore(props));
@@ -106,6 +98,16 @@ export default function BoardIsland(props: BoardProps) {
     return () => clearTimeout(t);
   }, [copied]);
 
+  // 전투 취소 — 보드·예보(플레이트) 바깥 클릭 = 교전 해제(인게임 B버튼 문법).
+  useEffect(() => {
+    if (targetId === undefined) return;
+    const cancel = (e: PointerEvent) => {
+      if (!(e.target instanceof Element) || e.target.closest(".plate") === null) setTargetId(undefined);
+    };
+    document.addEventListener("pointerdown", cancel);
+    return () => document.removeEventListener("pointerdown", cancel);
+  }, [targetId]);
+
   const alive = useMemo(() => game.units.filter((u) => !u.dead), [game]);
   const byTile = useMemo(() => {
     const m = new Map<string, UnitState>();
@@ -120,6 +122,22 @@ export default function BoardIsland(props: BoardProps) {
   const [pending, setPending] = useState<{ x: number; y: number } | undefined>(undefined);
   useEffect(() => setPending(undefined), [selectedId, game]);
   const selectedAt = selected === undefined ? undefined : pending ?? { x: selected.x, y: selected.y };
+
+  // 무기 선택: 클릭 = 확정(사거리·공격에 반영, attack 액션에 기록) · 호버 = 예보 수치만 바꾸는 프리뷰.
+  const [weaponPick, setWeaponPick] = useState<number | undefined>(undefined);
+  const [weaponHover, setWeaponHover] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    setWeaponPick(undefined);
+    setWeaponHover(undefined);
+  }, [selectedId, game]);
+  const weapons: BattleWeapon[] = useMemo(
+    () => selected?.weapons ?? (selected?.weapon !== undefined ? [selected.weapon] : []),
+    [selected],
+  );
+  const equippedIdx = Math.max(0, weapons.findIndex((w) => w === selected?.weapon));
+  const weaponIdx = weaponPick ?? equippedIdx;
+  const chosenWeapon = weapons[weaponIdx] ?? selected?.weapon;
+  const activeWeapon = weapons[weaponHover ?? weaponIdx] ?? chosenWeapon;
 
   // 표시·클릭 판정용 국면(잠정 위치 반영) — 룰 판정(range)은 엔진 진실(byTile)을 쓴다.
   const viewUnits = useMemo(
@@ -159,14 +177,14 @@ export default function BoardIsland(props: BoardProps) {
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
-    const rangeMax = selected.acted ? 0 : selected.weapon?.rangeMax ?? 0; // 재이동 창엔 공격 없음
+    const rangeMax = selected.acted ? 0 : chosenWeapon?.rangeMax ?? 0; // 재이동 창엔 공격 없음
     // 잠정 이동 중엔 그 지점 기준 사거리만(인게임 표시 문법), 선택 직후엔 전 범위 합집합.
     const ringFrom = pending === undefined ? move : [{ x: pending.x, y: pending.y }];
-    const ring = rangeMax > 0 ? attackRange(ringFrom, selected.weapon!.rangeMin, rangeMax, width, height) : [];
+    const ring = rangeMax > 0 ? attackRange(ringFrom, chosenWeapon!.rangeMin, rangeMax, width, height) : [];
     const attackAll = new Set(ring.map((t) => tileKey(t.x, t.y)));
     const attack = ring.filter((t) => !moveSet.has(tileKey(t.x, t.y)));
     return { query, move, moveSet, attack, attackAll };
-  }, [selected, byTile, game, width, height, pending]);
+  }, [selected, byTile, game, width, height, pending, chosenWeapon]);
 
   const path = useMemo(() => {
     if (range === undefined || hover === undefined || selected === undefined) return undefined;
@@ -180,32 +198,46 @@ export default function BoardIsland(props: BoardProps) {
     selectedAt !== undefined && target !== undefined
       ? Math.abs(selectedAt.x - target.x) + Math.abs(selectedAt.y - target.y)
       : undefined;
-  const canAttack =
+  const inRangeOf = (w: BattleWeapon | undefined): boolean =>
     selected !== undefined &&
-    target !== undefined &&
     !selected.acted &&
-    selected.weapon !== undefined &&
+    w !== undefined &&
     distance !== undefined &&
-    distance >= selected.weapon.rangeMin &&
-    distance <= selected.weapon.rangeMax;
+    distance >= w.rangeMin &&
+    distance <= w.rangeMax;
+  const canAttack = target !== undefined && inRangeOf(chosenWeapon);
 
   const forecast = useMemo(() => {
     if (selected === undefined || selectedAt === undefined || target === undefined) return undefined;
-    // 예보는 잠정 위치 기준(지형 보정 포함) — 확정 시 엔진이 같은 위치에서 판정한다.
-    const a = toCombatant({ ...selected, x: selectedAt.x, y: selectedAt.y }, game);
-    const d = toCombatant(target, game);
+    // 예보는 잠정 위치·활성 무기(호버 프리뷰 우선) 기준 — 확정 시 엔진이 같은 입력으로 판정한다.
+    const aU: UnitState = { ...selected, x: selectedAt.x, y: selectedAt.y, weapon: activeWeapon };
+    const a = toCombatant(aU, game.map, game.units);
+    const d = toCombatant(target, game.map, game.units);
     const dist = Math.abs(selectedAt.x - target.x) + Math.abs(selectedAt.y - target.y);
-    const engageDist = canAttack ? dist : selected.weapon?.rangeMax ?? 1;
-    const counter =
+    const inRange = inRangeOf(activeWeapon);
+    const engageDist = inRange ? dist : activeWeapon?.rangeMax ?? 1;
+    const counterable =
       target.weapon !== undefined &&
       !target.broken &&
       engageDist >= target.weapon.rangeMin &&
       engageDist <= target.weapon.rangeMax;
-    return {
-      attack: selected.weapon !== undefined ? forecastSide(calculator, a, d) : undefined,
-      counter: counter ? forecastSide(calculator, d, a) : undefined,
-    };
-  }, [selected, selectedAt, target, game, canAttack]);
+    const attack = activeWeapon !== undefined ? forecastSide(calculator, a, d) : undefined;
+    const counter = counterable ? forecastSide(calculator, d, a) : undefined;
+    // 예상 잔여 HP — 전 타격 명중 가정(인게임 예보 문법), 엔진 타격 순서 그대로:
+    // 본공격 → (생존·미브레이크 시) 반격 → 추격 → 반격측 추격. 브레이크면 반격 몰수. 체인어택 제외.
+    const brk = attack !== undefined && attack.damage >= 1 && canBreak(aU, target);
+    let targetHp = target.hp;
+    let selfHp = selected.hp;
+    const counters = counter !== undefined && !brk;
+    if (attack !== undefined) targetHp -= attack.damage;
+    if (counters && targetHp > 0) selfHp -= counter.damage;
+    if (attack?.followUp === true && targetHp > 0) targetHp -= attack.damage;
+    if (counters && counter.followUp && targetHp > 0 && selfHp > 0) selfHp -= counter.damage;
+    targetHp = Math.max(targetHp, 0);
+    selfHp = Math.max(selfHp, 0);
+    return { attack, counter, inRange, brk, selfHp, targetHp };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, selectedAt, target, game, activeWeapon, distance]);
 
   const describe = (events: BattleEvent[]): string[] => {
     const t = labels.logTags;
@@ -264,6 +296,10 @@ export default function BoardIsland(props: BoardProps) {
     return dispatch(action) !== prev;
   };
 
+  /** 공격 액션 — 무기 목록이 있으면 선택 인덱스를 기보에 싣는다(장비 전환 포함 재현 계약). */
+  const attackAction = (unit: string, target: string): BattleAction =>
+    weapons.length > 0 ? { type: "attack", unit, target, weapon: weaponIdx } : { type: "attack", unit, target };
+
   /** 잠정 이동 확정 — 행동 직전에만 호출된다. 이동 없음/제자리 = 성공으로 친다. */
   const commitMove = (): boolean => {
     if (selected === undefined || pending === undefined) return true;
@@ -279,7 +315,7 @@ export default function BoardIsland(props: BoardProps) {
     if (clicked !== undefined) {
       if (selected !== undefined && clicked.force !== selected.force && range?.attackAll.has(key) === true) {
         if (clicked.id === targetId && canAttack) {
-          if (commitMove() && tryDispatch({ type: "attack", unit: selected.id, target: clicked.id })) {
+          if (commitMove() && tryDispatch(attackAction(selected.id, clicked.id))) {
             // 재이동(시구르드) 보유면 선택을 유지해 행동 후 이동 창을 이어준다.
             if (canterPower(selected) === undefined) setSelectedId(undefined);
             setTargetId(undefined);
@@ -407,8 +443,35 @@ export default function BoardIsland(props: BoardProps) {
       )}
 
       {forecast !== undefined && selected !== undefined && target !== undefined && (
-        <div className="forecast" role="status" aria-label={labels.forecast}>
-          <ForecastSide unit={selected} visual={visuals.get(selected.id)} side={forecast.attack} labels={labels} />
+        <div
+          className={weapons.length > 0 ? "forecast" : "forecast no-arm"}
+          role="status"
+          aria-label={labels.forecast}
+        >
+          {weapons.length > 0 && (
+            <ul className="fc-weapons" onMouseLeave={() => setWeaponHover(undefined)}>
+              {weapons.map((w, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className={[i === weaponIdx && "on", !inRangeOf(w) && "out"].filter(Boolean).join(" ") || undefined}
+                    onMouseEnter={() => setWeaponHover(i)}
+                    onFocus={() => setWeaponHover(i)}
+                    onClick={() => setWeaponPick(i)}
+                  >
+                    {w.name ?? "—"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <ForecastSide
+            unit={{ ...selected, weapon: activeWeapon }}
+            visual={visuals.get(selected.id)}
+            side={forecast.attack}
+            hpAfter={forecast.selfHp}
+            labels={labels}
+          />
           <div className="fc-mid">
             <span className="fc-vs" aria-hidden="true">⚔</span>
             {canAttack && (
@@ -416,7 +479,7 @@ export default function BoardIsland(props: BoardProps) {
                 type="button"
                 className="fc-go"
                 onClick={() => {
-                  if (commitMove() && tryDispatch({ type: "attack", unit: selected.id, target: target.id })) {
+                  if (commitMove() && tryDispatch(attackAction(selected.id, target.id))) {
                     if (canterPower(selected) === undefined) setSelectedId(undefined);
                     setTargetId(undefined);
                   }
@@ -426,8 +489,15 @@ export default function BoardIsland(props: BoardProps) {
               </button>
             )}
           </div>
-          <ForecastSide unit={target} visual={visuals.get(target.id)} side={forecast.counter} labels={labels} />
-          <small className="fc-note">{canAttack ? "" : labels.currentPosNote}</small>
+          <ForecastSide
+            unit={target}
+            visual={visuals.get(target.id)}
+            side={forecast.brk ? undefined : forecast.counter}
+            hpAfter={forecast.targetHp}
+            brk={forecast.brk}
+            labels={labels}
+          />
+          <small className="fc-note">{forecast.inRange ? "" : labels.currentPosNote}</small>
         </div>
       )}
     </figure>
@@ -438,20 +508,43 @@ function ForecastSide({
   unit,
   visual,
   side,
+  hpAfter,
+  brk = false,
   labels,
 }: {
   unit: UnitState;
   visual?: UnitVisual;
   side?: SideForecast;
+  /** 예상 잔여 HP(전 타격 명중 가정) — 0 = 죽음 X 표기. */
+  hpAfter: number;
+  /** 이 전투로 브레이크될 예보(피격측 전용). */
+  brk?: boolean;
   labels: BoardProps["labels"];
 }) {
   const value = (v: number | undefined) => (v === undefined ? "—" : v);
+  const max = unit.stats.hp;
+  const pct = (v: number) => `${Math.round((Math.max(v, 0) / max) * 100)}%`;
+  const dead = hpAfter === 0;
   return (
     <div className="fc-side" style={{ "--force": visual?.ring ?? "#888" } as React.CSSProperties}>
-      <strong className="fc-name">{visual?.name ?? unit.id}</strong>
+      <strong className="fc-name">
+        {visual?.name ?? unit.id}
+        {brk && !dead && <em className="fc-brk">{labels.logTags.brk}</em>}
+        {dead && (
+          <em className="fc-dead" title={labels.logTags.kill} aria-label={labels.logTags.kill}>
+            ✗
+          </em>
+        )}
+      </strong>
       <span className="fc-weapon">{unit.weapon?.name ?? "—"}</span>
       <span className="fc-hp">
-        HP {unit.hp}/{unit.stats.hp}
+        HP {unit.hp}
+        {hpAfter !== unit.hp && <span className="fc-hp-to"> → {hpAfter}</span>}
+        <small>/{max}</small>
+      </span>
+      <span className="fc-hpbar" aria-hidden="true">
+        <i className="keep" style={{ width: pct(hpAfter) }} />
+        <i className="lose" style={{ width: pct(unit.hp - hpAfter) }} />
       </span>
       <dl className="fc-rows">
         <dt>{labels.damage}</dt>

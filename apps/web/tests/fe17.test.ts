@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -34,6 +34,20 @@ describe("unitStats — 스탯 상한(Limit) 배선", () => {
     expect(unitStats(disposUnit({}), "n")).toEqual({
       hp: 22, str: 6, mag: 0, dex: 5, spd: 7, lck: 5, def: 5, res: 3, bld: 4,
     });
+  });
+});
+
+describe("attackWeapons — 소지품 → 무기 목록 사영", () => {
+  it("공격 무기만 소지 순서대로, 지팡이·소모품 제외 (목록[0] = 장비 무기)", () => {
+    // 왜 위험한가: 예보 무기 목록과 attack.weapon 인덱스가 이 배열을 공유한다 —
+    // 필터·순서가 흔들리면 기보의 무기 인덱스가 다른 무기를 가리켜 재생이 어긋난다.
+    const u = disposUnit({
+      items: [{ iid: "IID_傷薬" }, { iid: "IID_鉄の剣" }, { iid: "IID_ライブ" }, { iid: "IID_鉄の弓" }],
+    });
+    const list = attackWeapons(u, "ko");
+    expect(list.map((w) => w.kind)).toEqual([1, 4]); // 검, 활 — 상약·지팡이 제외
+    expect(list[0].rangeMax).toBe(1);
+    expect(list[1].rangeMin).toBe(2);
   });
 });
 
