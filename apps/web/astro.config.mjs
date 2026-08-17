@@ -1,9 +1,18 @@
 // @ts-check
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'astro/config';
 
 import cloudflare from '@astrojs/cloudflare';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
+
+// 빌드 버전 = git 짧은 해시(워터마크 표기 — 승격·실기 대조의 식별자). git 부재 환경은 dev.
+let buildVersion = 'dev';
+try {
+  buildVersion = execSync('git rev-parse --short HEAD').toString().trim();
+} catch {
+  /* noop */
+}
 
 // https://astro.build/config
 export default defineConfig({
@@ -18,6 +27,7 @@ export default defineConfig({
   integrations: [react()],
 
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    define: { 'import.meta.env.PUBLIC_BUILD': JSON.stringify(buildVersion) }
   }
 });
