@@ -2,6 +2,7 @@ import type { ChapterData, ConsumableItem, DisposUnit, EngageArt, EngageState, M
 import {
   MOVE_TYPES,
   deriveStats,
+  moveBase,
   staticEnhances,
   type MoveType,
   type SkillRow,
@@ -46,6 +47,7 @@ export interface JobRow {
   /** 地形コスト 컬럼 순서 인덱스(1=foot, 3=fly 실측) — MOVE_TYPES가 정본. */
   MoveType?: number;
   "Base.Move"?: number;
+  "Limit.Move"?: number;
   StyleName?: string;
 }
 
@@ -461,7 +463,7 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
 
 const SKILL_ROW_FIELDS = [
   "Sid", "Timing", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
-  "GiveSids", "GiveTarget", "Target", "Power", "RangeI", "RangeO",
+  "GiveSids", "GiveTarget", "Target", "Power", "Removable", "RangeI", "RangeO",
 ] as const;
 
 /** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
@@ -927,7 +929,12 @@ export function boardProps(
       job: v.job,
       ring: style.ring,
       chip: style.chip,
-      movePoints: job?.["Base.Move"] ?? 0,
+      // 이동력 스냅숏 = Clamp(base, 0, jobLimit+personLimit) — Enhance(迅走 등)는 엔진 movePower가 런타임 가산.
+      movePoints: moveBase(
+        Number(job?.["Base.Move"] ?? 0),
+        Number(job?.["Limit.Move"] ?? 99),
+        Number(person?.["Limit.Move"] ?? 0),
+      ),
       moveType,
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },

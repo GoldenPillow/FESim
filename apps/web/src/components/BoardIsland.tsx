@@ -12,6 +12,7 @@ import {
   hasBadState,
   itemTargets,
   moveBudget,
+  movePredicates,
   movementPath,
   movementRange,
   staffHealAmount,
@@ -277,14 +278,8 @@ export default function BoardIsland(props: BoardProps) {
       movePoints: budget,
       start: { x: selected.x, y: selected.y },
       costAt: (x, y) => grid[y]?.[x] ?? 255,
-      blocked: (x, y) => {
-        const o = byTile.get(tileKey(x, y));
-        return o !== undefined && o.force !== selected.force;
-      },
-      occupied: (x, y) => {
-        const o = byTile.get(tileKey(x, y));
-        return o !== undefined && o.force === selected.force && o !== selected;
-      },
+      // 통과·정지 판정도 엔진 movePredicates 단일 정본(진영 동맹표 — 자군↔우군 통과 가능).
+      ...movePredicates(game.map, viewUnits, selected),
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
@@ -301,7 +296,7 @@ export default function BoardIsland(props: BoardProps) {
     const staffAll = new Set(staffRing.map((t) => tileKey(t.x, t.y)));
     const staffTiles = staffRing.filter((t) => !moveSet.has(tileKey(t.x, t.y)) && !attackAll.has(tileKey(t.x, t.y)));
     return { query, move, moveSet, attack, attackAll, staff: staffTiles, staffAll };
-  }, [selected, byTile, game, width, height, pending, chosenWeapon, staff]);
+  }, [selected, viewUnits, game, width, height, pending, chosenWeapon, staff]);
 
   // 호버 예보(인게임 문법): 사거리 안 적에 커서만 올려도 공격 발판이 정해지고 즉시 예보가 뜬다.
   // 발판 우선순위 = 유저가 그린 마지막 경로 끝점 → 제자리 → 최소 이동비용 지점.

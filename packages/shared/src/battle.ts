@@ -63,8 +63,10 @@ export interface SkillRow {
   ActValues?: string[];
   GiveSids?: string[];
   GiveTarget?: number;
-  /** 재이동(SID_再移動*)에서는 이동 칸수 — 공식 도움말 "행동 후 N칸"과 일치(실측). */
+  /** 強さ — 스킬 종별 범용 수치. ☠재이동 거리 아님(그건 Removable — 값 2·3이 우연히 일치했을 뿐). */
   Power?: number;
+  /** 再移動力 — 행동 후 재이동 칸수. 정본 = Unit.GetMovePowerImpl(0x1A5B690)의 max(Removable). */
+  Removable?: number;
   Target?: number;
   RangeI?: number;
   RangeO?: number;

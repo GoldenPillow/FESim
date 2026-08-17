@@ -124,30 +124,69 @@ describe("이동", () => {
     expect(() => reduce(nextRound, { type: "move", unit: "a", x: 3, y: 1 }, alwaysHit)).not.toThrow();
   });
 
-  it("재이동(시구르드): 행동 후 Power칸 1회 — 거리 정본 = skills.json Power", () => {
-    // 왜 위험한가: 공식 도움말 "행동 후 2칸(재이동)/3칸(재이동+)" — 남은 이동력이 아니다.
-    // 수기 상수로 박으면 재이동+와 어긋난다(Power가 정본). 행동 전 재이동 금지·창당 1회도 함께 박제.
-    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+  it("재이동(시구르드): 행동 후 Removable칸 1회 — 거리 정본 = skills.json Removable(再移動力)", () => {
+    // 왜 위험한가: 정본 필드는 Power가 아니라 Removable — Unit.GetMovePowerImpl(0x1A5B690)은
+    // [skill+0x1e4]=Removable만 읽는다. Power(強さ)는 별개 필드로 값 2·3이 우연히 일치했을 뿐이라
+    // Power를 읽으면 Removable≠Power인 미래 데이터에서 소리 없이 어긋난다(MOVE_TERRAIN.md FIX-4).
+    const canter = [{ Sid: "SID_再移動", Removable: 2 }];
     const s = state([unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: canter })]);
     const moved = reduce(s, { type: "move", unit: "a", x: 2, y: 0 }, alwaysHit);
     const acted = reduce(moved, { type: "wait", unit: "a" }, alwaysHit);
-    expect(() => reduce(acted, { type: "move", unit: "a", x: 5, y: 0 }, alwaysHit)).toThrow(); // 3칸 > Power 2
+    expect(() => reduce(acted, { type: "move", unit: "a", x: 5, y: 0 }, alwaysHit)).toThrow(); // 3칸 > Removable 2
     const canted = reduce(acted, { type: "move", unit: "a", x: 4, y: 0 }, alwaysHit);
     expect(canted.units[0]).toMatchObject({ x: 4, y: 0 });
     expect(() => reduce(canted, { type: "move", unit: "a", x: 5, y: 0 }, alwaysHit)).toThrow(); // 재이동은 1회
-    // 재이동+ = Power 3
-    const plus = [{ Sid: "SID_再移動＋", Power: 3 }];
+    // 재이동+ = Removable 3
+    const plus = [{ Sid: "SID_再移動＋", Removable: 3 }];
     const s2 = state([unit({ id: "b", force: 0, x: 0, y: 0, weapon: sword, skills: plus })]);
     const acted2 = reduce(s2, { type: "wait", unit: "b" }, alwaysHit);
     expect(reduce(acted2, { type: "move", unit: "b", x: 3, y: 0 }, alwaysHit).units[0]).toMatchObject({ x: 3, y: 0 });
   });
+
+  it("재이동 거리는 Removable이 정본 — SID 접두·Power와 무관하다", () => {
+    // 왜 위험한가: SID_再移動 접두 매칭·Power 소비는 둘 다 오독이었다(FIX-4). 코드는 보유 스킬을
+    // 순회해 max(Removable)를 취한다 — 접두가 다른 스킬이 Removable을 갖고 있어도 재이동이 성립해야 한다.
+    const fake = [{ Sid: "SID_다른스킬", Removable: 3, Power: 0 }];
+    const fresh = unit({ id: "a", force: 0, x: 0, y: 0, skills: fake });
+    expect(moveBudget({ ...fresh, acted: true })).toBe(3);
+    // Power만 있고 Removable이 없으면 재이동 아님(별개 필드).
+    const powerOnly = [{ Sid: "SID_再移動", Power: 2 }];
+    expect(moveBudget({ ...fresh, acted: true, skills: powerOnly })).toBeUndefined();
+  });
+
+  it("통과 판정 = 진영 동맹표 — 자군은 우군 칸을 통과하고, 적은 양쪽과 상호 차단", () => {
+    // 왜 위험한가: 현행 "군 동일" 판정은 자군이 우군(force 2) 칸을 못 지나가게 막는다 — 정본은
+    // MapSituation.IsAllide(0x1F48EC0) 동맹표(기본 [0,1,0]): 자군0↔우군2 같은 진영 = 통과 가능·정지 불가.
+    const ally = unit({ id: "g", force: 2, x: 1, y: 0 });
+    const me = unit({ id: "a", force: 0, x: 0, y: 0 });
+    const s = state([me, ally]);
+    // 우군 칸 너머 통과 도달(현행 = 차단 레드), 우군 칸 정지는 거부.
+    expect(reduce(s, { type: "move", unit: "a", x: 3, y: 0 }, alwaysHit).units[0]).toMatchObject({ x: 3, y: 0 });
+    expect(() => reduce(s, { type: "move", unit: "a", x: 1, y: 0 }, alwaysHit)).toThrow();
+    // 적(force 1)은 여전히 통과 차단.
+    const foe = unit({ id: "e", force: 1, x: 1, y: 0 });
+    const s2 = state([unit({ id: "b", force: 0, x: 0, y: 0, movePoints: 2 }), foe]);
+    expect(() => reduce(s2, { type: "move", unit: "b", x: 2, y: 0 }, alwaysHit)).toThrow();
+  });
+
+  it("이동력 = 클램프된 베이스 + EnhanceValue.Move(런타임 가산·상한 99)", () => {
+    // 왜 위험한가: Enhance는 직업 Limit 클램프 '뒤'에 더해진다(GetMovePowerImpl) — Limit로 잘라버리면
+    // 迅走(+5~7) 등 19종이 무력화된다. 인게이지 중 부여 스킬도 effectiveSkills 경유로 실시간 반영돼야 한다.
+    const swift = [{ Sid: "SID_迅走", "EnhanceValue.Move": 5 }];
+    const fresh = unit({ id: "a", force: 0, x: 0, y: 0, movePoints: 8, skills: swift });
+    expect(moveBudget(fresh)).toBe(13); // 8(Limit 클램프 후) + 5
+    const capped = unit({ id: "b", force: 0, x: 0, y: 0, movePoints: 97, skills: swift });
+    expect(moveBudget(capped)).toBe(99); // 최종 상한 99
+    const minus = [{ Sid: "SID_移動－２", "EnhanceValue.Move": -2 }];
+    expect(moveBudget(unit({ id: "c", force: 0, x: 0, y: 0, movePoints: 1, skills: minus }))).toBe(0); // 하한 0
+  });
 });
 
 describe("이동 예산(moveBudget) — UI가 소비하는 단일 정본", () => {
-  it("행동 전 = 이동력 · 이동 후 = 0 · 행동 후 = 재이동 Power 또는 불가", () => {
+  it("행동 전 = 이동력 · 이동 후 = 0 · 행동 후 = 재이동 Removable 또는 불가", () => {
     // 왜 위험한가: 이 판정이 UI에 중복 구현돼 있던 것이 C4(UI-엔진 표류)의 실존 사례였다
     // (2026-08-16 베타 이동 결함의 근본 원인 — design/verification.md §2-3). 엔진 수출 함수가 유일 정본이다.
-    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+    const canter = [{ Sid: "SID_再移動", Removable: 2 }];
     const fresh = unit({ id: "a", force: 0, x: 0, y: 0 });
     expect(moveBudget(fresh)).toBe(4);
     expect(moveBudget({ ...fresh, moved: true })).toBe(0); // 행동 전 이동 소진 = 제자리 행동만
@@ -157,7 +196,7 @@ describe("이동 예산(moveBudget) — UI가 소비하는 단일 정본", () =>
   });
 
   it("reduce의 이동 수락 = moveBudget과 일치한다", () => {
-    const canter = [{ Sid: "SID_再移動", Power: 2 }];
+    const canter = [{ Sid: "SID_再移動", Removable: 2 }];
     const s = state([unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: canter })]);
     const acted = reduce(s, { type: "wait", unit: "a" }, alwaysHit);
     const u = acted.units[0];

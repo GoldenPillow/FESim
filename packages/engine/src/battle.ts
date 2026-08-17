@@ -140,15 +140,43 @@ export function effectiveWeapons(u: UnitState): BattleWeapon[] | undefined {
 
 /**
  * 재이동(시구르드 싱크로) 이동 칸수 — 행동 후에만 유효, 없으면 undefined.
- * 거리 정본 = skills.json Power(재이동=2·재이동+=3, 공식 도움말 실측 일치). 지형 코스트 적용은 가정(실기 반증 시 갱신).
+ * 거리 정본 = skills.json Removable(再移動力) — Unit.GetMovePowerImpl(0x1A5B690)이 보유 스킬을
+ * 순회해 max(Removable)를 취한다(SID 접두 매칭 아님). ☠Power(強さ)는 별개 필드 — 값 2·3이 우연히
+ * 일치해 오독됐던 자리(MOVE_TERRAIN.md FIX-4). 재이동은 이동력 대체일 뿐 경로 규칙(지형 코스트) 동일.
  */
 export function canterPower(u: UnitState): number | undefined {
   let best: number | undefined;
   for (const s of effectiveSkills(u) ?? []) {
-    if (!s.Sid.startsWith("SID_再移動")) continue;
-    if (typeof s.Power === "number" && (best === undefined || s.Power > best)) best = s.Power;
+    if (typeof s.Removable === "number" && s.Removable > 0 && (best === undefined || s.Removable > best)) {
+      best = s.Removable;
+    }
   }
   return best;
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+/**
+ * 이동력 스냅숏(베이스 단계) = Clamp(base, 0, Clamp(jobLimit+personLimit, 0, 255)).
+ * ★Enhance(EnhanceValue.Move)는 이 클램프 '뒤'에 movePower가 가산한다 — Limit 초과 가능
+ * (GetMovePowerImpl 0x1A5B690 순서). 파이프라인/웹의 movePoints 산출이 이 함수를 소비한다.
+ */
+export function moveBase(base: number, jobLimit: number, personLimit: number): number {
+  return clamp(base, 0, clamp(jobLimit + personLimit, 0, 255));
+}
+
+/**
+ * 유효 이동력 = Clamp(movePoints + Σ EnhanceValue.Move(유효 스킬), 0, 99).
+ * 인게이지 부여 스킬(迅走 등 19종)이 effectiveSkills 경유로 실시간 반영된다.
+ * NotMove/Freeze 0 처리는 moveBudget이 소유(상태 게이트 단일 지점).
+ */
+export function movePower(u: UnitState): number {
+  let enhance = 0;
+  for (const s of effectiveSkills(u) ?? []) {
+    const v = s["EnhanceValue.Move"];
+    if (typeof v === "number") enhance += v;
+  }
+  return clamp(clamp(u.movePoints + enhance, 0, 255), 0, 99);
 }
 
 /**
@@ -159,7 +187,7 @@ export function canterPower(u: UnitState): number | undefined {
 export function moveBudget(u: UnitState): number | undefined {
   // 이동불가(フリーズ)·기절(コラプス) 상태는 이동 예산 0 — 재이동도 막힌다(SID_移動不可 명칭 그대로).
   if (hasBadState(u, BAD_STATE.freeze | BAD_STATE.stun)) return u.acted ? undefined : 0;
-  if (!u.acted) return u.moved === true ? 0 : u.movePoints;
+  if (!u.acted) return u.moved === true ? 0 : movePower(u);
   if (u.moved === true) return undefined;
   return canterPower(u);
 }
@@ -169,6 +197,42 @@ export interface BattleMap {
   height: number;
   costs: Partial<Record<MoveType, number[][]>>;
   terrain?: { avoid: number; def: number }[][];
+  /**
+   * 진영 동맹표 — force 인덱스 → 진영 번호(MapSituation.IsAllide 0x1F48EC0 사영).
+   * 기본 [0,1,0]: 자군(0)↔우군(2) 같은 진영 = 상호 통과 가능, 적(1)은 양쪽과 차단.
+   */
+  alliance?: number[];
+}
+
+const DEFAULT_ALLIANCE = [0, 1, 0] as const;
+
+/** force → 진영 번호. 표에 없는 force는 자기 자신(독립 진영)으로 본다. */
+export function allianceOf(map: BattleMap, force: number): number {
+  return map.alliance?.[force] ?? DEFAULT_ALLIANCE[force] ?? force;
+}
+
+/**
+ * 이동 통과·정지 술어 — reduce와 UI(BoardIsland)가 공용하는 단일 정본(☠중복 구현 금지 — C4 표류 방지).
+ * blocked = 비동맹 유닛 칸(진입 불가) · occupied = 동맹 유닛 칸(통과 가능·정지 불가).
+ */
+export function movePredicates(
+  map: BattleMap,
+  units: readonly UnitState[],
+  u: UnitState,
+): { blocked: (x: number, y: number) => boolean; occupied: (x: number, y: number) => boolean } {
+  const mine = allianceOf(map, u.force);
+  const byTile = new Map<number, UnitState>();
+  for (const v of units) if (!v.dead) byTile.set(v.y * map.width + v.x, v);
+  return {
+    blocked: (x, y) => {
+      const o = byTile.get(y * map.width + x);
+      return o !== undefined && allianceOf(map, o.force) !== mine;
+    },
+    occupied: (x, y) => {
+      const o = byTile.get(y * map.width + x);
+      return o !== undefined && o.id !== u.id && allianceOf(map, o.force) === mine;
+    },
+  };
 }
 
 export type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
@@ -552,14 +616,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           movePoints: budget,
           start: { x: u.x, y: u.y },
           costAt: (x, y) => grid[y]?.[x] ?? 255,
-          blocked: (x, y) => {
-            const o = units.find((v) => !v.dead && v.x === x && v.y === y);
-            return o !== undefined && o.force !== u.force;
-          },
-          occupied: (x, y) => {
-            const o = units.find((v) => !v.dead && v.x === x && v.y === y && v !== u);
-            return o !== undefined && o.force === u.force;
-          },
+          ...movePredicates(state.map, units, u),
         });
         if (!reachable.some((t) => t.x === action.x && t.y === action.y)) {
           throw new Error(`불법 이동: (${action.x}, ${action.y})는 이동 범위 밖`);

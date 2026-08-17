@@ -39,7 +39,7 @@ const WEAPONS = [
   { might: 6, hit: 85, crit: 0, weight: 7, kind: 2, rangeMin: 1, rangeMax: 2 },
   { might: 7, hit: 90, crit: 5, weight: 6, kind: 4, rangeMin: 2, rangeMax: 2 },
 ];
-const CANTER = [{ Sid: "SID_再移動", Power: 2 }];
+const CANTER = [{ Sid: "SID_再移動", Removable: 2 }];
 
 interface UnitSpec {
   forcePick: number;

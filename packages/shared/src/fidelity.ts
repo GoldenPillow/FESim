@@ -56,10 +56,10 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "movement.canter-distance",
-    label: { en: "Canter: N tiles after acting (skill Power)", ko: "재이동: 행동 후 N칸(skills.json Power)" },
+    label: { en: "Canter: N tiles after acting (skill Removable)", ko: "재이동: 행동 후 N칸(skills.json Removable)" },
     status: "anchored",
     evidence:
-      "공식 도움말 '행동 후 2칸/3칸' 실측 · battle.test.ts 재이동 · ★IL2CPP 코드로 필드 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10): 정본 필드는 skill.Power가 아니라 **Removable(再移動力)** — Unit.GetMovePowerImpl(RVA 0x1A5B690)이 Status.Removing일 때 max(skill.Removable)을 이동력으로 반환한다(Power는 별개 필드 '強さ'). 종전 'Power = 재이동 거리' 판정은 **반증**됐고 결과가 맞았던 이유는 두 필드의 값이 2·3으로 우연히 일치했기 때문이다(fe17.ts canterPower는 여전히 Power를 읽는다 — 데이터 변경 시 갈린다)",
+      "공식 도움말 '행동 후 2칸/3칸' 실측 · ★IL2CPP 코드로 필드 정정(il2cpp/MOVE_TERRAIN.md §2-10): 정본 필드는 skill.Power가 아니라 **Removable(再移動力)** — Unit.GetMovePowerImpl(RVA 0x1A5B690)이 Status.Removing일 때 max(skill.Removable)을 이동력으로 반환한다(Power는 별개 필드 '強さ' — 값 2·3 우연 일치로 오독됐던 자리). ★배선 완료(2026-08-18, MP3 3-0): canterPower가 Removable 최댓값 소비(SID 접두 매칭 폐기)·SKILL_ROW_FIELDS 사영 편입 — battle.test.ts 재이동·Removable 정본 테스트",
   },
   {
     id: "movement.canter-terrain-cost",
@@ -70,24 +70,24 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "movement.block-enemy",
-    label: { en: "Cannot pass through enemy units", ko: "타군 통과 불가" },
-    status: "implemented",
+    label: { en: "Cannot pass through non-allied units", ko: "비동맹 진영 통과 불가" },
+    status: "anchored",
     evidence:
-      "range.ts blocked · ★IL2CPP 코드로 판정 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 12행): 저지 기준은 '군(force) 불일치'가 아니라 **진영 동맹표** — SearchDir(RVA 0x2C29500)이 Flag.Enemy 상태에서 !MapSituation.IsAllide(myForce,targetForce)일 때만 차단한다(IsAllide RVA 0x1F48EC0). 엔진의 force 비교는 자군(0)↔우군(2)을 오차단한다(적1↔우군2 상호 차단은 우연 일치) · 스킬 MoveEnemyPass(1<<35)면 해제 — 미배선",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §3A 12행): 저지 기준 = **진영 동맹표** — SearchDir(RVA 0x2C29500)이 !MapSituation.IsAllide(myForce,targetForce)일 때만 차단(IsAllide RVA 0x1F48EC0). ★배선 완료(2026-08-18, MP3 3-0): 엔진 movePredicates(alliance 기본 [0,1,0])가 reduce·BoardIsland 공용 단일 정본(C4 중복 회수) — battle.test.ts 동맹 통과 테스트 · 잔여 = 스킬 MoveEnemyPass(1<<35) 해제 미배선",
   },
   {
     id: "movement.pass-ally",
-    label: { en: "Pass through allies, cannot stop on them", ko: "같은 군 통과 가능·정지 불가" },
-    status: "implemented",
+    label: { en: "Pass through allied forces, cannot stop on them", ko: "동맹 진영 통과 가능·정지 불가" },
+    status: "anchored",
     evidence:
-      "range.ts occupied · ★IL2CPP 코드로 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 13행): 통과 허용은 같은 군이 아니라 MapSituation.IsAllide(RVA 0x1F48EC0) 동맹표 참 — 자군(0)·우군(2)은 통상 동일 진영이라 서로 통과한다. 엔진의 force 동일 비교는 우군 통과를 막는다(과소)",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §3A 13행): 통과 허용 = MapSituation.IsAllide(RVA 0x1F48EC0) 동맹표 참 — 자군(0)·우군(2)은 통상 동일 진영이라 서로 통과. ★배선 완료(2026-08-18, MP3 3-0): movePredicates가 동맹 = 통과·정지 불가로 배선(종전 force 동일 비교의 우군 오차단 해소) — battle.test.ts",
   },
   {
     id: "movement.block-third-force",
     label: { en: "Enemy and third force block each other", ko: "적군↔우군 상호 차단" },
     status: "anchored",
     evidence:
-      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 14행): 차단 기준 = MapSituation.IsAllide(RVA 0x1F48EC0) 진영 인덱스 비교이고 Enemy(1)와 Ally(2)는 서로 비동맹이므로 상호 차단이 코드로 확정된다(종전 '공식 텍스트 전무·실기 반증만이 경로' 판정을 대체) · ⚠챕터가 진영 테이블을 바꿀 수 있음 = 맵별 예외 여지",
+      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 14행): 차단 기준 = MapSituation.IsAllide(RVA 0x1F48EC0) 진영 인덱스 비교이고 Enemy(1)와 Ally(2)는 서로 비동맹이므로 상호 차단이 코드로 확정된다(종전 '공식 텍스트 전무·실기 반증만이 경로' 판정을 대체) · ★배선(2026-08-18, MP3 3-0): movePredicates 동맹표 소비 — ⚠챕터별 진영 테이블 변경 여지는 BattleMap.alliance 필드 주입으로 흡수(판독 = MapSituation 초기화 경로, il2cpp-reader 진행 중)",
   },
   {
     id: "movement.pending-move",
@@ -619,9 +619,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "units.move-enhance",
     label: { en: "Move stat bonuses (EnhanceValue.Move)", ko: "이동력 보정(EnhanceValue.Move)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "ENHANCE_FIELDS에 move 부재(gaps/G) · ★IL2CPP 코드로 수치·적용점 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·SKILL_ENGINE.md §4): 보유 스킬은 **6종이 아니라 19종**(迅走 +5~7·天駆 +2~4 등) · EnhanceValue는 9스탯이 아니라 **11슬롯 벡터**(CapabilityDefinition.Type Hp0…Sight9 **Move10** Num11)이고 Unit.GetCapability(RVA 0x1A2DD80 Move 케이스 0x1A2EB0C)·GetMovePowerImpl(RVA 0x1A5B690, 0x1A5B7FC mov w1,#0xa)이 EnhanceValue[10]을 **직업 Limit 클램프 뒤에** 가산한다(= Limit 초과 가능) 최종 Clamp(0,99) · ⇒ 엔진의 9슬롯 정적 보정층(skills.ts staticEnhances)이 Sight·Move를 통째로 흘린다",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §2-10·SKILL_ENGINE.md §4): 보유 스킬 19종(迅走 +5~7·天駆 +2~4 등) · GetMovePowerImpl(RVA 0x1A5B690)이 EnhanceValue[10]을 **직업 Limit 클램프 뒤에** 가산(= Limit 초과 가능) 최종 Clamp(0,99). ★배선 완료(2026-08-18, MP3 3-0): 엔진 moveBase(스냅숏 = Clamp(base,0,jobLimit+personLimit)) + movePower(유효 스킬 Enhance 런타임 가산·상한 99 — 인게이지 부여 스킬 반영)를 moveBudget이 소비 — battle.test.ts Limit 초과·상한 99 테스트 · 잔여 = Sight 슬롯은 여전히 미사영(시야 시스템 부재와 동건)",
   },
   {
     id: "units.difficulty-skills",
