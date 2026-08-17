@@ -116,6 +116,8 @@ export interface UnitState {
    * ☠moveType으로 갈음 금지 — 용(邪竜류, MoveType 4)은 Fly 비트가 없어 면제 대상이 아니다.
    */
   flying?: boolean;
+  /** 특효 피격 판정 마스크 — person.Attrs | job.Attrs(대상 측 소비 — combatEnv efficacyOf). */
+  attrs?: number;
 }
 
 /** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
@@ -131,7 +133,11 @@ export function hasBadState(u: UnitState, bit: number): boolean {
  * ☠u.skills 직접 소비 금지 — 판정·예보·UI 전부 이 함수를 거쳐야 교체가 새지 않는다.
  */
 export function effectiveSkills(u: UnitState): SkillRow[] | undefined {
-  return u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+  const base = u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+  // 무기 부여 스킬(EquipSids) — 장비 중에만 합류(특효·무기 스킬의 원천, 무장 해제 시 소멸).
+  const granted = u.weapon?.sids;
+  if (granted === undefined || granted.length === 0) return base;
+  return [...(base ?? []), ...granted];
 }
 
 /**
@@ -681,6 +687,7 @@ export function toCombatant(
     terrain: terrainBonusAt(map, u.x, u.y, u.force),
     skills: effectiveSkills(u),
     support: supportOf(u, units, supportEffects),
+    ...(u.attrs !== undefined ? { attrs: u.attrs } : {}),
   };
 }
 

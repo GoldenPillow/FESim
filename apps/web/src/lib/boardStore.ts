@@ -124,6 +124,7 @@ export function projectUnit(
     movePoints: u.movePoints,
     moveType: u.moveType,
     ...(u.flying === true ? { flying: true } : {}),
+    ...(u.attrs !== undefined ? { attrs: u.attrs } : {}),
     style: u.style,
     acted: false,
     dead: false,

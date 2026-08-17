@@ -91,6 +91,8 @@ interface ItemRow extends NamedRow {
   Kind?: number;
   RangeI?: number;
   RangeO?: number;
+  /** 무기 부여 스킬(장비 중 유효) — 특효 스킬의 원천(아머킬러 → SID_鎧特効). */
+  EquipSids?: string[];
 }
 
 const parse = <T,>(raw: string): T => JSON.parse(raw) as T;
@@ -494,6 +496,7 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
 const SKILL_ROW_FIELDS = [
   "Sid", "Timing", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
   "GiveSids", "GiveTarget", "Target", "Power", "Removable", "RangeI", "RangeO",
+  "Efficacy", "EfficacyValue", "EfficacyIgnore",
 ] as const;
 
 /** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
@@ -714,6 +717,8 @@ export interface BoardWeaponProp {
   rangeMax: number;
   /** items.json Kind — 상성(브레이크) 판정 입력. */
   kind: number;
+  /** 무기 부여 스킬 행(EquipSids 슬림 사영) — 장비 중에만 유효(엔진 effectiveSkills 합류). */
+  sids?: SkillRow[];
 }
 
 export interface BoardUnitProp {
@@ -734,6 +739,8 @@ export interface BoardUnitProp {
   moveType: MoveType;
   /** 직업 Attrs bit3(Fly) — 지형 회복·피해 면제(☠moveType 판별 금지 — 용은 비면제). */
   flying?: boolean;
+  /** 특효 피격 마스크 = person.Attrs | job.Attrs — 엔진 combatEnv efficacyOf 소비. */
+  attrs?: number;
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
@@ -874,6 +881,10 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
     rangeMin: row.RangeI ?? 1,
     rangeMax: row.RangeO ?? 1,
     kind: row.Kind ?? 0,
+    ...(() => {
+      const rows = (row.EquipSids ?? []).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+      return rows.length > 0 ? { sids: rows } : {};
+    })(),
   };
 };
 
@@ -1037,6 +1048,10 @@ export function boardProps(
       ),
       moveType,
       ...(((Number(job?.Attrs ?? 0)) & 8) !== 0 ? { flying: true } : {}),
+      ...(() => {
+        const attrs = Number(job?.Attrs ?? 0) | Number((person as { Attrs?: number } | undefined)?.Attrs ?? 0);
+        return attrs !== 0 ? { attrs } : {};
+      })(),
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
       ...(() => {

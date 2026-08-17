@@ -457,8 +457,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.effectiveness",
     label: { en: "Effectiveness (armored, cavalry, flying, dragon)", ko: "특효(중장·기병·비병·용족 등)" },
-    status: "absent",
-    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2) · ★IL2CPP 코드로 합성 규칙까지 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-3·SKILL_ENGINE.md §4): 배수 = SkillArray.GetEfficacyValue(Unit)(RVA 0x24895A0) — 초기 1에서 매치마다 Mathf.Max(acc, skill.EfficacyValue)(0x24896FC)라 **중복 특효는 곱이 아니라 최댓값**이고 무매치 기본은 1 · 마스크 = (공격자.m_Efficacys & 대상.(Person.Attrs|Job.Attrs)) & ~대상.MaskSkill.m_EfficacyIgnores(0x24895F0 bics) · 저장처 = BattleDetail.WeaponEfficacy = m_BaseParams[10], IsEfficacy()(RVA 0x1E768C0) = >1 · 곱하는 자리 = calculator 攻撃力計算의 武器攻撃力 항에만(BattleDetail.CalcAttack RVA 0x1E74400) · ☠엔진 반증 = formula/combat.ts는 특효 배수 기본을 무기 필드 2로 두고 있다(정본 3, 邪竜特効만 2) — 판별 함수 자체가 미배선",
+    status: "implemented",
+    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2) · ★IL2CPP 코드로 합성 규칙까지 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-3·SKILL_ENGINE.md §4): 배수 = SkillArray.GetEfficacyValue(Unit)(RVA 0x24895A0) — 초기 1에서 매치마다 Mathf.Max(acc, skill.EfficacyValue)(0x24896FC)라 **중복 특효는 곱이 아니라 최댓값**이고 무매치 기본은 1 · 마스크 = (공격자.m_Efficacys & 대상.(Person.Attrs|Job.Attrs)) & ~대상.MaskSkill.m_EfficacyIgnores(0x24895F0 bics) · 저장처 = BattleDetail.WeaponEfficacy = m_BaseParams[10], IsEfficacy()(RVA 0x1E768C0) = >1 · 곱하는 자리 = calculator 攻撃力計算의 武器攻撃力 항에만(BattleDetail.CalcAttack RVA 0x1E74400) · ★배선 완료(2026-08-18): combatEnv efficacyOf — Efficacy ∩ (attrs ∖ 대상 EfficacyIgnore 합집합)·EfficacyValue 최댓값·무기 위력에만 적용, 원천 = 무기 EquipSids 사영(effectiveSkills 합류) + UnitState.attrs(person|job OR) — efficacy.test.ts 4건",
   },
   {
     id: "combat.terrain-bonus",
@@ -472,7 +472,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Effectiveness immunity/negation", ko: "특효 무효(가호·배리어)" },
     status: "absent",
     evidence:
-      "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H) · ★IL2CPP로 적용 주체 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·DAMAGE.md §4): 무효 비트는 **피격 대상 자신의** SkillArray 캐시에서 걸린다 — GetEfficacyValue(RVA 0x24895A0)가 target.MaskSkill.m_EfficacyIgnores(unit+0xF0 → +0x34)로 특효 마스크를 BIC 제거한다(공격자 측 판정이 아니다). SkillData.EfficacyIgnore(+0x1AC)가 그 비트의 소스",
+      "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H) · ★IL2CPP로 적용 주체 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·DAMAGE.md §4): 무효 비트는 **피격 대상 자신의** SkillArray 캐시에서 걸린다 — GetEfficacyValue(RVA 0x24895A0)가 target.MaskSkill.m_EfficacyIgnores(unit+0xF0 → +0x34)로 특효 마스크를 BIC 제거한다(공격자 측 판정이 아니다). SkillData.EfficacyIgnore(+0x1AC)가 그 비트의 소스 · ★배선(2026-08-18): efficacyOf가 대상 유효 스킬 EfficacyIgnore 합집합을 BIC — efficacy.test.ts 特効無効 케이스",
   },
   {
     id: "combat.terrain-asymmetric",

@@ -46,6 +46,8 @@ export interface BattleWeapon extends CombatantWeapon {
   rangeMax: number;
   /** items.json Kind — 상성 판정의 입력. */
   kind: number;
+  /** 무기 부여 스킬(EquipSids 행 사영) — 장비 중에만 유효 스킬에 합류(특효 스킬의 원천). */
+  sids?: SkillRow[];
   name?: string;
 }
 
@@ -70,6 +72,12 @@ export interface SkillRow {
   Target?: number;
   RangeI?: number;
   RangeO?: number;
+  /** 특효 대상 마스크(Attrs 비트) — 대상 person|job Attrs와 교집합이 비지 않으면 발동. */
+  Efficacy?: number;
+  /** 특효 배율 — 걸린 스킬 최댓값(특효 3·邪竜特効 2). */
+  EfficacyValue?: number;
+  /** 특효 무시 마스크 — 대상 보유 스킬 합집합이 공격자 Efficacy를 지운다(特効無効 127·バリア 32). */
+  EfficacyIgnore?: number;
   [key: string]: unknown;
 }
 
