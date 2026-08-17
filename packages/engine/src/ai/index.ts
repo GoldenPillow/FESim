@@ -23,6 +23,7 @@ import {
   movePerson,
   movePosition,
   rodHealTo,
+  rodInterferenceTo,
   type HandlerContext,
 } from "./handlers.js";
 import { NONE, processing, type ActionResult, type ThinkRuntime } from "./interpreter.js";
@@ -116,6 +117,7 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     if (opcode === ACT.mindBreakDown) return mindBreakDown(ctx);
     if (opcode === ACT.moveBreakDown) return moveBreakDown(ctx);
     if (opcode === ACT.rodHeal) return rodHealTo(ctx);
+    if (opcode >= ACT.rodInterference && opcode <= ACT.rodInterferenceFrequency) return rodInterferenceTo(ctx, opcode);
     if (GUARD_OPCODES.has(opcode)) return guardTo(ctx);
     if (opcode === ACT.healMiddleLow || opcode === ACT.healDefault) return healMindTo(ctx, opcode);
     return { kind: "deficit", reason: `행동 옵코드 미구현: ${opcode}` };

@@ -26,6 +26,8 @@ import {
   eachEnemyUnit,
   evaluateCause,
   guardTo,
+  interferenceRank,
+  interferenceScore,
   isEscapePosition,
   killScoreNormalize,
   mindBreakDown,
@@ -37,6 +39,7 @@ import {
   movePerson,
   movePosition,
   movePowerOf,
+  rodInterferenceTo,
   targetFilter,
   type HandlerContext,
   parseMoveLimit,
@@ -863,5 +866,65 @@ describe("MI/MV_BreakDown(65/100) — 방어 바닥 도달 (M_rod_breakdown §P2
   it("☠방어 바닥이 국면에 없으면 정직 결손", () => {
     expect(mindBreakDown(ctx(board(undefined), [me()])).kind).toBe("deficit");
     expect(moveBreakDown(ctx(board(undefined), [me()])).kind).toBe("deficit");
+  });
+});
+
+describe("IR_Default(30) — 방해 지팡이 (M_rod_breakdown §1-5-A)", () => {
+  it("★rank는 UseType 4분기다 — ☠이름이 아니라 수치로 판별", () => {
+    expect(interferenceRank(27)).toBe(4); // Draw
+    expect(interferenceRank(29)).toBe(3); // Stun — ★コラプス가 여기다
+    expect(interferenceRank(11)).toBe(2); // Silence
+    expect(interferenceRank(9)).toBe(1); // Freeze
+    expect(interferenceRank(10)).toBe(0); // Sleep 등 나머지는 전부 0
+    expect(interferenceRank(undefined)).toBe(0);
+  });
+
+  it("★조립식 = P + ((100-거리)<<9) + (magicVal<<17) + (rank<<25)", () => {
+    expect(interferenceScore(7, 4, 20, 3)).toBe(7 + (96 << 9) + 20 * 2 ** 17 + 3 * 2 ** 25);
+  });
+
+  it("우선순위 = 아이템 등급 ≫ 대상 마력 ≫ 근접도 ≫ 위력", () => {
+    expect(interferenceScore(0, 99, 0, 1)).toBeGreaterThan(interferenceScore(511, 0, 255, 0));
+    expect(interferenceScore(0, 99, 1, 2)).toBeGreaterThan(interferenceScore(511, 0, 0, 2));
+  });
+
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const tome = { ...sword, kind: 6 };
+  const freeze = { power: 0, rangeMin: 1, rangeMax: 6, uses: 5, rodType: 3, rodExp: 0, useType: 9, hit: 60,
+    gives: [{ sid: "SID_フリーズ", badState: 1, life: 1 }] };
+  const silence = { ...freeze, useType: 11, gives: [{ sid: "SID_サイレス", badState: 2, life: 1 }] };
+  const draw = { ...freeze, useType: 27, gives: [] };
+  const map = flatMap(14, 14);
+  const caster = (staves: unknown[]) =>
+    unit({ id: "me", force: 1, x: 2, y: 2, movePoints: 2, staves: staves as never, ai: {} });
+  const ctx = (units: UnitState[]): HandlerContext =>
+    ({
+      state: { turn: 1, phase: 1, map, units, events: [] } as unknown as GameState,
+      unit: units[0]!, args: [], rng: { next: () => 1 }, think: 8, allowIdle: false, targeted: {},
+    }) as unknown as HandlerContext;
+
+  it("★사정권 안 적에게 지팡이를 쓴다", () => {
+    const foe = unit({ id: "f", force: 0, x: 6, y: 2, weapon: sword, weapons: [sword] });
+    const r = rodInterferenceTo(ctx([caster([freeze]), foe]), ACT.rodInterference);
+    expect(r.kind).toBe("decide");
+    expect((r.kind === "decide" ? r.actions : []).at(-1)).toMatchObject({ type: "staff", target: "f", staff: 0 });
+  });
+
+  it("☠침묵은 마도서 계열을 가진 대상에게만 적합하다", () => {
+    const plain = unit({ id: "f", force: 0, x: 6, y: 2, weapon: sword, weapons: [sword] });
+    expect(rodInterferenceTo(ctx([caster([silence]), plain]), ACT.rodInterference).kind).toBe("none");
+    const mage = unit({ id: "f", force: 0, x: 6, y: 2, weapon: tome, weapons: [tome] });
+    expect(rodInterferenceTo(ctx([caster([silence]), mage]), ACT.rodInterference).kind).toBe("decide");
+  });
+
+  it("☠ドロー는 엔진이 효과를 거부하므로 정직 결손으로 올린다", () => {
+    const foe = unit({ id: "f", force: 0, x: 8, y: 2, weapon: sword, weapons: [sword] });
+    expect(rodInterferenceTo(ctx([caster([draw]), foe]), ACT.rodInterference).kind).toBe("deficit");
+  });
+
+  it("AttackHigh(5)·AttackLongRange(4) 회전에서는 실행되지 않는다", () => {
+    const foe = unit({ id: "f", force: 0, x: 6, y: 2, weapon: sword, weapons: [sword] });
+    const c = { ...ctx([caster([freeze]), foe]), think: 5 } as HandlerContext;
+    expect(rodInterferenceTo(c, ACT.rodInterference)).toEqual({ kind: "none" });
   });
 });
