@@ -73,6 +73,7 @@ const cellOf = (tid: string): TerrainCell => ({
 
 interface ChapterUnit {
   pid: string;
+  jid?: string;
   force: number;
   x: number;
   y: number;
@@ -122,6 +123,7 @@ function loadChapter(cid: string): GameState {
       units.push({
         id: `${group.name}#${i}`,
         pid: u.pid,
+        ...(u.jid !== undefined ? { jid: u.jid } : {}),
         force: u.force,
         x: u.x,
         y: u.y,

@@ -206,6 +206,23 @@ describe("이동 예산(moveBudget) — UI가 소비하는 단일 정본", () =>
   });
 });
 
+describe("주인공 사망 = 상시 패배 (GameEndCheckUnitDead DeadHero=6)", () => {
+  it("SID_主人公 보유 유닛이 죽으면 즉시 패배 — 다른 자군이 남아 있어도", () => {
+    // 왜 위험한가: 승패가 WinRule 파라미터·전멸에만 걸려 있으면 주인공이 죽어도 판이 계속된다 —
+    // 실측(m002 자율 플레이)에서 뤼에르 사망 후 '승리'까지 진행되는 오재현이 실제로 발생했다.
+    // 정본 = MapSituation.GameEndCheckUnitDead(사망 즉시 판정·파라미터 없음 상시 — _wip_winrule §1.2·§1.5).
+    const heroStats = { hp: 5, str: 1, mag: 0, dex: 1, spd: 1, lck: 0, def: 0, res: 0, bld: 5 };
+    const hero = unit({ id: "h", force: 0, x: 0, y: 0, stats: heroStats, hp: 5, skills: [{ Sid: "SID_主人公" }] });
+    const guard2 = unit({ id: "g", force: 0, x: 5, y: 5, weapon: sword });
+    const foe = unit({ id: "e", force: 1, x: 1, y: 0, weapon: axe });
+    let s = state([hero, guard2, foe]);
+    s = reduce(s, { type: "endPhase" }, alwaysHit); // 적 페이즈
+    const after = reduce(s, { type: "attack", unit: "e", target: "h" }, alwaysHit);
+    expect(after.units[0].dead).toBe(true);
+    expect(after.outcome).toBe("defeat");
+  });
+});
+
 describe("전투 해결", () => {
   it("격파: 명중 → 브레이크(검>도끼) → 추격으로 사망, 반격 몰수, 승리 판정", () => {
     // A 데미지 = (10+5) - 2 = 13, E HP 20: 13 + 추격 13 → 사망

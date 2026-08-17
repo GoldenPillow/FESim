@@ -123,6 +123,7 @@ export const ACT = {
   attackExcludePerson: 5,
   attackExcludeBand: 6,
   attackJob: 7,
+  attackJobNearestPosition: 8,
   attackForce: 9,
   attackPriorItem: 10,
   attackExcludePerson2: 14,

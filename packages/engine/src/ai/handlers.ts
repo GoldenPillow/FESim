@@ -102,8 +102,11 @@ export function targetFilter(opcode: number, args: readonly string[], target: Un
       //   그 정적 필드는 `OnCompletedEnd`(0x248D3F8)에서 **`SID_主人公`**로 채워진다.
       //   ⇒ "보스"가 아니라 **주인공 지정**이다(전 1523인물 중 PID_リュール 1건).
       return effectiveSkills(target)?.some((sk) => sk.Sid === "SID_主人公") === true;
+    case ACT.attackJob:
+    case ACT.attackJobNearestPosition:
+      // `t.m_Job(0x48) == v0.GetJob()` — 8(JobNearestPosition)은 7과 판정이 완전히 동일하다(점프테이블 동일 분기).
+      return target.jid === undefined ? undefined : target.jid === args[0];
     default:
-      // AT_Job(7/8)은 Job 사영이 UnitState에 없다.
       return undefined;
   }
 }

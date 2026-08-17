@@ -754,3 +754,16 @@ describe("이탈 지점 판정 (IsEscapePosition 0x195FDF0)", () => {
     expect(isEscapePosition(map, 5, 5, "foot")).toBe(true);
   });
 });
+
+describe("AT_Job(7) — 직업 지정 표적 (IsAttackPermissionOnlyCommand)", () => {
+  const t = (over: Partial<UnitState>) => unit({ id: "t", force: 0, x: 0, y: 0, ...over });
+
+  it("★대상의 jid가 인자와 일치해야 한다", () => {
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({ jid: "JID_ソードマスター" }))).toBe(true);
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({ jid: "JID_パラディン" }))).toBe(false);
+  });
+
+  it("☠jid가 사영되지 않은 유닛은 정직 결손 — 거짓으로 눌러 감추지 않는다", () => {
+    expect(targetFilter(ACT.attackJob, ["JID_ソードマスター"], t({}))).toBeUndefined();
+  });
+});
