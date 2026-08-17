@@ -13,7 +13,10 @@ import {
   guardTo,
   healMindTo,
   moveAttackRange,
+  mindTorch,
   moveIdle,
+  movePosition,
+  rodHealTo,
   type HandlerContext,
 } from "./handlers.js";
 import { NONE, processing, type ActionResult, type ThinkRuntime } from "./interpreter.js";
@@ -27,9 +30,15 @@ export interface AiMemory {
   active: Record<string, number>;
   /** `AIThink[+0x50]` — 표적별 "이미 노린 아군 수"(이동 스코어의 분산 항). */
   targeted: Record<string, number>;
+  /**
+   * ☠**진행 불가로 제외된 유닛** — id → 사유.
+   * 소비측이 "이 결정을 넣었는데 국면이 안 변했다"를 감지하면 여기에 등재하고, 그 뒤로는 건너뛴다.
+   * 없으면 같은 국면 → 같은 액션 → 무한 재평가가 되어 **페이즈가 영영 안 닫힌다**(m001 보스 실발현).
+   */
+  skipped: Record<string, string>;
 }
 
-export const emptyAiMemory = (): AiMemory => ({ active: {}, targeted: {} });
+export const emptyAiMemory = (): AiMemory => ({ active: {}, targeted: {}, skipped: {} });
 
 export interface AiDecision {
   /** 행동을 확정한 유닛. 없으면 이 페이즈에 더 낼 행동이 없다. */
@@ -85,6 +94,9 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     }
     if (MOVE_RANGE_OPCODES.has(opcode)) return moveAttackRange(ctx, opcode, v0);
     if (opcode === ACT.moveIdle) return moveIdle();
+    if (opcode === ACT.mindTorch) return mindTorch();
+    if (opcode === ACT.movePosition) return movePosition(ctx);
+    if (opcode === ACT.rodHeal) return rodHealTo(ctx);
     if (GUARD_OPCODES.has(opcode)) return guardTo(ctx);
     if (opcode === ACT.healMiddleLow || opcode === ACT.healDefault) return healMindTo(ctx, opcode);
     return { kind: "deficit", reason: `행동 옵코드 미구현: ${opcode}` };
@@ -132,6 +144,7 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     next(state: GameState, rng: RandomSource, memory: AiMemory = emptyAiMemory()): AiDecision {
       const active = { ...memory.active };
       const targeted = { ...memory.targeted };
+      const skipped = { ...memory.skipped };
       // ☠결손은 **행동을 못 낸 유닛에만** 기록한다 — 앞 옵코드가 미구현이어도
       //   뒤 후보(AT_Default 등)로 행동을 확정했다면 그 유닛은 결손이 아니다.
       const pending = new Map<string, string[]>();
@@ -141,8 +154,8 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
         const queue =
           step.queue === "priority" ? aiPriorityQueue(state.units, state.phase) : aiPhaseQueue(state.units, state.phase);
         for (const actor of queue) {
-          if (!aiCanAct(actor)) continue;
-          const r = think(state, actor, step.think, step.allowIdle === true, rng, { active, targeted });
+          if (!aiCanAct(actor) || skipped[actor.id] !== undefined) continue;
+          const r = think(state, actor, step.think, step.allowIdle === true, rng, { active, targeted, skipped });
           // 밴드 각성 전파 — 같은 AI_BandNo 전원을 Active=1로(§8-4).
           if (r.active !== 0 && (active[actor.id] ?? 0) === 0) {
             for (const m of bandMembers(state.units, actor)) {
@@ -151,7 +164,13 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
           }
           active[actor.id] = r.active;
           if (r.result.kind === "decide") {
-            return { unit: actor.id, actions: r.result.actions, deficits: [], memory: { active, targeted }, done: false };
+            return {
+              unit: actor.id,
+              actions: r.result.actions,
+              deficits: [],
+              memory: { active, targeted, skipped },
+              done: false,
+            };
           }
           if (r.deficits.length > 0) {
             const seen = pending.get(actor.id) ?? [];
@@ -166,7 +185,9 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
           deficits.push({ unit, kind: reason.startsWith("루틴") ? "routine" : "opcode", reason });
         }
       }
-      return { actions: [], deficits, memory: { active, targeted }, done: true };
+      // 진행 불가로 제외된 유닛도 결손이다 — 조용히 사라지지 않는다.
+      for (const [unit, reason] of Object.entries(skipped)) deficits.push({ unit, kind: "engine", reason });
+      return { actions: [], deficits, memory: { active, targeted, skipped }, done: true };
     },
   };
 }

@@ -106,12 +106,16 @@ export {
 export {
   MOVE_FLAG,
   attackTo,
+  calcHealRodScore,
   eachEnemyUnit,
   guardTo,
   healMindTo,
+  mindTorch,
   moveAttackRange,
+  movePosition,
   moveIdle,
   moveTo,
+  rodHealTo,
   targetFilter,
   type HandlerContext,
 } from "./ai/handlers.js";
@@ -180,6 +184,8 @@ export {
 export {
   CAUSE_STRING_ARG,
   argsOf,
+  attackAreaFrom,
+  parsePos,
   evaluateCause,
   movePowerOf,
   resolveValue,

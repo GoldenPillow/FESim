@@ -661,20 +661,39 @@ export default function BoardIsland(props: BoardProps) {
     let memory = emptyAiMemory();
     setAiGaps([]);
     for (let guard = 0; guard < 1000; guard++) {
-      const state = store.getState().game;
-      if (state.outcome !== undefined || state.phase === 0) return;
-      const decision = ai.next(state, aiRng, memory);
+      const before = store.getState().game;
+      if (before.outcome !== undefined || before.phase === 0) return;
+      const decision = ai.next(before, aiRng, memory);
       memory = decision.memory;
       if (decision.actions.length === 0) {
         if (decision.deficits.length > 0) {
           setAiGaps(decision.deficits);
           return; // 결손 유닛이 남았다 — 페이즈를 자동으로 닫지 않는다.
         }
-        dispatch({ type: "endPhase" });
+        // ☠endPhase도 거부될 수 있다(이벤트 콜백 오류 등) — 조용히 반환하면 화면이 멈춘 채 침묵한다.
+        if (dispatch({ type: "endPhase" }) === before) {
+          setAiGaps([
+            { unit: "-", kind: "engine", reason: "페이즈 종료가 엔진에 거부됐다 — 콘솔의 [FESim] 거부된 행동 참조" },
+          ]);
+        }
         return;
       }
       for (const action of decision.actions) dispatch(action);
+      // ☠**진행 감시**: 스토어 dispatch는 불법 행동을 무시하고 이전 국면을 그대로 돌려준다.
+      // 그대로 두면 같은 국면 → 같은 결정 → 무한 재평가가 되어 페이지가 조용히 멈춘다(m001 보스 실발현).
+      // 국면이 하나도 안 변했으면 그 유닛을 **정직 결손으로 등재하고 제외**한다.
+      if (store.getState().game === before && decision.unit !== undefined) {
+        memory = {
+          ...memory,
+          skipped: {
+            ...memory.skipped,
+            [decision.unit]: `엔진이 거부한 액션: ${decision.actions.map((a) => a.type).join(" + ")}`,
+          },
+        };
+      }
     }
+    // 1000회를 소진했다 = 위 감시가 못 잡은 진행 불가. 침묵 금지 — 있는 그대로 알린다.
+    setAiGaps([{ unit: "-", kind: "engine", reason: "적턴 자동이 수렴하지 않았다(1000 액션 초과)" }]);
   };
 
   /** 공격 액션 — 무기 목록이 있으면 선택 인덱스를 기보에 싣는다(장비 전환 포함 재현 계약). */

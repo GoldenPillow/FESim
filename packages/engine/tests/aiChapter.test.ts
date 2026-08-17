@@ -17,6 +17,7 @@ import {
   type BattleWeapon,
   type GameState,
   type RandomSource,
+  type StaffItem,
   type TerrainCell,
   type UnitState,
 } from "@fesim/engine";
@@ -31,7 +32,7 @@ const terrainTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/terr
 >;
 const itemTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/items.json"), "utf-8")) as Record<
   string,
-  { Kind?: number; Power?: number; RangeI?: number; RangeO?: number }
+  { Kind?: number; Power?: number; RangeI?: number; RangeO?: number; RodType?: number; Endurance?: number; Hit?: number; RodExp?: number }
 >;
 const aiTable = JSON.parse(readFileSync(url("../../../data/fe17/tables/ai.json"), "utf-8")) as Record<
   string,
@@ -45,6 +46,22 @@ const weaponOf = (iid: string): BattleWeapon | undefined => {
   if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) return undefined;
   return { ...sword, iid, might: row.Power ?? 0, rangeMin: row.RangeI ?? 1, rangeMax: row.RangeO ?? 1, kind: row.Kind ?? 0 };
 };
+/** 지팡이 사영 — 회복 AI(RD_Heal)가 실제로 쓸 수 있어야 커버리지 측정이 정직해진다. */
+const staffOf = (iid: string): StaffItem | undefined => {
+  const row = itemTable[iid];
+  if (row === undefined || row.Kind !== 7) return undefined;
+  return {
+    iid,
+    power: row.Power ?? 0,
+    rangeMin: row.RangeI ?? 1,
+    rangeMax: row.RangeO ?? 1,
+    uses: row.Endurance ?? 0,
+    rodType: row.RodType ?? 0,
+    rodExp: row.RodExp ?? 0,
+    ...(row.Hit !== undefined ? { hit: row.Hit } : {}),
+  };
+};
+
 const cellOf = (tid: string): TerrainCell => ({
   tid,
   ...(terrainTable[tid]?.CostName !== undefined ? { costName: terrainTable[tid]!.CostName } : {}),
@@ -87,6 +104,7 @@ function loadChapter(cid: string): GameState {
   for (const group of json.groups) {
     for (const [i, u] of group.units.entries()) {
       const weapons = (u.items ?? []).map((it) => weaponOf(it.iid)).filter((w): w is BattleWeapon => w !== undefined);
+      const staves = (u.items ?? []).map((it) => staffOf(it.iid)).filter((w): w is StaffItem => w !== undefined);
       units.push({
         id: `${group.name}#${i}`,
         pid: u.pid,
@@ -100,6 +118,7 @@ function loadChapter(cid: string): GameState {
         movePoints: 5,
         moveType: "foot",
         ...(weapons.length > 0 ? { weapon: weapons[0], weapons } : {}),
+        ...(staves.length > 0 ? { staves } : {}),
         ...(aiSnapshotOf(u.ai) !== undefined ? { ai: aiSnapshotOf(u.ai) } : {}),
         acted: false,
         dead: false,
@@ -140,6 +159,7 @@ function runPhase(start: GameState): { state: GameState; report: PhaseReport } {
   const actions: BattleAction[] = [];
   const total = state.units.filter((u) => !u.dead && u.force === state.phase).length;
   for (let guard = 0; guard < 500; guard++) {
+    const before = state;
     const decision = ai.next(state, stubbornRng, memory);
     memory = decision.memory;
     if (decision.actions.length === 0) {
@@ -156,6 +176,11 @@ function runPhase(start: GameState): { state: GameState; report: PhaseReport } {
     for (const action of decision.actions) {
       actions.push(action);
       state = reduce(state, action, battleRng);
+    }
+    // ☠진행 감시 — 웹의 runEnemyAuto와 **같은 계약**. 국면이 안 변한 결정은 그 유닛을 제외한다.
+    // (헤드리스는 reduce가 던지므로 여기 도달하면 이미 레드지만, 계약 동형성을 위해 같이 둔다.)
+    if (state === before && decision.unit !== undefined) {
+      memory = { ...memory, skipped: { ...memory.skipped, [decision.unit]: "국면 무변화" } };
     }
   }
   throw new Error("적턴 자동이 수렴하지 않았다(500 액션 초과)");

@@ -10,6 +10,7 @@ import {
   effectiveWeapons,
   canChainGuard,
   makeCostAt,
+  staffHealAmount,
   movePower,
   movePredicates,
   moveBudgetOn,
@@ -19,10 +20,18 @@ import {
   type UnitState,
 } from "../battle.js";
 import { attackRange, movementRange } from "../range.js";
-import { getAttackPosition, getAttackScore, moveImageOf, aiIsRandom, type AttackContext, type AttackEvaluation } from "./attack.js";
-import { movePowerOf } from "./cause.js";
+import {
+  aiIsRandom,
+  betterAttack,
+  getAttackPosition,
+  getAttackScore,
+  moveImageOf,
+  type AttackContext,
+  type AttackEvaluation,
+} from "./attack.js";
+import { movePowerOf, parsePos } from "./cause.js";
 import { NONE, type ActionResult } from "./interpreter.js";
-import { terrainScoreAt } from "./position.js";
+import { enumerateRing, healRodPositionScore, terrainScoreAt } from "./position.js";
 import { ACT, AI_FLAG, AI_THINK, AI_VALUE, ATTACK_FLAG } from "./types.js";
 import { aiHealCondition, moveLimitAllows, parseMoveLimit } from "./unit.js";
 
@@ -117,7 +126,7 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
     if (!ok) continue;
     const cand = getAttackScore(ctx, actor, target, 0, image);
     if (cand === undefined) continue;
-    if (best === undefined || betterTarget(cand, best, ctx.targeted, ctx.rng)) best = cand;
+    if (best === undefined || betterAttack(cand, best, ctx.rng)) best = cand;
   }
   if (unsupported !== undefined) return { kind: "deficit", reason: unsupported };
   if (best === undefined) return NONE;
@@ -133,20 +142,6 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
   }
   actions.push({ type: "attack", unit: actor.id, target: best.target, weapon: best.weapon });
   return { kind: "decide", actions };
-}
-
-/** `CheckAttackPriorityImpl`의 파레토 비교(연계수 → 밀치기 → 스코어 → 동점 코인플립). */
-function betterTarget(
-  next: AttackEvaluation,
-  cur: AttackEvaluation,
-  _targeted: Record<string, number>,
-  rng: RandomSource,
-): boolean {
-  if (next.chainCount < cur.chainCount) return false;
-  if (next.chainCount > cur.chainCount) return true;
-  if (next.battle < cur.battle) return false;
-  if (next.battle !== cur.battle) return true;
-  return rng.next(2) === 0;
 }
 
 /**
@@ -344,6 +339,172 @@ function bestPositionAnyWeapon(
  * (Decide는 `ProcessingMutation`이 행동을 갈아끼웠을 때뿐 — 그 경로는 미배선).
  */
 export function moveIdle(): ActionResult {
+  return NONE;
+}
+
+/**
+ * `AIThink$$CalcHealRodScore`(0x19598B0) — 회복 지팡이 **대상+아이템** 선택 키.
+ *
+ * ☠**AI_ENGINE §5-5의 비트 위치는 8비트씩 높게 적혀 있었다**(MP4 2라운드 직접 재판독으로 정정).
+ * 실제 꼬리(0x19599A4~0x19599CC):
+ * ```
+ * cset w8, eq ; lsl w21, w8, #8     ; inPlace << 8
+ * w0 = Math.Max(heal, 0) + w21
+ * add w8, w19, w0, lsl #8           ; ★score = damage + (max(heal,0) << 8) + (inPlace << 16)
+ * ```
+ * 플레이어 진영 경로(0x1959958)는 `inPlace` 항을 빼고 `damage + (max(heal,0) << 8)`만 만든다.
+ * `inPlace` = 시전 위치가 **자기 현재 칸**인가(`cneg`/`cset eq`로 |dx|,|dz| 동시 0 판정).
+ * ⇒ 우선순위 자체는 §5-5와 같다: **제자리 ≫ 회복량 ≫ 부수 대미지**.
+ * ☠**`damage`는 "부수 대미지"가 아니라 대상의 부족 HP**(maxHp - hp)다
+ * (`GetHealRodScoreImpl` 0x1959E48 `str w21,[x19,#0x14]`, w21 = maxHp - hp) — AI_ENGINE §5-5의 오독을 정정한다.
+ * `heal`은 `Min(지팡이 회복력, 부족분)`이라 만피에 가까운 대상은 heal이 깎이고 damage만 남는다
+ * ⇒ **"많이 회복되는 대상 우선, 같으면 더 많이 다친 대상 우선"**.
+ */
+export function calcHealRodScore(heal: number, damage: number, inPlace: boolean, isPlayerForce: boolean): number {
+  const base = damage + (Math.max(heal, 0) << 8);
+  return isPlayerForce ? base : base + ((inPlace ? 1 : 0) << 16);
+}
+
+/**
+ * `AIThink$$GetHealRodPosition`(0x1958120) — 회복 시전 위치.
+ * ☠공격 위치와 **층위가 정반대**다(AI_ENGINE §5-A-8): `score = ((100 - move) << 4) + 지형`
+ * — 힐러는 좋은 지형보다 **덜 움직이는 것**을 우선한다. 동점은 `AI.IsRandom` 코인플립.
+ */
+function healRodPosition(
+  ctx: HandlerContext,
+  target: UnitState,
+  staff: { rangeMin: number; rangeMax: number },
+  image: Map<number, number>,
+): { moveX: number; moveY: number; move: number } | undefined {
+  let best: { moveX: number; moveY: number; move: number; score: number } | undefined;
+  for (const tile of enumerateRing(
+    target.x, target.y, staff.rangeMin, staff.rangeMax, ctx.state.map.width, ctx.state.map.height,
+  )) {
+    const move = image.get(key(ctx.state, tile.x, tile.y));
+    if (move === undefined) continue;
+    const terrain = terrainScoreAt(ctx.state.map, ctx.unit, tile.x, tile.y, ctx.state.terrainPatches);
+    const score = healRodPositionScore(move, terrain);
+    if (best !== undefined) {
+      if (score < best.score) continue;
+      if (score === best.score && aiIsRandom(ctx.rng)) continue;
+    }
+    best = { moveX: tile.x, moveY: tile.y, move, score };
+  }
+  return best === undefined ? undefined : { moveX: best.moveX, moveY: best.moveY, move: best.move };
+}
+
+/**
+ * `AIThink$$RodHealTo`(0x1946A00) — `RD_Heal(20)`. `ActionRodHeal`(0x19469F0)은 `b RodHealTo` 썽크다.
+ *
+ * 판독(MP4 2라운드 직접 디스어셈블):
+ * ```
+ * 0x01946B20  HasHealRod(unit, 0) 거짓  → None(0)
+ * 0x01946B94  UnitAIMove(deploy, unit, movePower = -1, flag = 2, weaponFlag = 0x8000000)
+ * 0x01946C90  MapFor$$EachAllyUnit(ForceCursor, UnitFunction(<RodHealTo>b__0))   ; ★아군 전수
+ * 0x01946C9C  dc.itemIndex == -1 이면 → None(0)
+ * 0x01946D04~ mind.ItemIndex / mind.X / mind.Z 커밋
+ * ```
+ * `<RodHealTo>b__0(ally)` 0x294BF60 = 대상의 셀마다 `GetHealRodScore` → **최댓값 채택, 동점 `AI.IsRandom`**.
+ * `GetHealRodScore` 0x1959E80 = 슬롯 0..7 중 `ItemData.UseType(0x50) == 2`만 순회 →
+ * `GetHealRodScoreImpl` 0x19599F0(= `IsHealRodPermission` + **자기 자신 제외** + `ItemData[0x80] == 2`(RodType 회복)
+ * + `GetHealRodPosition`) → `CalcHealRodScore` 최댓값.
+ *
+ * ☠**미판독 잔여**: `IsHealRodPermission`(0x19594E0) 본문 전량. AI_ENGINE §9-1이 이 함수를 `AskHealA`의
+ * 소비처로 명시하므로 **AskHealA(대상 HP% < healRateA) + 피해 있음**으로 이식하고 장부에 assumed로 남긴다.
+ */
+export function rodHealTo(ctx: HandlerContext): ActionResult {
+  const actor = ctx.unit;
+  const staves = (actor.staves ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.rodType === 2 && s.uses > 0);
+  if (staves.length === 0) return NONE; // HasHealRod 게이트
+  const image = moveImageOf(ctx.state, actor);
+  let best: { score: number; target: string; staff: number; moveX: number; moveY: number } | undefined;
+
+  for (const ally of ctx.state.units) {
+    if (ally.dead || ally.id === actor.id || ally.force !== actor.force) continue;
+    const missing = ally.stats.hp - ally.hp;
+    if (missing < 1) continue;
+    // `IsHealRodPermission`(0x19594E0) 5·6단: 비플레이어 진영 대상은 `AskHealA | AskHealB` 중 하나,
+    // 플레이어 진영 대상은 `hp*100/maxHp < 75` 고정. ★aiHealCondition이 force 0에 75/30을 강제하므로
+    //   두 규칙 모두 `askHealA || askHealB`로 정확히 표현된다.
+    const ask = aiHealCondition(ally);
+    if (!ask.askHealA && !ask.askHealB) continue;
+    for (const { s, i } of staves) {
+      const pos = healRodPosition(ctx, ally, s, image);
+      if (pos === undefined) continue;
+      const healed = Math.min(staffHealAmount(actor, ally, s), missing);
+      const score = calcHealRodScore(
+        healed, missing, pos.moveX === actor.x && pos.moveY === actor.y, actor.force === 0,
+      );
+      if (best !== undefined) {
+        if (score < best.score) continue;
+        if (score === best.score && ctx.rng.next(2) !== 0) continue;
+      }
+      best = { score, target: ally.id, staff: i, moveX: pos.moveX, moveY: pos.moveY };
+    }
+  }
+  if (best === undefined) return NONE;
+  const actions: BattleAction[] = [];
+  if (best.moveX !== actor.x || best.moveY !== actor.y) {
+    actions.push({ type: "move", unit: actor.id, x: best.moveX, y: best.moveY });
+  }
+  actions.push({ type: "staff", unit: actor.id, target: best.target, staff: best.staff });
+  return { kind: "decide", actions };
+}
+
+/**
+ * `AIThink$$ActionMovePosition`(0x194F5A0) — `MV_Position(91)`.
+ *
+ * 판독(MP4 2라운드 직접 디스어셈블):
+ * ```
+ * 0x0194F6A4  Unit$$CanUnlockDoor(unit, 1) → moveFlag 베이스 0x1200 : 0x1000
+ * 0x0194F6F0  mov w2, #0x64
+ * 0x0194F704  UnitAIMove(deploy, unit, movePower = 100, flag, weaponFlag = 0)   ; ★맵 전역 이미지
+ * 0x0194F71C  x = v0.get_X() ; 0x0194F72C  z = v0.get_Z()                       ; dispos `pos(x,z)`
+ * 0x0194F784  tbnz w8, #0x1f → None(0)                                          ; 목표 칸 도달 불가
+ * 0x0194F7B4  mov w3, #0x10 → MoveTo(this, x, z, MoveFlag.Door(16))
+ * ```
+ * ★`Door(16)`은 `MoveTo` 칸 채점에 쓰이지 않는다(채점이 보는 것은 Ignore/Back/IgnoreIceTile뿐) —
+ * 확정 뒤 `ToDoor`로 문을 여는 데만 쓰이며, 그 부수효과는 엔진 미모델링이다.
+ */
+export function movePosition(ctx: HandlerContext): ActionResult {
+  const pos = parsePos(ctx.args[0]);
+  if (pos === undefined) return { kind: "deficit", reason: "MV_Position 좌표 인자(pos(x,z)) 부재" };
+  // 목표 칸이 **맵 전역 이동 이미지**에 없으면(도달 불가) None.
+  const wide = moveImageOf(ctx.state, ctx.unit, -1);
+  if (!wide.has(key(ctx.state, pos.x, pos.y))) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, pos.x, pos.y, MOVE_FLAG.door, ctx.rng);
+  // ★이미 목표 칸에 있으면 MoveTo의 초기 임계를 넘는 칸이 없어 `UnitAI.Idle`만 서고 None이 된다.
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+/**
+ * `AIThink$$ActionMindTorch`(0x194CAF0) — `MI_Torch(70)`.
+ *
+ * ★☠**횃불 아이템이 아니라 맵의 조사 지점이다.** 본문이 도는 것은
+ * `MapFor.EachPoke(MapInspector.Kind.Torch = 7, b__0)`(0x194CC34 `mov w0,#7` → 0x1DC2E00)이고,
+ * 후보 술어 `b__0`(0x2947850)은 `(sbyte)AIDeploy.MoveImage[x|z<<5] < 0`이면 기각(도달 불가)한 뒤
+ * `MapImage` 층 판정을 통과한 칸만 채택한다. 채택되면 `mind.X/Z` + `MapMind.Type = Torch(22)`.
+ *
+ * ★**None(0)으로 빠지는 경로 3개**(전부 코드 확정):
+ *  (1) `person.BmapSize(0x8C) > 1` — 대형 유닛(0x194CBB0)
+ *  (2) ☠**`IsAttackableEnemy`(0x194CD10)가 참이면 즉시 None**(0x194CBC8) —
+ *      즉 **때릴 적이 있으면 횃불을 켜지 않고 공격하러 간다**. 슬롯 순서가 Mind→Attack이라
+ *      이 게이트가 없었다면 횃불 유닛은 영영 공격을 못 했을 것이다.
+ *  (3) 후보 칸을 못 찾으면 `dc.x == -1`로 남아 None(0x194CC4C)
+ *
+ * ⇒ ☠**FESim은 Torch 조사 지점을 모델링하지 않는다** — 파이프라인이 추출하는 interaction 종별은
+ * chest·visit·door·escape·destroy·defendArea뿐이고 torch는 0건이며, `GameState`에도 조사 지점 층이 없다.
+ * 따라서 (3)이 **항상** 성립해 이 옵코드는 **None을 반환하는 것이 코드상 정답**이다(근거 없는 대기 강하가 아니다).
+ * 시야(전장의 안개) 자체도 미모델링이라 횃불로 바뀔 국면이 없다.
+ */
+export function mindTorch(): ActionResult {
   return NONE;
 }
 

@@ -130,6 +130,7 @@ export const ACT = {
   healDefault: 40,
   healMiddleLow: 41,
   healNearingHero: 42,
+  mindTorch: 70,
   mindGuard: 71,
   mindGuardBattleScore: 72,
   mindGuardPerson: 73,
@@ -141,6 +142,7 @@ export const ACT = {
   moveAttackRangeIgnore: 85,
   moveWeakRange: 86,
   moveWeakRangeSide: 87,
+  movePosition: 91,
   moveAttackRangeExcludePerson2: 109,
 } as const;
 
@@ -178,8 +180,11 @@ export function battleRateOf(raw: string | undefined): BattleRate {
  */
 export interface AiDeficit {
   unit: string;
-  /** 결손 종류. `routine` = 루틴 미탑재 · `opcode` = 옵코드 미구현 · `data` = 스냅숏 부재. */
-  kind: "routine" | "opcode" | "data";
+  /**
+   * 결손 종류. `routine` = 루틴 미탑재 · `opcode` = 옵코드 미구현 · `data` = 스냅숏 부재 ·
+   * `engine` = AI가 낸 액션을 reduce가 거부(합법성 표류 — 진행 불가라 제외됨).
+   */
+  kind: "routine" | "opcode" | "data" | "engine";
   /** 사람이 읽을 사유(어느 루틴·옵코드가 없는지). */
   reason: string;
 }

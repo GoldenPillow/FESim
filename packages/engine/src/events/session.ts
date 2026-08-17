@@ -829,6 +829,24 @@ export function createEventSession(opts: {
     lua.lua_pushinteger(A, unitAt(1)?.hpStock ?? 0);
     return 1;
   });
+  /**
+   * `UnitSetHp(pid, hp)` — 유닛 HP 절대 설정.
+   * ☠**미배선이던 네이티브**: m001 쌍자이탈(턴3)이 `UnitSetHp(리ュール, maxHp)`를 부르는데 없어서
+   * `endPhase`가 통째로 거부됐고, 그 결과 적턴 자동이 페이즈를 영영 못 닫았다(2026-08-18 실측).
+   * 재생은 `heal` 이벤트의 `hpAfter`가 절대값을 들고 있어 그대로 복원된다.
+   * ⚠HP 0으로 내리는 경우의 사망 처리는 근거가 없어 배선하지 않았다(실사용은 전부 양수 — m001·e006).
+   */
+  register("UnitSetHp", () => {
+    const u = unitAt(1);
+    const hp = lua.lua_tointeger(A, 2);
+    if (u !== undefined) {
+      const next = Math.max(Math.min(hp, u.stats.hp), 0);
+      const amount = next - u.hp;
+      u.hp = next;
+      emit({ type: "heal", unit: u.id, target: u.id, amount, hpAfter: next });
+    }
+    return 0;
+  });
   register("UnitSetHpStock", () => {
     const u = unitAt(1);
     const stock = lua.lua_tointeger(A, 2);
