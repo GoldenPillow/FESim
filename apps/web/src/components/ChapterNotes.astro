@@ -1,0 +1,56 @@
+---
+import { chapterNoteView } from "../lib/chapterNotes";
+import { UI, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+  mapId: string;
+}
+const { locale, mapId } = Astro.props;
+const t = UI[locale].notes;
+const view = chapterNoteView(mapId, locale);
+
+const sections =
+  view === undefined
+    ? []
+    : ([
+        { label: t.drops, entries: view.drops },
+        { label: t.visits, entries: view.visits },
+        { label: t.rewards, entries: view.rewards },
+        { label: t.ringsGain, entries: view.rings.gain },
+        { label: t.ringsLose, entries: view.rings.lose, warn: true },
+        { label: t.ringsRegain, entries: view.rings.regain },
+        { label: t.joins, entries: view.joins },
+        { label: t.unlocks, entries: view.unlocks },
+        { label: t.cautions, entries: view.cautions, warn: true },
+      ] as { label: string; entries: string[]; warn?: boolean }[]).filter((s) => s.entries.length > 0);
+---
+
+{
+  (sections.length > 0 || (view?.shopNew.length ?? 0) > 0) && (
+    <section class="text-[11px] text-muted">
+      <h2 class="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">{t.title}</h2>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {sections.map((s) => (
+          <>
+            <dt class={s.warn ? "text-amber-500/90" : ""}>{s.label}</dt>
+            <dd class={`text-ink ${s.warn ? "text-amber-200/90" : ""}`}>{s.entries.join(" · ")}</dd>
+          </>
+        ))}
+      </dl>
+      {(view?.shopNew.length ?? 0) > 0 && (
+        <details class="mt-2">
+          <summary class="cursor-pointer select-none">{t.shop}</summary>
+          <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            {view!.shopNew.map((g) => (
+              <>
+                <dt>{t.shopKinds[g.kind as keyof typeof t.shopKinds] ?? g.kind}</dt>
+                <dd class="text-ink">{g.entries.join(" · ")}</dd>
+              </>
+            ))}
+          </dl>
+        </details>
+      )}
+    </section>
+  )
+}
