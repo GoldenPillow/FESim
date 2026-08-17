@@ -128,10 +128,10 @@ describe("지팡이 회복", () => {
     expect(() => reduce(state([healer, hurt]), heal("h", "t"), noRolls)).toThrow(/소진/);
   });
 
-  it("미배선 지팡이 종류(RodType≠2)는 던진다 — 과대 재현보다 정직한 거부", () => {
+  it("방해 지팡이로 아군을 겨누면 던진다 — 회복·방해·워프 분기의 대상 규칙(MP1-5에서 배선 확장)", () => {
     const healer = unit({ id: "h", force: 0, x: 0, y: 0, staves: [freeze] });
     const hurt = unit({ id: "t", force: 0, x: 1, y: 0, hp: 5 });
-    expect(() => reduce(state([healer, hurt]), heal("h", "t"), noRolls)).toThrow();
+    expect(() => reduce(state([healer, hurt]), heal("h", "t"), noRolls)).toThrow(/적만/);
   });
 });
 

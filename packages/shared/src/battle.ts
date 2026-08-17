@@ -72,6 +72,24 @@ export interface SkillRow {
 }
 
 /**
+ * 지팡이가 거는 상태 스킬 스냅숏 — skills.json 행(BadState·Life)의 전투 소비분.
+ * 지속의 정본 = Cycle=3(PhaseAfter) → Life×3 페이즈 에이징(SkillArray.OnBuild 0x248AB64 — il2cpp/SKILL_ENGINE §2-9).
+ */
+export interface StatusGive {
+  sid: string;
+  /** skills.json BadState 비트(States enum) — 32 침묵 · 256 이동불가 · 1024 기절. */
+  badState: number;
+  /** skills.json Life — 0 = 무제한(독 선례 — 해제 수단만이 지운다). */
+  life: number;
+  name?: string;
+}
+
+/** 유닛에 걸린 상태 — age = 페이즈 종료 에이징 카운터(life×3 도달 시 소멸). */
+export interface StatusEffect extends StatusGive {
+  age: number;
+}
+
+/**
  * 지팡이 소지 항목 — items.json Kind=7의 전투 소비분 스냅숏.
  * power는 연성·각인·신기연성 합산 후 값(CalcRodHit 0x2473E10이 이 순서로 합성 — il2cpp/EXP_CHAIN_ENGAGE §7).
  */
@@ -81,8 +99,16 @@ export interface StaffItem {
   rangeMax: number;
   /** 잔여 사용 횟수(items.json Endurance 출발) — 사용마다 1 감소, 0이면 사용 불가. */
   uses: number;
-  /** items.json RodType — 2 = 회복(현행 배선 범위 — 그 외는 reduce가 정직하게 거부한다). */
+  /** items.json RodType — 2 회복 · 3 방해(명중식 대상) · 0 기타(워프 등 UseType로 세분). */
   rodType: number;
+  /** items.json UseType — 배선 판별자: 5 = 워프. 그 외 RodType 0은 reduce가 정직하게 거부한다. */
+  useType?: number;
+  /** items.json Hit — 방해 지팡이 명중식의 武器命中 입력. */
+  hit?: number;
+  /** items.json Distance — 워프 목적지 반경(대상 좌표 중심 맨해튼 — UnitWarp 0x2C1F880 판독). */
+  distance?: number;
+  /** items.json GiveSids → 상태 스킬 행 사영 — 방해 지팡이 명중 시 대상에 부여. */
+  gives?: StatusGive[];
   /** items.json RodExp — 杖経験計算의 杖経験値 입력. */
   rodExp: number;
   name?: string;
@@ -144,6 +170,12 @@ export interface EngageArt {
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
+  /** 방해 지팡이 명중 → 상태 부여 — 절대 재생이 이 행을 그대로 대상에 싣는다(age 0). */
+  | { type: "status"; unit: string; target: string; sid: string; badState: number; life: number; name?: string }
+  /** 방해 지팡이 빗나감 — 상태 무부여(사용 횟수·행동 소모는 액션 복원이 소유). */
+  | { type: "staffMiss"; unit: string; target: string }
+  /** 워프 — 대상 좌표 절대값(절대 재생이 그대로 적용). */
+  | { type: "warp"; unit: string; target: string; x: number; y: number }
   /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
   | { type: "refresh"; unit: string }
   /** 인게이지 게이지 변화 — count = 변화 후 절대값(절대 재생이 이 값을 그대로 쓴다). */
@@ -164,8 +196,11 @@ export type BattleAction =
   | { type: "move"; unit: string; x: number; y: number }
   /** weapon = 유닛 weapons 목록 인덱스 — 지정 시 그 무기로 장비 전환 후 판정(부재 = 현 장비). 기보 재현 계약의 일부. */
   | { type: "attack"; unit: string; target: string; weapon?: number }
-  /** staff = 유닛 staves 목록 인덱스(부재 = 0). 대상은 같은 군 — 회복·보조는 교전이 아니다. */
-  | { type: "staff"; unit: string; target: string; staff?: number }
+  /**
+   * staff = 유닛 staves 목록 인덱스(부재 = 0). 회복·워프 대상 = 같은 군, 방해 대상 = 적군.
+   * x·y = 워프 목적지(워프 지팡이만) — 대상 좌표 중심 Distance 반경 안이어야 한다.
+   */
+  | { type: "staff"; unit: string; target: string; staff?: number; x?: number; y?: number }
   /** item = 유닛 consumables 목록 인덱스(부재 = 0). 대상 지정 없음 — 효과 범위는 아이템이 소유(자신 중심). */
   | { type: "item"; unit: string; item?: number }
   /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */

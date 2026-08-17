@@ -182,8 +182,25 @@ describe("staffItems — 소지품 → 지팡이 목록 사영 (MP0)", () => {
     });
     const list = staffItems(u, "ko");
     expect(list).toEqual([
-      { name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, rodExp: 25 },
+      { name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, useType: 2, hit: 100, distance: 0, rodExp: 25 },
     ]);
+  });
+
+  it("방해·워프 사영(MP1-5) — フリーズ GiveSids→상태 행(BadState·Life)·ワープ Distance 5", () => {
+    // 왜 위험한가: 명중식의 武器命中(hit)·상태 부여(gives)·워프 반경(distance)이 전부 이 사영을 지난다 —
+    // gives의 BadState·Life가 어긋나면 상태 효과·지속이 통째로 어긋난다.
+    const u = disposUnit({
+      items: ["IID_フリーズ", "IID_ワープ"].map((iid) => ({ iid, drop: false })),
+    });
+    const list = staffItems(u, "ko");
+    expect(list[0]).toMatchObject({
+      rodType: 3,
+      useType: 9,
+      hit: 70,
+      gives: [{ sid: "SID_移動不可", badState: 256, life: 1, name: expect.any(String) }],
+    });
+    expect(list[1]).toMatchObject({ rodType: 0, useType: 5, distance: 5 });
+    expect(list[1].gives).toBeUndefined();
   });
 
   it("m002 프랑은 지팡이를 실보유한다 (재현 결손 발현 케이스의 회귀 앵커)", () => {

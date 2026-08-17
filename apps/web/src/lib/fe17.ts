@@ -688,6 +688,7 @@ export interface BoardProps {
     attackCmd: string;
     staffCmd: string;
     itemCmd: string;
+    warpPick: string;
     engageCmd: string;
     tradeCmd: string;
     closeCmd: string;
@@ -704,7 +705,7 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
-    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string };
+    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string };
   };
 }
 
@@ -816,8 +817,19 @@ export const emblemEngageWeapons = (gid: string, locale: Locale, bondLevel?: num
 export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
   const list: StaffItem[] = [];
   for (const entry of unit.items) {
-    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+    const row = items[entry.iid] as (ItemRow & Record<string, unknown>) | undefined;
     if (row === undefined || row.Kind !== STAFF_KIND) continue;
+    // 방해 지팡이 GiveSids → 상태 스킬 행(BadState·Life) 사영 — 엔진 status 이벤트의 원천.
+    const gives = ((row["GiveSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+      const s = skills[sid] as Record<string, unknown> | undefined;
+      if (s === undefined) return [];
+      return [{
+        sid,
+        badState: Number(s["BadState"] ?? 0),
+        life: Number(s["Life"] ?? 0),
+        name: namedOr(skills, locale, sid),
+      }];
+    });
     list.push({
       name: namedOr(items, locale, entry.iid),
       power: Number(row["Power"] ?? 0),
@@ -825,6 +837,10 @@ export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
       rangeMax: row.RangeO ?? 1,
       uses: Number(row["Endurance"] ?? 0),
       rodType: Number(row["RodType"] ?? 0),
+      useType: Number(row["UseType"] ?? 0),
+      hit: Number(row["Hit"] ?? 0),
+      distance: Number(row["Distance"] ?? 0),
+      ...(gives.length > 0 ? { gives } : {}),
       rodExp: Number(row["RodExp"] ?? 0),
     });
   }
@@ -980,6 +996,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     attackCmd: t.attackCmd,
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
+    warpPick: t.warpPick,
     engageCmd: t.engageCmd,
     tradeCmd: t.tradeCmd,
     closeCmd: t.closeCmd,

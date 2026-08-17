@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   attackRange,
+  BAD_STATE,
   canBreak,
   canterPower,
   effectiveWeapons,
   forecastSide,
+  hasBadState,
   itemTargets,
   moveBudget,
   movementPath,
   movementRange,
   staffHealAmount,
+  staffHitRate,
   toCombatant,
+  warpDestinations,
   type BattleAction,
   type BattleEvent,
   type BattleWeapon,
@@ -164,12 +168,33 @@ export default function BoardIsland(props: BoardProps) {
   const chosenWeapon = weapons[weaponIdx] ?? selected?.weapon;
   const activeWeapon = weapons[weaponHover ?? weaponIdx] ?? chosenWeapon;
 
-  // 지팡이(회복) — v1: 첫 사용 가능 지팡이가 활성. 복수 지팡이 선택 UI는 커맨드 전수(MP1) 몫.
-  const staffIdx = useMemo(() => {
-    const i = (selected?.staves ?? []).findIndex((s) => s.rodType === 2 && s.uses > 0);
-    return i >= 0 ? i : undefined;
-  }, [selected]);
+  // 지팡이 선택 — 기본 = 첫 사용 가능 회복 지팡이(호버 문법 유지). 방해·워프는 커맨드 바에서 명시 선택.
+  const [staffPick, setStaffPick] = useState<number | undefined>(undefined);
+  useEffect(() => setStaffPick(undefined), [selectedId, game]);
+  // 침묵 상태 = 지팡이 봉인 — 엔진 게이트와 같은 판정(hasBadState)이라 UI가 헛클릭을 만들지 않는다.
+  const silenced = selected !== undefined && hasBadState(selected, BAD_STATE.silence);
+  const usableStaves = useMemo(
+    () =>
+      silenced
+        ? []
+        : (selected?.staves ?? [])
+            .map((s, i) => ({ s, i }))
+            .filter(
+              ({ s }) =>
+                s.uses > 0 &&
+                (s.rodType === 2 || (s.rodType === 3 && (s.gives?.length ?? 0) > 0) || s.useType === 5),
+            ),
+    [selected, silenced],
+  );
+  const staffIdx = staffPick ?? usableStaves.find(({ s }) => s.rodType === 2)?.i;
   const staff = staffIdx === undefined ? undefined : selected?.staves?.[staffIdx];
+  // 방해·워프 모드는 명시 선택으로만 진입한다(기본 staffIdx는 회복만 고르므로).
+  const staffMode =
+    staff === undefined ? undefined
+    : staff.rodType === 2 ? "heal"
+    : staff.rodType === 3 ? "interfere"
+    : staff.useType === 5 ? "warp"
+    : undefined;
 
   // 표시·클릭 판정용 국면(잠정 위치 반영) — 룰 판정(range)은 엔진 진실(byTile)을 쓴다.
   const viewUnits = useMemo(
@@ -227,23 +252,34 @@ export default function BoardIsland(props: BoardProps) {
   // 호버 예보(인게임 문법): 사거리 안 적에 커서만 올려도 공격 발판이 정해지고 즉시 예보가 뜬다.
   // 발판 우선순위 = 유저가 그린 마지막 경로 끝점 → 제자리 → 최소 이동비용 지점.
   const hoverEnemy = useMemo(() => {
+    if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 적 호버가 지팡이 문법을 탄다
     if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
     const u = byTileView.get(tileKey(hover.x, hover.y));
     if (u === undefined || u.force === selected.force) return undefined;
     if (range?.attackAll.has(tileKey(hover.x, hover.y)) === true) return u;
     // 편의(인게임과 다름): 원거리(사거리 2+)는 잠정 이동 후 사거리 밖 적 호버에도 근사 예보를 띄운다.
     return pending !== undefined && (chosenWeapon?.rangeMax ?? 0) >= 2 ? u : undefined;
-  }, [selected, hover, byTileView, range, target, pending, chosenWeapon]);
+  }, [selected, hover, byTileView, range, target, pending, chosenWeapon, staffMode]);
 
-  // 아군 호버 회복 예보 — 손상된 아군에 커서만 올려도 발판이 정해지고 회복 예보가 뜬다(교전 문법과 동일).
+  // 아군 호버 지팡이 예보 — 회복 = 손상 아군만, 워프 = 아군 전부(교전 문법과 동일한 발판 결정).
   const hoverAlly = useMemo(() => {
     if (selected === undefined || selected.acted || hover === undefined || target !== undefined || staff === undefined)
       return undefined;
+    if (staffMode !== "heal" && staffMode !== "warp") return undefined;
     const u = byTileView.get(tileKey(hover.x, hover.y));
     if (u === undefined || u.force !== selected.force || u.id === selected.id) return undefined;
-    if (u.hp >= u.stats.hp) return undefined;
+    if (staffMode === "heal" && u.hp >= u.stats.hp) return undefined;
     return range?.staffAll.has(tileKey(hover.x, hover.y)) === true ? u : undefined;
-  }, [selected, hover, byTileView, range, target, staff]);
+  }, [selected, hover, byTileView, range, target, staff, staffMode]);
+
+  // 방해 지팡이 적 호버 — 명시 선택 중에만(공격 문법 대체). 사거리 = 지팡이 링.
+  const hoverStaffFoe = useMemo(() => {
+    if (staffMode !== "interfere") return undefined;
+    if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
+    const u = byTileView.get(tileKey(hover.x, hover.y));
+    if (u === undefined || u.force === selected.force) return undefined;
+    return range?.staffAll.has(tileKey(hover.x, hover.y)) === true ? u : undefined;
+  }, [staffMode, selected, hover, byTileView, range, target]);
 
   const lastPathEnd = useRef<Tile | undefined>(undefined);
   useEffect(() => {
@@ -277,27 +313,29 @@ export default function BoardIsland(props: BoardProps) {
   }, [selected, foeTarget, hoverEnemy, pending, range, byTile, chosenWeapon]);
 
   const staffAt = useMemo(() => {
-    const tgt = allyTarget ?? hoverAlly;
+    const confirmed = staffMode === "interfere" ? foeTarget : allyTarget;
+    const tgt = confirmed ?? (staffMode === "interfere" ? hoverStaffFoe : hoverAlly);
     if (selected === undefined || staff === undefined || tgt === undefined) return undefined;
-    return foothold(tgt, staff.rangeMin, staff.rangeMax, allyTarget !== undefined);
+    return foothold(tgt, staff.rangeMin, staff.rangeMax, confirmed !== undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, allyTarget, hoverAlly, pending, range, byTile, staff]);
+  }, [selected, allyTarget, foeTarget, hoverAlly, hoverStaffFoe, pending, range, byTile, staff, staffMode]);
 
   const path = useMemo(() => {
     if (range === undefined || hover === undefined || selected === undefined || pending !== undefined) return undefined;
     // 적(교전)·아군(지팡이) 호버 중엔 발판까지의 경로를 유지한다(경로가 사라지지 않는 인게임 문법).
-    const goal = hoverEnemy !== undefined ? engageAt : hoverAlly !== undefined ? staffAt : hover;
+    const goal =
+      hoverEnemy !== undefined ? engageAt : hoverAlly !== undefined || hoverStaffFoe !== undefined ? staffAt : hover;
     if (goal === undefined || !range.moveSet.has(tileKey(goal.x, goal.y))) return undefined;
     if (byTile.has(tileKey(goal.x, goal.y))) return undefined;
     const tiles = movementPath(range.query, goal);
     return tiles !== null && tiles.length > 1 ? tiles : undefined;
-  }, [range, hover, byTile, selected, pending, hoverEnemy, engageAt, hoverAlly, staffAt]);
+  }, [range, hover, byTile, selected, pending, hoverEnemy, engageAt, hoverAlly, hoverStaffFoe, staffAt]);
 
   // 일반 이동 호버의 경로 끝점을 기억 — 적·아군 호버로 넘어갈 때 이 지점이 발판이 된다.
   useEffect(() => {
-    if (path !== undefined && hoverEnemy === undefined && hoverAlly === undefined)
+    if (path !== undefined && hoverEnemy === undefined && hoverAlly === undefined && hoverStaffFoe === undefined)
       lastPathEnd.current = path[path.length - 1];
-  }, [path, hoverEnemy, hoverAlly]);
+  }, [path, hoverEnemy, hoverAlly, hoverStaffFoe]);
 
   const distance =
     selectedAt !== undefined && foeTarget !== undefined
@@ -340,7 +378,8 @@ export default function BoardIsland(props: BoardProps) {
 
   // 회복 예보 — 수치의 정본은 엔진 staffHealAmount(중복 구현 금지). 기준 위치 = 지팡이 발판.
   const healFc = useMemo(() => {
-    if (selected === undefined || staff === undefined || staffIdx === undefined) return undefined;
+    if (staffMode !== "heal" || selected === undefined || staff === undefined || staffIdx === undefined)
+      return undefined;
     const tgt = allyTarget ?? hoverAlly;
     const at = (allyTarget !== undefined ? selectedAt : staffAt) ?? selectedAt;
     if (tgt === undefined || at === undefined) return undefined;
@@ -348,9 +387,36 @@ export default function BoardIsland(props: BoardProps) {
     const inRange = !selected.acted && dist >= staff.rangeMin && dist <= staff.rangeMax;
     const amount = staffHealAmount(selected, tgt, staff);
     return { target: tgt, amount, hpAfter: Math.min(tgt.hp + amount, tgt.stats.hp), inRange };
-  }, [selected, staff, staffIdx, allyTarget, hoverAlly, staffAt, selectedAt]);
+  }, [staffMode, selected, staff, staffIdx, allyTarget, hoverAlly, staffAt, selectedAt]);
+
+  // 방해 예보 — 명중률의 정본은 엔진 staffHitRate(중복 구현 금지). 기준 위치 = 지팡이 발판.
+  const interfereFc = useMemo(() => {
+    if (staffMode !== "interfere" || selected === undefined || staff === undefined || staffIdx === undefined)
+      return undefined;
+    const tgt = foeTarget ?? hoverStaffFoe;
+    const at = (foeTarget !== undefined ? selectedAt : staffAt) ?? selectedAt;
+    if (tgt === undefined || at === undefined) return undefined;
+    const dist = Math.abs(at.x - tgt.x) + Math.abs(at.y - tgt.y);
+    const inRange = !selected.acted && dist >= staff.rangeMin && dist <= staff.rangeMax;
+    const rate = staffHitRate(calculator, { ...selected, x: at.x, y: at.y }, tgt, staff, game.map);
+    return { target: tgt, rate, inRange };
+  }, [staffMode, selected, staff, staffIdx, foeTarget, hoverStaffFoe, staffAt, selectedAt, game]);
+
+  // 워프 목적지 오버레이 — 열거의 정본은 엔진 warpDestinations(중복 구현 금지). 대상 확정 후 표시.
+  const warpTiles = useMemo(() => {
+    if (staffMode !== "warp" || staff === undefined || allyTarget === undefined) return undefined;
+    // 술자의 잠정 발판은 제외 — 커밋 시 그 칸으로 이동하므로 점유 충돌이 된다.
+    return warpDestinations(allyTarget, staff, game.map, game.units).filter(
+      (t) => selectedAt === undefined || t.x !== selectedAt.x || t.y !== selectedAt.y,
+    );
+  }, [staffMode, staff, allyTarget, game, selectedAt]);
+  const boardRange = useMemo(() => {
+    if (range === undefined || warpTiles === undefined) return range;
+    return { ...range, staff: warpTiles };
+  }, [range, warpTiles]);
 
   const forecast = useMemo(() => {
+    if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 교전 예보 대신 지팡이 예보
     if (selected === undefined || fcAt === undefined || fcTarget === undefined) return undefined;
     // 예보는 발판 위치·활성 무기(호버 프리뷰 우선) 기준 — 확정 시 엔진이 같은 입력으로 판정한다.
     const aU: UnitState = { ...selected, x: fcAt.x, y: fcAt.y, weapon: activeWeapon };
@@ -383,7 +449,7 @@ export default function BoardIsland(props: BoardProps) {
     targetHp = Math.max(targetHp, 0);
     selfHp = Math.max(selfHp, 0);
     return { attack, counter, inRange, brk, selfHp, targetHp };
-  }, [selected, fcAt, fcTarget, game, activeWeapon]);
+  }, [selected, fcAt, fcTarget, game, activeWeapon, staffMode]);
 
   const describe = (events: BattleEvent[]): string[] => {
     const t = labels.logTags;
@@ -403,6 +469,12 @@ export default function BoardIsland(props: BoardProps) {
           }
           case "heal":
             return `${name(ev.unit)} → ${name(ev.target)} +${ev.amount} HP`;
+          case "status":
+            return `${name(ev.target)}: ${ev.name ?? ev.sid}`;
+          case "staffMiss":
+            return `${name(ev.unit)} ${t.miss}`;
+          case "warp":
+            return `${name(ev.target)} ${t.warp}`;
           case "refresh":
             return `${name(ev.unit)} ${t.refresh}`;
           case "engage":
@@ -480,7 +552,34 @@ export default function BoardIsland(props: BoardProps) {
     const clicked = byTileView.get(key);
 
     if (clicked !== undefined) {
-      if (selected !== undefined && clicked.force !== selected.force && range?.attackAll.has(key) === true) {
+      // 방해 지팡이(명시 선택) — 교전과 같은 문법: 첫 클릭 = 대상 확정+발판, 재클릭 = 시전 커밋.
+      if (
+        selected !== undefined &&
+        staffMode === "interfere" &&
+        !selected.acted &&
+        staffIdx !== undefined &&
+        clicked.force !== selected.force &&
+        range?.staffAll.has(key) === true
+      ) {
+        if (clicked.id === targetId && interfereFc?.inRange === true) {
+          if (commitMove() && tryDispatch({ type: "staff", unit: selected.id, target: clicked.id, staff: staffIdx })) {
+            if (canterPower(selected) === undefined) setSelectedId(undefined);
+            setTargetId(undefined);
+          }
+          return;
+        }
+        setTargetId(clicked.id);
+        if (pending === undefined && staffAt !== undefined && !(staffAt.x === selected.x && staffAt.y === selected.y)) {
+          setPending({ x: staffAt.x, y: staffAt.y });
+        }
+        return;
+      }
+      if (
+        selected !== undefined &&
+        staffMode !== "interfere" &&
+        clicked.force !== selected.force &&
+        range?.attackAll.has(key) === true
+      ) {
         if (clicked.id === targetId && canAttack) {
           if (commitMove() && tryDispatch(attackAction(selected.id, clicked.id))) {
             // 재이동(시구르드) 보유면 선택을 유지해 행동 후 이동 창을 이어준다.
@@ -500,17 +599,17 @@ export default function BoardIsland(props: BoardProps) {
         }
         return;
       }
-      // 지팡이 대상(손상 아군) — 교전과 같은 문법: 첫 클릭 = 대상 확정+발판, 재클릭 = 회복 커밋.
+      // 지팡이 아군 대상 — 회복 = 손상 아군(재클릭 = 커밋), 워프 = 아군 전부(확정 후 목적지 클릭).
       if (
         selected !== undefined &&
         !selected.acted &&
         staffIdx !== undefined &&
         clicked.force === selected.force &&
         clicked.id !== selected.id &&
-        clicked.hp < clicked.stats.hp &&
+        ((staffMode === "heal" && clicked.hp < clicked.stats.hp) || staffMode === "warp") &&
         range?.staffAll.has(key) === true
       ) {
-        if (clicked.id === targetId && healFc?.inRange === true) {
+        if (staffMode === "heal" && clicked.id === targetId && healFc?.inRange === true) {
           if (commitMove() && tryDispatch({ type: "staff", unit: selected.id, target: clicked.id, staff: staffIdx })) {
             if (canterPower(selected) === undefined) setSelectedId(undefined);
             setTargetId(undefined);
@@ -538,6 +637,24 @@ export default function BoardIsland(props: BoardProps) {
       const canterReady = clicked.acted && moveBudget(clicked) !== undefined;
       setSelectedId(clicked.force === game.phase && (!clicked.acted || canterReady) ? clicked.id : undefined);
       setTargetId(undefined);
+      return;
+    }
+
+    // 워프 목적지 클릭 — 대상 확정 후 초록 오버레이(warpTiles) 안의 빈 칸 = 시전 커밋.
+    if (
+      selected !== undefined &&
+      staffMode === "warp" &&
+      staffIdx !== undefined &&
+      allyTarget !== undefined &&
+      warpTiles?.some((t) => t.x === x && t.y === y) === true
+    ) {
+      if (
+        commitMove() &&
+        tryDispatch({ type: "staff", unit: selected.id, target: allyTarget.id, staff: staffIdx, x, y })
+      ) {
+        if (canterPower(selected) === undefined) setSelectedId(undefined);
+        setTargetId(undefined);
+      }
       return;
     }
 
@@ -644,7 +761,7 @@ export default function BoardIsland(props: BoardProps) {
         units={viewUnits}
         byTile={byTileView}
         visuals={visuals}
-        range={range}
+        range={boardRange}
         path={path}
         selectedId={editing ? editSel : selectedId}
         targetId={targetId}
@@ -654,7 +771,7 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0) && (
+      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2)) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
           {selected.engage !== undefined && (
             <span className="edit-hint">
@@ -674,6 +791,24 @@ export default function BoardIsland(props: BoardProps) {
                 {labels.engageCmd}
               </button>
             )}
+          {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}
+          {usableStaves.some(({ s }) => s.rodType !== 2) &&
+            !selected.acted &&
+            selected.force === game.phase &&
+            usableStaves.map(({ s, i }) => (
+              <button
+                key={`staff${i}`}
+                type="button"
+                className={staffPick === i ? "on" : undefined}
+                onClick={() => {
+                  setStaffPick(staffPick === i ? undefined : i);
+                  setTargetId(undefined);
+                }}
+              >
+                {s.name ?? labels.staffCmd} ({s.uses})
+              </button>
+            ))}
+          {staffMode === "warp" && allyTarget !== undefined && <span className="edit-hint">{labels.warpPick}</span>}
           {itemButtons.map(({ c, i }) => (
             <button
               key={i}
@@ -895,6 +1030,54 @@ export default function BoardIsland(props: BoardProps) {
             </span>
           </div>
           <small className="fc-note">{healFc.inRange ? "" : labels.currentPosNote}</small>
+        </div>
+      )}
+
+      {interfereFc !== undefined && selected !== undefined && staff !== undefined && (
+        <div className="forecast heal no-arm" role="status" aria-label={labels.staffCmd}>
+          <div className="fc-side" style={{ "--force": visuals.get(selected.id)?.ring ?? "#888" } as React.CSSProperties}>
+            <strong className="fc-name">{visuals.get(selected.id)?.name ?? selected.id}</strong>
+            <span className="fc-weapon">
+              {staff.name ?? labels.staffCmd} · {staff.uses}
+            </span>
+            <dl className="fc-rows">
+              <dt>{labels.hit}</dt>
+              <dd>{interfereFc.rate}</dd>
+            </dl>
+          </div>
+          <div className="fc-mid">
+            <span className="fc-vs" aria-hidden="true">✦</span>
+            {foeTarget !== undefined && interfereFc.inRange && staffIdx !== undefined && (
+              <button
+                type="button"
+                className="fc-go"
+                onClick={() => {
+                  if (
+                    commitMove() &&
+                    tryDispatch({ type: "staff", unit: selected.id, target: foeTarget.id, staff: staffIdx })
+                  ) {
+                    if (canterPower(selected) === undefined) setSelectedId(undefined);
+                    setTargetId(undefined);
+                  }
+                }}
+              >
+                {labels.staffCmd}
+              </button>
+            )}
+          </div>
+          <div
+            className="fc-side"
+            style={{ "--force": visuals.get(interfereFc.target.id)?.ring ?? "#888" } as React.CSSProperties}
+          >
+            <strong className="fc-name">{visuals.get(interfereFc.target.id)?.name ?? interfereFc.target.id}</strong>
+            {/* 효과 = 부여 상태 이름(GiveSids 사영) — 수치 아닌 상태 지팡이의 예보 본문. */}
+            <span className="fc-weapon">{(staff.gives ?? []).map((g) => g.name ?? g.sid).join(" · ")}</span>
+            <span className="fc-hp">
+              HP {interfereFc.target.hp}
+              <small>/{interfereFc.target.stats.hp}</small>
+            </span>
+          </div>
+          <small className="fc-note">{interfereFc.inRange ? "" : labels.currentPosNote}</small>
         </div>
       )}
     </figure>

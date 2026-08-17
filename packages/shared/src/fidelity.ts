@@ -111,9 +111,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "movement.warp",
     label: { en: "Warp and other staff/item movement", ko: "지팡이·아이템 이동(워프 등)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "★IL2CPP 코드로 금지 소스 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-9) — 종전 '비트 범례 미특정·잔여 후보 = Flag/Prohibition'은 해소됐다: 판정 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 워프 시 BmapSize<=1 && 상태 Defect/Lockon 아님) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17 = NotWarp**) · groundattribute 배제는 그대로 유효(gaps/J) · 지팡이·아이템 측 배선은 actions.staff 소관",
+      "ワープ(UseType 5) 배선 완료(2026-08-17 MP1-5, staffWarp.test.ts — warp 액션·warp 이벤트 절대 재생·warpDestinations 엔진·UI 공용) · ★목적지 규칙 신규 디스어셈블(MapDeployTemplate.UnitWarp RVA 0x2C1F880): 반경 = ItemData.Distance(마력 의존 아님)·중심 = **워프되는 대상의 현재 좌표**·맨해튼·스킬 RangeTarget==Kind면 RangeAdd 가산(상한 255, ☠스냅숏 미탑재라 미배선) · 타일 유효 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 시 BmapSize<=1 && !Defect/Lockon) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17**) — 엔진은 비통행(코스트 255)·점유만 배선, ☠IsNotWarp 플래그는 BattleMap.terrain 스키마 결손으로 미배선(지형 스키마 확장과 동건) · ☠レスキュー(UseType 6)·リワープ(8)는 별도 경로(UnitRewarp 0x2C1FE40 계열) 미판독 — reduce가 정직 거부",
   },
   {
     id: "movement.move-first",
@@ -148,7 +148,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Staves (heal, warp, status)", ko: "지팡이(회복·워프·상태)" },
     status: "implemented",
     evidence:
-      "회복(RodType 2) 배선 완료(2026-08-18, staff.test.ts) — staff 액션·회복량 = 위력+floor(마력/2)·잃은 HP 상한·사용 횟수 소모·기보 절대 재생. 정본 = CalcRodHit RVA 0x2473E10(il2cpp/EXP_CHAIN_ENGAGE §7) · ☠잔여 = 방해(RodType 3)·워프 등(reduce가 거부) · 전량 회복 축복 bit5 · ItemHealScale 스킬 배율 적용점 미판독 · 명중식 = combat.staff-hit · 정식화 = Kind=7 41건(gaps/B §6-1)",
+      "회복(RodType 2, 2026-08-18 MP0) + 방해(RodType 3: フリーズ·サイレス·コラプス — 명중식·GiveSids 상태 부여, staffInterfere.test.ts) + 워프(UseType 5, staffWarp.test.ts) 배선 완료(2026-08-17 MP1-5). 회복량 정본 = CalcRodHit RVA 0x2473E10 · 명중식 = combat.staff-hit · 상태 = combat.status-staff · 워프 = movement.warp · ☠잔여 = ドロー(UseType 27 — GiveSids 없음·효과 미판독)·レスキュー/リワープ(목적지 미판독)·전량 회복 축복 bit5·ItemHealScale 스킬 배율 적용점 미판독 — 전부 reduce가 정직 거부 · ☠빗나간 방해 지팡이 경험치 = 근거 부재(Status.ExpRodMiss 1048576 소비처 미검출) — 0 채택, 실측 반증 시 갱신 · 정식화 = Kind=7 41건(gaps/B §6-1)",
   },
   {
     id: "actions.items",
@@ -489,7 +489,14 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.status-effects",
     label: { en: "Status effects (poison, freeze, ...)", ko: "상태이상(독·동결 등)" },
     status: "absent",
-    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) · 3회차 재해석으로 '데미지식 해석 모호' 해소(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 그중 이름이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減·確率被ダメ半減이 동일하게 '相手の威力*0.5' — 반전 표기 가설 기각 · ★승격(중첩 아닌 치환) = 원문 확정: scripts/g002_gimmick.txt 毒ガスによる状態異常を付与する()가 解除(하위)→装備(상위) 사슬을 그대로 구현하고 개발자 주석이 '1つ上の状態にする'·'上書きする' — 劇毒에서 포화(위 분기 없음) · 남는 결손은 미실측 = 猛毒 +3·劇毒 +5(1스택 실측 + 동일 필드 구조의 연역)·Power 필드 의미(3단 전부 5로 동일해 효과 크기와 무관)·단검 연타 승격의 구현 위치 = ★IL2CPP 코드 확정(2026-08-17, 실측 불요로 종결): SkillData.GroupAssign(RVA 0x248D0C0)이 skill 테이블을 행 순서대로 훑어 Priority 연속 오름차순 구간을 그룹으로 묶고 LowSkill(0x268)/HighSkill(0x270)로 잇는 **범용 승격 사슬 기구**가 실재하며, Unit.AddGiveSkill(0x1A5D430)이 재부여 시 한 단계 위로 치환하고 AddPrivateSkill(0x1A37990)이 하위 티어를 제거해 **공존 불가**다 — 즉 2회 명중 = 猛毒 +3 확정, 중첩(+2) 기각(statusPoison.test.ts의 예측과 일치) · 독 발동 지점도 확정 = Timing=10(HitBefore, CalcAttack이 타격마다 여는 단계)·Action=2(보유자가 맞는 타격만)·Stand=0(주도권 무관)이라 '맞는 매 타격의 威力 단계에 +N, 守備 차감 이전' · ☠猛毒 부여 경로 = XML GiveSids 0건·Lua 1건(g002 승격 사슬)뿐 · Life=0 무제한(해제 = デトックス/毒消し) · 蛇毒은 BadState=0 별계통(%HP DoT) · 사룡 전용 송곳니의 저주는 별도 정식화 완결(combat.status-fang-curse, 3회차 — gaps/N §3-3) · 위 전부 실행 검증 = engine/tests/statusPoison.test.ts(13) + 스크래치 verify_poison_lua.mjs · status는 배선 부재로 absent 유지(선행 = skills.opponent-act)",
+    evidence: "정식화 — skill.xml BadState 비트(독3단·침묵·이동불가·약체화·기절), 부여 GiveSids·해제 RemoveSids(gaps/B·D) · 독 = 피격 대미지 증가 실기 확정: ★1스택 = +1(치료 전후 5→4, reference/screens poison_damage_1~2 정정판 — ActNames '相手の威力+1' 문자 그대로 정합) · 3회차 재해석으로 '데미지식 해석 모호' 해소(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 그중 이름이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減·確率被ダメ半減이 동일하게 '相手の威力*0.5' — 반전 표기 가설 기각 · ★승격(중첩 아닌 치환) = 원문 확정: scripts/g002_gimmick.txt 毒ガスによる状態異常を付与する()가 解除(하위)→装備(상위) 사슬을 그대로 구현하고 개발자 주석이 '1つ上の状態にする'·'上書きする' — 劇毒에서 포화(위 분기 없음) · 남는 결손은 미실측 = 猛毒 +3·劇毒 +5(1스택 실측 + 동일 필드 구조의 연역)·Power 필드 의미(3단 전부 5로 동일해 효과 크기와 무관)·단검 연타 승격의 구현 위치 = ★IL2CPP 코드 확정(2026-08-17, 실측 불요로 종결): SkillData.GroupAssign(RVA 0x248D0C0)이 skill 테이블을 행 순서대로 훑어 Priority 연속 오름차순 구간을 그룹으로 묶고 LowSkill(0x268)/HighSkill(0x270)로 잇는 **범용 승격 사슬 기구**가 실재하며, Unit.AddGiveSkill(0x1A5D430)이 재부여 시 한 단계 위로 치환하고 AddPrivateSkill(0x1A37990)이 하위 티어를 제거해 **공존 불가**다 — 즉 2회 명중 = 猛毒 +3 확정, 중첩(+2) 기각(statusPoison.test.ts의 예측과 일치) · 독 발동 지점도 확정 = Timing=10(HitBefore, CalcAttack이 타격마다 여는 단계)·Action=2(보유자가 맞는 타격만)·Stand=0(주도권 무관)이라 '맞는 매 타격의 威力 단계에 +N, 守備 차감 이전' · ☠猛毒 부여 경로 = XML GiveSids 0건·Lua 1건(g002 승격 사슬)뿐 · Life=0 무제한(해제 = デトックス/毒消し) · 蛇毒은 BadState=0 별계통(%HP DoT) · 사룡 전용 송곳니의 저주는 별도 정식화 완결(combat.status-fang-curse, 3회차 — gaps/N §3-3) · 위 전부 실행 검증 = engine/tests/statusPoison.test.ts(13) + 스크래치 verify_poison_lua.mjs · 독의 ActNames(相手の威力) 배선 부재로 absent 유지(선행 = skills.opponent-act) — ★상태 보관·지속·부여 골격은 2026-08-17 MP1-5로 실재한다(combat.status-staff: UnitState.statuses·status 이벤트·페이즈 에이징) = 독 배선의 선행 절반 해소",
+  },
+  {
+    id: "combat.status-staff",
+    label: { en: "Staff statuses: freeze, silence, stun (apply/duration/gates)", ko: "지팡이 상태이상 — 이동불가·침묵·기절(부여·지속·게이트)" },
+    status: "implemented",
+    evidence:
+      "배선 완료(2026-08-17 MP1-5, staffInterfere.test.ts): 부여 = item GiveSids → skills.json 행(BadState·Life) 사영 → UnitState.statuses(+status 이벤트 절대 재생) · 재부여 = 치환(Unit.AddGiveSkill 0x1A5D430 — 중첩 기각, age 리셋) · 지속 = Cycle=3(PhaseAfter)이라 Life×3 페이즈 에이징(SkillArray.OnBuild 0x248AB64 PhaseCycle=3 — 3세력 1턴과 정합), 페이즈 종료마다 전 유닛 age+1 → 이동불가·침묵(Life 1)은 걸린 반대편 페이즈 정확히 1회 봉쇄 · 효과 게이트 = 침묵(32) 지팡이 봉인(Unit.IsSilence 0x1A393D0)·이동불가(256) moveBudget 0·기절(1024) 전 행동 거부 · ☠気絶 Life=0 = 무제한 해석(독 선례) — 실기 지속 대조 대상 · ☠해제 수단(デトックス·レスト·축복)·면역(BadIgnore 마스크)·수면(16)/매료(64)/혼란(128) 부여원 미배선",
   },
   {
     id: "combat.status-fang-curse",
@@ -500,9 +507,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.staff-hit",
     label: { en: "Offensive staff hit/avoid", ko: "방해 지팡이 명중·회피" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "妨害杖命中値 = 魔力+技+武器命中 · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避(gaps/A §2-5) · ★IL2CPP 게이트 확정(5.0.0, 2026-08-17, il2cpp/RATES_FORMULA.md §6): HitParam.Calculate(RVA 0x19B7850)가 side.Status & InterferenceRod(1024)면 妨害杖命中値計算으로 식을 교체하고, AvoidParam.Calculate(RVA 0x19B73C0)는 **상대측**(side.Reverse) 상태가 InterferenceRod일 때 妨害杖回避値計算으로 교체한다 · 지팡이 전용 '명중률' 식은 존재하지 않는다 — BattleCalculator.CalcRodAttack(0x24734A8)이 SimpleHit을 그대로 소비하므로 통상 命中率計算(命中値 - 相手の回避値)을 탄다 · 배선 선행 = actions.staff",
+      "배선 완료(2026-08-17 MP1-5, staffHitRate — staffInterfere.test.ts, 예보·reduce 공용): 妨害杖命中値 = 魔力+技+武器命中(item Hit) · 妨害杖回避値 = int((魔防*3+幸運)/2)+地形回避 — calculator.json 원문 소비, 각 0..999 클램프 후 차를 0..100 클램프·절삭 · ★IL2CPP 게이트 확정(RATES_FORMULA.md §6): HitParam.Calculate(0x19B7850)가 side.Status & InterferenceRod(1024)면 식 교체, AvoidParam.Calculate(0x19B73C0)는 **상대측** 게이트 · 지팡이 전용 명중률 식은 없다 — CalcRodAttack(RVA 0x24731E0 디스어셈블 재확인)이 RodType==3에서 SimpleHit 그대로 절삭 후 BattleMath.RandomCheckHit(sin 곡선 공용, 명중 롤 10000 1회) · ☠스킬 보정 레지스터(Add/Scale)는 미배선 가정 · 支援命中/回避 항은 원문 식에 없음(무배선이 정합)",
   },
   {
     id: "combat.range-hit-falloff",
