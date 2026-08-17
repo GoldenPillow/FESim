@@ -7,6 +7,7 @@ import type {
   EngageArt,
   EngageState,
   StaffItem,
+  StatusEffect,
   StrikeKind,
   SupportEffect,
   SupportLevel,
@@ -92,6 +93,19 @@ export interface UnitState {
   moved?: boolean;
   /** 이 활성화에서 교환·수송대를 썼는가 — 인게이지 발동만 봉쇄(실기 판별 2026-08-18). 페이즈 복귀 시 리셋. */
   traded?: boolean;
+  /**
+   * 걸린 상태이상(BadState 스킬) — 인게임 실체는 스킬 배열(m_PrivateSkill)이지만 엔진은
+   * 소비 비트만 사영한다. 지속 = 페이즈 종료마다 age+1, life×3 도달 시 소멸(life 0 = 무제한).
+   */
+  statuses?: StatusEffect[];
+}
+
+/** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
+export const BAD_STATE = { silence: 32, freeze: 256, stun: 1024 } as const;
+
+/** 상태 비트 보유 판정 — bit는 마스크 합성 가능(freeze | stun). UI·reduce 공용(중복 구현 금지). */
+export function hasBadState(u: UnitState, bit: number): boolean {
+  return u.statuses?.some((s) => (s.badState & bit) !== 0) === true;
 }
 
 /**
@@ -132,6 +146,8 @@ export function canterPower(u: UnitState): number | undefined {
  * (중복이 2026-08-16 베타 이동 결함의 원인 — design/verification.md C4).
  */
 export function moveBudget(u: UnitState): number | undefined {
+  // 이동불가(フリーズ)·기절(コラプス) 상태는 이동 예산 0 — 재이동도 막힌다(SID_移動不可 명칭 그대로).
+  if (hasBadState(u, BAD_STATE.freeze | BAD_STATE.stun)) return u.acted ? undefined : 0;
   if (!u.acted) return u.moved === true ? 0 : u.movePoints;
   if (u.moved === true) return undefined;
   return canterPower(u);
@@ -253,6 +269,63 @@ function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
 export function staffHealAmount(healer: UnitState, target: UnitState, staff: StaffItem): number {
   const missing = Math.max(target.stats.hp - target.hp, 0);
   return Math.min(staff.power + Math.floor(healer.stats.mag / 2), missing);
+}
+
+/**
+ * 방해 지팡이 명중률 — 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ * 정본: HitParam.Calculate(0x19B7850)가 InterferenceRod 상태에서 妨害杖命中値計算으로,
+ * AvoidParam.Calculate(0x19B73C0)가 상대측 게이트로 妨害杖回避値計算으로 식을 교체하고,
+ * 명중률 자체는 통상 命中率計算 경로 = 각각 0..999 클램프 후 차, 0..100 클램프·절삭
+ * (CalcRodAttack 0x24731E0 디스어셈블 — 지팡이 전용 명중률 식은 실재하지 않는다).
+ * 支援命中·支援回避 항은 원문 식에 없다. 스킬 보정 레지스터는 미배선(가정 — 발현 시 흡수).
+ */
+export function staffHitRate(
+  calc: Calculator,
+  caster: UnitState,
+  target: UnitState,
+  staff: StaffItem,
+  map: BattleMap,
+): number {
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  const casterEnv = combatEnv({
+    stats: { ...caster.stats, maxHp: caster.stats.hp, hp: caster.hp },
+    weapon: { might: 0, hit: staff.hit ?? 0, crit: 0, weight: 0 },
+  });
+  const tile = map.terrain?.[target.y]?.[target.x];
+  const targetEnv = combatEnv({
+    stats: { ...target.stats, maxHp: target.stats.hp, hp: target.hp },
+    terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
+  });
+  const hit = clamp(calc.eval("妨害杖命中値計算", casterEnv) as number, 0, 999);
+  const avoid = clamp(calc.eval("妨害杖回避値計算", targetEnv) as number, 0, 999);
+  return Math.trunc(clamp(hit - avoid, 0, 100));
+}
+
+/**
+ * 워프 목적지 열거 — UI 오버레이와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ * 정본 = MapDeployTemplate.UnitWarp(0x2C1F880) 디스어셈블: 중심 = **워프되는 대상의 현재 좌표**,
+ * 반경 = ItemData.Distance(마력 의존 아님), 맨해튼, 유효 = Unit.CanWarp(비통행 제외·점유 제외).
+ * ☠지형 IsNotWarp(Flag bit17)·스킬 RangeAdd 확장은 스키마 결손으로 미배선(장부 movement.warp).
+ */
+export function warpDestinations(
+  target: UnitState,
+  staff: StaffItem,
+  map: BattleMap,
+  units: readonly UnitState[],
+): { x: number; y: number }[] {
+  const radius = staff.distance ?? 0;
+  const grid = map.costs[target.moveType];
+  const out: { x: number; y: number }[] = [];
+  if (grid === undefined) return out;
+  for (let y = Math.max(target.y - radius, 0); y <= Math.min(target.y + radius, map.height - 1); y++) {
+    for (let x = Math.max(target.x - radius, 0); x <= Math.min(target.x + radius, map.width - 1); x++) {
+      if (Math.abs(x - target.x) + Math.abs(y - target.y) > radius) continue;
+      if ((grid[y]?.[x] ?? 255) >= 255) continue;
+      if (units.some((u) => !u.dead && u.id !== target.id && u.x === x && u.y === y)) continue;
+      out.push({ x, y });
+    }
+  }
+  return out;
 }
 
 /** 춤(재행동) 시전 자격 — 무희 직업 스킬 SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4). UI 공용. */
@@ -393,6 +466,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
     };
     const assertActable = (u: UnitState): void => {
       if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
+      if (hasBadState(u, BAD_STATE.stun)) throw new Error(`기절 상태: ${u.id}는 행동할 수 없다`);
       if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
     };
     let crests = state.crests;
@@ -554,37 +628,84 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       }
 
       case "staff": {
-        const healer = require(action.unit);
+        const caster = require(action.unit);
         const target = require(action.target);
-        assertActable(healer);
-        if (healer.force !== target.force) throw new Error("지팡이 회복은 같은 군만 대상이다");
-        if (healer === target) throw new Error("자기 자신은 지팡이 대상이 아니다");
+        assertActable(caster);
+        if (caster === target) throw new Error("자기 자신은 지팡이 대상이 아니다");
         const idx = action.staff ?? 0;
-        const staff = healer.staves?.[idx];
+        const staff = caster.staves?.[idx];
         if (staff === undefined) throw new Error(`불법 지팡이 인덱스: ${idx}`);
-        // ☠회복(RodType 2)만 배선 — 방해·워프는 결손인 채 정직하게 거부한다(과대 재현 금지, MP1 몫).
-        if (staff.rodType !== 2) throw new Error("미배선 지팡이 종류(회복만 배선)");
         if (staff.uses < 1) throw new Error("지팡이 사용 횟수 소진");
-        const distance = manhattan(healer, target);
+        // 침묵(サイレス) = 지팡이 봉인 — Unit.IsSilence(0x1A393D0) 게이트.
+        if (hasBadState(caster, BAD_STATE.silence)) throw new Error("침묵 상태 — 지팡이 사용 불가");
+        const distance = manhattan(caster, target);
         if (distance < staff.rangeMin || distance > staff.rangeMax) throw new Error("사거리 밖 지팡이");
-        if (target.stats.hp - target.hp < 1) throw new Error("회복 대상 아님(무손상)");
-        // 위력의 연성·각인 합산은 스냅숏(power) 소관. 전량 회복 축복(bit5)·ItemHealScale 스킬 훅은 미배선.
-        const amount = staffHealAmount(healer, target, staff);
-        target.hp += amount;
-        events.push({ type: "heal", unit: healer.id, target: target.id, amount, hpAfter: target.hp });
-        healer.staves = healer.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
-        // 지팡이도 전투 계산기 경로라 술자 +1 — 가정(코드 확정은 전투뿐, 실측 대조 대상: 장부 actions.engage).
-        chargeEngage(healer, events);
-        healer.acted = true;
-        healer.moved = false; // 행동이 재이동(시구르드) 창을 연다
-        consumeCrest(healer);
-        if (healer.force === 0) {
+        /** 술자 공통 마무리 — 횟수 소모·충전(가정: 전투 계산기 경로라 +1)·행동 완료·紋章氣. */
+        const finish = (): void => {
+          caster.staves = caster.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
+          chargeEngage(caster, events);
+          caster.acted = true;
+          caster.moved = false; // 행동이 재이동(시구르드) 창을 연다
+          consumeCrest(caster);
+        };
+        /** 杖経験計算 = clamp(杖経験値 + 자기 레벨 감쇠 + 레벨차 감쇠, 1, 100) — 杖経験値 = item RodExp. */
+        const grantRodExp = (): void => {
+          if (caster.force !== 0) return;
           const difficulty = state.difficulty ?? "n";
-          // 杖経験計算 = clamp(杖経験値 + 자기 레벨 감쇠 + 레벨차 감쇠, 1, 100) — 杖経験値 = item RodExp.
           const gained = Math.floor(
-            calc.eval("杖経験計算", expEnv(healer, target, 0, difficulty, { 杖経験値: staff.rodExp })) as number,
+            calc.eval("杖経験計算", expEnv(caster, target, 0, difficulty, { 杖経験値: staff.rodExp })) as number,
           );
-          grantExp(healer, gained, events, rng);
+          grantExp(caster, gained, events, rng);
+        };
+
+        if (staff.rodType === 2) {
+          if (caster.force !== target.force) throw new Error("지팡이 회복은 같은 군만 대상이다");
+          if (target.stats.hp - target.hp < 1) throw new Error("회복 대상 아님(무손상)");
+          // 위력의 연성·각인 합산은 스냅숏(power) 소관. 전량 회복 축복(bit5)·ItemHealScale 스킬 훅은 미배선.
+          const amount = staffHealAmount(caster, target, staff);
+          target.hp += amount;
+          events.push({ type: "heal", unit: caster.id, target: target.id, amount, hpAfter: target.hp });
+          finish();
+          grantRodExp();
+        } else if (staff.rodType === 3) {
+          if (caster.force === target.force) throw new Error("방해 지팡이는 적만 대상이다");
+          const gives = staff.gives ?? [];
+          // ドロー(UseType 27) — GiveSids 없음·코드 경로 미판독. 과대 재현보다 정직한 거부.
+          if (gives.length === 0) throw new Error("미배선 방해 지팡이(효과 미판독)");
+          const rate = staffHitRate(calc, caster, target, staff, state.map);
+          // 명중 롤 1회(RandomCheckHit — sin 곡선 공용) = 리플레이 계약. 빗나가도 횟수는 소모된다.
+          if (isHit(rate, rng.next(10000))) {
+            for (const g of gives) {
+              // 재부여 = 중첩이 아니라 치환(Unit.AddGiveSkill 0x1A5D430 — 하위 제거 후 삽입, age 리셋).
+              target.statuses = [...(target.statuses ?? []).filter((s) => s.sid !== g.sid), { ...g, age: 0 }];
+              events.push({
+                type: "status", unit: caster.id, target: target.id, sid: g.sid, badState: g.badState, life: g.life,
+                ...(g.name !== undefined ? { name: g.name } : {}),
+              });
+            }
+            finish();
+            grantRodExp();
+          } else {
+            events.push({ type: "staffMiss", unit: caster.id, target: target.id });
+            finish();
+            // ☠명중 실패 경험치 = 근거 부재(Status.ExpRodMiss 소비처 미판독) — 0 채택, 실측 반증 시 갱신.
+          }
+        } else if (staff.useType === 5) {
+          if (caster.force !== target.force) throw new Error("워프는 같은 군만 대상이다");
+          if (action.x === undefined || action.y === undefined) throw new Error("워프 목적지 없음");
+          // 목적지 = 대상 좌표 중심 맨해튼 Distance 반경(UnitWarp 0x2C1F880) — 열거는 warpDestinations 공용.
+          const legal = warpDestinations(target, staff, state.map, units);
+          if (!legal.some((t) => t.x === action.x && t.y === action.y)) {
+            throw new Error(`불법 워프 목적지: (${action.x}, ${action.y})`);
+          }
+          target.x = action.x;
+          target.y = action.y;
+          events.push({ type: "warp", unit: caster.id, target: target.id, x: action.x, y: action.y });
+          finish();
+          grantRodExp();
+        } else {
+          // ☠레스큐(UseType 6)·리워프(8)는 목적지 규칙 미판독(UnitRewarp 별도 경로) — 정직 거부.
+          throw new Error("미배선 지팡이 종류(회복·방해·워프만 배선)");
         }
         break;
       }
@@ -669,6 +790,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       case "engage": {
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
+        if (hasBadState(u, BAD_STATE.stun)) throw new Error(`기절 상태: ${u.id}는 행동할 수 없다`);
         if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
         const g = u.engage;
         if (g === undefined) throw new Error("엠블렘 미장착");
@@ -793,8 +915,19 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             phase: nextForce,
             turn: wrapped && nextForce === forces[0] ? state.turn + 1 : state.turn,
             units: units.map((u) => {
-              if (u.force !== nextForce) return u;
-              const fresh: UnitState = { ...u, acted: false, broken: false, moved: false };
+              // 상태 에이징 — Cycle=PhaseAfter: 페이즈 종료마다 전 유닛 age+1, life×3 도달 시 소멸
+              // (OnBuild 0x248AB64가 PhaseCycle=3으로 Life를 3배 — 3세력 1턴 = 3페이즈와 정합).
+              // life 0 = 무제한(독 선례 — 気絶의 실기 지속은 대조 대상, 장부 combat.status-effects).
+              let aged = u;
+              if (u.statuses !== undefined && !u.dead) {
+                const kept = u.statuses
+                  .map((s) => ({ ...s, age: s.age + 1 }))
+                  .filter((s) => s.life === 0 || s.age < s.life * 3);
+                aged = { ...u, statuses: kept };
+                if (kept.length === 0) delete aged.statuses;
+              }
+              if (aged.force !== nextForce) return aged;
+              const fresh: UnitState = { ...aged, acted: false, broken: false, moved: false };
               delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
               // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
               const g = fresh.engage;

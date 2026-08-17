@@ -12,6 +12,8 @@ export {
   type StaffItem,
   type StatBlock,
   type StatKey,
+  type StatusEffect,
+  type StatusGive,
   type StrikeKind,
 } from "./battle.js";
 

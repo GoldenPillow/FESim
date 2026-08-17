@@ -13,7 +13,7 @@ import { effectiveWeapons, type GameState, type RandomSource, type UnitState } f
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-3";
+export const RULE_VERSION = "fe17-4";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -137,6 +137,26 @@ function applyEvents(
       case "heal":
         require(ev.target).hp = ev.hpAfter;
         break;
+      case "status": {
+        // reduce와 동일 계약 — 재부여는 치환(age 리셋).
+        const u = require(ev.target);
+        u.statuses = [
+          ...(u.statuses ?? []).filter((s) => s.sid !== ev.sid),
+          {
+            sid: ev.sid, badState: ev.badState, life: ev.life, age: 0,
+            ...(ev.name !== undefined ? { name: ev.name } : {}),
+          },
+        ];
+        break;
+      }
+      case "staffMiss":
+        break; // 상태 무부여 — 횟수·행동 소모는 아래 액션 복원이 소유
+      case "warp": {
+        const u = require(ev.target);
+        u.x = ev.x;
+        u.y = ev.y;
+        break;
+      }
       case "refresh": {
         const u = require(ev.unit);
         u.acted = false;
