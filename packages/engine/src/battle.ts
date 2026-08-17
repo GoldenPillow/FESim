@@ -46,6 +46,8 @@ export interface UnitState {
   boss?: boolean;
   /** 이벤트의 AI 재설정 기록(AiSetSequence류 원문 인자 누적) — 소비 = MP4 AI 실행기. */
   aiScript?: (string | number | boolean)[][];
+  /** UNIT_STATUS_* 비트(common.lua 96~104) — 이벤트가 세우고 지운다. 소비 = MP4(이동 금지·출격 로스터). */
+  flags?: number;
   force: number;
   x: number;
   y: number;

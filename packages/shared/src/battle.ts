@@ -219,8 +219,12 @@ export type BattleEvent =
   | { type: "crestAdd"; x: number; y: number }
   /** 유닛 파라미터 초기화(UnitResetParam) — HP 절대값 복원 + 상태·브레이크 해제(⚠범위는 가정). */
   | { type: "reset"; unit: string; hpAfter: number }
-  /** 상태이상 비트 해제(UnitClearStatus) — badState 비트가 걸린 상태를 제거. */
-  | { type: "statusClear"; unit: string; badState: number }
+  /**
+   * 유닛 플래그 변경(UnitSetStatus·UnitClearStatus) — flags = 변경 후 **절대값**.
+   * ☠상태이상(badState)이 아니라 UNIT_STATUS_* 비트다(FIXED 1·MOVE_NOT_ALLOW 2·NEVER_SORTIE 8·
+   * DONT_POS_CHANGE 16·DEFECT 0x40000000 — common.lua 96~104). 소비 = MP4(이동 금지·출격 로스터).
+   */
+  | { type: "unitFlags"; unit: string; flags: number }
   | { type: "exp"; unit: string; amount: number; total: number }
   | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }
   | { type: "phase"; phase: number; turn: number }

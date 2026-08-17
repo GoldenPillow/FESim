@@ -596,7 +596,7 @@ export default function BoardIsland(props: BoardProps) {
           case "ai":
           case "crestAdd":
           case "reset":
-          case "statusClear":
+          case "unitFlags":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }
       })

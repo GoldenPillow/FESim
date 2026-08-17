@@ -344,8 +344,25 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     scriptNames.map((n) => [n, readFileSync(`${scriptDir}${n}.lua`, "utf-8")]),
   );
 
-  /** 부트를 못 하는 챕터 = 미구현 네이티브(정직 결손). 비어 있어야 정상. */
-  const HONEST_GAPS: Record<string, string[]> = {};
+  /**
+   * 부트를 못 하는 챕터 = 정직 결손. 값 = 실패 메시지에 반드시 나오는 조각(구현되면 이 테스트가 빨개진다).
+   * 결손 사유는 세 갈래뿐이다 — (1) 아이템 iid 사영 부재 (2) 미모델 유닛 속성 (3) 원문 스크립트 문법 오류.
+   */
+  const HONEST_GAPS: Record<string, string[]> = {
+    // (1) 아이템 iid 미사영 — BattleWeapon·StaffItem·ConsumableItem에 iid가 없다. 호출 전수 8건 중
+    //     6건이 **엠블렘 무기**(EngageItems)라 소지품에도 없다 → 어느 쪽도 해석 불가.
+    e005: ["UnitPutOffItem"],
+    m010: ["UnitSetItemEquip"],
+    m014: ["UnitSetItemEquip"],
+    m020: ["UnitSetItemEquip"],
+    // (2) 미모델 유닛 속성 — hpStock(dispos에 실재하나 UnitState 미보유) · MPID(인물 이름 ID 미사영).
+    e006: ["UnitSetHpStock"],
+    m022: ["UnitGetMPID"],
+    // (3) ☠원문(romfs 추출본) 자체의 Lua 문법 오류 — `if ... then return x` 뒤에 end 없이 다음 if가 온다.
+    //     파이프라인 변환 산물이 아니라 추출 원문 그대로다(extracted/scripts/g001.txt:157 대조).
+    g001: ["Lua 문법"],
+    g004: ["Lua 문법"],
+  };
 
   // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
   const terrainTable = JSON.parse(
@@ -370,7 +387,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
   }
 
   it(`스크립트가 있는 챕터 전수(${chapters.join(", ")})가 스크립트+데이터 짝을 갖는다`, () => {
-    expect(chapters.length).toBeGreaterThanOrEqual(8);
+    expect(chapters.length).toBeGreaterThanOrEqual(54); // 전량 변환 완료판
     expect(commons).toContain("common");
   });
 
@@ -507,9 +524,25 @@ end
  */
 describe("정직 결손 — 미등록 유지 네이티브", () => {
   const GAPS: [string, string, string][] = [
-    ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks)"],
-    ["UnitSetItemEquip", `UnitSetItemEquip("PID_p", "IID_鉄の剣")`, "iid → 장비 무기 해석 훅 부재(호스트 미배선)"],
-    ["UnitSetStatus", `UnitSetStatus("PID_p", 1)`, "출격 로스터 상태(DEFECT·NEVER_SORTIE) 미모델"],
+    ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
+    ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
+    ["UnitSetItemEquip", `UnitSetItemEquip("PID_p", "IID_鉄の剣")`, "아이템 iid 미사영 + 호출 대부분이 엠블렘 무기(EngageItems)"],
+    ["UnitPutOffItem", `UnitPutOffItem("PID_p", "IID_鉄の剣")`, "위와 같은 iid 결손"],
+    ["UnitGetHpStock", `UnitGetHpStock("PID_p")`, "HP 스톡 미모델(dispos에는 hpStock이 실재 — UnitState 확장이 선행)"],
+    ["UnitSetHpStock", `UnitSetHpStock("PID_p", 1)`, "위와 같음"],
+    ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
+    ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
+    ["UnitSetHp", `UnitSetHp("PID_p", 1)`, "HP 절대 대입 이벤트 미정의(절대 재생 계약이 선행)"],
+    ["RandomGet", `RandomGet(100)`, "☠난수는 항상 주입한다 — 세션에 RandomSource 주입구가 없다(엔진 계약)"],
+    ["Battle", `Battle("PID_p", "PID_p")`, "이벤트 전투 실행 — 난수·대미지 파이프라인 주입 필요"],
+    ["BattleSetAttack", `BattleSetAttack("PID_p", "IID_鉄の剣")`, "위와 같음"],
+    ["BattleAddTarget", `BattleAddTarget("PID_p")`, "위와 같음"],
+    ["BattleStart", `BattleStart(1, 1)`, "위와 같음"],
+    ["MapDamageAdd", `MapDamageAdd("PID_p", 1)`, "맵 데미지 — 사망 가부(canDie) 미판독"],
+    ["TerrainFill", `TerrainFill(1, 1, "TID_床")`, "채움 경계 규칙 미판독(TerrainSet/SetOne은 좌표 지정이라 배선)"],
+    ["DisposGetGroupCount", `DisposGetGroupCount("Enemy")`, "dispos 원본 조회 훅 부재(호스트는 스폰만 제공)"],
+    ["GodDataGetMGID", `GodDataGetMGID("GID_マルス")`, "엠블렘 데이터 표 미사영"],
+    ["AiGetRerewarpPosition", `AiGetRerewarpPosition("PID_p")`, "AI 재워프 좌표 — AI 실행기가 MP4"],
   ];
   for (const [name, call, why] of GAPS) {
     it(`${name}은 등록하지 않는다 — ${why}`, () => {

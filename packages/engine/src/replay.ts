@@ -286,12 +286,10 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         delete u.statuses;
         break;
       }
-      case "statusClear": {
+      case "unitFlags": {
         const u = require(ev.unit);
-        if (u.statuses !== undefined) {
-          u.statuses = u.statuses.filter((s) => (s.badState & ev.badState) === 0);
-          if (u.statuses.length === 0) delete u.statuses;
-        }
+        if (ev.flags === 0) delete u.flags;
+        else u.flags = ev.flags;
         break;
       }
       case "phase":
