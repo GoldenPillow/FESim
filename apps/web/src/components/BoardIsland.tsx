@@ -192,8 +192,10 @@ export default function BoardIsland(props: BoardProps) {
     if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
     const u = byTileView.get(tileKey(hover.x, hover.y));
     if (u === undefined || u.force === selected.force) return undefined;
-    return range?.attackAll.has(tileKey(hover.x, hover.y)) === true ? u : undefined;
-  }, [selected, hover, byTileView, range, target]);
+    if (range?.attackAll.has(tileKey(hover.x, hover.y)) === true) return u;
+    // 편의(인게임과 다름): 원거리(사거리 2+)는 잠정 이동 후 사거리 밖 적 호버에도 근사 예보를 띄운다.
+    return pending !== undefined && (chosenWeapon?.rangeMax ?? 0) >= 2 ? u : undefined;
+  }, [selected, hover, byTileView, range, target, pending, chosenWeapon]);
 
   const lastPathEnd = useRef<Tile | undefined>(undefined);
   useEffect(() => {
