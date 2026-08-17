@@ -8,6 +8,9 @@ import type { BoardProps } from "./fe17";
 export const boardsJsonPath = (mapId: string, locale: Locale): string =>
   `/fe17/boards/${mapId}.${locale}.json`;
 
+/** 공용 Lua 소스 주소 — 생산(public/fe17/scripts 심링크)과 소비(세션 부트 fetch)가 같은 함수를 쓴다. */
+export const scriptPath = (name: string): string => `/fe17/scripts/${name}.lua`;
+
 /**
  * 표시용 구조물 — 파괴분(hp 0)을 제거하고, 같은 group의 지붕은 그 group의 비지붕 구조물이 전멸하면
  * 함께 걷힌다(m015 문·지붕 연동, group 0 = 무연동). props[i] ↔ state[i]는 initGame이 보존하는 인덱스 계약.

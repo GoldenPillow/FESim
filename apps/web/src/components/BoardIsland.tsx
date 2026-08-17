@@ -33,7 +33,7 @@ import {
 import { serializeEphemeris } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
-import { visibleObjects, visibleStructures } from "../lib/boards";
+import { scriptPath, visibleObjects, visibleStructures } from "../lib/boards";
 import type { EventHost } from "@fesim/engine/events";
 import {
   baseReduce,
@@ -63,9 +63,14 @@ import "./board.css";
  */
 type EventsModule = typeof import("@fesim/engine/events");
 
-function eventWiringFor(props: BoardProps, mod: EventsModule): EventWiring | undefined {
+function eventWiringFor(
+  props: BoardProps,
+  mod: EventsModule,
+  commonSources?: Record<string, string>,
+): EventWiring | undefined {
   const script = props.script;
   if (script === undefined) return undefined;
+  const sources = { ...commonSources, ...script.sources };
   return {
     create(difficulty) {
       const host: EventHost = {
@@ -85,7 +90,7 @@ function eventWiringFor(props: BoardProps, mod: EventsModule): EventWiring | und
           return { engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
         },
       };
-      const session = mod.createEventSession({ sources: script.sources, chapter: script.chapter, host });
+      const session = mod.createEventSession({ sources, chapter: script.chapter, host });
       return mod.createEventedReducer(baseReduce, session);
     },
   };
@@ -143,12 +148,25 @@ export default function BoardIsland(props: BoardProps) {
       return;
     }
     let dead = false;
-    void import("@fesim/engine/events").then((mod) => {
-      if (dead) return;
-      const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod));
-      setStore(next);
-      boot(next);
+    // 공용 Lua(common*)는 보드 JSON에 인라인하지 않는다 — 이벤트 모듈과 병렬 fetch 후 세션에 병합(3-6).
+    const commonFetches = (props.script.commons ?? []).map(async (name) => {
+      const res = await fetch(scriptPath(name));
+      if (!res.ok) throw new Error(`공용 스크립트 로드 실패: ${name} (${res.status})`);
+      return [name, await res.text()] as const;
     });
+    void Promise.all([import("@fesim/engine/events"), Promise.all(commonFetches)])
+      .then(([mod, pairs]) => {
+        if (dead) return;
+        const commons = Object.fromEntries(pairs);
+        const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod, commons));
+        setStore(next);
+        boot(next);
+      })
+      .catch((err) => {
+        // 이벤트판 구성 실패 = 원시판 유지(정직 강하) — 콘솔에 원인을 남긴다(조용한 오재현 금지).
+        console.error("이벤트 세션 구성 실패 — 원시판으로 동작", err);
+        if (!dead) boot(store);
+      });
     return () => {
       dead = true;
     };

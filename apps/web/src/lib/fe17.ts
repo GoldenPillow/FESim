@@ -760,8 +760,10 @@ export interface BoardProps {
    */
   script?: {
     chapter: string;
-    /** Include 해석용 소스(chapter + common*) — 세션이 이름으로 찾는다. */
+    /** Include 해석용 소스(챕터분만 인라인) — 세션이 이름으로 찾는다. */
     sources: Record<string, string>;
+    /** 공용 소스(common*) 이름 목록 — 본문은 /fe17/scripts/{name}.lua 정적 fetch로 병합(용량 정책 3-6). */
+    commons?: string[];
     /** 스크립트가 정적으로 Dispos하는 그룹 — 초기 배치에서 제외(이벤트가 소환). */
     disposGroups: string[];
     /** 스크립트가 부르는 SID 행 사영(UnitSetPrivateSkill용). */
@@ -1128,10 +1130,10 @@ export function boardProps(
     ...(() => {
       const src = scriptFiles[mapId];
       if (src === undefined) return {};
+      // ☠common* 전문은 인라인하지 않는다 — 챕터×로케일 산출물마다 17KB+ 중복(용량 정책 3-6).
+      // 이름만 싣고 클라이언트가 /fe17/scripts/에서 병렬 fetch 후 sources에 병합한다(fengari 실행은 동기 유지).
       const sources: Record<string, string> = { [mapId]: src };
-      for (const [name, text] of Object.entries(scriptFiles)) {
-        if (name.startsWith("common")) sources[name] = text;
-      }
+      const commons = Object.keys(scriptFiles).filter((name) => name.startsWith("common")).sort();
       const disposGroups = [...new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]))];
       const sidRows: Record<string, SkillRow> = {};
       for (const m of src.matchAll(/"(SID_[^"]+)"/g)) {
@@ -1145,7 +1147,7 @@ export function boardProps(
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
       }
-      return { script: { chapter: mapId, sources, disposGroups, skills: sidRows, gods } };
+      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods } };
     })(),
   };
 }
