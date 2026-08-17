@@ -46,6 +46,8 @@ interface Strings {
   diffH: string;
   diffL: string;
   endPhase: string;
+  enemyAuto: string;
+  enemyAutoBlocked: string;
   waitCmd: string;
   attackCmd: string;
   staffCmd: string;
@@ -139,6 +141,8 @@ export const UI: Record<Locale, Strings> = {
     diffH: "Hard",
     diffL: "Maddening",
     endPhase: "End phase",
+    enemyAuto: "Auto enemy turn",
+    enemyAutoBlocked: "AI gap — units skipped",
     waitCmd: "Wait",
     attackCmd: "Attack",
     staffCmd: "Staff",
@@ -237,6 +241,8 @@ export const UI: Record<Locale, Strings> = {
     diffH: "하드",
     diffL: "루나틱",
     endPhase: "페이즈 종료",
+    enemyAuto: "적턴 자동",
+    enemyAutoBlocked: "AI 결손 — 건너뛴 유닛",
     waitCmd: "대기",
     attackCmd: "공격",
     staffCmd: "지팡이",

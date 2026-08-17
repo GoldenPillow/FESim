@@ -150,9 +150,20 @@ export interface DisposUnit {
     /** 회복 행동 임계 A/B(원문 기본 75/50) — 0도 유효값이라 없으면 없는 것이지 기본값이 아니다. */
     healRateA?: number;
     healRateB?: number;
-    /** 이동 가능 영역 하드 제약 원문 `(x1,z1),(x2,z2)` — 파싱은 소비처(M5) 몫. */
+    /**
+     * 이동 가능 영역 하드 제약 원문 `(x1,z1),(x2,z2)`.
+     * 파싱 = `Rect{X:x1, Z:z1, W:x2-x1+1, H:y2-y1+1}`(`Unit$$SetDisposAi` 0x1A0C268) ·
+     * 집행 = 반개구간 `X<=x<X+W && Z<=z<Z+H` 밖을 도달 불가로 막되 **자기 발밑은 예외**
+     * (`MapDeployTemplate$$UnitAIMoveLimit` 0x2C227C0). 엔진 소비 = `parseMoveLimit`/`moveLimitAllows`.
+     */
     moveLimit?: string;
-    /** AI 행동 비트플래그 원값. 비트 범례가 덤프에 없어 해석 금지(유닛의 dispos flag와 별개). */
+    /**
+     * AI 행동 비트플래그 원값 = `DisposData.AIFlags`(IL2CPP dump.cs:592992 — 종전 "해석 금지"는 반증됐다).
+     * 1 NotActivateByAttacked · 2 Dummy · 4 ZeroAttack · 8 Heal · 16 Break · 32 Chain
+     * · 64 EquipShortAfterLongRange · 128 MoveBreak · 256 EngageAttackOnce.
+     * ★16/32는 평가함수의 브레이크·연계 항 **게이트**다(`ThinkBreak`/`ThinkChain`, AI_ENGINE §8-5).
+     * 런타임 변환 = `Unit$$SetDisposAi`(0x1A0C0E0). 유닛의 dispos flag(아래 필드)와는 별개.
+     */
     flag?: number;
   };
   flag?: number;

@@ -126,6 +126,10 @@ export function projectUnit(
     ...(u.flying === true ? { flying: true } : {}),
     ...(u.hpStock !== undefined ? { hpStock: u.hpStock } : {}),
     ...(u.attrs !== undefined ? { attrs: u.attrs } : {}),
+    // 루틴 표는 보드에 한 번만 실려 있다 — 유닛마다 **같은 참조**를 붙인다(복사 금지: 용량 정책).
+    ...(u.ai !== undefined
+      ? { ai: props.aiRoutines === undefined ? u.ai : { ...u.ai, routines: props.aiRoutines } }
+      : {}),
     style: u.style,
     acted: false,
     dead: false,

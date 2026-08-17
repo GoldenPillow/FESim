@@ -12,6 +12,7 @@ import type {
   SupportEffect,
   SupportLevel,
 } from "@fesim/shared";
+import type { AiSnapshot } from "./ai/types.js";
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
@@ -98,6 +99,11 @@ export interface UnitState {
    * 없으면 지원 보정 없음(무회귀).
    */
   supports?: Record<string, SupportLevel>;
+  /**
+   * dispos AI 사영 + 이 유닛이 쓰는 ai.xml 루틴 스냅숏 — 소비 = `aiNextAction`(적턴 AI 층).
+   * reduce는 읽지 않는다(AI는 액션을 만들 뿐 룰이 아니다).
+   */
+  ai?: AiSnapshot;
   acted: boolean;
   dead: boolean;
   broken: boolean;
@@ -539,6 +545,25 @@ export function canBreak(from: UnitState, to: UnitState): boolean {
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
 
+/**
+ * 체인어택 참가자 — 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
+ * reduce와 AI 평가(`UnitUtil$$CanChainAttack` 대응)가 이것 하나를 공유한다(☠중복 구현 금지).
+ */
+export function chainAttackers(
+  attacker: UnitState,
+  defender: UnitState,
+  units: readonly UnitState[],
+): UnitState[] {
+  return units.filter(
+    (u) =>
+      !u.dead &&
+      u.force === attacker.force &&
+      u.id !== attacker.id &&
+      u.style === "連携スタイル" &&
+      inWeaponRange(u, manhattan(u, defender)),
+  );
+}
+
 /** 한 레벨에 이만큼도 못 올리면 다시 굴린다 — Unit.GrowAbortCount. */
 const GROW_ABORT = 2;
 /** 재굴림 포함 최대 시도 수 — Unit.LevelUpRetryMax. */
@@ -926,14 +951,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         let guardBlocks = 0;
 
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
-        const chainUnits = units.filter(
-          (u) =>
-            !u.dead &&
-            u.force === attacker.force &&
-            u !== attacker &&
-            u.style === "連携スタイル" &&
-            inWeaponRange(u, manhattan(u, defender)),
-        );
+        const chainUnits = chainAttackers(attacker, defender, units);
 
         const strike = (
           from: UnitState,

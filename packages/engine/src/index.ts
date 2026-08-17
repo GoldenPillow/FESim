@@ -91,6 +91,110 @@ export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.
 export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 export { createCalculator, type Calculator } from "./formula/calculator.js";
 export { hitThreshold10000, isHit, isProbability100 } from "./formula/probability.js";
+export { createAi, emptyAiMemory, type Ai, type AiDecision, type AiMemory } from "./ai/index.js";
+export {
+  NONE,
+  processing,
+  slotsOf,
+  type ActionResult,
+  type OpcodeHandlers,
+  type ProcessingInput,
+  type ProcessingOutput,
+  type SlotSource,
+  type ThinkRuntime,
+} from "./ai/interpreter.js";
+export {
+  MOVE_FLAG,
+  attackTo,
+  eachEnemyUnit,
+  guardTo,
+  healMindTo,
+  moveAttackRange,
+  moveIdle,
+  moveTo,
+  targetFilter,
+  type HandlerContext,
+} from "./ai/handlers.js";
+export {
+  aiIsRandom,
+  betterAttack,
+  compareBlow,
+  getAttackPosition,
+  getAttackScore,
+  moveImageOf,
+  type AttackContext,
+  type AttackEvaluation,
+  type AttackPosition,
+} from "./ai/attack.js";
+export {
+  AC,
+  ACT,
+  AI_ACTIVE,
+  AI_CODE,
+  AI_FLAG,
+  AI_SLOT,
+  AI_THINK,
+  AI_VALUE,
+  ATTACK_FLAG,
+  BATTLE_RATE,
+  battleRateOf,
+  type AiCommand,
+  type AiDeficit,
+  type AiSlot,
+  type AiSnapshot,
+  type BattleRate,
+} from "./ai/types.js";
+export {
+  AI_GUARD,
+  battleScore,
+  expectationScoreNormalize,
+  killProbability,
+  killScoreNormalize,
+  simulateBattle,
+  type BattleScoreInput,
+  type Indication,
+  type SimulationInput,
+  type SimulationResult,
+} from "./ai/score.js";
+export {
+  BLOW_SCORE,
+  TID_HOLE,
+  attackPositionScore,
+  blowScoreAt,
+  enumerateRing,
+  healRodPositionScore,
+  rangeMask,
+  terrainScoreAt,
+  type PositionScoreInput,
+} from "./ai/position.js";
+export {
+  AI_PHASES,
+  aiCanAct,
+  aiPhaseQueue,
+  aiPriorityKey,
+  aiPriorityQueue,
+  attackTierAllowed,
+  slotGateOpen,
+  type AiPhaseStep,
+} from "./ai/order.js";
+export {
+  CAUSE_STRING_ARG,
+  argsOf,
+  evaluateCause,
+  movePowerOf,
+  resolveValue,
+  threatTiles,
+  type CauseContext,
+} from "./ai/cause.js";
+export {
+  aiHasFlag,
+  aiHealCondition,
+  bandMembers,
+  moveLimitAllows,
+  parseMoveLimit,
+  rejectsPower0,
+  type MoveLimitRect,
+} from "./ai/unit.js";
 export {
   combatEnv,
   forecastSide,

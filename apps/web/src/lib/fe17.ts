@@ -5,6 +5,8 @@ import {
   moveBase,
   staticEnhances,
   type MoveType,
+  type AiCommand,
+  type AiSnapshot,
   type SkillRow,
   type StatBlock,
 } from "@fesim/engine";
@@ -170,6 +172,16 @@ const scriptFiles = Object.fromEntries(
 const skills =
   optional<Record<string, NamedRow>>(
     import.meta.glob("../../../../data/fe17/tables/skills.json", {
+      eager: true,
+      query: "?raw",
+      import: "default",
+    }) as Record<string, string>,
+  ) ?? {};
+
+/** ai.xml 루틴 전량(141종). ☠아일랜드에는 반입하지 않는다 — 유닛이 쓰는 행만 골라 굳힌다. */
+const aiRoutines =
+  optional<Record<string, AiCommand[]>>(
+    import.meta.glob("../../../../data/fe17/tables/ai.json", {
       eager: true,
       query: "?raw",
       import: "default",
@@ -623,6 +635,24 @@ export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] 
   return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
 }
 
+/**
+ * 이 챕터가 실제로 쓰는 ai.xml 루틴만 모은 표(SkillRow 슬림 사영 관례).
+ * ☠전량(141루틴 63KB)을 아일랜드에 반입하지 않고, ★유닛마다 복사하지도 않는다 —
+ * 보드 JSON 예산(50KB gz)을 지키려면 루틴은 보드 단위로 **한 번만** 실려야 한다.
+ * 소비 = 엔진 `aiNextAction`(적 페이즈 전용. 위임은 dispos AI를 읽지 않는 별도 경로 — AI_ENGINE §6-2).
+ */
+export function chapterAiRoutines(units: readonly DisposUnit[]): Record<string, AiCommand[]> | undefined {
+  const out: Record<string, AiCommand[]> = {};
+  for (const unit of units) {
+    for (const name of [unit.ai?.action, unit.ai?.mind, unit.ai?.attack, unit.ai?.move]) {
+      if (name === undefined || name === "" || out[name] !== undefined) continue;
+      const rows = aiRoutines[name];
+      if (rows !== undefined) out[name] = rows;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** 인게이지 중 스킬 행 — 싱크로 층만 EngagedSkills로 교체한 전체 목록(엔진 effectiveSkills의 소비물). */
 export function unitEngagedSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] | undefined {
   if (unit.gid === undefined) return undefined;
@@ -774,6 +804,8 @@ export interface BoardUnitProp {
   /** 직업 StyleName 원문(連携 = 체인어택 · 重装 = 브레이크 면역). */
   style?: string;
   skills?: SkillRow[];
+  /** dispos AI 사영 + 참조 루틴 스냅숏 — 적턴 자동(aiNextAction)의 유일한 입력. */
+  ai?: AiSnapshot;
 }
 
 export interface BoardProps {
@@ -795,6 +827,11 @@ export interface BoardProps {
   /** 상호작용 지점(Lua 추출 — 상자·민가·문·이탈점·파괴 트리거) — 표시 마커 전용(실행 = MP2 이월). */
   interactions?: { kind: string; x: number; y: number; x2?: number; y2?: number; name?: string }[];
   units: BoardUnitProp[];
+  /**
+   * 이 챕터가 쓰는 ai.xml 루틴만 모은 표 — ★유닛마다 복사하지 않고 보드에 **한 번만** 싣는다.
+   * projectUnit이 각 유닛의 `ai.routines`에 같은 참조를 붙인다(적턴 자동의 유일한 프로그램 원천).
+   */
+  aiRoutines?: Record<string, AiCommand[]>;
   /**
    * 챕터 이벤트 스크립트 팩(MP2) — 있으면 보드가 이벤트 구동으로 초기 배치·증원·승리조건을 돌린다.
    * ☠클라이언트 아일랜드는 원천 테이블이 없다 — 스크립트가 쓰는 스킬 행·엠블렘 사영을 여기 굳힌다.
@@ -839,6 +876,8 @@ export interface BoardProps {
     diffNames: Record<Difficulty, string>;
     forceNames: [string, string, string];
     endPhase: string;
+    enemyAuto: string;
+    enemyAutoBlocked: string;
     waitCmd: string;
     attackCmd: string;
     staffCmd: string;
@@ -1144,6 +1183,7 @@ export function boardProps(
       growth: person === undefined ? undefined : statBlock(person, "Grow."),
       style: job?.StyleName,
       skills: skillRows.length > 0 ? skillRows : undefined,
+      ai: v.unit.ai,
     };
   });
   // ★타일 팔레트 정규화(3-6) — 셀마다 객체를 반복하지 않는다: palette[tid 종별] + tiles[인덱스 격자].
@@ -1256,6 +1296,10 @@ export function boardProps(
     units,
     labels,
     ...(() => {
+      const routines = chapterAiRoutines(views.map((v) => v.unit));
+      return routines === undefined ? {} : { aiRoutines: routines };
+    })(),
+    ...(() => {
       const src = scriptFiles[mapId];
       if (src === undefined) return {};
       // ☠common* 전문은 인라인하지 않는다 — 챕터×로케일 산출물마다 17KB+ 중복(용량 정책 3-6).
@@ -1335,6 +1379,8 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     diffNames: { n: t.diffN, h: t.diffH, l: t.diffL },
     forceNames: [t.player, t.enemy, t.ally],
     endPhase: t.endPhase,
+    enemyAuto: t.enemyAuto,
+    enemyAutoBlocked: t.enemyAutoBlocked,
     undoCmd: t.undoCmd,
     editCmd: t.editCmd,
     editExit: t.editExit,
