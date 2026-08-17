@@ -1,15 +1,22 @@
 ---
-status: draft
+status: building
 target: packages/engine/src/events/ + tools/pipeline(스크립트 사영) + apps/web(phases.ts 대체)
 ---
 
 # MP2 — 이벤트 엔진 (Lua 소비) 설계
 
-작성일: 2026-08-18 · 상태: **초안 — 승인 대기** (§미결 4건이 결정되면 building으로 전환)
+작성일: 2026-08-18 · 상태: **승인됨 — 구현중** (§미결 4건 전건 결정 2026-08-18: 풀 Lua 실행기 · 전 API 1차 배선 · AiSetSequence 기록만 · 연출 no-op)
 
-## 0. 구현 체크리스트 (승인 후 채운다 — §미결 결정이 선행)
+## 0. 구현 체크리스트
 
-- [ ] (미결 결정 후 편성)
+- [ ] 2-0 Lua 실행기 선정 실증 — wasmoon vs fengari: reduce는 동기 함수라 **동기 호출 가능**이 선정 기준(스파이크 테스트로 판정). 번들 영향 실측 병기
+- [ ] 2-1 파이프라인: 스크립트 사영 — mXXX.txt(+Include Common 해석)를 챕터 데이터로 동봉, 전 챕터 목록·용량 확인
+- [ ] 2-2 엔진 이벤트 코어 — LuaSession(스크립트 로드·Startup 실행·인스펙터 등록 수집), GameState.variables·winRule 신설, 조건 3형(bool/string/function)·1회성 플래그 기계·와일드카드 -1 (TDD)
+- [ ] 2-3 게임플레이 프리미티브 전수 배선 — Dispos(자동 배치 규칙 포함)·UnitJoin/Transfer/Die/Delete·UnitCreateGodUnit·Variable*·WinRule* 3종+勝利/敗北·ItemGain·AiSetSequence(기록만)·상태질의(UnitGetX/Z·Difficulty·ForceUnit 순회 등) — 연출 API는 no-op 테이블(LUA_USAGE §4)
+- [ ] 2-4 발화 훅 — Turn/TurnAfter/TurnEnd(endPhase)·Die/BattleAfter/BattleBefore/BattleTalk(attack)·Pickup(선택)·Fixed·Area(이동)·나머지 트리거는 등록만 하고 발화 지점 소유자(MP3 지형 커맨드 등)에 이월 표기 (TDD)
+- [ ] 2-5 리플레이 편입 — 이벤트 결과의 BattleEvent 사영(스폰·전이·변수 절대 재생), 세션 재구축 결정성(스냅숏 점프), RULE_VERSION bump
+- [ ] 2-6 웹 배선 — phases.ts 삭제·초기 배치 = Dispos 없는 그룹 규칙·m002 2회전 전이 헤드리스 실측·m003 필렌 증원+가입 실측
+- [ ] 2-7 장부 갱신 — events.* 카테고리 등재(구현/기록만/이월 구분)
 
 ## 1. 목표와 완료 판정
 
@@ -40,7 +47,7 @@ target: packages/engine/src/events/ + tools/pipeline(스크립트 사영) + apps
 7. **리플레이**: 이벤트 발화는 결정적(난수 없음, 국면 상태만 입력) — 검증(verify)은 재계산으로 성립.
    스폰·전이는 절대 재생용 이벤트(BattleEvent)로도 실린다(기존 charge/crest 문법과 동일).
 
-## 4. §미결 — 사용자 결정 필요
+## 4. §미결 — 전건 결정됨 (2026-08-18, 이력 보존)
 
 ### 미결-1. 조건·콜백의 실행 방식 (아키텍처 본 갈림길)
 
@@ -51,10 +58,9 @@ target: packages/engine/src/events/ + tools/pipeline(스크립트 사영) + apps
     스크립트 원문(또는 파이프라인이 뽑은 AST JSON)을 데이터로 소비, 게임플레이 프리미티브만 배선·연출은 no-op.
   - B) 파이프라인이 선언 테이블 + 조건 DSL로 변환(고차 술어 any/all 포함). 루프·복잡 케이스는 챕터별 수기 이식.
   - C) 풀 Lua 실행기 내장(wasmoon/fengari 등 외부 의존).
-- 권장 = **A**. 이유: (1) 원문 = 정본 그대로 소비 — calculator.xml을 인터프리터로 소비한 기존 판정과 동형
-  (수기 변환 = 산문 이중화의 코드판, 챕터마다 이식 오류 표면 생김) (2) 사용 문법이 좁다(전역 함수·if·for·비교·산술 —
-  메타테이블·클로저 캡처 없음, 코루틴 Yield는 no-op화) (3) C는 외부 의존+번들 비대(제작 경로라 게이트는 없지만
-  서버 LLM 금지 같은 의존 최소주의와 상충). B는 변환기+DSL+수기 이식 3층이 생겨 A보다 총비용이 크다.
+- ★결정 = **C) 풀 Lua 실행기**(2026-08-18 사용자). 커버리지 최우선 — 서브셋 자체 구현의 문법 결손 위험을
+  외부 의존 1개와 맞바꾼다. 라이브러리 선정(wasmoon vs fengari)은 동기 호출 가능 여부 실증으로(체크리스트 2-0).
+  제작 경로 전용 로드(열람 /s/ 경로 번들에 미포함)로 성능 게이트 무저촉을 유지한다.
 - 안 정하면: 이벤트 서브시스템 전체가 착수 불가(조건·콜백 표현이 스키마의 중심).
 
 ### 미결-2. 1차 범위 (배선 순서)
@@ -65,29 +71,25 @@ target: packages/engine/src/events/ + tools/pipeline(스크립트 사영) + apps
     UnitTransfer·UnitDie/Delete·UnitCreateGodUnit·VariableEntry/Set/Get·WinRule 3종+勝利/敗北 —
     나머지 API는 만나면 정직 거부(장부 등재). 완료 판정 = §1.
   - B) 22종 트리거 + 게임플레이 API 전수 1차 배선(발현 없는 것 포함).
-- 권장 = **A**. 이유: MP3(전맵 변환)가 챕터를 늘릴 때마다 발현분이 자연 확장 — 미룸 흡수 규약과 동형.
-  안 정하면: 착수는 가능하나 종료 조건이 표류.
+- ★결정 = **B) 전 API 1차 배선**(2026-08-18 사용자). 바인딩 표면(22종 트리거 등록 + 게임플레이 API)을
+  지금 전부 세운다. 단 발화 지점이 미실재 시스템(MP3 지형 커맨드·안개 등)에 속하는 트리거는 등록·기록까지만 하고
+  발화는 소유 시스템에 이월 표기 — 완료 판정(§1)은 m002·m003 실측 그대로.
 
 ### 미결-3. AiSetSequence 축 (369회 — 게임플레이 API 최다 빈도)
 
 - 배경: 이벤트 콜백의 최다 효과가 적 AI 실시간 재설정. 그러나 적턴 AI 실행 자체가 MP4다.
 - 선택지: A) **파라미터를 유닛 상태에 기록만**(스키마 보존, 소비는 MP4) B) MP2에서 실행까지 C) 무시.
-- 권장 = **A**. 이유: 지금 소비처(AI 실행기)가 없다 — 기록해 두면 MP4가 이어받는다. C는 정보 소실(재조사 비용).
-  안 정하면: m002의 "루미엘 행동개시(AI on)" 류가 무음 소실될지 기록될지 미정.
+- ★결정 = **A) 파라미터 기록만**(2026-08-18 사용자). 소비는 MP4 AI 실행기가 이어받는다.
 
 ### 미결-4. 연출 이벤트의 표면 처리
 
 - 배경: BattleTalk·Pickup(튜토리얼)·Talk 등은 판정 무관이지만 인게임 체험의 일부다.
 - 선택지: A) **완전 no-op**(로그 없음) B) 전투 로그에 1줄 표기(대사 발생 지점 표시) C) MSBT 텍스트까지 표시.
-- 권장 = **A**(MP2에서는). 이유: C는 메시지 파이프라인 확장 선행, B는 로그 소음 — 대사 재현은 별도 UX 과제로
-  발현 시 흡수. 안 정하면: 사소(기본 no-op로 착수 가능).
+- ★결정 = **A) 완전 no-op**(2026-08-18 사용자). 대사 재현은 별도 UX 과제로 발현 시 흡수.
 
-## 5. 구현 스케치 (미결-1 = A 가정 — 승인 후 §0 체크리스트로 편성)
+## 5. 결정 반영 구현 노트
 
-1. 파이프라인: 스크립트 .txt → 챕터 데이터에 원문(또는 파싱 AST) 동봉 + Include("Common") 해석.
-2. engine/events/: Lua 서브셋 파서·평가기(TDD — m002·m003 실사용 문법이 테스트 정본),
-   프리미티브 레지스트리(게임플레이 = 배선, 연출 = no-op 테이블), 인스펙터(등록·필터·1회성 플래그).
-3. reduce 훅: endPhase(Turn/TurnAfter/TurnEnd)·attack(Die/BattleAfter)·필요 액션 커밋 지점.
-   GameState에 variables·winRule 필드. 이벤트 결과는 BattleEvent로 기보에 실림(절대 재생).
-4. web: phases.ts 삭제, 초기 배치 = "Dispos 없는 그룹" 규칙, 발현 검증 = m002 헤드리스 2회전 전이.
-5. RULE_VERSION bump(합법성·국면 전이 변경).
+- 실행기 = 풀 Lua(2-0에서 선정). ☠reduce는 동기·순수 — Lua 세션은 리듀서 밖(이벤트 레이어)이 소유하고,
+  지속 상태는 전부 GameState.variables(+발화 플래그)로 사영한다. 콜백이 VariableSet 밖에 남기는 Lua 전역은
+  재구축 결정성의 위험 표면 — 세션 재구축 = 초기 국면에서 스텝 재실행으로 통일(기존 스냅숏 문법과 동형).
+- 연출 no-op·AiSetSequence 기록은 프리미티브 테이블이 소유(스크립트 원문 무수정).
