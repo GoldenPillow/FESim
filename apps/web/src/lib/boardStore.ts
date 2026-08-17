@@ -105,6 +105,9 @@ export function initGame(
       staves: su?.staves ?? u.staves,
       consumables: su?.consumables ?? u.consumables,
       engage: su?.engage ?? u.engage,
+      engagedSkills: su?.engagedSkills ?? u.engagedSkills,
+      engageWeapons: su?.engageWeapons ?? u.engageWeapons,
+      engageArt: su?.engageArt ?? u.engageArt,
       skills: su?.skills ?? u.skills,
       growth: u.growth,
       level: su?.level ?? u.levels[difficulty],
@@ -131,6 +134,9 @@ export function initGame(
     units,
     events: [],
   };
+  // 紋章氣 = 소비 가능한 국면 상태 — 렌더는 objects, 잔존 판별은 이 목록이 정본.
+  const crests = props.objects.filter((o) => o.crest === true).map((o) => ({ x: o.x, y: o.y }));
+  if (crests.length > 0) game.crests = crests;
   return { game, visuals };
 }
 

@@ -1,4 +1,4 @@
-import type { BattleAction, BattleEvent, BattleWeapon, ConsumableItem, Difficulty, EngageState, SkillRow, StaffItem, StatBlock } from "./battle.js";
+import type { BattleAction, BattleEvent, BattleWeapon, ConsumableItem, Difficulty, EngageArt, EngageState, SkillRow, StaffItem, StatBlock } from "./battle.js";
 
 /**
  * ephemeris(.eph) 기보 포맷 헤더 — 타이틀 중립 원칙:
@@ -52,6 +52,12 @@ export interface SetupUnit {
   skills?: SkillRow[];
   /** 인게이지 게이지 스냅숏 — god·bond 의도의 산출 결과 */
   engage?: EngageState;
+  /** 인게이지 중 스킬 세트 스냅숏(EngagedSkills 교체본) — god·bond 의도의 산출 결과 */
+  engagedSkills?: SkillRow[];
+  /** 엠블렘 무기 스냅숏(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지) */
+  engageWeapons?: BattleWeapon[];
+  /** 인게이지 기술 스냅숏 — god·bond 의도의 산출 결과(스타일 분기 해소 후) */
+  engageArt?: EngageArt;
 }
 
 /** 초기 세팅 diff 전체 — dispos 기본 대비 변경분만 담는다. */
@@ -76,7 +82,7 @@ function assert(ok: unknown, why: string): asserts ok {
 }
 
 const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
-const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "trade", "wait", "endPhase"];
+const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "engageAttack", "trade", "wait", "endPhase"];
 
 /**
  * 남이 만든 파일이 들어오는 신뢰 경계 — 뼈대만 검사한다.

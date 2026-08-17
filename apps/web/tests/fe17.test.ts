@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -97,6 +97,79 @@ describe("emblemSyncSids — 絆 레벨 싱크로", () => {
   it("unitSkillRows가 絆 레벨을 그대로 태운다", () => {
     const rows = unitSkillRows(disposUnit({ gid: "GID_マルス" }), 3);
     expect(rows.map((r) => r.Sid)).toContain("SID_技＋２");
+  });
+});
+
+describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치환·엠블렘 무기", () => {
+  it("emblemEngagedSids = 싱크로 ∪ 인게이지 스킬 (마르스 絆1: カウンター 합류)", () => {
+    // 왜 위험한가: 인게이지 중 스킬 세트를 안 바꾸면 인게이지 스킬(카운터·경감)이 전부 무발동이고,
+    // EngageSkills를 평시에도 섞으면 비인게이지 판정이 과대다(GetSyncroSkills 0x2342530이 배열째 교체).
+    const engaged = emblemEngagedSids("GID_マルス", 1);
+    expect(engaged).toContain("SID_カウンター");
+    expect(engaged).toContain("SID_敵エンゲージ技ダメージ軽減");
+    expect(engaged).toContain("SID_見切り"); // 싱크로 층은 그대로 합류
+    expect(emblemSyncSids("GID_マルス", 1)).not.toContain("SID_カウンター"); // 평시 목록엔 없다
+  });
+
+  it("EngageSid 치환 — 에이리크 月の腕輪 → 日月の腕輪, 優風 → 蒼穹 (원형은 평시 목록에만)", () => {
+    const engaged = emblemEngagedSids("GID_エイリーク", 3);
+    expect(engaged).toContain("SID_日月の腕輪");
+    expect(engaged).not.toContain("SID_月の腕輪");
+    expect(engaged).toContain("SID_蒼穹");
+    expect(engaged).not.toContain("SID_優風");
+    expect(emblemSyncSids("GID_エイリーク", 3)).toContain("SID_月の腕輪");
+  });
+
+  it("치환 뒤에도 동계열(Group) 대체 — 絆13 日月の腕輪＋(P6)가 日月の腕輪(P3)를 대체", () => {
+    // 왜 위험한가: 동계열 정본은 SID 명명 규칙이 아니라 習得優先度 연속 구간(GroupAssign 0x248D0C0)이다 —
+    // 명명 근사로는 치환 결과(日月~)와 원형(月~)이 딴 계열로 보여 상하위가 중첩된다.
+    const engaged = emblemEngagedSids("GID_エイリーク", 13);
+    expect(engaged).toContain("SID_日月の腕輪＋");
+    expect(engaged).not.toContain("SID_日月の腕輪");
+  });
+
+  it("emblemEngageWeapons = EngageItems 레벨 누적, 공격 무기만 (에이리크 1/10/15)", () => {
+    expect(emblemEngageWeapons("GID_エイリーク", "ko", 1)).toHaveLength(1); // レイピア
+    const full = emblemEngageWeapons("GID_エイリーク", "ko", 20);
+    expect(full).toHaveLength(3); // + かぜの剣(10)·ジークリンデ(15)
+    expect(full.every((w) => w.kind > 0 && w.rangeMax >= 1)).toBe(true);
+  });
+
+  it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {
+    const props = boardPropsFor("m003", "ko");
+    expect(props.objects.some((o) => o.crest === true && o.x === 9 && o.y === 10)).toBe(true);
+  });
+});
+
+describe("인게이지 기술 선택 (MP1-4c) — emblemEngageArt", () => {
+  it("마르스 기본 = 기술 행 + SyncSids 전개(汎用設定·ダメージ３０％), 사거리 1-1", () => {
+    // 왜 위험한가: 흐름 변수(攻撃回数 7·명중 100·반격 몰수)는 전부 SyncSids의 汎用設定이 소유한다 —
+    // 전개가 빠지면 기술이 통상 전투 문법으로 돌아 타수·명중·반격이 전부 어긋난다.
+    const art = emblemEngageArt("GID_マルス", undefined, "ko");
+    expect(art?.sid).toBe("SID_マルスエンゲージ技");
+    const sids = art?.skills.map((r) => r.Sid);
+    expect(sids).toEqual(["SID_マルスエンゲージ技", "SID_エンゲージ技_汎用設定", "SID_ダメージ３０％"]);
+    expect(art?.rangeMin).toBe(1);
+    expect(art?.rangeMax).toBe(1);
+    expect(art?.cost).toBe(0);
+    expect(art?.weaponProhibit).toBe(1021); // 검(kind 1)만 허용 — 가정 비트 해석의 앵커 값
+    // 사영 결손 정정 확인: 汎用設定의 Stand·기술 행의 Action이 슬림 사영에 실려야 필터가 돈다.
+    expect(art?.skills[1]?.Stand).toBe(1);
+    expect(art?.skills[0]?.Action).toBe(1);
+  });
+
+  it("스타일 분기 — 竜族 직업이면 SID_マルスエンゲージ技_竜族(攻撃回数 9 변형)", () => {
+    const art = emblemEngageArt("GID_マルス", "竜族スタイル", "ko");
+    expect(art?.sid).toBe("SID_マルスエンゲージ技_竜族");
+    expect(art?.skills[0]?.ActValues?.[0]).toBe("9");
+  });
+
+  it("에이리크 = 슬롯별 강제 무기([IID_無し, ジークムント] → [null, 창]) · 세리카 = rewarp 판별자", () => {
+    const eirika = emblemEngageArt("GID_エイリーク", undefined, "ko");
+    expect(eirika?.weapons?.[0]).toBeNull(); // IID_無し = 현 장비
+    expect(eirika?.weapons?.[1]?.kind).toBe(2); // ジークムント = 창
+    const celica = emblemEngageArt("GID_セリカ", undefined, "ko");
+    expect(celica?.rewarp).toBe(10); // 리워프형 — 엔진이 정직 거부하는 판별자
   });
 });
 

@@ -3,6 +3,7 @@ import {
   attackRange,
   canBreak,
   canterPower,
+  effectiveWeapons,
   forecastSide,
   itemTargets,
   moveBudget,
@@ -22,6 +23,7 @@ import {
 import { serializeEphemeris } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
+import { visibleObjects } from "../lib/boards";
 import { calculator, createBoardStore, displayState, useBoard, type UnitVisual } from "../lib/boardStore";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import BoardView from "./BoardView";
@@ -150,8 +152,11 @@ export default function BoardIsland(props: BoardProps) {
     setWeaponPick(undefined);
     setWeaponHover(undefined);
   }, [selectedId, game]);
+  // 유효 무기 = 엔진 effectiveWeapons(인게이지 중엔 엠블렘 무기 증설) — 인덱스가 attack.weapon 계약.
   const weapons: BattleWeapon[] = useMemo(
-    () => selected?.weapons ?? (selected?.weapon !== undefined ? [selected.weapon] : []),
+    () =>
+      (selected === undefined ? undefined : effectiveWeapons(selected)) ??
+      (selected?.weapon !== undefined ? [selected.weapon] : []),
     [selected],
   );
   const equippedIdx = Math.max(0, weapons.findIndex((w) => w === selected?.weapon));
@@ -405,6 +410,7 @@ export default function BoardIsland(props: BoardProps) {
           case "disengage":
             return `${name(ev.unit)} ${t.disengage}`;
           case "charge":
+          case "crest": // 紋章氣 소비 = 게이지 만충 — 커맨드 바 게이지·타일 소멸이 보여준다
             return ""; // 게이지 변화는 로그 소음 — 커맨드 바 게이지가 보여준다
           case "break":
             return `${name(ev.unit)} ${t.brk}`;
@@ -634,7 +640,7 @@ export default function BoardIsland(props: BoardProps) {
         width={width}
         height={height}
         tiles={tiles}
-        objects={objects}
+        objects={visibleObjects(objects, game.crests)}
         units={viewUnits}
         byTile={byTileView}
         visuals={visuals}

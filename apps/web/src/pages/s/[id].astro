@@ -8,7 +8,7 @@ import type { EphemerisFile } from "@fesim/shared";
 import Base from "../../layouts/Base.astro";
 import ReplayFrame, { type ReplayFrameProps } from "../../components/ReplayFrame";
 import ReplayIsland from "../../components/ReplayIsland";
-import { boardsJsonPath } from "../../lib/boards";
+import { boardsJsonPath, visibleObjects } from "../../lib/boards";
 import { initGame, replayer } from "../../lib/boardStore";
 import { readAddress } from "../../lib/replayQuery";
 import { tileKey } from "../../lib/grid";
@@ -65,7 +65,7 @@ if (env.LINKS === undefined) {
         const byTile = new Map<string, UnitState>();
         for (const u of alive) byTile.set(tileKey(u.x, u.y), u);
         frame = {
-          board,
+          board: { ...board, objects: visibleObjects(board.objects, state.crests) },
           address: toAddress(timeline, cursor),
           at: cursor,
           steps: timeline.steps.length,

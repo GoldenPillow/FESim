@@ -6,6 +6,7 @@ export {
   type CombatantWeapon,
   type ConsumableItem,
   type Difficulty,
+  type EngageArt,
   type EngageState,
   type SkillRow,
   type StaffItem,

@@ -1,4 +1,5 @@
 import type { Locale } from "./i18n";
+import type { BoardProps } from "./fe17";
 
 /**
  * 정적 보드 JSON의 주소 — 생산(엔드포인트)과 소비(/s/ 워커 런타임)가 같은 함수를 쓴다.
@@ -6,3 +7,10 @@ import type { Locale } from "./i18n";
  */
 export const boardsJsonPath = (mapId: string, locale: Locale): string =>
   `/fe17/boards/${mapId}.${locale}.json`;
+
+/** 표시용 objects — 소비된 紋章氣(국면 crests에 없음)를 걸러낸다. 보드·리플레이·/s/ SSR 공용(중복 구현 금지). */
+export const visibleObjects = (
+  objects: BoardProps["objects"],
+  crests: { x: number; y: number }[] | undefined,
+): BoardProps["objects"] =>
+  objects.filter((o) => o.crest !== true || crests?.some((c) => c.x === o.x && c.y === o.y) !== false);
