@@ -4,6 +4,7 @@ export {
   type BattleEvent,
   type BattleWeapon,
   type CombatantWeapon,
+  type ConsumableItem,
   type Difficulty,
   type SkillRow,
   type StaffItem,

@@ -4,6 +4,7 @@ import {
   canBreak,
   canterPower,
   forecastSide,
+  itemTargets,
   moveBudget,
   movementPath,
   movementRange,
@@ -309,6 +310,15 @@ export default function BoardIsland(props: BoardProps) {
   // 예보 대상: 클릭 확정 타겟이 우선, 없으면 호버 타겟(즉시 예보). 기준 위치 = 공격 발판.
   const fcTarget = foeTarget ?? hoverEnemy;
   const fcAt = (foeTarget !== undefined ? selectedAt : engageAt) ?? selectedAt;
+
+  // 아이템 사용 버튼 — 대상 판정의 정본은 엔진 itemTargets(중복 구현 금지). 기준 위치 = 잠정 이동 반영.
+  const itemButtons = useMemo(() => {
+    if (selected === undefined || selected.acted || selected.force !== game.phase || selectedAt === undefined) return [];
+    const userAt = { ...selected, x: selectedAt.x, y: selectedAt.y };
+    return (selected.consumables ?? [])
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) => c.addType === 2 && c.uses > 0 && itemTargets(userAt, viewUnits, c).length > 0);
+  }, [selected, selectedAt, viewUnits, game.phase]);
 
   // 회복 예보 — 수치의 정본은 엔진 staffHealAmount(중복 구현 금지). 기준 위치 = 지팡이 발판.
   const healFc = useMemo(() => {
@@ -616,6 +626,26 @@ export default function BoardIsland(props: BoardProps) {
         onTileClick={onTileClick}
         onTileHover={setHover}
       />
+
+      {!editing && itemButtons.length > 0 && mode !== "replay" && (
+        <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
+          <span className="edit-hint">{labels.itemCmd}</span>
+          {itemButtons.map(({ c, i }) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                if (selected !== undefined && commitMove() && tryDispatch({ type: "item", unit: selected.id, item: i })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                }
+              }}
+            >
+              {c.name ?? labels.itemCmd} +{c.power} ({c.uses})
+            </button>
+          ))}
+        </div>
+      )}
 
       {editing && (
         <div className="edit-bar" role="toolbar" aria-label={labels.editCmd}>

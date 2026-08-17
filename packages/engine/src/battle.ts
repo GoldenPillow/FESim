@@ -2,6 +2,7 @@ import type {
   BattleAction,
   BattleEvent,
   BattleWeapon,
+  ConsumableItem,
   Difficulty,
   StaffItem,
   StrikeKind,
@@ -47,6 +48,8 @@ export interface UnitState {
   weapons?: BattleWeapon[];
   /** 소지 지팡이 목록 — staff.staff 인덱스의 해석 대상. 잔여 사용 횟수는 국면 상태다(사용마다 감소). */
   staves?: StaffItem[];
+  /** 사용형 아이템 목록 — item.item 인덱스의 해석 대상. 잔여 횟수는 국면 상태다. */
+  consumables?: ConsumableItem[];
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
@@ -214,6 +217,20 @@ function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
 export function staffHealAmount(healer: UnitState, target: UnitState, staff: StaffItem): number {
   const missing = Math.max(target.stats.hp - target.hp, 0);
   return Math.min(staff.power + Math.floor(healer.stats.mag / 2), missing);
+}
+
+/**
+ * 아이템 범위 회복 대상 — 자신 포함, 같은 군, 반경(맨해튼) 내, 손상 유닛만.
+ * 傷薬 = "자신과 주위 2칸 아군 회복"(공식 도움말 원문). 예보 UI와 reduce가 같은 판정을 쓴다(중복 구현 금지).
+ */
+export function itemTargets(
+  user: UnitState,
+  units: readonly UnitState[],
+  item: ConsumableItem,
+): UnitState[] {
+  return units.filter(
+    (u) => !u.dead && u.force === user.force && manhattan(u, user) <= item.range && u.hp < u.stats.hp,
+  );
 }
 
 /** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
@@ -492,6 +509,30 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           );
           grantExp(healer, gained, events, rng);
         }
+        break;
+      }
+
+      case "item": {
+        const user = require(action.unit);
+        assertActable(user);
+        const idx = action.item ?? 0;
+        const item = user.consumables?.[idx];
+        if (item === undefined) throw new Error(`불법 아이템 인덱스: ${idx}`);
+        // ☠범위 회복(AddType 2)만 배선 — 인게이지 충전·상태 해제·스킬 부여는 선행 시스템별 후속(정직 거부).
+        if (item.addType !== 2) throw new Error("미배선 아이템 종류(범위 회복만 배선)");
+        if (item.uses < 1) throw new Error("아이템 소진");
+        const targets = itemTargets(user, units, item);
+        if (targets.length === 0) throw new Error("사용 대상 없음(범위 내 무손상)");
+        // 회복량 = AddPower 고정(능력치 무관 — 지팡이의 마력 반감 가산과 다른 규칙), 잃은 HP 상한.
+        for (const t of targets) {
+          const amount = Math.min(item.power, t.stats.hp - t.hp);
+          t.hp += amount;
+          events.push({ type: "heal", unit: user.id, target: t.id, amount, hpAfter: t.hp });
+        }
+        user.consumables = user.consumables?.map((c, i) => (i === idx ? { ...c, uses: c.uses - 1 } : c));
+        user.acted = true;
+        user.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        // 경험치 없음 — calculator에 아이템 경험식이 없다(杖·踊り·チェインガード만 존재).
         break;
       }
 

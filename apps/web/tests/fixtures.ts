@@ -57,7 +57,7 @@ const LABELS: BoardProps["labels"] = {
   board: "", forecast: "", hit: "", crit: "", damage: "", currentPosNote: "", difficulty: "",
   diffNames: { n: "n", h: "h", l: "l" },
   forceNames: ["player", "enemy", "ally"],
-  endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", turnPhase: "", turnWord: "",
+  endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "" },

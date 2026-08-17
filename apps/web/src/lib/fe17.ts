@@ -1,4 +1,4 @@
-import type { ChapterData, DisposUnit, MapObject, StaffItem } from "@fesim/shared";
+import type { ChapterData, ConsumableItem, DisposUnit, MapObject, StaffItem } from "@fesim/shared";
 import {
   MOVE_TYPES,
   deriveStats,
@@ -545,6 +545,8 @@ export interface BoardUnitProp {
   weapons?: BoardWeaponProp[];
   /** 소지 지팡이 전체(소지품 순) — staff.staff 인덱스의 해석 대상. */
   staves?: StaffItem[];
+  /** 사용형 아이템 전체(소지품 순) — item.item 인덱스의 해석 대상. */
+  consumables?: ConsumableItem[];
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -581,6 +583,7 @@ export interface BoardProps {
     waitCmd: string;
     attackCmd: string;
     staffCmd: string;
+    itemCmd: string;
     turnPhase: string;
     turnWord: string;
     victory: string;
@@ -659,6 +662,26 @@ export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
   return list;
 };
 
+/**
+ * 사용형 아이템 스냅숏 — Kind=10 중 AddTarget != 0 전부(미배선 포함).
+ * ☠필터를 배선 여부로 좁히면 나중에 배선을 넓힐 때 item 인덱스 계약이 흔들려 기보가 깨진다.
+ */
+export const consumableItems = (unit: DisposUnit, locale: Locale): ConsumableItem[] => {
+  const list: ConsumableItem[] = [];
+  for (const entry of unit.items) {
+    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+    if (row === undefined || row.Kind !== 10 || Number(row["AddTarget"] ?? 0) === 0) continue;
+    list.push({
+      name: namedOr(items, locale, entry.iid),
+      addType: Number(row["AddType"] ?? 0),
+      power: Number(row["AddPower"] ?? 0),
+      range: Number(row["AddRange"] ?? 0),
+      uses: Number(row["Endurance"] ?? 0),
+    });
+  }
+  return list;
+};
+
 export function boardProps(
   chapter: ChapterData,
   mapId: string,
@@ -701,6 +724,10 @@ export function boardProps(
       ...(() => {
         const staves = staffItems(v.unit, locale);
         return staves.length > 0 ? { staves } : {};
+      })(),
+      ...(() => {
+        const consumables = consumableItems(v.unit, locale);
+        return consumables.length > 0 ? { consumables } : {};
       })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
@@ -764,6 +791,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
     staffCmd: t.staffCmd,
+    itemCmd: t.itemCmd,
     turnPhase: t.turnPhase,
     turnWord: t.turnWord,
     victory: t.victory,

@@ -88,6 +88,22 @@ export interface StaffItem {
   name?: string;
 }
 
+/**
+ * 사용형 아이템(Kind=10, AddTarget != 0) 소지 항목 — 傷薬류의 전투 소비분 스냅숏.
+ * ☠목록엔 사용형 전부를 싣는다(미배선 포함) — 필터를 넓힐 때 item 인덱스 계약이 흔들리면 기보가 깨진다.
+ */
+export interface ConsumableItem {
+  /** items.json AddType — 2 = 범위 회복(배선 범위). 그 외는 reduce가 정직하게 거부한다. */
+  addType: number;
+  /** items.json AddPower — 회복량 등 효과 수치(고정값 — 능력치 무관). */
+  power: number;
+  /** items.json AddRange — 자신 중심 효과 반경(맨해튼). */
+  range: number;
+  /** 잔여 사용 횟수(items.json Endurance 출발) — 사용마다 1 감소. */
+  uses: number;
+  name?: string;
+}
+
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
@@ -105,5 +121,7 @@ export type BattleAction =
   | { type: "attack"; unit: string; target: string; weapon?: number }
   /** staff = 유닛 staves 목록 인덱스(부재 = 0). 대상은 같은 군 — 회복·보조는 교전이 아니다. */
   | { type: "staff"; unit: string; target: string; staff?: number }
+  /** item = 유닛 consumables 목록 인덱스(부재 = 0). 대상 지정 없음 — 효과 범위는 아이템이 소유(자신 중심). */
+  | { type: "item"; unit: string; item?: number }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

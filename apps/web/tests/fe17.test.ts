@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, staffItems, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -118,5 +118,17 @@ describe("staffItems — 소지품 → 지팡이 목록 사영 (MP0)", () => {
     const framme = props.units.find((u) => u.name === "프랑");
     expect(framme?.staves?.length).toBeGreaterThan(0);
     expect(framme?.staves?.[0].rodType).toBe(2);
+  });
+});
+
+describe("consumableItems — 소지품 → 사용형 아이템 사영 (MP1-1)", () => {
+  it("Kind=10 사용형만, 傷薬 실값(AddType 2·+15·범위 2·잔여 3) — 미배선 종류도 목록엔 실린다(인덱스 계약)", () => {
+    const u = disposUnit({
+      items: ["IID_鉄の剣", "IID_傷薬", "IID_毒消し"].map((iid) => ({ iid, drop: false })),
+    });
+    const list = consumableItems(u, "ko");
+    expect(list).toHaveLength(2);
+    expect(list[0]).toEqual({ name: "상처약", addType: 2, power: 15, range: 2, uses: 3 });
+    expect(list[1].addType).toBe(18); // 독소약 — 미배선이지만 인덱스 자리를 지킨다
   });
 });

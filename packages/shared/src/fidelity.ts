@@ -153,9 +153,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.items",
     label: { en: "Item use (vulneraries etc.)", ko: "아이템 사용(회복약 등)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "정식화 — Kind=10 중 사용형 53건: AddType 2 = 범위 회복(傷薬: 자신+주위 AddRange 2칸 아군 HP AddPower 15 — 공식 도움말 원문, gaps/N-patch §2-7) · 7 = 인게이지 카운트 증가(特効薬 +2 — 종전 '상태 경감 추정'을 원문이 정정) · 18 = 상태 해제(毒消し) · 19 = 횃불 효과 · 31 = AddSids 스킬 부여 49건(세부 후속) · 커맨드 = ItemMenuItem(MAP_COMMANDS §1-1)",
+      "AddType 2 범위 회복 배선(2026-08-18, itemUse.test.ts — item 액션·자신+반경 아군·AddPower 고정·잃은 HP 상한·횟수 소모·절대 재생·경험 없음(calculator에 아이템 경험식 부재)) ☠잔여 정직 거부 = 7 인게이지 충전·18 상태해제·19 횃불·31 스킬부여 · 정식화 — Kind=10 중 사용형 53건: AddType 2 = 범위 회복(傷薬: 자신+주위 AddRange 2칸 아군 HP AddPower 15 — 공식 도움말 원문, gaps/N-patch §2-7) · 7 = 인게이지 카운트 증가(特効薬 +2 — 종전 '상태 경감 추정'을 원문이 정정) · 18 = 상태 해제(毒消し) · 19 = 횃불 효과 · 31 = AddSids 스킬 부여 49건(세부 후속) · 커맨드 = ItemMenuItem(MAP_COMMANDS §1-1)",
   },
   {
     id: "actions.trade",

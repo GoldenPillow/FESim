@@ -116,7 +116,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function applyEvents(
   state: GameState,
-  action: Extract<BattleAction, { type: "attack" | "staff" }>,
+  action: Extract<BattleAction, { type: "attack" | "staff" | "item" }>,
   events: readonly BattleEvent[],
 ): GameState {
   const units = state.units.map((u) => ({ ...u }));
@@ -177,6 +177,10 @@ function applyEvents(
     const idx = action.staff ?? 0;
     actor.staves = actor.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
   }
+  if (action.type === "item") {
+    const idx = action.item ?? 0;
+    actor.consumables = actor.consumables?.map((c, i) => (i === idx ? { ...c, uses: c.uses - 1 } : c));
+  }
   actor.acted = true;
   actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
   return { ...state, units, events: [...events], outcome };
@@ -189,7 +193,10 @@ export function createReplayer(reduce: Reduce) {
    * ReplayDesyncError로 끝난다(수기·LLM 기보의 정합 검증은 M4 검증기 몫 — 호출측이 잡아서 표시한다).
    */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
-    if ((step.action.type === "attack" || step.action.type === "staff") && step.events !== undefined) {
+    if (
+      (step.action.type === "attack" || step.action.type === "staff" || step.action.type === "item") &&
+      step.events !== undefined
+    ) {
       return applyEvents(state, step.action, step.events);
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));
