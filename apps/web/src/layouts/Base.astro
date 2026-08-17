@@ -44,9 +44,11 @@ const { locale, title } = Astro.props;
         bottom: 12px;
         z-index: 9999;
         pointer-events: none;
-        font-weight: 900;
-        font-size: 13px;
-        letter-spacing: 0.14em;
+        /* 기본 굵기 + JetBrains Mono(사용자 규약) — 웹폰트 미탑재라 로컬 폰트 우선, 모노 폴백 */
+        font-family: "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+        font-weight: 400;
+        font-size: 12px;
+        letter-spacing: 0.06em;
         padding: 4px 10px;
         border-radius: 6px;
         font-variant-numeric: tabular-nums;
