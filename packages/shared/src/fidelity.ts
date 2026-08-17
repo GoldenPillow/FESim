@@ -56,10 +56,10 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "movement.canter-distance",
-    label: { en: "Canter: N tiles after acting (skill Power)", ko: "재이동: 행동 후 N칸(skills.json Power)" },
+    label: { en: "Canter: N tiles after acting (skill Removable)", ko: "재이동: 행동 후 N칸(skills.json Removable)" },
     status: "anchored",
     evidence:
-      "공식 도움말 '행동 후 2칸/3칸' 실측 · battle.test.ts 재이동 · ★IL2CPP 코드로 필드 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10): 정본 필드는 skill.Power가 아니라 **Removable(再移動力)** — Unit.GetMovePowerImpl(RVA 0x1A5B690)이 Status.Removing일 때 max(skill.Removable)을 이동력으로 반환한다(Power는 별개 필드 '強さ'). 종전 'Power = 재이동 거리' 판정은 **반증**됐고 결과가 맞았던 이유는 두 필드의 값이 2·3으로 우연히 일치했기 때문이다(fe17.ts canterPower는 여전히 Power를 읽는다 — 데이터 변경 시 갈린다)",
+      "공식 도움말 '행동 후 2칸/3칸' 실측 · ★IL2CPP 코드로 필드 정정(il2cpp/MOVE_TERRAIN.md §2-10): 정본 필드는 skill.Power가 아니라 **Removable(再移動力)** — Unit.GetMovePowerImpl(RVA 0x1A5B690)이 Status.Removing일 때 max(skill.Removable)을 이동력으로 반환한다(Power는 별개 필드 '強さ' — 값 2·3 우연 일치로 오독됐던 자리). ★배선 완료(2026-08-18, MP3 3-0): canterPower가 Removable 최댓값 소비(SID 접두 매칭 폐기)·SKILL_ROW_FIELDS 사영 편입 — battle.test.ts 재이동·Removable 정본 테스트",
   },
   {
     id: "movement.canter-terrain-cost",
@@ -70,24 +70,24 @@ export const FIDELITY: readonly FidelityEntry[] = [
   },
   {
     id: "movement.block-enemy",
-    label: { en: "Cannot pass through enemy units", ko: "타군 통과 불가" },
-    status: "implemented",
+    label: { en: "Cannot pass through non-allied units", ko: "비동맹 진영 통과 불가" },
+    status: "anchored",
     evidence:
-      "range.ts blocked · ★IL2CPP 코드로 판정 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 12행): 저지 기준은 '군(force) 불일치'가 아니라 **진영 동맹표** — SearchDir(RVA 0x2C29500)이 Flag.Enemy 상태에서 !MapSituation.IsAllide(myForce,targetForce)일 때만 차단한다(IsAllide RVA 0x1F48EC0). 엔진의 force 비교는 자군(0)↔우군(2)을 오차단한다(적1↔우군2 상호 차단은 우연 일치) · 스킬 MoveEnemyPass(1<<35)면 해제 — 미배선",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §3A 12행): 저지 기준 = **진영 동맹표** — SearchDir(RVA 0x2C29500)이 !MapSituation.IsAllide(myForce,targetForce)일 때만 차단(IsAllide RVA 0x1F48EC0). ★배선 완료(2026-08-18, MP3 3-0): 엔진 movePredicates(alliance 기본 [0,1,0])가 reduce·BoardIsland 공용 단일 정본(C4 중복 회수) — battle.test.ts 동맹 통과 테스트 · 잔여 = 스킬 MoveEnemyPass(1<<35) 해제 미배선",
   },
   {
     id: "movement.pass-ally",
-    label: { en: "Pass through allies, cannot stop on them", ko: "같은 군 통과 가능·정지 불가" },
-    status: "implemented",
+    label: { en: "Pass through allied forces, cannot stop on them", ko: "동맹 진영 통과 가능·정지 불가" },
+    status: "anchored",
     evidence:
-      "range.ts occupied · ★IL2CPP 코드로 기준 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 13행): 통과 허용은 같은 군이 아니라 MapSituation.IsAllide(RVA 0x1F48EC0) 동맹표 참 — 자군(0)·우군(2)은 통상 동일 진영이라 서로 통과한다. 엔진의 force 동일 비교는 우군 통과를 막는다(과소)",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §3A 13행): 통과 허용 = MapSituation.IsAllide(RVA 0x1F48EC0) 동맹표 참 — 자군(0)·우군(2)은 통상 동일 진영이라 서로 통과. ★배선 완료(2026-08-18, MP3 3-0): movePredicates가 동맹 = 통과·정지 불가로 배선(종전 force 동일 비교의 우군 오차단 해소) — battle.test.ts",
   },
   {
     id: "movement.block-third-force",
     label: { en: "Enemy and third force block each other", ko: "적군↔우군 상호 차단" },
     status: "anchored",
     evidence:
-      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 14행): 차단 기준 = MapSituation.IsAllide(RVA 0x1F48EC0) 진영 인덱스 비교이고 Enemy(1)와 Ally(2)는 서로 비동맹이므로 상호 차단이 코드로 확정된다(종전 '공식 텍스트 전무·실기 반증만이 경로' 판정을 대체) · ⚠챕터가 진영 테이블을 바꿀 수 있음 = 맵별 예외 여지",
+      "★IL2CPP 코드로 가정 종결(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3A 14행): 차단 기준 = MapSituation.IsAllide(RVA 0x1F48EC0) 진영 인덱스 비교이고 Enemy(1)와 Ally(2)는 서로 비동맹이므로 상호 차단이 코드로 확정된다(종전 '공식 텍스트 전무·실기 반증만이 경로' 판정을 대체) · ★배선(2026-08-18, MP3 3-0): movePredicates 동맹표 소비 — ⚠챕터별 진영 테이블 변경 여지는 BattleMap.alliance 필드 주입으로 흡수(판독 = MapSituation 초기화 경로, il2cpp-reader 진행 중)",
   },
   {
     id: "movement.pending-move",
@@ -99,9 +99,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "movement.structures",
     label: { en: "Structures (doors, walls) affect passability", ko: "구조물(문·벽) 통행 반영" },
-    status: "deferred",
+    status: "implemented",
     evidence:
-      "M005 구조물 렌더 시점(§0 미룸) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-13): 통행 특례 로직은 **없다** — 구조물은 CostName/오버레이 코스트로 환원되고(Map.CanEnterTerrain RVA 0x1EECF90) 파괴 시 ChangeTid로 지형 자체가 교체돼 코스트가 바뀔 뿐 · ⇒ 구현 부담은 렌더·파괴 이벤트 쪽이고 이동 규칙 신설은 불요",
+      "M005 구조물 렌더 시점(§0 미룸) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-13): 통행 특례 로직은 **없다** — 구조물은 CostName/오버레이 코스트로 환원되고(Map.CanEnterTerrain RVA 0x1EECF90) 파괴 시 ChangeTid로 지형 자체가 교체돼 코스트가 바뀔 뿐 · ⇒ 구현 부담은 렌더·파괴 이벤트 쪽이고 이동 규칙 신설은 불요 · ★배선 완료(2026-08-18, MP3 3-2·3-3): GameState.structures(hp = Hp_난이도)·makeCostAt 코스트 치환(지붕 = 렌더 전용 제외)·visibleStructures 렌더(파괴·group 지붕 걷힘) — terrain.test.ts·boards.test.ts. 잔여 = 파괴 커맨드(actions.destroy, 3-4)",
   },
   {
     id: "movement.multi-tile-unit",
@@ -114,14 +114,14 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Warp and other staff/item movement", ko: "지팡이·아이템 이동(워프 등)" },
     status: "implemented",
     evidence:
-      "ワープ(UseType 5) 배선 완료(2026-08-17 MP1-5, staffWarp.test.ts — warp 액션·warp 이벤트 절대 재생·warpDestinations 엔진·UI 공용) · ★목적지 규칙 신규 디스어셈블(MapDeployTemplate.UnitWarp RVA 0x2C1F880): 반경 = ItemData.Distance(마력 의존 아님)·중심 = **워프되는 대상의 현재 좌표**·맨해튼·스킬 RangeTarget==Kind면 RangeAdd 가산(상한 255, ☠스냅숏 미탑재라 미배선) · 타일 유효 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 시 BmapSize<=1 && !Defect/Lockon) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17**) — 엔진은 비통행(코스트 255)·점유만 배선, ☠IsNotWarp 플래그는 BattleMap.terrain 스키마 결손으로 미배선(지형 스키마 확장과 동건) · ☠レスキュー(UseType 6)·リワープ(8)는 별도 경로(UnitRewarp 0x2C1FE40 계열) 미판독 — reduce가 정직 거부",
+      "ワープ(UseType 5) 배선 완료(2026-08-17 MP1-5, staffWarp.test.ts — warp 액션·warp 이벤트 절대 재생·warpDestinations 엔진·UI 공용) · ★목적지 규칙 신규 디스어셈블(MapDeployTemplate.UnitWarp RVA 0x2C1F880): 반경 = ItemData.Distance(마력 의존 아님)·중심 = **워프되는 대상의 현재 좌표**·맨해튼·스킬 RangeTarget==Kind면 RangeAdd 가산(상한 255, ☠스냅숏 미탑재라 미배선) · 타일 유효 = Unit.CanWarp(RVA 0x1A2A0E0) = 영역 내 && (타대상 시 BmapSize<=1 && !Defect/Lockon) && !IsNoMove && !terrain.IsNotWarp(**terrain Flag bit17**) — 엔진은 비통행(코스트 255)·점유만 배선, ★IsNotWarp(Flag bit17) 배선 완료(2026-08-18, MP3 3-1 — TerrainCell.notWarp, terrain.test.ts, bit16 NotTarget과 구분) · ☠レスキュー(UseType 6)·リワープ(8)는 별도 경로(UnitRewarp 0x2C1FE40 계열) 미판독 — reduce가 정직 거부",
   },
   {
     id: "movement.move-first",
     label: { en: "Departure-tile movement bonus (MoveFirst)", ko: "출발 칸 이동력 보정(MoveFirst)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·§3A 11행): 탐색 시작 전 이동력이 clamp(movePower + 베이스지형.MoveFirst + 오버레이.MoveFirst, 0, 100)로 한 번 보정된다(비행·용은 면제) · 재이동에도 같은 루틴이라 재적용된다 · 엔진 range.ts는 이 항이 없다 = 특정 지형 출발 시 이동 범위가 갈린다",
+      "★IL2CPP 코드 확정(il2cpp/MOVE_TERRAIN.md §2-10·§3A 11행): 탐색 시작 전 이동력 = clamp(movePower + 베이스지형.MoveFirst + 오버레이.MoveFirst, 0, 100), 비행·용 면제, 재이동 동일 루틴. ★배선(2026-08-18, MP3 3-1): 엔진 moveBudgetOn(예산≥1일 때만 보정)이 reduce·BoardIsland 공용 — terrain.test.ts 流砂·氷床·비행 면제 · 잔여 = 오버레이 층 MoveFirst(3-2에서 합산)",
   },
   {
     id: "movement.zoc",
@@ -209,9 +209,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.destroy",
     label: { en: "Destroy terrain/structures", ko: "파괴(구조물 부수기)" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3)",
+      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·EventEntryDestroy 발화 접점(이벤트 세션과 합류 시)",
   },
   {
     id: "actions.cannon",
@@ -465,7 +465,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Terrain avoid/defense bonuses", ko: "지형 회피·방어 보정" },
     status: "anchored",
     evidence:
-      "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유(gaps/N §4-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-11·DAMAGE.md §2-4): 지형 보정은 **베이스 지형(+0x40)과 오버레이 지형(+0x48) 2층을 각각 합산**한다(BattleDetail.CalcDefense RVA 0x1E746C0 / CalcAvoid RVA 0x1E74900) — 엔진은 BattleMap.terrain 단일값 1층뿐이라 설치물·기믹 오버레이가 얹히면 갈린다 · 진영 비대칭항은 별건(combat.terrain-asymmetric)",
+      "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유(gaps/N §4-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-11·DAMAGE.md §2-4): 지형 보정은 **베이스 지형(+0x40)과 오버레이 지형(+0x48) 2층을 각각 합산**한다(BattleDetail.CalcDefense RVA 0x1E746C0 / CalcAvoid RVA 0x1E74900) — ★2층 배선 완료(2026-08-18, MP3 3-2): BattleMap.overlays + terrainBonusAt 2층 순회 합산(대체 아님) — terrain.test.ts 森+瘴気 가산 · 진영 비대칭항은 별건(combat.terrain-asymmetric)",
   },
   {
     id: "combat.effectiveness-ignore",
@@ -477,9 +477,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.terrain-asymmetric",
     label: { en: "Force-asymmetric terrain modifiers", ko: "자군/적군 비대칭 지형 보정(瘴気 등)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-4·MOVE_TERRAIN.md §3): TerrainDefense = terrain.Defense + (force==Player ? PlayerDefense(+0x5E) : force==Enemy ? EnemyDefense(+0x5F) : 0), 회피도 동형이며 **우군(Ally) 이상은 가산 없음** — BattleDetail.CalcDefense(RVA 0x1E746C0, 분기 0x1E7470C~0x1E74764) · 오버레이 층도 같은 규칙으로 추가 합산 · ⇒ 데이터·식 모두 확보 = 스키마 확장만 하면 즉시 배선 가능",
+      "TID_瘴気 등 PlayerDefense/EnemyDefense 별도 보정 실재 — 파이프라인 4필드 추출 완료, BattleMap.terrain 단일값 스키마(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-4·MOVE_TERRAIN.md §3): TerrainDefense = terrain.Defense + (force==Player ? PlayerDefense(+0x5E) : force==Enemy ? EnemyDefense(+0x5F) : 0), 회피도 동형이며 **우군(Ally) 이상은 가산 없음** — BattleDetail.CalcDefense(RVA 0x1E746C0, 분기 0x1E7470C~0x1E74764) · 오버레이 층도 같은 규칙으로 추가 합산 · ★배선(2026-08-18, MP3 3-1): TerrainCell 비대칭 4필드 + terrainBonusAt 단일 정본(toCombatant·staffHitRate 소비) — terrain.test.ts 瘴気 자군 −20/적군 +20/우군 0 · 잔여 = 오버레이 층 합산(3-2)",
   },
   {
     id: "combat.support-bonus",
@@ -619,9 +619,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "units.move-enhance",
     label: { en: "Move stat bonuses (EnhanceValue.Move)", ko: "이동력 보정(EnhanceValue.Move)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "ENHANCE_FIELDS에 move 부재(gaps/G) · ★IL2CPP 코드로 수치·적용점 정정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-10·SKILL_ENGINE.md §4): 보유 스킬은 **6종이 아니라 19종**(迅走 +5~7·天駆 +2~4 등) · EnhanceValue는 9스탯이 아니라 **11슬롯 벡터**(CapabilityDefinition.Type Hp0…Sight9 **Move10** Num11)이고 Unit.GetCapability(RVA 0x1A2DD80 Move 케이스 0x1A2EB0C)·GetMovePowerImpl(RVA 0x1A5B690, 0x1A5B7FC mov w1,#0xa)이 EnhanceValue[10]을 **직업 Limit 클램프 뒤에** 가산한다(= Limit 초과 가능) 최종 Clamp(0,99) · ⇒ 엔진의 9슬롯 정적 보정층(skills.ts staticEnhances)이 Sight·Move를 통째로 흘린다",
+      "★IL2CPP 코드 정본(il2cpp/MOVE_TERRAIN.md §2-10·SKILL_ENGINE.md §4): 보유 스킬 19종(迅走 +5~7·天駆 +2~4 등) · GetMovePowerImpl(RVA 0x1A5B690)이 EnhanceValue[10]을 **직업 Limit 클램프 뒤에** 가산(= Limit 초과 가능) 최종 Clamp(0,99). ★배선 완료(2026-08-18, MP3 3-0): 엔진 moveBase(스냅숏 = Clamp(base,0,jobLimit+personLimit)) + movePower(유효 스킬 Enhance 런타임 가산·상한 99 — 인게이지 부여 스킬 반영)를 moveBudget이 소비 — battle.test.ts Limit 초과·상한 99 테스트 · 잔여 = Sight 슬롯은 여전히 미사영(시야 시스템 부재와 동건)",
   },
   {
     id: "units.difficulty-skills",
@@ -971,9 +971,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "turn.terrain-heal",
     label: { en: "Terrain heal/damage at turn start", ko: "지형 회복·피해(턴 시작)" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-8): 턴 시작에 서 있는 칸의 terrain.Heal로 회복(ProcTerrainHeal.GetHeal RVA 0x1E3BB40), 대칭으로 지형 피해도 존재(ProcTerrainDamage.GetDamage RVA 0x1E3B970) · **비행(IsFly 또는 MoveFly)은 전면 면제**(Flag.FlyEnable 타일 한정이나 그 Flag 보유 타일이 0건) · BmapSize 2 및 3 초과 유닛도 제외",
+      "요새·회복바닥 등 Heal 비영 타일 다수 — endPhase에 회복 로직 부재(gaps/D §3) · ★IL2CPP 식 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-8): 턴 시작에 서 있는 칸의 terrain.Heal로 회복(ProcTerrainHeal.GetHeal RVA 0x1E3BB40), 대칭으로 지형 피해도 존재(ProcTerrainDamage.GetDamage RVA 0x1E3B970) · **비행(IsFly 또는 MoveFly)은 전면 면제**(Flag.FlyEnable 타일 한정이나 그 Flag 보유 타일이 0건) · BmapSize 2 및 3 초과 유닛도 제외 · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §1·§2): 적용 = ProcTerrainDamage/Heal(0x1B6FB80) — 피해·회복 = 베이스+오버레이 Heal 합(합 0 = 스킵), canDie=false 상수라 **hp 하한 1(지형 사망 불가)**, 면제 = JobData.IsFly = Attrs bit3(☠moveType 아님 — 용 비면제)·BmapSize 2/>3 제외 · ★배선 완료(MP3 3-1): endPhase 자기 페이즈 시작 적용 + terrainHeal 이벤트 절대 재생 — terrain.test.ts 3건",
   },
   {
     id: "turn.chapter-hold-level",
@@ -992,7 +992,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Map gimmicks (spread, hazards, collapse)", ko: "맵 기믹(확산·위험타일·붕괴 등)" },
     status: "absent",
     evidence:
-      "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴(gaps/M §4) · 안개 기믹은 원문 0건 · ★IL2CPP 구조 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3): 기믹의 그릇 = **MapOverlap**(SingletonClass, MaxCount=128) — Data{X,Z,Index,Hp,Life,Turn,Phase}를 들고 GetMoveCost/GetFlyCost/GetTerrain로 이동·전투 양쪽에 합류한다 ⇒ 지형 2층 합산(combat.terrain-bonus)·오버레이 이동 코스트(movement.range-terrain-cost)·문장기 타일 소멸(emblem.crest-tile)이 전부 이 한 층의 소비처다 · 난수 스트림은 combat.rng-source의 Game 스트림 공유 여부가 여전히 미판정",
+      "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴(gaps/M §4) · 안개 기믹은 원문 0건 · ★IL2CPP 구조 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3): 기믹의 그릇 = **MapOverlap**(SingletonClass, MaxCount=128) — Data{X,Z,Index,Hp,Life,Turn,Phase}를 들고 GetMoveCost/GetFlyCost/GetTerrain로 이동·전투 양쪽에 합류한다 ⇒ 지형 2층 합산(combat.terrain-bonus)·오버레이 이동 코스트(movement.range-terrain-cost)·문장기 타일 소멸(emblem.crest-tile)이 전부 이 한 층의 소비처다 · 난수 스트림은 combat.rng-source의 Game 스트림 공유 여부가 여전히 미판정 · ★정적 층 배선(2026-08-18, MP3 3-2): m_Overlaps 초기 상태 = BattleMap.overlays(전투·코스트·MoveFirst·heal 가산 소비) — 런타임 생성(MapOverlapSet)·Life 수명은 여전히 미배선",
   },
   {
     id: "turn.victory-rout",

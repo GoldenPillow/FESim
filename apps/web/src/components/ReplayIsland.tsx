@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toAddress, type UnitState } from "@fesim/engine";
 import { parseEphemeris, type EphemerisFile } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
-import { boardsJsonPath, visibleObjects } from "../lib/boards";
+import { boardsJsonPath, visibleObjects, visibleStructures } from "../lib/boards";
 import type { BoardProps } from "../lib/fe17";
 import type { FocusLabels, Locale } from "../lib/i18n";
 import { createBoardStore, displayState, useBoard, type BoardStore } from "../lib/boardStore";
@@ -115,7 +115,7 @@ function LiveFrame({ board, file, store, unit, labels }: Loaded & { unit?: strin
 
   return (
     <ReplayFrame
-      board={{ ...board, objects: visibleObjects(board.objects, game.crests) }}
+      board={{ ...board, objects: visibleObjects(board.objects, game.crests), structures: visibleStructures(board.structures, game.structures) }}
       address={address}
       badge={badge}
       at={at}

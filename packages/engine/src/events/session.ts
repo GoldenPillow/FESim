@@ -1,6 +1,6 @@
 import { lua, lauxlib, lualib, to_luastring, to_jsstring, type LuaState } from "fengari-web";
 import type { BattleEvent, SkillRow, StatusGive } from "@fesim/shared";
-import type { GameState, UnitState, WinRule } from "../battle.js";
+import { makeCostAt, overlayAt, structureAt, type GameState, type StructureState, type UnitState, type WinRule } from "../battle.js";
 
 /**
  * 이벤트 세션 — 챕터 Lua 스크립트(정본 그대로, 파이프라인 가공본)를 fengari로 실행한다.
@@ -40,6 +40,7 @@ interface Draft {
   variables: Record<string, number | string>;
   winRule: WinRule;
   crests: { x: number; y: number }[] | undefined;
+  structures: StructureState[] | undefined;
   events: BattleEvent[];
   base: Readonly<GameState>;
   mind: Mind;
@@ -109,10 +110,41 @@ const PRESENTATION: Record<string, (() => number | boolean | string | null) | nu
   SkipPushStateAndDisable: null, SkipPopState: null, DebugCreateMenu: null, EffectCreate: null,
   EffectPlay: null, WhiteOut: null, VisitCameraGo: null, VisitCameraBack: null,
   EventActionObject: null, EventActionMoveObject: null, EventOpenObject: null, EventStateObject: null,
-  ObjectCreate: null, ObjectDelete: null, TerrainSetBegin: null, TerrainSet: null, TerrainSetEnd: null,
+  ObjectCreate: null, ObjectDelete: null, TerrainSetBegin: null, TerrainSetEnd: null,
   MenuCreate: null, MenuItemCreate: null, MenuItemSetMid: null, MenuItemSetFunc: null,
   MenuItemSetSelectFunc: null, MenuItemSetCondition: null, MenuAddLabel: null, MenuShow: null,
-  MenuCancelJump: null, GodUnitCreate: null, GodUnitSetEscape: null,
+  MenuCancelJump: null, GodUnitSetEscape: null,
+  // 사운드(ScriptSound)·안내 대사(ScriptSystem) — 표시 계층.
+  PlayFieldBgm: null, PauseFieldBgm: null, ResumeFieldBgm: null, SetFieldPhaseBgm: null, Dialog: null,
+  // 이펙트·오브젝트 연출(ScriptMap) — EffectCreate/Play와 짝. EventBrokenObject는 MapEnding 파괴 연출.
+  EffectDelete: null, EventBrokenObject: null,
+  // 범위 하이라이트 표시(MapRange*) — 경고 연출용 격자, 통행·판정 무관.
+  MapRangeAddBegin: null, MapRangeAdd: null, MapRangeAddEnd: null, MapRangeClear: null,
+  // 시간수정(되감기) 허용 토글 — 시뮬의 되감기 정본은 기보라 국면에 남길 것이 없다.
+  MapHistoryRewindEnable: null, MapHistoryRewindDisable: null, MapHistoryRewindReset: null,
+  // 맵 밖 엠블렘 장비 보관(회상 맵 진입·복귀 전용) — 챕터 국면 밖의 세이브 계층.
+  GodSaveEquip: null, GodLoadEquip: null,
+  // 오버레이 일괄 배치 트랜잭션 경계 — TerrainSetBegin/End와 동형(내용은 MapOverlapSet이 소유).
+  MapOverlapSetBegin: null, MapOverlapSetEnd: null,
+  // 맵 데미지 일괄 처리 경계 — 내용은 MapDamageAdd가 소유.
+  MapDamageBegin: null, MapDamageEnd: null,
+  // 표시·사운드·머티리얼(ScriptGame·ScriptSound·ScriptSystem·ScriptMap 연출군).
+  PlayChapterTitle: null, SetFieldBgmWarSituation: null, BackgroundColorSet: null, Warning: null,
+  MessSetArgument: null, MessLoad: null, MessFree: null, Telop: null, CutScene: null,
+  MapMaterialSetFloat: null, MapMaterialSetColor: null, CursorSetDistanceScale: null, CursorSetVisible: null,
+  // 설정 토글(전투·지원 애니) — 시뮬은 전투 씬을 그리지 않는다. Get은 아래 술어에서 OFF를 돌린다.
+  ConfigSetBattleScene: null, ConfigSetSupportScene: null,
+  // 유닛 연출(ScriptUnit) — 실좌표는 UnitSetPos가 소유한다(s013 워프 = WarpOut → SetPos → WarpIn 실측).
+  UnitShine: null, UnitPlayAnim: null, UnitWarpIn: null, UnitWarpOut: null, UnitUpdate: null,
+  // g003 유일 사용처가 좌표 -1(제자리 점프) — 좌표를 옮기는 호출이 아니다.
+  UnitJumpPos: null, UnitSyncSkyCastle: null,
+  // 엠블렘 연출·소환 컷신 — 결합 상태는 UnitSetGodUnit·UnitSetEngaging이 소유.
+  GodUnitSetDarkness: null, EventEngageSummon: null,
+  // 되감기(시간수정) 기록 계층 — 시뮬 되감기 정본은 기보.
+  MapHistoryMindDone: null, MapHistoryEngageBreak: null,
+  MapHistoryPositionListBegin: null, MapHistoryPositionList: null, MapHistoryPositionListEnd: null,
+  // 지지 A+ 허용 — 맵 밖(거점) 계층.
+  UnitReliancePermitAPlus: null,
   // 폴링 술어 — 값이 루프 탈출을 소유한다.
   SkipIsBlackOut: () => false, IsFading: () => false, IsLoading: () => false,
   EffectIsPlaying: () => false, UnitIsAction: () => false, MapCameraIsScroll: () => false,
@@ -120,6 +152,11 @@ const PRESENTATION: Record<string, (() => number | boolean | string | null) | nu
   MessIsExist: () => false, DebugIsButton: () => false, DebugIsTrigger: () => false,
   TimeGetDelta: () => 1000, CursorGetX: () => 0, CursorGetZ: () => 0, CursorGetDistanceMode: () => 0,
   MenuGetResult: () => 0, MapGetHeight: () => 0, MapGetPosition: () => 0, UnitGetMoveCost: () => 1,
+  // 회상(외전 회상 맵) 여부 — 파이프라인은 본편 챕터만 변환한다(회상 맵 데이터 부재).
+  MapIsRecollection: () => false,
+  EventIsPlayingSkyCastle: () => false,
+  // 전투·지원 애니 설정 = CONFIG_ANIM_OFF(0) — 시뮬은 전투 씬이 없다(common.lua 상수).
+  ConfigGetBattleScene: () => 0, ConfigGetSupportScene: () => 0,
 };
 
 const REG = () => lua.LUA_REGISTRYINDEX;
@@ -156,6 +193,14 @@ export function createEventSession(opts: {
   let A: LuaState = L;
 
   const inspectors: Inspector[] = [];
+  /** 생성된 GodUnit(엠블렘 실체) — GodUnitCreate/Delete가 소유, GodUnitExists가 읽는다. */
+  const gods = new Set<string>();
+  /**
+   * 런타임 지형 교체(TerrainSet·TerrainSetOne) — "x,y" → TID.
+   * ⚠**Lua 가시성만** 정합시킨다: TerrainGet이 자기가 쓴 값을 되읽게 한다. 지형 **효과**(코스트·회피·
+   * 방어)는 미반영이다(장부 turn.map-gimmicks — TID → TerrainCell 해석 훅과 보드 팔레트 확장이 선행).
+   */
+  const terrainOverride = new Map<string, string>();
   const unknown = new Map<string, number>();
   const loaded = new Set<string>();
   let ctx: Draft | undefined;
@@ -336,20 +381,32 @@ export function createEventSession(opts: {
     }
     return 0;
   });
+  /**
+   * UNIT_STATUS_* 비트(common.lua 96~104) — ☠상태이상(badState)이 아니다. 전 호출부가 UNIT_STATUS_*
+   * 상수를 넘긴다(전 챕터 전수 확인). ENGAGING(0x800000)만 국면(engage.engaging)에서 파생한다.
+   */
+  const UNIT_STATUS_ENGAGING = 0x800000;
+  const flagsOf = (u: UnitState): number =>
+    (u.flags ?? 0) | (u.engage?.engaging === true ? UNIT_STATUS_ENGAGING : 0);
+  const setFlags = (u: UnitState, next: number): void => {
+    if (next === 0) delete u.flags;
+    else u.flags = next;
+    emit({ type: "unitFlags", unit: u.id, flags: next });
+  };
+  register("UnitSetStatus", () => {
+    const u = unitAt(1);
+    if (u !== undefined) setFlags(u, (u.flags ?? 0) | lua.lua_tointeger(A, 2));
+    return 0;
+  });
   register("UnitClearStatus", () => {
     const u = unitAt(1);
-    const bit = lua.lua_tointeger(A, 2);
-    if (u !== undefined && u.statuses !== undefined) {
-      u.statuses = u.statuses.filter((s) => (s.badState & bit) === 0);
-      if (u.statuses.length === 0) delete u.statuses;
-      emit({ type: "statusClear", unit: u.id, badState: bit });
-    }
+    if (u !== undefined) setFlags(u, (u.flags ?? 0) & ~lua.lua_tointeger(A, 2));
     return 0;
   });
   register("UnitIsStatus", () => {
     const u = unitAt(1);
     const bit = lua.lua_tointeger(A, 2);
-    lua.lua_pushboolean(A, u?.statuses?.some((s) => (s.badState & bit) !== 0) === true);
+    lua.lua_pushboolean(A, u !== undefined && (flagsOf(u) & bit) !== 0);
     return 1;
   });
   register("UnitSetPrivateSkill", () => {
@@ -426,6 +483,25 @@ export function createEventSession(opts: {
     }
     return 0;
   });
+  register("EventOpenDoor", () => {
+    // 문 개방 = 구조물 소멸(통행 개방·같은 group 지붕 걷힘) — 파괴 타격과 같은 국면 변이라 destroy로 사영한다.
+    const d = draft();
+    const x = lua.lua_tointeger(A, 1);
+    const y = lua.lua_tointeger(A, 2);
+    const idx = (d.structures ?? []).findIndex(
+      (s) => !s.roof && s.hp > 0 && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
+    );
+    if (idx < 0) {
+      unknown.set(`EventOpenDoor:${x},${y}`, (unknown.get(`EventOpenDoor:${x},${y}`) ?? 0) + 1);
+      return 0;
+    }
+    const target = d.structures![idx];
+    target.hp = 0;
+    const opener = d.mind.unit === undefined ? undefined : d.units[d.mind.unit];
+    emit({ type: "destroy", unit: opener?.id ?? "", structure: idx, tid: target.tid, hpAfter: 0 });
+    return 0;
+  });
+
   register("MapOverlapSetOne", () => {
     const d = draft();
     const x = lua.lua_tointeger(A, 1);
@@ -489,7 +565,10 @@ export function createEventSession(opts: {
   register("LoseRuleSetMID", () => 0);
 
   // ---- AI 재설정(기록만 — 소비 = MP4) ----
-  for (const name of ["AiSetSequence", "AiSetActive", "AiSetRejectPower0Attack", "AiClearMoveLimit"]) {
+  for (const name of [
+    "AiSetSequence", "AiSetActive", "AiSetRejectPower0Attack", "AiClearMoveLimit",
+    "AiSetPriority", "AiSetBandNo", "AiSetRerewarp",
+  ]) {
     register(name, () => {
       const u = unitAt(1);
       if (u !== undefined) {
@@ -604,6 +683,147 @@ export function createEventSession(opts: {
     lua.lua_pushinteger(A, u?.weapon?.rangeMax ?? 0);
     return 1;
   });
+  /**
+   * 타일 질의 공통 — 맵 밖은 nil(원기도 MapCell 부재), 맵 안인데 데이터가 없으면 정직 오류.
+   * ☠nil 강하 금지: 스크립트가 == "TID_..." 비교로 분기하므로 미배선 nil은 분기를 조용히 뒤집는다.
+   */
+  const tileField = (name: string, pick: (map: GameState["map"], x: number, y: number) => string | undefined) =>
+    register(name, () => {
+      const d = draft();
+      const x = lua.lua_tointeger(A, 1);
+      const y = lua.lua_tointeger(A, 2);
+      if (x < 0 || y < 0 || x >= d.base.map.width || y >= d.base.map.height) {
+        lua.lua_pushnil(A);
+        return 1;
+      }
+      const v = pick(d.base.map, x, y);
+      // ☠Lua 오류로 올린다(JS throw는 코루틴 경계에서 메시지가 소실된다) — 원인이 보여야 정직 강하다.
+      if (v === undefined) return lauxlib.luaL_error(A, to_luastring(`${name}: 타일 데이터 미배선 (${x}, ${y})`));
+      lua.lua_pushstring(A, to_luastring(v));
+      return 1;
+    });
+  // 파괴 시 ChangeTid로 지형이 교체되는 원기 사상(MOVE_TERRAIN §2-13) → 살아있는 구조물 TID가 베이스를 덮는다.
+  tileField("TerrainGet", (map, x, y) =>
+    terrainOverride.get(`${x},${y}`) ?? structureAt(draft().structures, x, y)?.tid ?? map.terrain?.[y]?.[x]?.tid);
+  for (const name of ["TerrainSet", "TerrainSetOne"]) {
+    register(name, () => {
+      terrainOverride.set(`${lua.lua_tointeger(A, 1)},${lua.lua_tointeger(A, 2)}`, str(3));
+      return 0;
+    });
+  }
+  tileField("TerrainGetMoveCost", (map, x, y) => map.terrain?.[y]?.[x]?.costName);
+  register("MapOverlapGet", () => {
+    // 오버레이는 없는 칸이 정상(nil) — 있는데 TID가 없을 때만 미배선으로 거부한다.
+    const d = draft();
+    const spot = overlayAt(d.base.map, lua.lua_tointeger(A, 1), lua.lua_tointeger(A, 2));
+    if (spot === undefined) lua.lua_pushnil(A);
+    else if (spot.tid === undefined) return lauxlib.luaL_error(A, to_luastring("MapOverlapGet: 오버레이 TID 미배선"));
+    else lua.lua_pushstring(A, to_luastring(spot.tid));
+    return 1;
+  });
+  register("UnitGetByPID", () => {
+    const d = draft();
+    const pid = str(1);
+    const idx = d.units.findIndex((u) => !u.dead && u.pid === pid);
+    if (idx < 0) lua.lua_pushnil(A);
+    else lua.lua_pushinteger(A, idx + 1);
+    return 1;
+  });
+  register("UnitGetHp", () => {
+    const u = unitAt(1);
+    if (u === undefined) lua.lua_pushnil(A);
+    else lua.lua_pushinteger(A, u.hp);
+    return 1;
+  });
+  register("UnitGetLevel", () => {
+    const u = unitAt(1);
+    if (u === undefined) lua.lua_pushnil(A);
+    else lua.lua_pushinteger(A, u.level);
+    return 1;
+  });
+  register("UnitGetEngageCount", () => {
+    const u = unitAt(1);
+    if (u?.engage === undefined) lua.lua_pushnil(A);
+    else lua.lua_pushinteger(A, u.engage.count);
+    return 1;
+  });
+  register("UnitGetEngaging", () => {
+    lua.lua_pushboolean(A, unitAt(1)?.engage?.engaging === true);
+    return 1;
+  });
+  register("UnitHasWholeSkill", () => {
+    // Whole = 개인·싱크로·부여를 합친 보유 판정 — 국면이 아는 세 출처를 모두 본다.
+    const u = unitAt(1);
+    const sid = str(2);
+    const has = [...(u?.skills ?? []), ...(u?.engagedSkills ?? [])].some((r) => r.Sid === sid)
+      || u?.statuses?.some((st) => st.sid === sid) === true;
+    lua.lua_pushboolean(A, has);
+    return 1;
+  });
+  register("UnitCanEnter", () => {
+    const d = draft();
+    const u = unitAt(1);
+    const x = lua.lua_tointeger(A, 2);
+    const y = lua.lua_tointeger(A, 3);
+    const inMap = x >= 0 && y >= 0 && x < d.base.map.width && y < d.base.map.height;
+    const cost = u === undefined || !inMap ? 255 : makeCostAt(d.base.map, d.structures, u.moveType)(x, y);
+    lua.lua_pushboolean(A, cost < 255);
+    return 1;
+  });
+  /** CAPABILITY_* (common.lua 33~43) → 스탯 슬롯. ⚠3번째 인자(보정 포함 플래그)는 미분해 — 기본 스탯을 돌린다. */
+  const CAPABILITY: (keyof UnitState["stats"] | "move")[] =
+    ["hp", "str", "dex", "spd", "lck", "def", "mag", "res", "bld", "bld", "move"];
+  register("UnitGetCapability", () => {
+    const u = unitAt(1);
+    const key = CAPABILITY[lua.lua_tointeger(A, 2)];
+    if (u === undefined || key === undefined) lua.lua_pushnil(A);
+    else lua.lua_pushinteger(A, key === "move" ? u.movePoints : u.stats[key]);
+    return 1;
+  });
+  register("GodUnitExists", () => {
+    lua.lua_pushboolean(A, gods.has(str(1)));
+    return 1;
+  });
+  for (const name of ["GodUnitCreate", "GodUnitDelete"]) {
+    register(name, () => {
+      // 엠블렘 실체 풀 — GodUnitExists가 읽는 유일한 상태(연출은 없다). 세션 재실행으로 재구축된다.
+      const gid = str(1);
+      if (name === "GodUnitCreate") gods.add(gid);
+      else gods.delete(gid);
+      return 0;
+    });
+  }
+  register("StringContains", () => {
+    lua.lua_pushboolean(A, str(1).includes(str(2)));
+    return 1;
+  });
+  register("SubPrefix", () => {
+    // "GID_アイク" → "アイク" — 접두(XXX_) 제거. MID 조립·이펙트 이름 결합이 소비한다.
+    const v = str(1);
+    const i = v.indexOf("_");
+    lua.lua_pushstring(A, to_luastring(i < 0 ? v : v.slice(i + 1)));
+    return 1;
+  });
+  register("UnitTranslation", () => {
+    // 좌표 평행이동 연출 — 시뮬 사상은 SetPos와 동일(e006 보스 돌진이 실제로 자리를 옮긴다).
+    const u = unitAt(1);
+    if (u !== undefined) {
+      u.x = lua.lua_tointeger(A, 2);
+      u.y = lua.lua_tointeger(A, 3);
+      emit({ type: "setPos", unit: u.id, x: u.x, y: u.y });
+    }
+    return 0;
+  });
+  register("UnitDieWithoutEvent", () => {
+    // UnitDie와 같은 국면 변이 — Die 발화 연쇄는 어차피 리듀서(base events)가 소유한다.
+    const u = unitAt(1);
+    if (u !== undefined && !u.dead) {
+      u.hp = 0;
+      u.dead = true;
+      emit({ type: "death", unit: u.id });
+    }
+    return 0;
+  });
   register("PersonGetIndex", () => {
     lua.lua_pushinteger(A, host.personIndex?.(str(1)) ?? 0);
     return 1;
@@ -654,6 +874,7 @@ export function createEventSession(opts: {
     // 최상위에 Include·전역 대입이 있으므로 로딩도 훅 문맥이 필요할 수 있다 — 휘발 드래프트로 감싼다.
     const boot: Draft = {
       units: [], variables: {}, winRule: {}, crests: undefined, events: [],
+      structures: undefined,
       base: { turn: 0, phase: 0, map: { width: 0, height: 0, costs: {} }, units: [], events: [] },
       mind: {},
     };
@@ -727,6 +948,7 @@ export function createEventSession(opts: {
     variables: { ...state.variables },
     winRule: { ...state.winRule },
     crests: state.crests === undefined ? undefined : [...state.crests],
+    structures: state.structures === undefined ? undefined : state.structures.map((v) => ({ ...v })),
     events: [],
     base: state,
     mind,
@@ -739,6 +961,7 @@ export function createEventSession(opts: {
       variables: d.variables,
       winRule: d.winRule,
       ...(d.crests === undefined ? {} : { crests: d.crests }),
+      ...(d.structures === undefined ? {} : { structures: d.structures }),
       events: d.events,
     };
     return { state, events: d.events };

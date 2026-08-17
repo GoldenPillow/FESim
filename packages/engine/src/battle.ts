@@ -46,6 +46,8 @@ export interface UnitState {
   boss?: boolean;
   /** 이벤트의 AI 재설정 기록(AiSetSequence류 원문 인자 누적) — 소비 = MP4 AI 실행기. */
   aiScript?: (string | number | boolean)[][];
+  /** UNIT_STATUS_* 비트(common.lua 96~104) — 이벤트가 세우고 지운다. 소비 = MP4(이동 금지·출격 로스터). */
+  flags?: number;
   force: number;
   x: number;
   y: number;
@@ -109,6 +111,11 @@ export interface UnitState {
    * 소비 비트만 사영한다. 지속 = 페이즈 종료마다 age+1, life×3 도달 시 소멸(life 0 = 무제한).
    */
   statuses?: StatusEffect[];
+  /**
+   * 직업 Attrs bit3(Fly) — 지형 회복·피해 전면 면제 판정(JobData.IsFly 0x2055D30, MP3_READINGS §2).
+   * ☠moveType으로 갈음 금지 — 용(邪竜류, MoveType 4)은 Fly 비트가 없어 면제 대상이 아니다.
+   */
+  flying?: boolean;
 }
 
 /** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
@@ -140,15 +147,43 @@ export function effectiveWeapons(u: UnitState): BattleWeapon[] | undefined {
 
 /**
  * 재이동(시구르드 싱크로) 이동 칸수 — 행동 후에만 유효, 없으면 undefined.
- * 거리 정본 = skills.json Power(재이동=2·재이동+=3, 공식 도움말 실측 일치). 지형 코스트 적용은 가정(실기 반증 시 갱신).
+ * 거리 정본 = skills.json Removable(再移動力) — Unit.GetMovePowerImpl(0x1A5B690)이 보유 스킬을
+ * 순회해 max(Removable)를 취한다(SID 접두 매칭 아님). ☠Power(強さ)는 별개 필드 — 값 2·3이 우연히
+ * 일치해 오독됐던 자리(MOVE_TERRAIN.md FIX-4). 재이동은 이동력 대체일 뿐 경로 규칙(지형 코스트) 동일.
  */
 export function canterPower(u: UnitState): number | undefined {
   let best: number | undefined;
   for (const s of effectiveSkills(u) ?? []) {
-    if (!s.Sid.startsWith("SID_再移動")) continue;
-    if (typeof s.Power === "number" && (best === undefined || s.Power > best)) best = s.Power;
+    if (typeof s.Removable === "number" && s.Removable > 0 && (best === undefined || s.Removable > best)) {
+      best = s.Removable;
+    }
   }
   return best;
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+/**
+ * 이동력 스냅숏(베이스 단계) = Clamp(base, 0, Clamp(jobLimit+personLimit, 0, 255)).
+ * ★Enhance(EnhanceValue.Move)는 이 클램프 '뒤'에 movePower가 가산한다 — Limit 초과 가능
+ * (GetMovePowerImpl 0x1A5B690 순서). 파이프라인/웹의 movePoints 산출이 이 함수를 소비한다.
+ */
+export function moveBase(base: number, jobLimit: number, personLimit: number): number {
+  return clamp(base, 0, clamp(jobLimit + personLimit, 0, 255));
+}
+
+/**
+ * 유효 이동력 = Clamp(movePoints + Σ EnhanceValue.Move(유효 스킬), 0, 99).
+ * 인게이지 부여 스킬(迅走 등 19종)이 effectiveSkills 경유로 실시간 반영된다.
+ * NotMove/Freeze 0 처리는 moveBudget이 소유(상태 게이트 단일 지점).
+ */
+export function movePower(u: UnitState): number {
+  let enhance = 0;
+  for (const s of effectiveSkills(u) ?? []) {
+    const v = s["EnhanceValue.Move"];
+    if (typeof v === "number") enhance += v;
+  }
+  return clamp(clamp(u.movePoints + enhance, 0, 255), 0, 99);
 }
 
 /**
@@ -159,16 +194,211 @@ export function canterPower(u: UnitState): number | undefined {
 export function moveBudget(u: UnitState): number | undefined {
   // 이동불가(フリーズ)·기절(コラプス) 상태는 이동 예산 0 — 재이동도 막힌다(SID_移動不可 명칭 그대로).
   if (hasBadState(u, BAD_STATE.freeze | BAD_STATE.stun)) return u.acted ? undefined : 0;
-  if (!u.acted) return u.moved === true ? 0 : u.movePoints;
+  if (!u.acted) return u.moved === true ? 0 : movePower(u);
   if (u.moved === true) return undefined;
   return canterPower(u);
+}
+
+/**
+ * 지형 셀 소비 스키마 — terrain.json 행의 전투·이동 소비분(0/false는 생략 가능).
+ * 비대칭 항(Player·Enemy 계열)은 우군(2+)에 가산되지 않는다(CalcDefense/CalcAvoid 0x1E746C0/0x1E74900).
+ */
+export interface TerrainCell {
+  /** 지형 TID(terrain.xml Tid) — 이벤트 질의(TerrainGet) 정본. 부재 = 미배선(질의 시 정직 오류). */
+  tid?: string;
+  /** 코스트 종별(terrain.xml CostName, 예 COST_空 = 비행 전용) — TerrainGetMoveCost 사영. */
+  costName?: string;
+  avoid: number;
+  def: number;
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  /** 자기 페이즈 시작 회복(+)/피해(−) — terrain.json Heal. 비행 면제(FIX-10). */
+  heal?: number;
+  /** 출발 칸 이동력 보정 — terrain.json MoveFirst(流砂 −3·氷床 +2). 비행·용 면제. */
+  moveFirst?: number;
+  /** 워프 착지 금지 — terrain.json Flag bit17(NotTarget bit16과 별개). */
+  notWarp?: boolean;
+}
+
+/**
+ * 1칸 지속 오버레이(m_Overlaps 사영) — 밑의 베이스 지형에 **가산**된다(대체 아님, FIX-2).
+ * moveCost/flyCost = terrain.json MoveCost/FlyCost(이동 코스트 가산분 — 오버레이 자체 地形コスト는 미사용).
+ */
+export interface OverlaySpot {
+  x: number;
+  y: number;
+  /** 오버레이 TID — 이벤트 질의(MapOverlapGet)가 문자열 비교로 소비한다. */
+  tid?: string;
+  cell: TerrainCell;
+  moveCost?: number;
+  flyCost?: number;
+}
+
+/**
+ * 구조물 상태(m_Layers 사영) — 살아있으면(hp>0) 자기 TID 코스트가 베이스를 치환한다(통행 특례 없음, §2-13).
+ * roof(TID_屋根)는 렌더 전용 — 통행·전투에 관여하지 않고 같은 group의 문 개방 시 걷힌다.
+ */
+export interface StructureState {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tid: string;
+  group: number;
+  /** Hp_{난이도} 초기값 — 0 이하 = 파괴됨(통행 개방). 파괴 불가 구조물은 큰 값 유지. */
+  hp: number;
+  roof?: boolean;
+  /** 구조물 TID의 이동 코스트(치환용) — 부재 시 베이스 코스트 유지. */
+  costs?: Partial<Record<MoveType, number>>;
+  /** terrain.json Destroyer — 0 양군 · 1 자군만 · 2 적군만(BreakdownMenuItem GetForce 판독). */
+  destroyer?: number;
+  name?: string;
 }
 
 export interface BattleMap {
   width: number;
   height: number;
   costs: Partial<Record<MoveType, number[][]>>;
-  terrain?: { avoid: number; def: number }[][];
+  terrain?: TerrainCell[][];
+  /** 지속 오버레이 초기 상태(정적) — 런타임 MapOverlapSet 생성은 이월(장부 turn.map-gimmicks). */
+  overlays?: OverlaySpot[];
+  /**
+   * 진영 동맹표 — force 인덱스 → 진영 번호(MapSituation.IsAllide 0x1F48EC0 사영).
+   * 기본 [0,1,0]: 자군(0)↔우군(2) 같은 진영 = 상호 통과 가능, 적(1)은 양쪽과 차단.
+   */
+  alliance?: number[];
+}
+
+/** 해당 칸의 오버레이 — 데이터상 칸당 최대 1(OverlapTerrain 슬롯 단수). */
+export function overlayAt(map: BattleMap, x: number, y: number): OverlaySpot | undefined {
+  return map.overlays?.find((o) => o.x === x && o.y === y);
+}
+
+/** 해당 칸을 덮는 살아있는 비지붕 구조물 — 통행·파괴 판정용(지붕은 렌더 전용이라 제외). */
+export function structureAt(
+  structures: readonly StructureState[] | undefined,
+  x: number,
+  y: number,
+): StructureState | undefined {
+  return structures?.find(
+    (s) => !s.roof && s.hp > 0 && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
+  );
+}
+
+/**
+ * 파괴 가능 인접 대상 열거 — (x, y)에 선 force 유닛이 부술 수 있는 구조물의 인접 칸.
+ * UI 버튼과 reduce 합법성이 이것 하나를 소비한다(☠중복 구현 금지 — C4).
+ * Destroyer 필터 = 0 양군 · 1 자군만 · 2 적군만 · 지붕·파괴 불가(hp 0)는 대상 아님.
+ */
+export function destroyTargets(
+  structures: readonly StructureState[] | undefined,
+  x: number,
+  y: number,
+  force: number,
+): { x: number; y: number; structure: number }[] {
+  const out: { x: number; y: number; structure: number }[] = [];
+  (structures ?? []).forEach((s, i) => {
+    if (s.roof === true || s.hp <= 0) return;
+    if (s.destroyer === 1 && force !== 0) return;
+    if (s.destroyer === 2 && force !== 1) return;
+    const gapX = Math.max(s.x - x, 0, x - (s.x + s.w - 1));
+    const gapY = Math.max(s.y - y, 0, y - (s.y + s.h - 1));
+    if (gapX + gapY !== 1) return;
+    out.push({
+      x: Math.min(Math.max(x, s.x), s.x + s.w - 1),
+      y: Math.min(Math.max(y, s.y), s.y + s.h - 1),
+      structure: i,
+    });
+  });
+  return out;
+}
+
+/**
+ * 합성 이동 코스트 — (구조물 TID 코스트 ?? 베이스) + 오버레이 가산(비행·용 = FlyCost·그 외 = MoveCost),
+ * 255 클램프. reduce·UI가 이 함수만 소비한다(☠중복 구현 금지). MOVE_TERRAIN.md FIX-7·§2-13.
+ */
+export function makeCostAt(
+  map: BattleMap,
+  structures: readonly StructureState[] | undefined,
+  moveType: MoveType,
+): (x: number, y: number) => number {
+  const grid = map.costs[moveType];
+  const flying = moveType === "fly" || moveType === "dragon";
+  return (x, y) => {
+    const s = structureAt(structures, x, y);
+    const base = s?.costs?.[moveType] ?? grid?.[y]?.[x] ?? 255;
+    const o = overlayAt(map, x, y);
+    const add = o === undefined ? 0 : (flying ? o.flyCost ?? 0 : o.moveCost ?? 0);
+    return Math.min(base + add, 255);
+  };
+}
+
+/**
+ * 지형 전투 보정 — 진영 비대칭 합산의 단일 정본(예보·전투·지팡이 명중이 전부 이것만 소비).
+ * force 0 → +Player항 · 1 → +Enemy항 · 2 이상 → 무가산 (CalcDefense/CalcAvoid 동형).
+ */
+export function terrainBonusAt(map: BattleMap, x: number, y: number, force: number): { avoid: number; def: number } {
+  let avoid = 0;
+  let def = 0;
+  // 2층 순회(베이스 + 오버레이) — CalcDefense가 Terrain(0x40)·OverlapTerrain(0x48) 슬롯을 각각 더한다(FIX-2).
+  for (const t of [map.terrain?.[y]?.[x], overlayAt(map, x, y)?.cell]) {
+    if (t === undefined) continue;
+    const side = force === 0
+      ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
+      : force === 1
+        ? { avoid: t.enemyAvoid ?? 0, def: t.enemyDef ?? 0 }
+        : { avoid: 0, def: 0 };
+    avoid += t.avoid + side.avoid;
+    def += t.def + side.def;
+  }
+  return { avoid, def };
+}
+
+/**
+ * 출발 칸 MoveFirst를 반영한 실이동 예산 — reduce·UI 공용(☠중복 구현 금지).
+ * 정본 = GetMovePowerImpl 경로: 예산 ≥ 1일 때만 clamp(예산 + moveFirst, 0, 100), 비행·용 면제.
+ * 재이동도 동일 루틴이라 자동 적용된다(MOVE_TERRAIN.md FIX-6).
+ */
+export function moveBudgetOn(map: BattleMap, u: UnitState): number | undefined {
+  const budget = moveBudget(u);
+  if (budget === undefined || budget < 1) return budget;
+  if (u.moveType === "fly" || u.moveType === "dragon") return budget;
+  const first =
+    (map.terrain?.[u.y]?.[u.x]?.moveFirst ?? 0) + (overlayAt(map, u.x, u.y)?.cell.moveFirst ?? 0);
+  return clamp(budget + first, 0, 100);
+}
+
+const DEFAULT_ALLIANCE = [0, 1, 0] as const;
+
+/** force → 진영 번호. 표에 없는 force는 자기 자신(독립 진영)으로 본다. */
+export function allianceOf(map: BattleMap, force: number): number {
+  return map.alliance?.[force] ?? DEFAULT_ALLIANCE[force] ?? force;
+}
+
+/**
+ * 이동 통과·정지 술어 — reduce와 UI(BoardIsland)가 공용하는 단일 정본(☠중복 구현 금지 — C4 표류 방지).
+ * blocked = 비동맹 유닛 칸(진입 불가) · occupied = 동맹 유닛 칸(통과 가능·정지 불가).
+ */
+export function movePredicates(
+  map: BattleMap,
+  units: readonly UnitState[],
+  u: UnitState,
+): { blocked: (x: number, y: number) => boolean; occupied: (x: number, y: number) => boolean } {
+  const mine = allianceOf(map, u.force);
+  const byTile = new Map<number, UnitState>();
+  for (const v of units) if (!v.dead) byTile.set(v.y * map.width + v.x, v);
+  return {
+    blocked: (x, y) => {
+      const o = byTile.get(y * map.width + x);
+      return o !== undefined && allianceOf(map, o.force) !== mine;
+    },
+    occupied: (x, y) => {
+      const o = byTile.get(y * map.width + x);
+      return o !== undefined && o.id !== u.id && allianceOf(map, o.force) === mine;
+    },
+  };
 }
 
 export type { BattleAction, BattleEvent, Difficulty, StrikeKind } from "@fesim/shared";
@@ -199,6 +429,8 @@ export interface GameState {
   winRule?: WinRule;
   /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
   crests?: { x: number; y: number }[];
+  /** 구조물 상태(m_Layers 사영) — hp = Hp_{난이도} 초기값, 파괴 = hp 0(통행 개방·지붕 걷힘). */
+  structures?: StructureState[];
   outcome?: "victory" | "defeat";
   /** 직전 행동의 이벤트(휘발) — 리플레이 정본은 행동 로그다. */
   events: BattleEvent[];
@@ -319,10 +551,9 @@ export function staffHitRate(
     stats: { ...caster.stats, maxHp: caster.stats.hp, hp: caster.hp },
     weapon: { might: 0, hit: staff.hit ?? 0, crit: 0, weight: 0 },
   });
-  const tile = map.terrain?.[target.y]?.[target.x];
   const targetEnv = combatEnv({
     stats: { ...target.stats, maxHp: target.stats.hp, hp: target.hp },
-    terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
+    terrain: terrainBonusAt(map, target.x, target.y, target.force),
   });
   const hit = clamp(calc.eval("妨害杖命中値計算", casterEnv) as number, 0, 999);
   const avoid = clamp(calc.eval("妨害杖回避値計算", targetEnv) as number, 0, 999);
@@ -332,23 +563,25 @@ export function staffHitRate(
 /**
  * 워프 목적지 열거 — UI 오버레이와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
  * 정본 = MapDeployTemplate.UnitWarp(0x2C1F880) 디스어셈블: 중심 = **워프되는 대상의 현재 좌표**,
- * 반경 = ItemData.Distance(마력 의존 아님), 맨해튼, 유효 = Unit.CanWarp(비통행 제외·점유 제외).
- * ☠지형 IsNotWarp(Flag bit17)·스킬 RangeAdd 확장은 스키마 결손으로 미배선(장부 movement.warp).
+ * 반경 = ItemData.Distance(마력 의존 아님), 맨해튼, 유효 = Unit.CanWarp(비통행·점유·NotWarp 타일 제외).
+ * ☠스킬 RangeAdd 확장은 미배선(장부 movement.warp).
  */
 export function warpDestinations(
   target: UnitState,
   staff: StaffItem,
   map: BattleMap,
   units: readonly UnitState[],
+  structures?: readonly StructureState[],
 ): { x: number; y: number }[] {
   const radius = staff.distance ?? 0;
-  const grid = map.costs[target.moveType];
   const out: { x: number; y: number }[] = [];
-  if (grid === undefined) return out;
+  if (map.costs[target.moveType] === undefined) return out;
+  const costAt = makeCostAt(map, structures, target.moveType);
   for (let y = Math.max(target.y - radius, 0); y <= Math.min(target.y + radius, map.height - 1); y++) {
     for (let x = Math.max(target.x - radius, 0); x <= Math.min(target.x + radius, map.width - 1); x++) {
       if (Math.abs(x - target.x) + Math.abs(y - target.y) > radius) continue;
-      if ((grid[y]?.[x] ?? 255) >= 255) continue;
+      if (costAt(x, y) >= 255) continue;
+      if (map.terrain?.[y]?.[x]?.notWarp === true || overlayAt(map, x, y)?.cell.notWarp === true) continue;
       if (units.some((u) => !u.dead && u.id !== target.id && u.x === x && u.y === y)) continue;
       out.push({ x, y });
     }
@@ -442,11 +675,10 @@ export function toCombatant(
   units: readonly UnitState[] = [],
   supportEffects?: SupportEffects,
 ): Combatant {
-  const tile = map.terrain?.[u.y]?.[u.x];
   return {
     stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
     weapon: u.weapon,
-    terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
+    terrain: terrainBonusAt(map, u.x, u.y, u.force),
     skills: effectiveSkills(u),
     support: supportOf(u, units, supportEffects),
   };
@@ -523,6 +755,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
     };
     let crests = state.crests;
+    let structures: StructureState[] | undefined;
     /**
      * 紋章氣 소비 — MapSequenceMind.EngageHeal(0x2681CC0) 코드 확정: 비인게이지·비만충일 때
      * count = limit **대입** + 타일 1회성 소멸(MapOverlap.Remove). '회복량' 수치는 존재하지 않는다.
@@ -542,24 +775,16 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
         if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
-        const budget = moveBudget(u);
+        const budget = moveBudgetOn(state.map, u);
         if (budget === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
-        const grid = state.map.costs[u.moveType];
-        if (grid === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
+        if (state.map.costs[u.moveType] === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
         const reachable = movementRange({
           width: state.map.width,
           height: state.map.height,
           movePoints: budget,
           start: { x: u.x, y: u.y },
-          costAt: (x, y) => grid[y]?.[x] ?? 255,
-          blocked: (x, y) => {
-            const o = units.find((v) => !v.dead && v.x === x && v.y === y);
-            return o !== undefined && o.force !== u.force;
-          },
-          occupied: (x, y) => {
-            const o = units.find((v) => !v.dead && v.x === x && v.y === y && v !== u);
-            return o !== undefined && o.force === u.force;
-          },
+          costAt: makeCostAt(state.map, state.structures, u.moveType),
+          ...movePredicates(state.map, units, u),
         });
         if (!reachable.some((t) => t.x === action.x && t.y === action.y)) {
           throw new Error(`불법 이동: (${action.x}, ${action.y})는 이동 범위 밖`);
@@ -567,6 +792,34 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         u.x = action.x;
         u.y = action.y;
         u.moved = true;
+        break;
+      }
+
+      case "destroy": {
+        // ★파괴 = 전투가 아니라 결정론적 공격력 차감(MP3_READINGS §3 — CalcDestroy 판독):
+        // 명중 롤·필살·반격·난수 소비 전무. 대미지 = min((int)clamp(공격력, 0, 999), 잔여 HP) × 타격 횟수.
+        const u = require(action.unit);
+        assertActable(u);
+        const legal = destroyTargets(state.structures, u.x, u.y, u.force).find(
+          (t) => t.x === action.x && t.y === action.y,
+        );
+        if (legal === undefined) throw new Error(`파괴 대상 없음: (${action.x}, ${action.y})`);
+        const idx = legal.structure;
+        const target = state.structures![idx];
+        const self = { ...toCombatant(u, state.map, units, supportEffects), initiator: true, striking: true };
+        const env = combatEnv(self);
+        const atk = Math.trunc(Math.min(Math.max(calc.eval("攻撃力計算", env) as number, 0), 999));
+        const flow = makeSkillModifier(effectiveSkills(u) ?? [], env, { initiator: true, striking: true });
+        const strikes = Math.max(Math.trunc(flow("攻撃回数", 1)), 1);
+        let hp = target.hp;
+        for (let i = 0; i < strikes && hp > 0; i++) {
+          hp -= Math.min(atk, hp);
+          events.push({ type: "destroy", unit: u.id, structure: idx, tid: target.tid, hpAfter: hp });
+        }
+        structures = (structures ?? state.structures ?? []).map((s, i) => (i === idx ? { ...s, hp } : s));
+        u.acted = true;
+        u.moved = false; // 행동 = 재이동(시구르드) 창을 연다(커맨드 공통 문법)
+        consumeCrest(u);
         break;
       }
 
@@ -772,7 +1025,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           if (caster.force !== target.force) throw new Error("워프는 같은 군만 대상이다");
           if (action.x === undefined || action.y === undefined) throw new Error("워프 목적지 없음");
           // 목적지 = 대상 좌표 중심 맨해튼 Distance 반경(UnitWarp 0x2C1F880) — 열거는 warpDestinations 공용.
-          const legal = warpDestinations(target, staff, state.map, units);
+          const legal = warpDestinations(target, staff, state.map, units, state.structures);
           if (!legal.some((t) => t.x === action.x && t.y === action.y)) {
             throw new Error(`불법 워프 목적지: (${action.x}, ${action.y})`);
           }
@@ -1038,6 +1291,20 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
                   fresh.engage = { ...g, turn };
                 }
               }
+              // 지형 회복·피해(자기 페이즈 시작) — 베이스+오버레이 Heal 합, 합 0 = 스킵(ProcTerrainDamage).
+              // ☠사망 불가: canDie=false 상수 경로라 하한 1(max) · 회복은 잃은 HP 상한. 비행(Attrs Fly) 전면 면제.
+              if (!fresh.dead && fresh.flying !== true) {
+                const net =
+                  (state.map.terrain?.[fresh.y]?.[fresh.x]?.heal ?? 0) +
+                  (overlayAt(state.map, fresh.x, fresh.y)?.cell.heal ?? 0);
+                if (net !== 0) {
+                  const after = net > 0 ? Math.min(fresh.hp + net, fresh.stats.hp) : Math.max(fresh.hp + net, 1);
+                  if (after !== fresh.hp) {
+                    phaseEvents.push({ type: "terrainHeal", unit: fresh.id, amount: after - fresh.hp, hpAfter: after });
+                    fresh.hp = after;
+                  }
+                }
+              }
               return fresh;
             }),
             events: phaseEvents,
@@ -1049,7 +1316,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       }
     }
 
-    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), events });
+    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), ...(structures === undefined ? {} : { structures }), events });
   };
 }
 

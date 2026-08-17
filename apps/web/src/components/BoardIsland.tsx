@@ -6,12 +6,16 @@ import {
   canChainGuard,
   canterPower,
   chainGuardFor,
+  destroyTargets,
   hasChainGuardSkill,
   effectiveWeapons,
   forecastSide,
   hasBadState,
   itemTargets,
+  makeCostAt,
   moveBudget,
+  moveBudgetOn,
+  movePredicates,
   movementPath,
   movementRange,
   staffHealAmount,
@@ -30,7 +34,7 @@ import {
 import { serializeEphemeris } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
-import { visibleObjects } from "../lib/boards";
+import { scriptPath, visibleObjects, visibleStructures } from "../lib/boards";
 import type { EventHost } from "@fesim/engine/events";
 import {
   baseReduce,
@@ -60,9 +64,14 @@ import "./board.css";
  */
 type EventsModule = typeof import("@fesim/engine/events");
 
-function eventWiringFor(props: BoardProps, mod: EventsModule): EventWiring | undefined {
+function eventWiringFor(
+  props: BoardProps,
+  mod: EventsModule,
+  commonSources?: Record<string, string>,
+): EventWiring | undefined {
   const script = props.script;
   if (script === undefined) return undefined;
+  const sources = { ...commonSources, ...script.sources };
   return {
     create(difficulty) {
       const host: EventHost = {
@@ -82,7 +91,7 @@ function eventWiringFor(props: BoardProps, mod: EventsModule): EventWiring | und
           return { engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
         },
       };
-      const session = mod.createEventSession({ sources: script.sources, chapter: script.chapter, host });
+      const session = mod.createEventSession({ sources, chapter: script.chapter, host });
       return mod.createEventedReducer(baseReduce, session);
     },
   };
@@ -140,12 +149,25 @@ export default function BoardIsland(props: BoardProps) {
       return;
     }
     let dead = false;
-    void import("@fesim/engine/events").then((mod) => {
-      if (dead) return;
-      const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod));
-      setStore(next);
-      boot(next);
+    // 공용 Lua(common*)는 보드 JSON에 인라인하지 않는다 — 이벤트 모듈과 병렬 fetch 후 세션에 병합(3-6).
+    const commonFetches = (props.script.commons ?? []).map(async (name) => {
+      const res = await fetch(scriptPath(name));
+      if (!res.ok) throw new Error(`공용 스크립트 로드 실패: ${name} (${res.status})`);
+      return [name, await res.text()] as const;
     });
+    void Promise.all([import("@fesim/engine/events"), Promise.all(commonFetches)])
+      .then(([mod, pairs]) => {
+        if (dead) return;
+        const commons = Object.fromEntries(pairs);
+        const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod, commons));
+        setStore(next);
+        boot(next);
+      })
+      .catch((err) => {
+        // 이벤트판 구성 실패 = 원시판 유지(정직 강하) — 콘솔에 원인을 남긴다(조용한 오재현 금지).
+        console.error("이벤트 세션 구성 실패 — 원시판으로 동작", err);
+        if (!dead) boot(store);
+      });
     return () => {
       dead = true;
     };
@@ -266,25 +288,18 @@ export default function BoardIsland(props: BoardProps) {
 
   const range = useMemo(() => {
     if (selected === undefined) return undefined;
-    // 이동 예산의 정본은 엔진 moveBudget — UI 중복 구현 금지(C4 표류 방지, verification.md §2-3).
-    const budget = moveBudget(selected);
+    // 이동 예산의 정본은 엔진 moveBudgetOn(MoveFirst 출발 보정 포함) — UI 중복 구현 금지(C4, §2-3).
+    const budget = moveBudgetOn(game.map, selected);
     if (budget === undefined) return undefined;
-    const grid = game.map.costs[selected.moveType];
-    if (grid === undefined) return undefined;
+    if (game.map.costs[selected.moveType] === undefined) return undefined;
     const query: MoveQuery = {
       width,
       height,
       movePoints: budget,
       start: { x: selected.x, y: selected.y },
-      costAt: (x, y) => grid[y]?.[x] ?? 255,
-      blocked: (x, y) => {
-        const o = byTile.get(tileKey(x, y));
-        return o !== undefined && o.force !== selected.force;
-      },
-      occupied: (x, y) => {
-        const o = byTile.get(tileKey(x, y));
-        return o !== undefined && o.force === selected.force && o !== selected;
-      },
+      // 코스트·통과·정지 전부 엔진 단일 정본(구조물 치환·오버레이 가산·진영 동맹표 — C4 중복 금지).
+      costAt: makeCostAt(game.map, game.structures, selected.moveType),
+      ...movePredicates(game.map, viewUnits, selected),
     };
     const move = movementRange(query);
     const moveSet = new Set(move.map((t) => tileKey(t.x, t.y)));
@@ -301,10 +316,16 @@ export default function BoardIsland(props: BoardProps) {
     const staffAll = new Set(staffRing.map((t) => tileKey(t.x, t.y)));
     const staffTiles = staffRing.filter((t) => !moveSet.has(tileKey(t.x, t.y)) && !attackAll.has(tileKey(t.x, t.y)));
     return { query, move, moveSet, attack, attackAll, staff: staffTiles, staffAll };
-  }, [selected, byTile, game, width, height, pending, chosenWeapon, staff]);
+  }, [selected, viewUnits, game, width, height, pending, chosenWeapon, staff]);
 
   // 호버 예보(인게임 문법): 사거리 안 적에 커서만 올려도 공격 발판이 정해지고 즉시 예보가 뜬다.
   // 발판 우선순위 = 유저가 그린 마지막 경로 끝점 → 제자리 → 최소 이동비용 지점.
+  // 파괴 가능 인접 대상 — 잠정 이동(pending) 위치 기준. 열거의 정본 = 엔진 destroyTargets(C4 중복 금지).
+  const breakables = useMemo(() => {
+    if (selected === undefined || selectedAt === undefined) return [];
+    return destroyTargets(game.structures, selectedAt.x, selectedAt.y, selected.force);
+  }, [selected, selectedAt, game]);
+
   const hoverEnemy = useMemo(() => {
     if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 적 호버가 지팡이 문법을 탄다
     if (selected === undefined || selected.acted || hover === undefined || target !== undefined) return undefined;
@@ -460,7 +481,7 @@ export default function BoardIsland(props: BoardProps) {
   const warpTiles = useMemo(() => {
     if (staffMode !== "warp" || staff === undefined || allyTarget === undefined) return undefined;
     // 술자의 잠정 발판은 제외 — 커밋 시 그 칸으로 이동하므로 점유 충돌이 된다.
-    return warpDestinations(allyTarget, staff, game.map, game.units).filter(
+    return warpDestinations(allyTarget, staff, game.map, game.units, game.structures).filter(
       (t) => selectedAt === undefined || t.x !== selectedAt.x || t.y !== selectedAt.y,
     );
   }, [staffMode, staff, allyTarget, game, selectedAt]);
@@ -537,6 +558,10 @@ export default function BoardIsland(props: BoardProps) {
             return `${name(ev.unit)} ${t.guard}`;
           case "guardBlock":
             return `${name(ev.unit)} ${t.guard} −${ev.damage}`;
+          case "destroy":
+            return `${name(ev.unit)} ${labels.destroyCmd} → ${ev.hpAfter}`;
+          case "terrainHeal":
+            return `${name(ev.unit)} ${ev.amount > 0 ? "+" : ""}${ev.amount}`;
           case "engage":
             return `${name(ev.unit)} ${t.engage}`;
           case "disengage":
@@ -571,7 +596,7 @@ export default function BoardIsland(props: BoardProps) {
           case "ai":
           case "crestAdd":
           case "reset":
-          case "statusClear":
+          case "unitFlags":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }
       })
@@ -832,7 +857,11 @@ export default function BoardIsland(props: BoardProps) {
         width={width}
         height={height}
         tiles={tiles}
+        palette={props.palette}
         objects={visibleObjects(objects, game.crests)}
+        structures={visibleStructures(props.structures, game.structures)}
+        overlays={props.overlays}
+        interactions={props.interactions}
         units={viewUnits}
         byTile={byTileView}
         visuals={visuals}
@@ -880,6 +909,21 @@ export default function BoardIsland(props: BoardProps) {
               }}
             >
               {labels.guardCmd}
+            </button>
+          )}
+          {/* 파괴 — 인접 파괴 가능물(Destroyer 자격) 존재 시. 열거 = 엔진 destroyTargets 단일 정본(C4). */}
+          {!selected.acted && selected.force === game.phase && breakables.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const t = breakables[0];
+                if (commitMove() && tryDispatch({ type: "destroy", unit: selected.id, x: t.x, y: t.y })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                }
+              }}
+            >
+              {labels.destroyCmd}
             </button>
           )}
           {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}

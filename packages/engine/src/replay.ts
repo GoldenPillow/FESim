@@ -14,7 +14,7 @@ import { effectiveWeapons, type GameState, type RandomSource, type UnitState } f
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-6";
+export const RULE_VERSION = "fe17-7";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -127,6 +127,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
 
   let outcome = state.outcome;
   let crests = state.crests;
+  let structures = state.structures;
   let variables = state.variables;
   let winRule = state.winRule;
   for (const ev of events) {
@@ -137,6 +138,15 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
       case "heal":
         require(ev.target).hp = ev.hpAfter;
         break;
+      case "terrainHeal":
+        require(ev.unit).hp = ev.hpAfter;
+        break;
+      case "destroy": {
+        const s = structures?.[ev.structure];
+        if (s === undefined) throw new ReplayDesyncError(`기록의 구조물이 국면에 없다: #${ev.structure}`);
+        structures = structures!.map((v, i) => (i === ev.structure ? { ...v, hp: ev.hpAfter } : v));
+        break;
+      }
       case "status": {
         // reduce와 동일 계약 — 재부여는 치환(age 리셋).
         const u = require(ev.target);
@@ -276,12 +286,10 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         delete u.statuses;
         break;
       }
-      case "statusClear": {
+      case "unitFlags": {
         const u = require(ev.unit);
-        if (u.statuses !== undefined) {
-          u.statuses = u.statuses.filter((s) => (s.badState & ev.badState) === 0);
-          if (u.statuses.length === 0) delete u.statuses;
-        }
+        if (ev.flags === 0) delete u.flags;
+        else u.flags = ev.flags;
         break;
       }
       case "phase":
@@ -292,6 +300,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
     ...state,
     units,
     ...(crests === undefined ? {} : { crests }),
+    ...(structures === undefined ? {} : { structures }),
     ...(variables === undefined ? {} : { variables }),
     ...(winRule === undefined ? {} : { winRule }),
     events: [...events],

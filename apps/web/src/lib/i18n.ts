@@ -45,6 +45,7 @@ interface Strings {
   staffCmd: string;
   itemCmd: string;
   guardCmd: string;
+  destroyCmd: string;
   warpPick: string;
   engageCmd: string;
   tradeCmd: string;
@@ -131,6 +132,7 @@ export const UI: Record<Locale, Strings> = {
     staffCmd: "Staff",
     itemCmd: "Item",
     guardCmd: "Chain Guard",
+    destroyCmd: "Destroy",
     warpPick: "Choose warp destination",
     engageCmd: "Engage",
     tradeCmd: "Trade",
@@ -222,6 +224,7 @@ export const UI: Record<Locale, Strings> = {
     staffCmd: "지팡이",
     itemCmd: "아이템",
     guardCmd: "체인가드",
+    destroyCmd: "파괴",
     warpPick: "워프 목적지 선택",
     engageCmd: "인게이지",
     tradeCmd: "교환",

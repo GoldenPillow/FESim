@@ -8,6 +8,7 @@ import {
   RULE_VERSION,
   type BattleAction,
   type GameState,
+  type MoveType,
   type Reduce,
   type Timeline,
   type UnitState,
@@ -122,6 +123,7 @@ export function projectUnit(
     exp: 0,
     movePoints: u.movePoints,
     moveType: u.moveType,
+    ...(u.flying === true ? { flying: true } : {}),
     style: u.style,
     acted: false,
     dead: false,
@@ -155,8 +157,58 @@ export function initGame(
     map: {
       width: props.width,
       height: props.height,
-      costs: props.costs,
-      terrain: props.tiles.map((line) => line.map((t) => ({ avoid: t.avoid, def: t.def }))),
+      // 코스트 격자 = 팔레트에서 파생(직렬화엔 격자를 싣지 않는다 — 3-6 팔레트 정규화).
+      costs: (() => {
+        const types = new Set<MoveType>();
+        for (const p of props.palette) for (const t of Object.keys(p.cost ?? {})) types.add(t as MoveType);
+        const costs: Partial<Record<MoveType, number[][]>> = {};
+        for (const type of types) {
+          costs[type] = props.tiles.map((line) =>
+            line.map((i) => props.palette[i]?.cost?.[type] ?? 255),
+          );
+        }
+        return costs;
+      })(),
+      terrain: props.tiles.map((line) =>
+        line.map((i) => {
+          const t = props.palette[i] ?? { avoid: 0, def: 0 };
+          return {
+            ...(t.tid !== undefined ? { tid: t.tid } : {}),
+            ...(t.costName !== undefined ? { costName: t.costName } : {}),
+            avoid: t.avoid,
+            def: t.def,
+            ...(t.playerAvoid !== undefined ? { playerAvoid: t.playerAvoid } : {}),
+            ...(t.playerDef !== undefined ? { playerDef: t.playerDef } : {}),
+            ...(t.enemyAvoid !== undefined ? { enemyAvoid: t.enemyAvoid } : {}),
+            ...(t.enemyDef !== undefined ? { enemyDef: t.enemyDef } : {}),
+            ...(t.heal !== undefined ? { heal: t.heal } : {}),
+            ...(t.moveFirst !== undefined ? { moveFirst: t.moveFirst } : {}),
+            ...(t.notWarp === true ? { notWarp: true } : {}),
+          };
+        }),
+      ),
+      ...(props.overlays !== undefined && props.overlays.length > 0
+        ? {
+            overlays: props.overlays.map((o) => ({
+              x: o.x,
+              y: o.y,
+              tid: o.tid,
+              cell: {
+                avoid: o.avoid,
+                def: o.def,
+                ...(o.playerAvoid !== undefined ? { playerAvoid: o.playerAvoid } : {}),
+                ...(o.playerDef !== undefined ? { playerDef: o.playerDef } : {}),
+                ...(o.enemyAvoid !== undefined ? { enemyAvoid: o.enemyAvoid } : {}),
+                ...(o.enemyDef !== undefined ? { enemyDef: o.enemyDef } : {}),
+                ...(o.heal !== undefined ? { heal: o.heal } : {}),
+                ...(o.moveFirst !== undefined ? { moveFirst: o.moveFirst } : {}),
+                ...(o.notWarp === true ? { notWarp: true } : {}),
+              },
+              ...(o.moveCost !== undefined ? { moveCost: o.moveCost } : {}),
+              ...(o.flyCost !== undefined ? { flyCost: o.flyCost } : {}),
+            })),
+          }
+        : {}),
     },
     units,
     events: [],
@@ -164,6 +216,22 @@ export function initGame(
   // 紋章氣 = 소비 가능한 국면 상태 — 렌더는 objects, 잔존 판별은 이 목록이 정본.
   const crests = props.objects.filter((o) => o.crest === true).map((o) => ({ x: o.x, y: o.y }));
   if (crests.length > 0) game.crests = crests;
+  // 구조물 = 국면 상태(hp — 파괴로 변한다). 지붕(roof)은 렌더 전용이지만 걷힘 판별을 위해 함께 싣는다.
+  if (props.structures !== undefined && props.structures.length > 0) {
+    game.structures = props.structures.map((s) => ({
+      x: s.x,
+      y: s.y,
+      w: s.w,
+      h: s.h,
+      tid: s.tid,
+      group: s.group,
+      hp: s.hp[difficulty] ?? 0,
+      ...(s.roof === true ? { roof: true } : {}),
+      ...(s.destroyer !== undefined ? { destroyer: s.destroyer } : {}),
+      ...(s.costs !== undefined ? { costs: s.costs } : {}),
+      name: s.name,
+    }));
+  }
   return { game, visuals };
 }
 

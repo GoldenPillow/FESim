@@ -2,6 +2,7 @@ import type { ChapterData, ConsumableItem, DisposUnit, EngageArt, EngageState, M
 import {
   MOVE_TYPES,
   deriveStats,
+  moveBase,
   staticEnhances,
   type MoveType,
   type SkillRow,
@@ -22,12 +23,30 @@ import { forceStyle } from "./grid";
 export interface TerrainRow {
   Tid: string;
   Name: string;
+  /** 코스트 종별(COST_*) — 이벤트 질의 TerrainGetMoveCost가 문자열로 비교한다. */
+  CostName?: string;
   ColorR: number;
   ColorG: number;
   ColorB: number;
   Prohibition: number;
   Avoid?: number;
   Defense?: number;
+  PlayerAvoid?: number;
+  PlayerDefense?: number;
+  EnemyAvoid?: number;
+  EnemyDefense?: number;
+  Heal?: number;
+  MoveFirst?: number;
+  Flag?: number;
+  MoveCost?: number;
+  FlyCost?: number;
+  Hp_N?: number;
+  Hp_H?: number;
+  Hp_L?: number;
+  /** 파괴 자격 — 0 양군 · 1 자군만 · 2 적군만(BreakdownMenuItem GetForce). */
+  Destroyer?: number;
+  /** ☠지붕 판별자 아님 — m_Layers 실사용 TID 전수가 1(레이어 배치 표식). 지붕 = TID_屋根. */
+  Layer?: number;
   /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
   cost?: Record<MoveType, number>;
 }
@@ -46,6 +65,9 @@ export interface JobRow {
   /** 地形コスト 컬럼 순서 인덱스(1=foot, 3=fly 실측) — MOVE_TYPES가 정본. */
   MoveType?: number;
   "Base.Move"?: number;
+  "Limit.Move"?: number;
+  /** SkillData.Attrs 마스크 — bit3(8) = Fly(지형 회복·피해 면제 판정, JobData.IsFly). ☠용(16)은 별개 비트. */
+  Attrs?: number;
   StyleName?: string;
 }
 
@@ -186,6 +208,16 @@ const TILE_OVERRIDE: Record<string, string> = {
   TID_大柱: "#6e675c",
   TID_瓦礫: "#4b463f",
   TID_空: "#151a20",
+  // MP3 전맵 증설(육안 실측 — 원본 ColorRGB가 실기 톤과 어긋나는 고빈도 특수 지형)
+  TID_砂漠: "#b09a63",
+  TID_流砂: "#997f4e",
+  TID_砦: "#7d8a70",
+  TID_回復床: "#6f8f7d",
+  TID_防衛床: "#68789a",
+  TID_宝箱: "#8a7448",
+  TID_民家入口: "#8a6f4f",
+  TID_砲台: "#5d6166",
+  TID_篝火: "#8a5a3a",
 };
 
 const hex = (r: number, g: number, b: number): string =>
@@ -461,7 +493,7 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
 
 const SKILL_ROW_FIELDS = [
   "Sid", "Timing", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
-  "GiveSids", "GiveTarget", "Target", "Power", "RangeI", "RangeO",
+  "GiveSids", "GiveTarget", "Target", "Power", "Removable", "RangeI", "RangeO",
 ] as const;
 
 /** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
@@ -602,6 +634,54 @@ export function unitEngagedSkillRows(unit: DisposUnit, bondLevel?: number): Skil
 /* ── 보드 아일랜드 props ─────────────────────────────────────
    아일랜드(클라이언트)는 이 직렬화 산출물만 받는다 — 대용량 테이블 JSON은 SSG에만 남는다. */
 
+export interface BoardStructureProp {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tid: string;
+  group: number;
+  name: string;
+  color: string;
+  /** 난이도별 초기 HP(terrain.json Hp_N/H/L) — 0 = 파괴 불가 표시 없음. */
+  hp: { n: number; h: number; l: number };
+  /** TID_屋根 = 지붕(렌더 전용 — 통행·전투 무관, 문 개방 시 걷힘). ☠Layer 필드는 판별자 아님(전 레이어 TID가 1). */
+  roof?: boolean;
+  /** 파괴 자격(terrain.json Destroyer) — 0 양군 · 1 자군만 · 2 적군만. */
+  destroyer?: number;
+  /** 구조물 TID의 이동 코스트(통행 치환용). */
+  costs?: Partial<Record<MoveType, number>>;
+}
+
+export interface BoardOverlayProp {
+  x: number;
+  y: number;
+  tid: string;
+  name: string;
+  color: string;
+  /** 전투·상태 가산분(TerrainCell 동형, 0 생략). */
+  avoid: number;
+  def: number;
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  heal?: number;
+  moveFirst?: number;
+  notWarp?: boolean;
+  /** 이동 코스트 가산(terrain.json MoveCost/FlyCost). */
+  moveCost?: number;
+  flyCost?: number;
+}
+
+/** 팔레트 항목 = 타일 종별 표시·판정 필드 + 이동 코스트(격자 파생용). */
+export interface BoardPaletteEntry extends BoardTileProp {
+  tid: string;
+  /** terrain.json CostName — 엔진 TerrainCell.costName(이벤트 TerrainGetMoveCost)의 원천. */
+  costName?: string;
+  cost?: Partial<Record<MoveType, number>>;
+}
+
 export interface BoardTileProp {
   color: string;
   name: string;
@@ -609,6 +689,17 @@ export interface BoardTileProp {
   /** 지형 회피/방어 보정 — 전투 공식의 地形回避/地形防御 입력. */
   avoid: number;
   def: number;
+  /** 진영 비대칭 보정(瘴気류) — 0은 생략(직렬화 절약). 소비 = 엔진 terrainBonusAt. */
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  /** 자기 페이즈 시작 회복(+)/피해(−) — terrain.json Heal. */
+  heal?: number;
+  /** 출발 칸 이동력 보정 — terrain.json MoveFirst. */
+  moveFirst?: number;
+  /** 워프 착지 금지 — terrain.json Flag bit17. */
+  notWarp?: boolean;
 }
 
 export interface BoardWeaponProp {
@@ -641,6 +732,8 @@ export interface BoardUnitProp {
   chip: string;
   movePoints: number;
   moveType: MoveType;
+  /** 직업 Attrs bit3(Fly) — 지형 회복·피해 면제(☠moveType 판별 금지 — 용은 비면제). */
+  flying?: boolean;
   /** 공격 무기(지팡이 제외) 사거리 합집합. 0-0 = 공격 수단 없음. */
   rangeMin: number;
   rangeMax: number;
@@ -678,12 +771,18 @@ export interface BoardProps {
   title: ChapterTitle;
   width: number;
   height: number;
-  /** [y][x] */
-  tiles: BoardTileProp[][];
-  /** 이동타입별 진입 코스트 [y][x] — 실사용 타입만 담는다. */
-  costs: Partial<Record<MoveType, number[][]>>;
+  /** 타일 종별 팔레트 — tiles의 인덱스가 가리킨다(코스트 포함 — 격자 파생은 initGame 소유). */
+  palette: BoardPaletteEntry[];
+  /** [y][x] = palette 인덱스. */
+  tiles: number[][];
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
+  /** 구조물 레이어(m_Layers) — 엔진 StructureState의 초기값 + 렌더 표시 필드(색·이름은 SSG에서 굳힘). */
+  structures?: BoardStructureProp[];
+  /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
+  overlays?: BoardOverlayProp[];
+  /** 상호작용 지점(Lua 추출 — 상자·민가·문·이탈점·파괴 트리거) — 표시 마커 전용(실행 = MP2 이월). */
+  interactions?: { kind: string; x: number; y: number; x2?: number; y2?: number; name?: string }[];
   units: BoardUnitProp[];
   /**
    * 챕터 이벤트 스크립트 팩(MP2) — 있으면 보드가 이벤트 구동으로 초기 배치·증원·승리조건을 돌린다.
@@ -691,8 +790,10 @@ export interface BoardProps {
    */
   script?: {
     chapter: string;
-    /** Include 해석용 소스(chapter + common*) — 세션이 이름으로 찾는다. */
+    /** Include 해석용 소스(챕터분만 인라인) — 세션이 이름으로 찾는다. */
     sources: Record<string, string>;
+    /** 공용 소스(common*) 이름 목록 — 본문은 /fe17/scripts/{name}.lua 정적 fetch로 병합(용량 정책 3-6). */
+    commons?: string[];
     /** 스크립트가 정적으로 Dispos하는 그룹 — 초기 배치에서 제외(이벤트가 소환). */
     disposGroups: string[];
     /** 스크립트가 부르는 SID 행 사영(UnitSetPrivateSkill용). */
@@ -716,6 +817,7 @@ export interface BoardProps {
     staffCmd: string;
     itemCmd: string;
     guardCmd: string;
+    destroyCmd: string;
     warpPick: string;
     engageCmd: string;
     tradeCmd: string;
@@ -927,8 +1029,14 @@ export function boardProps(
       job: v.job,
       ring: style.ring,
       chip: style.chip,
-      movePoints: job?.["Base.Move"] ?? 0,
+      // 이동력 스냅숏 = Clamp(base, 0, jobLimit+personLimit) — Enhance(迅走 등)는 엔진 movePower가 런타임 가산.
+      movePoints: moveBase(
+        Number(job?.["Base.Move"] ?? 0),
+        Number(job?.["Limit.Move"] ?? 99),
+        Number(person?.["Limit.Move"] ?? 0),
+      ),
       moveType,
+      ...(((Number(job?.Attrs ?? 0)) & 8) !== 0 ? { flying: true } : {}),
       ...weaponRange(v.unit),
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
       ...(() => {
@@ -964,41 +1072,122 @@ export function boardProps(
       skills: skillRows.length > 0 ? skillRows : undefined,
     };
   });
-  // 베이스 지형 코스트만 — 구조물(m_Layers) 통행 반영은 구조물 렌더와 함께 미룸(M005 실재 맵 시점).
-  const costs: Partial<Record<MoveType, number[][]>> = {};
-  for (const type of moveTypes) {
-    costs[type] = map.terrain.map((line) => line.map((tid) => terrain[tid]?.cost?.[type] ?? 255));
-  }
+  // ★타일 팔레트 정규화(3-6) — 셀마다 객체를 반복하지 않는다: palette[tid 종별] + tiles[인덱스 격자].
+  // 코스트 격자도 싣지 않는다 — 클라이언트(initGame)가 palette.cost에서 파생(직렬화 = 타일 수 선형 → 종별 선형).
+  const tids: string[] = [];
+  const tidIndex = new Map<string, number>();
+  const indexOf = (tid: string): number => {
+    let i = tidIndex.get(tid);
+    if (i === undefined) {
+      i = tids.length;
+      tids.push(tid);
+      tidIndex.set(tid, i);
+    }
+    return i;
+  };
+  const tileGrid = map.terrain.map((line) => line.map(indexOf));
+  const opt = (key: string, value: number | undefined): Record<string, number> =>
+    typeof value === "number" && value !== 0 ? { [key]: value } : {};
+  const palette = tids.map((tid) => {
+    const row = terrain[tid];
+    return {
+      tid,
+      ...(row?.CostName !== undefined ? { costName: row.CostName } : {}),
+      color: tileColor(tid),
+      name: tileName(locale, tid),
+      blocked: isBlocked(tid),
+      avoid: row?.Avoid ?? 0,
+      def: row?.Defense ?? 0,
+      ...opt("playerAvoid", row?.PlayerAvoid),
+      ...opt("playerDef", row?.PlayerDefense),
+      ...opt("enemyAvoid", row?.EnemyAvoid),
+      ...opt("enemyDef", row?.EnemyDefense),
+      ...opt("heal", row?.Heal),
+      ...opt("moveFirst", row?.MoveFirst),
+      ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...(row?.cost !== undefined ? { cost: row.cost } : {}),
+    };
+  });
+  void moveTypes;
   return {
     mapId,
     title: chapterTitle(chapter, locale),
     width: map.width,
     height: map.height,
-    tiles: map.terrain.map((line, y) =>
-      line.map((tid, x) => ({
-        color: tileColorAt(tid, x, y),
-        name: tileName(locale, tid),
-        blocked: isBlocked(tid),
-        avoid: terrain[tid]?.Avoid ?? 0,
-        def: terrain[tid]?.Defense ?? 0,
-      })),
-    ),
-    costs,
+    palette,
+    tiles: tileGrid,
     objects: (map.objects ?? []).map((o) => ({
       x: o.x,
       y: o.y,
       name: objectName(locale, o),
       ...(o.pid === "PID_紋章氣" ? { crest: true } : {}),
     })),
+    ...(() => {
+      const opt = (key: string, value: number | undefined): Record<string, number> =>
+        typeof value === "number" && value !== 0 ? { [key]: value } : {};
+      const structures = (map.structures ?? []).map((s) => {
+        const row = terrain[s.tid];
+        return {
+          x: s.x,
+          y: s.y,
+          w: s.w,
+          h: s.h,
+          tid: s.tid,
+          group: s.group,
+          name: tileName(locale, s.tid),
+          color: tileColorAt(s.tid, s.x, s.y),
+          hp: { n: row?.Hp_N ?? 0, h: row?.Hp_H ?? 0, l: row?.Hp_L ?? 0 },
+          // 지붕 판별 = TID (m_Layers 실사용 11종 전수에서 Layer=1 공통이라 Layer는 판별자가 아니다 —
+          // TID_屋根만 Hp 0·렌더 전용, 2026-08-18 전수 실측).
+          ...(s.tid === "TID_屋根" ? { roof: true } : {}),
+          ...opt("destroyer", row?.Destroyer),
+          ...(row?.cost !== undefined ? { costs: row.cost } : {}),
+        };
+      });
+      const overlays = (map.overlays ?? []).map((o) => {
+        const row = terrain[o.tid];
+        return {
+          x: o.x,
+          y: o.y,
+          tid: o.tid,
+          name: tileName(locale, o.tid),
+          color: tileColorAt(o.tid, o.x, o.y),
+          avoid: row?.Avoid ?? 0,
+          def: row?.Defense ?? 0,
+          ...opt("playerAvoid", row?.PlayerAvoid),
+          ...opt("playerDef", row?.PlayerDefense),
+          ...opt("enemyAvoid", row?.EnemyAvoid),
+          ...opt("enemyDef", row?.EnemyDefense),
+          ...opt("heal", row?.Heal),
+          ...opt("moveFirst", row?.MoveFirst),
+          ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+          ...opt("moveCost", row?.MoveCost),
+          ...opt("flyCost", row?.FlyCost),
+        };
+      });
+      const interactions = (map.interactions ?? []).map((it) => ({
+        kind: it.kind,
+        x: it.x,
+        y: it.y,
+        ...(it.x2 !== undefined ? { x2: it.x2 } : {}),
+        ...(it.y2 !== undefined ? { y2: it.y2 } : {}),
+        ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid) } : {}),
+      }));
+      return {
+        ...(structures.length > 0 ? { structures } : {}),
+        ...(overlays.length > 0 ? { overlays } : {}),
+        ...(interactions.length > 0 ? { interactions } : {}),
+      };
+    })(),
     units,
     labels,
     ...(() => {
       const src = scriptFiles[mapId];
       if (src === undefined) return {};
+      // ☠common* 전문은 인라인하지 않는다 — 챕터×로케일 산출물마다 17KB+ 중복(용량 정책 3-6).
+      // 이름만 싣고 클라이언트가 /fe17/scripts/에서 병렬 fetch 후 sources에 병합한다(fengari 실행은 동기 유지).
       const sources: Record<string, string> = { [mapId]: src };
-      for (const [name, text] of Object.entries(scriptFiles)) {
-        if (name.startsWith("common")) sources[name] = text;
-      }
+      const commons = Object.keys(scriptFiles).filter((name) => name.startsWith("common")).sort();
       const disposGroups = [...new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]))];
       const sidRows: Record<string, SkillRow> = {};
       for (const m of src.matchAll(/"(SID_[^"]+)"/g)) {
@@ -1012,7 +1201,7 @@ export function boardProps(
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
       }
-      return { script: { chapter: mapId, sources, disposGroups, skills: sidRows, gods } };
+      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods } };
     })(),
   };
 }
@@ -1048,6 +1237,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
     guardCmd: t.guardCmd,
+    destroyCmd: t.destroyCmd,
     warpPick: t.warpPick,
     engageCmd: t.engageCmd,
     tradeCmd: t.tradeCmd,

@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData } from "@fesim/shared";
 import {
@@ -321,4 +322,237 @@ describe("이벤트 세션 — 실 스크립트 통합(m002 다국면)", () => {
     expect(s.crests).toContainEqual({ x: 8, y: 4 }); // MapOverlapSetOne 紋章氣
     expect(s.outcome).toBeUndefined(); // 전멸 승리는 -1로 꺼져 있다
   });
+});
+
+/**
+ * 변환 챕터 전수 세션 부트 스모크 — 스크립트가 실린 모든 챕터가 스텝 0(setup)을 오류 0으로 통과해야 한다.
+ * ☠미등록 네이티브는 Lua 오류로 터진다(정직 거부) → 보드가 원시판으로 강하한다. 신규 챕터를 변환하면
+ * 이 스모크가 먼저 빨개져서 "어느 네이티브가 없나"를 실패 메시지로 뱉는다.
+ * 구현 불가로 남긴 결손은 HONEST_GAPS에 박제한다(몰래 스킵 금지 — 목록이 곧 미구현 장부다).
+ */
+describe("변환 챕터 전수 세션 부트 스모크", () => {
+  const scriptDir = fileURLToPath(new URL("../../../data/fe17/scripts/", import.meta.url));
+  const chapterDir = fileURLToPath(new URL("../../../data/fe17/chapters/", import.meta.url));
+  const scriptNames = readdirSync(scriptDir).filter((f) => f.endsWith(".lua")).map((f) => f.slice(0, -4));
+  const commons = scriptNames.filter((n) => n.startsWith("common"));
+  // 챕터 = chapters/*.json 존재 기준 — 스크립트 목록엔 Include 부속(g002_gimmick 등)이 섞여 있다.
+  const chapterJsons = new Set(
+    readdirSync(chapterDir).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)),
+  );
+  const chapters = scriptNames.filter((n) => !n.startsWith("common") && chapterJsons.has(n)).sort();
+  const sources = Object.fromEntries(
+    scriptNames.map((n) => [n, readFileSync(`${scriptDir}${n}.lua`, "utf-8")]),
+  );
+
+  /**
+   * 부트를 못 하는 챕터 = 정직 결손. 값 = 실패 메시지에 반드시 나오는 조각(구현되면 이 테스트가 빨개진다).
+   * 결손 사유는 세 갈래뿐이다 — (1) 아이템 iid 사영 부재 (2) 미모델 유닛 속성 (3) 원문 스크립트 문법 오류.
+   */
+  const HONEST_GAPS: Record<string, string[]> = {
+    // (1) 아이템 iid 미사영 — BattleWeapon·StaffItem·ConsumableItem에 iid가 없다. 호출 전수 8건 중
+    //     6건이 **엠블렘 무기**(EngageItems)라 소지품에도 없다 → 어느 쪽도 해석 불가.
+    e005: ["UnitPutOffItem"],
+    m010: ["UnitSetItemEquip"],
+    m014: ["UnitSetItemEquip"],
+    m020: ["UnitSetItemEquip"],
+    // (2) 미모델 유닛 속성 — hpStock(dispos에 실재하나 UnitState 미보유) · MPID(인물 이름 ID 미사영).
+    e006: ["UnitSetHpStock"],
+    m022: ["UnitGetMPID"],
+    // (3) ☠원문(romfs 추출본) 자체의 Lua 문법 오류 — `if ... then return x` 뒤에 end 없이 다음 if가 온다.
+    //     파이프라인 변환 산물이 아니라 추출 원문 그대로다(extracted/scripts/g001.txt:157 대조).
+    g001: ["Lua 문법"],
+    g004: ["Lua 문법"],
+  };
+
+  // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
+  const terrainTable = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/terrain.json", import.meta.url), "utf-8"),
+  ) as Record<string, { CostName?: string; Avoid?: number; Defense?: number; Hp_N?: number }>;
+  const cellOf = (tid: string) => ({
+    tid,
+    ...(terrainTable[tid]?.CostName !== undefined ? { costName: terrainTable[tid].CostName } : {}),
+    avoid: terrainTable[tid]?.Avoid ?? 0,
+    def: terrainTable[tid]?.Defense ?? 0,
+  });
+
+  interface ChapterJson {
+    map: {
+      width: number;
+      height: number;
+      terrain: string[][];
+      overlays?: { x: number; y: number; tid: string }[];
+      structures?: { x: number; y: number; w: number; h: number; tid: string; group: number }[];
+    };
+    groups: { name: string; units: { pid: string; force: number; x: number; y: number }[] }[];
+  }
+
+  it(`스크립트가 있는 챕터 전수(${chapters.join(", ")})가 스크립트+데이터 짝을 갖는다`, () => {
+    expect(chapters.length).toBeGreaterThanOrEqual(54); // 전량 변환 완료판
+    expect(commons).toContain("common");
+  });
+
+  for (const cid of chapters) {
+    const json = JSON.parse(readFileSync(`${chapterDir}${cid}.json`, "utf-8")) as ChapterJson;
+    const src = sources[cid];
+    // 자동 배치 = Dispos로 소환되지 않는 그룹(웹 초기 배치 규칙과 동일 — fe17.ts disposGroups).
+    const disposed = new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]));
+    const project = (group: string): UnitState[] => {
+      const g = json.groups.find((x) => x.name === group);
+      return (g?.units ?? []).map((u, i) =>
+        unit({ id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y }),
+      );
+    };
+    const initial = json.groups.filter((g) => !disposed.has(g.name)).flatMap((g) => project(g.name));
+    const { width, height } = json.map;
+    const s0: GameState = {
+      turn: 1,
+      phase: 0,
+      difficulty: "n",
+      map: {
+        width,
+        height,
+        costs: { foot: Array.from({ length: height }, () => Array.from({ length: width }, () => 1)) },
+        terrain: json.map.terrain.map((line) => line.map(cellOf)),
+        ...(json.map.overlays === undefined
+          ? {}
+          : { overlays: json.map.overlays.map((o) => ({ x: o.x, y: o.y, tid: o.tid, cell: cellOf(o.tid) })) }),
+      },
+      ...(json.map.structures === undefined
+        ? {}
+        : {
+            structures: json.map.structures.map((s) => ({
+              ...s,
+              hp: terrainTable[s.tid]?.Hp_N ?? 0,
+              ...(s.tid === "TID_屋根" ? { roof: true } : {}),
+            })),
+          }),
+      units: initial,
+      events: [],
+    };
+    const h: EventHost = {
+      spawnGroup: project,
+      skillRow: (sid) => ({ Sid: sid }),
+      godUnit: () => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
+      gainItem: () => ({}),
+    };
+    const gap = HONEST_GAPS[cid];
+
+    if (gap !== undefined) {
+      it(`${cid}: 정직 결손 — 미구현 네이티브 ${gap.join(", ")}로 부트가 거부된다`, () => {
+        const boot = () => createEventSession({ sources, chapter: cid, host: h }).setup(s0);
+        expect(boot).toThrow(new RegExp(gap.join("|")));
+      });
+      continue;
+    }
+
+    it(`${cid}: createEventSession + setup(스텝 0)이 오류 0`, () => {
+      const session = createEventSession({ sources, chapter: cid, host: h });
+      const r = session.setup(s0);
+      expect(r.state.units.length).toBeGreaterThan(0);
+      // 미지 호출은 실패가 아니라 표면 — 있으면 무엇이 미배선인지 남는다(정직성).
+      expect(session.unknownCalls().map(([n]) => n)).toEqual([]);
+    });
+  }
+});
+
+describe("이벤트 타일 질의·문 개방", () => {
+  const TILE_SCRIPT = `
+Include("Common")
+function Startup()
+  VariableSet("지형", TerrainGet(1, 0))
+  VariableSet("코스트", TerrainGetMoveCost(1, 0))
+  VariableSet("구조물지형", TerrainGet(0, 1))
+  VariableSet("오버레이", MapOverlapGet(1, 1))
+  VariableSet("빈칸", MapOverlapGet(0, 0) == nil and "없음" or "있음")
+  VariableSet("맵밖", TerrainGet(99, 99) == nil and "없음" or "있음")
+end
+`;
+  const cell = (tid: string, costName: string) => ({ tid, costName, avoid: 0, def: 0 });
+  const tileState = (): GameState => ({
+    turn: 1,
+    phase: 0,
+    map: {
+      width: 2,
+      height: 2,
+      costs: { foot: [[1, 1], [1, 1]] },
+      terrain: [
+        [cell("TID_道", "COST_平地"), cell("TID_岩", "COST_空")],
+        [cell("TID_床", "COST_平地"), cell("TID_道", "COST_平地")],
+      ],
+      overlays: [{ x: 1, y: 1, tid: "TID_瘴気_永続", cell: { avoid: 0, def: 0 } }],
+    },
+    structures: [{ x: 0, y: 1, w: 1, h: 1, tid: "TID_扉", group: 7, hp: 50 }],
+    units: [unit({ id: "p", force: 0, x: 0, y: 0 })],
+    events: [],
+  });
+
+  it("TerrainGet·TerrainGetMoveCost·MapOverlapGet은 국면의 실제 타일을 읽는다(맵 밖·빈칸 = nil)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: TILE_SCRIPT }, chapter: "tile", host: host(),
+    });
+    const v = session.setup(tileState()).state.variables!;
+    expect(v["지형"]).toBe("TID_岩");
+    expect(v["코스트"]).toBe("COST_空"); // 비행 전용 칸 — m024 눈사태가 이 문자열로 정지 판정한다
+    expect(v["구조물지형"]).toBe("TID_扉"); // 살아있는 구조물이 베이스 지형을 덮는다(ChangeTid 사영)
+    expect(v["오버레이"]).toBe("TID_瘴気_永続");
+    expect(v["빈칸"]).toBe("없음");
+    expect(v["맵밖"]).toBe("없음");
+  });
+
+  it("☠타일 데이터가 없으면 nil로 강하하지 않고 거부한다(== 비교 분기 오염 방지)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: `Include("Common")\nfunction Startup() TerrainGet(0, 0) end` },
+      chapter: "tile", host: host(),
+    });
+    expect(() => session.setup(state([unit({ id: "p", force: 0, x: 0, y: 0 })]))).toThrow(/미배선/);
+  });
+
+  it("EventOpenDoor = 구조물 소멸(hp 0) + destroy 이벤트 — 통행 개방·같은 group 지붕 걷힘", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: `Include("Common")\nfunction Startup() EventOpenDoor(0, 1) end` },
+      chapter: "tile", host: host(),
+    });
+    const r = session.setup(tileState());
+    expect(r.state.structures![0].hp).toBe(0);
+    expect(r.events).toContainEqual({ type: "destroy", unit: "", structure: 0, tid: "TID_扉", hpAfter: 0 });
+  });
+});
+
+/**
+ * 정직 결손 — 정확 구현이 불가능해 **일부러 등록하지 않은** 네이티브. 등록하면 호출이 조용히 no-op가 되어
+ * 국면이 틀린 채 진행된다(☠오재현 > 강하). 여기 목록은 구현되면 지운다(그때 이 테스트가 빨개진다).
+ */
+describe("정직 결손 — 미등록 유지 네이티브", () => {
+  const GAPS: [string, string, string][] = [
+    ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
+    ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
+    ["UnitSetItemEquip", `UnitSetItemEquip("PID_p", "IID_鉄の剣")`, "아이템 iid 미사영 + 호출 대부분이 엠블렘 무기(EngageItems)"],
+    ["UnitPutOffItem", `UnitPutOffItem("PID_p", "IID_鉄の剣")`, "위와 같은 iid 결손"],
+    ["UnitGetHpStock", `UnitGetHpStock("PID_p")`, "HP 스톡 미모델(dispos에는 hpStock이 실재 — UnitState 확장이 선행)"],
+    ["UnitSetHpStock", `UnitSetHpStock("PID_p", 1)`, "위와 같음"],
+    ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
+    ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
+    ["UnitSetHp", `UnitSetHp("PID_p", 1)`, "HP 절대 대입 이벤트 미정의(절대 재생 계약이 선행)"],
+    ["RandomGet", `RandomGet(100)`, "☠난수는 항상 주입한다 — 세션에 RandomSource 주입구가 없다(엔진 계약)"],
+    ["Battle", `Battle("PID_p", "PID_p")`, "이벤트 전투 실행 — 난수·대미지 파이프라인 주입 필요"],
+    ["BattleSetAttack", `BattleSetAttack("PID_p", "IID_鉄の剣")`, "위와 같음"],
+    ["BattleAddTarget", `BattleAddTarget("PID_p")`, "위와 같음"],
+    ["BattleStart", `BattleStart(1, 1)`, "위와 같음"],
+    ["MapDamageAdd", `MapDamageAdd("PID_p", 1)`, "맵 데미지 — 사망 가부(canDie) 미판독"],
+    ["TerrainFill", `TerrainFill(1, 1, "TID_床")`, "채움 경계 규칙 미판독(TerrainSet/SetOne은 좌표 지정이라 배선)"],
+    ["DisposGetGroupCount", `DisposGetGroupCount("Enemy")`, "dispos 원본 조회 훅 부재(호스트는 스폰만 제공)"],
+    ["GodDataGetMGID", `GodDataGetMGID("GID_マルス")`, "엠블렘 데이터 표 미사영"],
+    ["AiGetRerewarpPosition", `AiGetRerewarpPosition("PID_p")`, "AI 재워프 좌표 — AI 실행기가 MP4"],
+  ];
+  for (const [name, call, why] of GAPS) {
+    it(`${name}은 등록하지 않는다 — ${why}`, () => {
+      const session = createEventSession({
+        sources: { common: COMMON_MIN, gap: `Include("Common")\nfunction Startup() ${call} end` },
+        chapter: "gap", host: host(),
+      });
+      expect(() => session.setup(state([unit({ id: "p", force: 0, x: 0, y: 0 })]))).toThrow(
+        new RegExp(`nil value \\(global '${name}'\\)`),
+      );
+    });
+  }
 });

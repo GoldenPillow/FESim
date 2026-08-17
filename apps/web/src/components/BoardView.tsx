@@ -1,5 +1,5 @@
 import type { Tile, UnitState } from "@fesim/engine";
-import { colLabel, coordLabel, gridCol, gridRow, tileKey } from "../lib/grid";
+import { colLabel, coordLabel, gridCol, gridRow, tileKey, tileShade } from "../lib/grid";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -11,8 +11,16 @@ import "./board.css";
 export interface BoardViewProps {
   width: number;
   height: number;
+  /** [y][x] = palette 인덱스(3-6 정규화) — 표시 필드는 palette가 소유, 지터는 렌더가 소유. */
   tiles: BoardProps["tiles"];
+  palette: BoardProps["palette"];
   objects: BoardProps["objects"];
+  /** 표시할 구조물 — 호출측이 visibleStructures로 걸러 넘긴다(파괴·지붕 걷힘 판별은 boards.ts 소유). */
+  structures?: BoardProps["structures"];
+  /** 지속 오버레이(정적) — 반투명 틴트로 베이스 타일 위에 얹는다. */
+  overlays?: BoardProps["overlays"];
+  /** 상호작용 마커(상자·민가·문·이탈점·파괴) — 표시 전용(실행은 이벤트 엔진 이월). */
+  interactions?: BoardProps["interactions"];
   units: UnitState[];
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
@@ -30,7 +38,11 @@ export default function BoardView({
   width,
   height,
   tiles,
+  palette,
   objects,
+  structures,
+  overlays,
+  interactions,
   units,
   byTile,
   visuals,
@@ -68,20 +80,61 @@ export default function BoardView({
       <div className="board" onPointerLeave={() => onTileHover?.(undefined)}>
         <div className="layer">
           {tiles.map((line, y) =>
-            line.map((tile, x) => (
-              <i
-                key={tileKey(x, y)}
-                className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
-                  .filter(Boolean)
-                  .join(" ")}
-                title={`${coordLabel(x, y)} ${tile.name}`}
-                style={{ gridColumn: col(x), gridRow: row(y), background: tile.color }}
-                onClick={() => onTileClick?.(x, y)}
-                onPointerEnter={() => onTileHover?.({ x, y })}
-              />
-            )),
+            line.map((idx, x) => {
+              const tile = palette[idx];
+              if (tile === undefined) return null;
+              return (
+                <i
+                  key={tileKey(x, y)}
+                  className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
+                    .filter(Boolean)
+                    .join(" ")}
+                  title={`${coordLabel(x, y)} ${tile.name}`}
+                  style={{
+                    gridColumn: col(x),
+                    gridRow: row(y),
+                    background: tile.color,
+                    filter: `brightness(${tileShade(x, y)})`,
+                  }}
+                  onClick={() => onTileClick?.(x, y)}
+                  onPointerEnter={() => onTileHover?.({ x, y })}
+                />
+              );
+            }),
           )}
         </div>
+
+        {overlays !== undefined && overlays.length > 0 && (
+          <div className="layer overlays">
+            {overlays.map((o) => (
+              <i
+                key={tileKey(o.x, o.y)}
+                className="ovl"
+                title={`${coordLabel(o.x, o.y)} ${o.name}`}
+                style={{ gridColumn: col(o.x), gridRow: row(o.y), background: o.color }}
+              />
+            ))}
+          </div>
+        )}
+
+        {structures !== undefined && structures.some((s) => s.roof !== true) && (
+          <div className="layer structures">
+            {structures.map((s, i) =>
+              s.roof === true ? null : (
+                <i
+                  key={`s${i}`}
+                  className="structure"
+                  title={`${coordLabel(s.x, s.y)} ${s.name}`}
+                  style={{
+                    gridColumn: `${col(s.x)} / span ${s.w}`,
+                    gridRow: `${row(s.y + s.h - 1)} / span ${s.h}`,
+                    background: s.color,
+                  }}
+                />
+              ),
+            )}
+          </div>
+        )}
 
         {range !== undefined && (
           <div className="layer range">
@@ -114,6 +167,39 @@ export default function BoardView({
             </span>
           ))}
         </div>
+
+        {interactions !== undefined && interactions.length > 0 && (
+          <div className="layer marks">
+            {interactions.map((it, i) => (
+              <span
+                key={`i${i}`}
+                className="cell"
+                style={{ gridColumn: col(it.x), gridRow: row(it.y) }}
+                title={`${coordLabel(it.x, it.y)} ${it.kind}${it.name !== undefined ? ` ${it.name}` : ""}`}
+              >
+                <svg className={`tile-mark mark-${it.kind}`} viewBox="0 0 32 32" aria-hidden="true">
+                  {it.kind === "chest" ? (
+                    <>
+                      <rect x="7" y="12" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                      <path d="M7 17 H25" stroke="currentColor" strokeWidth="2" />
+                      <rect x="14" y="15.5" width="4" height="4" fill="currentColor" />
+                    </>
+                  ) : it.kind === "visit" ? (
+                    <path d="M8 25 V14 L16 7 L24 14 V25 H18 V19 H14 V25 Z" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : it.kind === "escape" ? (
+                    <path d="M16 25 V10 M10 15 L16 8 L22 15" fill="none" stroke="currentColor" strokeWidth="2.8" />
+                  ) : it.kind === "door" ? (
+                    <path d="M10 25 V9 H22 V25 M22 25 H10 M18.5 17 h.01" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : it.kind === "defendArea" ? (
+                    <path d="M16 6 L25 9 V16 C25 21 21 25 16 27 C11 25 7 21 7 16 V9 Z" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                  ) : (
+                    <path d="M9 9 L23 23 M23 9 L9 23" stroke="currentColor" strokeWidth="3" />
+                  )}
+                </svg>
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="vignette"></div>
 
@@ -152,6 +238,25 @@ export default function BoardView({
             );
           })}
         </div>
+
+        {structures !== undefined && structures.some((s) => s.roof === true) && (
+          <div className="layer roofs">
+            {structures.map((s, i) =>
+              s.roof === true ? (
+                <i
+                  key={`r${i}`}
+                  className="roof"
+                  title={`${coordLabel(s.x, s.y)} ${s.name}`}
+                  style={{
+                    gridColumn: `${col(s.x)} / span ${s.w}`,
+                    gridRow: `${row(s.y + s.h - 1)} / span ${s.h}`,
+                    background: s.color,
+                  }}
+                />
+              ) : null,
+            )}
+          </div>
+        )}
 
         {banner !== undefined && <div className={bannerStay ? "banner stay" : "banner"}>{banner}</div>}
       </div>

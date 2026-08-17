@@ -63,8 +63,10 @@ export interface SkillRow {
   ActValues?: string[];
   GiveSids?: string[];
   GiveTarget?: number;
-  /** 재이동(SID_再移動*)에서는 이동 칸수 — 공식 도움말 "행동 후 N칸"과 일치(실측). */
+  /** 強さ — 스킬 종별 범용 수치. ☠재이동 거리 아님(그건 Removable — 값 2·3이 우연히 일치했을 뿐). */
   Power?: number;
+  /** 再移動力 — 행동 후 재이동 칸수. 정본 = Unit.GetMovePowerImpl(0x1A5B690)의 max(Removable). */
+  Removable?: number;
   Target?: number;
   RangeI?: number;
   RangeO?: number;
@@ -170,6 +172,10 @@ export interface EngageArt {
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
+  /** 자기 페이즈 시작 지형 회복(+)/피해(−) — hpAfter 절대값. ☠사망 불가(하한 1 — ProcTerrainDamage canDie=false). */
+  | { type: "terrainHeal"; unit: string; amount: number; hpAfter: number }
+  /** 구조물 파괴 타격 — structure = 국면 structures 인덱스, hpAfter = 잔여(0 = 소멸·통행 개방·지붕 걷힘). */
+  | { type: "destroy"; unit: string; structure: number; tid: string; hpAfter: number }
   /** 방해 지팡이 명중 → 상태 부여 — 절대 재생이 이 행을 그대로 대상에 싣는다(age 0). */
   | { type: "status"; unit: string; target: string; sid: string; badState: number; life: number; name?: string }
   /** 방해 지팡이 빗나감 — 상태 무부여(사용 횟수·행동 소모는 액션 복원이 소유). */
@@ -213,8 +219,12 @@ export type BattleEvent =
   | { type: "crestAdd"; x: number; y: number }
   /** 유닛 파라미터 초기화(UnitResetParam) — HP 절대값 복원 + 상태·브레이크 해제(⚠범위는 가정). */
   | { type: "reset"; unit: string; hpAfter: number }
-  /** 상태이상 비트 해제(UnitClearStatus) — badState 비트가 걸린 상태를 제거. */
-  | { type: "statusClear"; unit: string; badState: number }
+  /**
+   * 유닛 플래그 변경(UnitSetStatus·UnitClearStatus) — flags = 변경 후 **절대값**.
+   * ☠상태이상(badState)이 아니라 UNIT_STATUS_* 비트다(FIXED 1·MOVE_NOT_ALLOW 2·NEVER_SORTIE 8·
+   * DONT_POS_CHANGE 16·DEFECT 0x40000000 — common.lua 96~104). 소비 = MP4(이동 금지·출격 로스터).
+   */
+  | { type: "unitFlags"; unit: string; flags: number }
   | { type: "exp"; unit: string; amount: number; total: number }
   | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock> }
   | { type: "phase"; phase: number; turn: number }
@@ -249,5 +259,7 @@ export type BattleAction =
    * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.
    */
   | { type: "trade"; unit: string; target: string; kind: "weapon" | "staff" | "consumable"; index: number; back?: boolean }
+  /** 파괴 — 인접 구조물(x·y가 덮인 칸)에 공격력 결정 차감. ☠난수 무소비(명중·필살·반격 없음 — MP3_READINGS §3). */
+  | { type: "destroy"; unit: string; x: number; y: number }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

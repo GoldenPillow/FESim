@@ -62,7 +62,7 @@ const LABELS: BoardProps["labels"] = {
   endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", engageCmd: "", tradeCmd: "", closeCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
-  warpPick: "", guardCmd: "",
+  warpPick: "", guardCmd: "", destroyCmd: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
 };
 
@@ -75,10 +75,8 @@ export function boardFixture(mapId = "m999"): BoardProps {
     title: { prefix: "Chapter 999", name: "fixture", place: "nowhere" },
     width: size,
     height: size,
-    tiles: Array.from({ length: size }, () =>
-      Array.from({ length: size }, () => ({ color: "#000", name: "plain", blocked: false, avoid: 0, def: 0 })),
-    ),
-    costs: { foot: grid },
+    palette: [{ tid: "TID_平地", color: "#000", name: "plain", blocked: false, avoid: 0, def: 0, cost: { foot: 1 } }],
+    tiles: Array.from({ length: size }, () => Array.from({ length: size }, () => 0)),
     objects: [],
     units: [unit({ x: 1, y: 1, force: 0 }), unit({ x: 2, y: 1, force: 1 })],
     labels: LABELS,

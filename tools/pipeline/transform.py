@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -93,15 +94,21 @@ def build_styles(src: Path, out: Path) -> None:
 
 
 CHAPTER_CATEGORIES = {"M": "main", "S": "paralogue", "G": "divine", "E": "fell"}
+CHAPTER_RE = re.compile(r"CID_([MSGE])(\d{3})")
+
+
+def all_chapters(src: Path) -> list[str]:
+    """chapter.xml의 전 플레이 챕터 CID(본편 M·외전 S·신룡 G·사룡 E). 허브·투기장 등은 패턴 밖이라 빠진다."""
+    _, rows = load_sheet(src / "gamedata" / "chapter.xml")
+    return [row["Cid"] for row in rows if CHAPTER_RE.fullmatch(row.get("Cid", "") or "")]
 
 
 def build_chapterlist(src: Path, out: Path) -> None:
     """chapter.xml → 챕터 선택기용 전 챕터 목록(본편 M·외전 S·신룡의 장 G·사룡의 장 E)."""
-    import re
     _, rows = load_sheet(src / "gamedata" / "chapter.xml")
     entries = []
     for row in rows:
-        m = re.fullmatch(r"CID_([MSGE])(\d{3})", row.get("Cid", "") or "")
+        m = CHAPTER_RE.fullmatch(row.get("Cid", "") or "")
         if not m:
             continue
         entry = {"cid": row["Cid"], "category": CHAPTER_CATEGORIES[m.group(1)]}
@@ -302,8 +309,11 @@ def build_chapter(src: Path, out: Path, chapter: str) -> None:
         else:
             groups[-1]["units"].append(dispos_unit(unit_row, persons))
 
+    interactions = extract_interactions(script_closure(src, row))
+
     chapter_map = {"width": width, "height": height, "terrain": terrain}
-    for key, value in (("structures", structures), ("overlays", overlays), ("objects", objects)):
+    for key, value in (("structures", structures), ("overlays", overlays),
+                       ("objects", objects), ("interactions", interactions)):
         if value:
             chapter_map[key] = value
 
@@ -390,30 +400,161 @@ def strip_lua_comments(source: str) -> str:
     return "\n".join(cleaned).strip() + "\n"
 
 
-INCLUDE_RE = __import__("re").compile(r'Include\(\s*"([^"]+)"\s*\)')
+INCLUDE_RE = re.compile(r'Include\(\s*"([^"]+)"\s*\)')
+
+
+def script_closure(src: Path, row: dict) -> dict:
+    """챕터 스크립트 + Include 전이 폐포 → {이름: 주석 제거본}. 루트 먼저, 나머지는 이름순(결정적)."""
+    tail = row["Cid"][len("CID_"):]
+    pending, texts = [expand(row.get("ScriptBmap", "*"), tail).lower()], {}
+    while pending:
+        current = pending.pop(0)
+        if current in texts:
+            continue
+        path = src / "scripts" / f"{current}.txt"
+        if not path.exists():
+            raise SystemExit(f"no such script: {path}")
+        texts[current] = strip_lua_comments(path.read_text(encoding="utf-8"))
+        pending.extend(sorted(m.lower() for m in INCLUDE_RE.findall(texts[current])))
+    return texts
+
+
+# EventEntry* 는 Lua에 정의가 없는 엔진 네이티브 API다(common*.txt 전수 확인) — 인자 시그니처가 고정적이라
+# 정규식 추출이 성립한다. Area(영역 트리거)는 상호작용 지점이 아니라 스크립트 이벤트라 제외한다.
+INTERACTION_KINDS = {
+    "Tbox": "chest", "Visit": "visit", "Door": "door",
+    "Escape": "escape", "BreakdownEnemy": "defendArea", "Destroy": "destroy",
+}
+INTERACTION_CALL_RE = re.compile(r"EventEntry(%s)\s*\(" % "|".join(INTERACTION_KINDS))
+PID_ASSIGN_RE = re.compile(r'(\w+)\s*=\s*"(PID_[^"]+)"')
+INT_ARG_RE = re.compile(r"-?\d+")
+# g006만 좌표를 테이블 상수(g_CrystalPos[i][j])로 넘긴다 — 리터럴 중첩 테이블이라 정적 해석이 가능하다.
+TABLE_ASSIGN_RE = re.compile(r"(\w+)\s*=\s*\{((?:[^{}]|\{[^{}]*\})*)\}")
+ROW_RE = re.compile(r"\{\s*(-?\d+)\s*,\s*(-?\d+)\s*\}")
+SUBSCRIPT_RE = re.compile(r"(\w+)\[(\d+)\]\[(\d+)\]")
+
+
+def coord_tables(texts: dict) -> dict:
+    """`NAME = { {x, z}, … }` 형태의 좌표 테이블 상수 → {NAME: [[x, z], …]}."""
+    tables = {}
+    for text in texts.values():
+        for name, body in TABLE_ASSIGN_RE.findall(text):
+            rows = [[int(a), int(b)] for a, b in ROW_RE.findall(body)]
+            if rows and not re.sub(r"\{[^{}]*\}|[\s,]", "", body):
+                tables[name] = rows
+    return tables
+
+
+def resolve_int(arg: str, tables: dict):
+    if INT_ARG_RE.fullmatch(arg):
+        return int(arg)
+    m = SUBSCRIPT_RE.fullmatch(arg)
+    if m and m.group(1) in tables:
+        rows = tables[m.group(1)]
+        i, j = int(m.group(2)) - 1, int(m.group(3)) - 1  # Lua 인덱스는 1-based
+        if 0 <= i < len(rows) and 0 <= j < len(rows[i]):
+            return rows[i][j]
+    return None
+
+
+def call_args(text: str, paren: int) -> tuple[list[str], int]:
+    """`(`부터 짝 맞는 `)`까지를 최상위 콤마로 쪼갠다. 문자열·중첩 괄호/대괄호 안의 콤마는 무시."""
+    depth, start, args, quote, i = 0, paren + 1, [], None, paren
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                args.append(text[start:i])
+                return [a.strip() for a in args], i
+        elif c == "," and depth == 1:
+            args.append(text[start:i])
+            start = i + 1
+        i += 1
+    return [], len(text)
+
+
+def extract_interactions(texts: dict) -> list[dict]:
+    """챕터 Lua 폐포 → MapInteraction 목록.
+
+    ★좌표 규약은 API마다 다르다 — 전수 실측(scripts 166개 x terrains 원본 대조)으로 확정했다:
+      chest    Tbox 42/42가 좌표 칸 자체가 TID_宝箱(g001 2건은 TID_宝箱_氷結界) → ☠오프셋 금지
+      visit    Visit 10/10이 (x, y+1)에서 TID_民家入口 (m004·m013·m016·m019·s001) → tile = (x, y+1),
+               원본(문 앞에 서는 통행 가능 칸)은 stand에 보존
+      door     Door 7건은 사각 범위이며 m010 (8,14)-(10,14)가 m_Layers{X:8,Y:14,W:3,H:1}과 일치 → 그대로
+      escape   Escape 9건 전부 통행 가능 칸(유닛이 서는 이탈 지점) → 그대로
+      defendArea BreakdownEnemy 6건 그대로(s011 (12,23) = TID_防衛床로 직접 확인)
+      destroy  Destroy는 가변 인자 — 좌표 2개 = 점(s006 19건 전부 TID_水晶), 4의 배수 = 사각 범위 여러 개
+               (m004/m013/m016/s001의 민가는 [트리거 칸][건물 범위] 2쌍) → 범위마다 한 항목
+    좌표가 리터럴이 아닌 호출(g006의 g_CrystalPos[i][j])은 정적 추출 불가라 건너뛰고 경고만 남긴다.
+    """
+    pids = {name: pid for text in texts.values() for name, pid in PID_ASSIGN_RE.findall(text)}
+    tables = coord_tables(texts)
+    out = []
+    for name, text in texts.items():
+        for m in INTERACTION_CALL_RE.finditer(text):
+            api = m.group(1)
+            args, _ = call_args(text, m.end() - 1)
+            nums, rest = [], []
+            for arg in args[1:]:
+                value = None if rest else resolve_int(arg, tables)
+                if value is None:
+                    rest.append(arg)
+                else:
+                    nums.append(value)
+            strings = [a[1:-1] for a in rest if len(a) > 1 and a[0] == a[-1] == '"']
+            kind = INTERACTION_KINDS[api]
+            rects: list[tuple] = []
+            if api == "Destroy":
+                if len(nums) == 2:
+                    rects = [(nums[0], nums[1], None, None)]
+                elif nums and len(nums) % 4 == 0:
+                    rects = [tuple(nums[i:i + 4]) for i in range(0, len(nums), 4)]
+            elif api == "Door" and len(nums) >= 4:
+                rects = [(nums[0], nums[1], nums[2], nums[3])]
+            elif len(nums) >= 2:
+                rects = [(nums[0], nums[1], None, None)]
+            if not rects:
+                print(f"  ! interactions: {name} EventEntry{api} 좌표가 리터럴이 아님 — 건너뜀 ({args[1:]})")
+                continue
+            for x, y, x2, y2 in rects:
+                entry = {"kind": kind, "x": x, "y": y + 1 if kind == "visit" else y}
+                if x2 is not None and (x2, y2) != (x, y):
+                    entry["x2"], entry["y2"] = x2, y2
+                if kind == "chest":
+                    iid = next((s for s in strings if s.startswith("IID_")), None)
+                    if iid:
+                        entry["iid"] = iid
+                if kind == "escape":
+                    pid = next((s for s in strings if s.startswith("PID_")), None)
+                    pid = pid or next((pids[a] for a in rest if a in pids), None)
+                    if pid:
+                        entry["pid"] = pid
+                if kind == "visit":
+                    entry["stand"] = {"x": x, "y": y}
+                out.append(entry)
+    return out
 
 
 def build_scripts(src: Path, out: Path, chapter: str) -> None:
     """챕터 이벤트 스크립트(+Include 의존 전이 폐포)를 가공해 동봉한다. 소비 = 엔진 이벤트 레이어."""
     cid = chapter if chapter.startswith("CID_") else f"CID_{chapter}"
-    tail = cid[len("CID_"):]
     _, chapters = load_sheet(src / "gamedata" / "chapter.xml")
     row = next((r for r in chapters if r.get("Cid") == cid), None)
     if row is None:
         raise SystemExit(f"no such chapter: {cid}")
-    name = expand(row.get("ScriptBmap", "*"), tail).lower()
-    pending, done = [name], set()
-    while pending:
-        current = pending.pop()
-        if current in done:
-            continue
-        done.add(current)
-        path = src / "scripts" / f"{current}.txt"
-        if not path.exists():
-            raise SystemExit(f"no such script: {path}")
-        text = strip_lua_comments(path.read_text(encoding="utf-8"))
-        pending.extend(m.lower() for m in INCLUDE_RE.findall(text))
-        dest = out / "scripts" / f"{current}.lua"
+    for name, text in script_closure(src, row).items():
+        dest = out / "scripts" / f"{name}.lua"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding="utf-8")
         print(f"wrote {dest.relative_to(REPO) if REPO in dest.parents else dest} ({dest.stat().st_size:,}B)")
@@ -424,18 +565,25 @@ def main() -> int:
     parser.add_argument("--src", type=Path, default=DEFAULT_SRC)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--chapter", action="append", help="예: M002")
+    parser.add_argument("--all", action="store_true", help="플레이 챕터 전수(M/S/G/E) 변환")
     parser.add_argument("--tables", action="store_true")
     parser.add_argument("--names", action="store_true")
     args = parser.parse_args()
 
-    everything = not (args.chapter or args.tables or args.names)
+    everything = not (args.chapter or args.all or args.tables or args.names)
     if args.tables or everything:
         build_tables(args.src, args.out)
     if args.names or everything:
         build_names(args.src, args.out)
-    for chapter in args.chapter or (["M002"] if everything else []):
+    chapters = list(args.chapter or ([] if (args.all or not everything) else ["M002"]))
+    if args.all:
+        named = {c if c.startswith("CID_") else f"CID_{c}" for c in chapters}
+        chapters += [c for c in all_chapters(args.src) if c not in named]
+    for chapter in chapters:
         build_chapter(args.src, args.out, chapter)
         build_scripts(args.src, args.out, chapter)
+    if args.all:
+        print(f"== transform --all: {len(chapters)} chapters ==")
     return 0
 
 

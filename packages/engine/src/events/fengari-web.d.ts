@@ -42,6 +42,8 @@ declare module "fengari-web" {
     luaL_loadstring(L: LuaState, s: unknown): number;
     luaL_ref(L: LuaState, t: number): number;
     luaL_unref(L: LuaState, t: number, ref: number): void;
+    /** Lua 오류를 올린다(복귀 없음) — 네이티브가 정직 거부할 때. 반환형은 호출부 return용. */
+    luaL_error(L: LuaState, msg: unknown): number;
   };
   export const lualib: {
     luaL_openlibs(L: LuaState): void;
