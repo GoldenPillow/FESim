@@ -1,4 +1,4 @@
-import type { BattleAction, BattleEvent, Difficulty, StatBlock } from "./battle.js";
+import type { BattleAction, BattleEvent, BattleWeapon, Difficulty, SkillRow, StatBlock } from "./battle.js";
 
 /**
  * ephemeris(.eph) 기보 포맷 헤더 — 타이틀 중립 원칙:
@@ -42,6 +42,10 @@ export interface SetupUnit {
   bond?: number;
   /** 산출 스탯 스냅숏(레벨·스킬 정적 보정 반영 결과) — 열람 초기화의 정본 */
   stats?: StatBlock;
+  /** 소지 공격 무기 스냅숏([0] = 장비) — items 의도의 산출 결과, attack.weapon 인덱스의 해석 대상 */
+  weapons?: BattleWeapon[];
+  /** 장착 스킬 행 스냅숏 — sids 의도의 산출 결과(행 원형 그대로) */
+  skills?: SkillRow[];
 }
 
 /** 초기 세팅 diff 전체 — dispos 기본 대비 변경분만 담는다. */

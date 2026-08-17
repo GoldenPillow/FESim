@@ -97,6 +97,19 @@ describe("setup 초기 세팅 diff (M4 편집기 백본)", () => {
     expect(store.getState().game.units.find((u) => u.id === "u1")).toBeUndefined();
   });
 
+  it("무기·스킬 스냅숏이 초기 유닛에 반영된다 (weapons[0] = 장비)", () => {
+    // 왜 위험한가: 장비 diff가 iid 의도로만 실리면 열람 경로가 items 테이블 없이는 복원 불능 —
+    // 스냅숏 배열이 정본이고 attack.weapon 인덱스도 이 배열을 가리킨다.
+    const axe = { name: "axe", might: 10, hit: 80, crit: 0, weight: 8, kind: 3, rangeMin: 1, rangeMax: 1 };
+    const store = createBoardStore(props, undefined, {
+      units: { u0: { items: ["IID_axe"], weapons: [axe], skills: [{ Sid: "SID_TEST" }] } },
+    });
+    const u0 = store.getState().game.units.find((u) => u.id === "u0")!;
+    expect(u0.weapon).toEqual(axe);
+    expect(u0.weapons).toEqual([axe]);
+    expect(u0.skills?.map((s) => s.Sid)).toEqual(["SID_TEST"]);
+  });
+
   it("toFile에 setup이 실리고, 게스트 저장 복원과 리플레이 생성이 같은 국면을 만든다", () => {
     const store = createBoardStore(props, undefined, setup);
     store.getState().dispatch({ type: "wait", unit: "u0" });

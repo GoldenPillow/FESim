@@ -1,13 +1,14 @@
 import type {
   BattleAction,
   BattleEvent,
+  BattleWeapon,
   Difficulty,
   StrikeKind,
   SupportEffect,
   SupportLevel,
 } from "@fesim/shared";
 import type { Calculator } from "./formula/calculator.js";
-import { combatEnv, forecastSide, type Combatant, type CombatantWeapon } from "./formula/combat.js";
+import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
 import { movementRange, type MoveType } from "./range.js";
@@ -29,13 +30,7 @@ export interface RandomSource {
   next(bound: number): number;
 }
 
-export interface BattleWeapon extends CombatantWeapon {
-  rangeMin: number;
-  rangeMax: number;
-  /** items.json Kind — 상성 판정의 입력. */
-  kind: number;
-  name?: string;
-}
+export type { BattleWeapon } from "@fesim/shared";
 
 export interface UnitState {
   id: string;
