@@ -16,6 +16,7 @@ import {
 } from "../battle.js";
 import { attackRange, movementRange } from "../range.js";
 import { AC, AI_VALUE } from "./types.js";
+import { aiHealCondition } from "./unit.js";
 
 /**
  * `AIThink$$GetMovePower(unit, factor)`(0x1943F70).
@@ -147,6 +148,37 @@ export function interferenceAreaFrom(
   return attackRange(reach, min, max, state.map.width, state.map.height);
 }
 
+/**
+ * 회복 사정권 — `ActiveCauseHealRange`(0x1944A30)가 도색하는 이미지.
+ * ★`UnitAIMoveXY(..., weaponFlag = HealRod(0x8000000) | IgnoreSilent)`로 **AC_InterferenceRange와 완전 대칭**이고,
+ * 판정이 읽는 버퍼도 같은 `m_RodImage(+0x58)`다. 회복 지팡이가 없으면 이미지가 비어 항상 false.
+ */
+export function healAreaFrom(
+  state: GameState,
+  u: UnitState,
+  originX: number,
+  originY: number,
+  factor: number,
+): { x: number; y: number }[] {
+  const rods = (u.staves ?? []).filter((s) => s.rodType === 2 && s.uses > 0);
+  if (rods.length === 0 || state.map.costs[u.moveType] === undefined) return [];
+  let min = Infinity;
+  let max = 0;
+  for (const r of rods) {
+    min = Math.min(min, r.rangeMin);
+    max = Math.max(max, r.rangeMax);
+  }
+  const reach = movementRange({
+    width: state.map.width,
+    height: state.map.height,
+    movePoints: movePowerOf(movePower(u), factor),
+    start: { x: originX, y: originY },
+    costAt: makeCostAt(state.map, state.structures, u.moveType, state.terrainPatches),
+    ...movePredicates(state.map, state.units, u),
+  });
+  return attackRange(reach, min, max, state.map.width, state.map.height);
+}
+
 /** 이 유닛이 `factor`% 이동력으로 닿는 칸 + 무기 사거리 = 사정권(현 위치 기준). */
 export const threatTiles = (state: GameState, u: UnitState, factor: number): { x: number; y: number }[] =>
   attackAreaFrom(state, u, u.x, u.y, factor);
@@ -252,6 +284,27 @@ export function evaluateCause(
         opcode === AC.attackRange ? parsePos(ctx.args[1]) ?? { x: ctx.unit.x, y: ctx.unit.y } : { x: ctx.unit.x, y: ctx.unit.y };
       return isEnemyInsideAttackAreaForAC(
         ctx, opcode, origin.x, origin.y, factorOf(v0), 0, false, new Map(), ctx.args[1],
+      );
+    }
+    case AC.healRange: {
+      // 판독(M_rod_breakdown 추가분): 순회원 = `EachAllyUnit2` · 자격 = `IsHealRodPermission` **+ 자기 제외** ·
+      // 도색 = `weaponFlag = HealRod|IgnoreSilent`(AC_InterferenceRange와 대칭) · 하나라도 걸리면 true.
+      const origin = parsePos(ctx.args[1]) ?? { x: ctx.unit.x, y: ctx.unit.y };
+      const area = new Set(
+        healAreaFrom(ctx.state, ctx.unit, origin.x, origin.y, factorOf(v0)).map((t) => cellKey(ctx.state, t.x, t.y)),
+      );
+      if (area.size === 0) return false; // HasHealRod 게이트와 같은 효과
+      return ctx.state.units.some(
+        (a) =>
+          !a.dead
+          && a.id !== ctx.unit.id // ★자기 자신 제외
+          && a.force === ctx.unit.force
+          && a.hp < a.stats.hp
+          && (() => {
+            const ask = aiHealCondition(a);
+            return ask.askHealA || ask.askHealB;
+          })()
+          && area.has(cellKey(ctx.state, a.x, a.y)),
       );
     }
     case AC.interferenceRange:

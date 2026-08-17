@@ -102,6 +102,7 @@ export function projectUnit(
   return {
     id,
     pid: u.pid,
+    jid: u.jid,
     name: u.name,
     force: u.force,
     x: su?.x ?? u.x,

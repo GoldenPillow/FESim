@@ -35,6 +35,7 @@ const stats = (over: Partial<StatBlock> = {}): StatBlock => ({
 const unit = (over: Partial<BoardUnitProp> & Pick<BoardUnitProp, "x" | "y" | "force">): BoardUnitProp => ({
   group: "Test",
   pid: `PID_${over.x},${over.y}`,
+  jid: "JID_test",
   abbr: "U",
   name: `unit-${over.x},${over.y}`,
   job: "job",

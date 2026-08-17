@@ -132,6 +132,7 @@ export const ACT = {
   healMiddleLow: 41,
   healNearingHero: 42,
   mindTreasure: 61,
+  mindBreakDown: 65,
   mindEscape: 63,
   mindEscapeSlow: 64,
   mindTorch: 70,
@@ -146,9 +147,11 @@ export const ACT = {
   moveAttackRangeIgnore: 85,
   moveWeakRange: 86,
   moveWeakRangeSide: 87,
+  movePerson: 90,
   movePosition: 91,
   moveTreasure: 94,
   moveEscape: 96,
+  moveBreakDown: 100,
   moveAttackRangeExcludePerson2: 109,
 } as const;
 
