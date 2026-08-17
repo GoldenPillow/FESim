@@ -581,6 +581,11 @@ export interface BoardProps {
     defeat: string;
     reset: string;
     undoCmd: string;
+    editCmd: string;
+    editExit: string;
+    editHint: string;
+    removeCmd: string;
+    restoreCmd: string;
     copyRecord: string;
     copied: string;
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
@@ -721,6 +726,11 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     forceNames: [t.player, t.enemy, t.ally],
     endPhase: t.endPhase,
     undoCmd: t.undoCmd,
+    editCmd: t.editCmd,
+    editExit: t.editExit,
+    editHint: t.editHint,
+    removeCmd: t.removeCmd,
+    restoreCmd: t.restoreCmd,
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
     turnPhase: t.turnPhase,

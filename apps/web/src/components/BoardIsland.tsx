@@ -47,6 +47,20 @@ export default function BoardIsland(props: BoardProps) {
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
 
+  // 세팅층 편집(M4): 배치 이동·제거·복원 — diff는 스토어 setup이 소유(setSetup = 새 판).
+  const setup = useBoard(store, (s) => s.setup);
+  const [editing, setEditing] = useState(false);
+  const [editSel, setEditSel] = useState<string | undefined>(undefined);
+  const unitName = (id: string): string =>
+    visuals.get(id)?.name ?? props.units[Number(id.slice(1))]?.name ?? id;
+  const patchUnit = (id: string, patch: Partial<NonNullable<NonNullable<typeof setup>["units"]>[string]>) => {
+    const units = { ...setup?.units, [id]: { ...setup?.units?.[id], ...patch } };
+    store.getState().setSetup({ ...setup, units });
+  };
+  const removedIds = Object.entries(setup?.units ?? {})
+    .filter(([, su]) => su.removed === true)
+    .map(([id]) => id);
+
   const clearLocal = () => {
     setSelectedId(undefined);
     setTargetId(undefined);
@@ -358,6 +372,16 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   const onTileClick = (x: number, y: number) => {
+    if (editing) {
+      // 편집 모드: 유닛 클릭 = 선택, 빈 칸 클릭 = 선택 유닛 배치 이동(전 세력 대상).
+      const clicked = byTile.get(tileKey(x, y));
+      if (clicked !== undefined) {
+        setEditSel(clicked.id);
+        return;
+      }
+      if (editSel !== undefined) patchUnit(editSel, { x, y });
+      return;
+    }
     if (game.outcome !== undefined) return;
     const key = tileKey(x, y);
     const clicked = byTileView.get(key);
@@ -482,6 +506,18 @@ export default function BoardIsland(props: BoardProps) {
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
         </button>
+        <button
+          type="button"
+          disabled={mode === "replay"}
+          className={editing ? "on" : undefined}
+          onClick={() => {
+            setEditing(!editing);
+            setEditSel(undefined);
+            clearLocal();
+          }}
+        >
+          {editing ? labels.editExit : labels.editCmd}
+        </button>
       </div>
 
       <BoardView
@@ -494,13 +530,42 @@ export default function BoardIsland(props: BoardProps) {
         visuals={visuals}
         range={range}
         path={path}
-        selectedId={selectedId}
+        selectedId={editing ? editSel : selectedId}
         targetId={targetId}
         banner={banner}
         bannerStay={game.outcome !== undefined}
         onTileClick={onTileClick}
         onTileHover={setHover}
       />
+
+      {editing && (
+        <div className="edit-bar" role="toolbar" aria-label={labels.editCmd}>
+          <span className="edit-hint">{editSel !== undefined ? unitName(editSel) : labels.editHint}</span>
+          {editSel !== undefined && !removedIds.includes(editSel) && (
+            <button
+              type="button"
+              onClick={() => {
+                patchUnit(editSel, { removed: true });
+                setEditSel(undefined);
+              }}
+            >
+              {labels.removeCmd}
+            </button>
+          )}
+          {removedIds.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                const { removed: _removed, ...rest } = setup?.units?.[id] ?? {};
+                store.getState().setSetup({ ...setup, units: { ...setup?.units, [id]: rest } });
+              }}
+            >
+              {unitName(id)} · {labels.restoreCmd}
+            </button>
+          ))}
+        </div>
+      )}
 
       {log.length > 0 && (
         <div className="battle-log" role="status">

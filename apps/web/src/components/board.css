@@ -311,6 +311,37 @@
   to { opacity: 1; transform: none; }
 }
 
+/* 편집 바(M4 세팅층) — 보드 아래 플로우, 선택 유닛·제거·복원 */
+.plate .edit-bar {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 11px;
+  color: var(--muted);
+}
+.plate .edit-bar .edit-hint {
+  color: var(--gold, #f0c85a);
+}
+.plate .edit-bar button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .edit-bar button:hover {
+  color: var(--ink);
+}
+.plate .turn-strip button.on {
+  color: var(--gold, #f0c85a);
+  border-color: var(--gold, #f0c85a);
+}
+
 /* 전투 로그 스트립 — 보드 아래 플로우 배치(겹침 방지) */
 .plate .battle-log {
   margin-top: 0.6rem;

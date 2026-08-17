@@ -61,6 +61,8 @@ export interface BoardState {
   restore: () => void;
   /** 플레이 언두 — 마지막 행동을 물린다(이벤트 절대값 재적용 = 결정적, 난수 재소비 없음). */
   undo: () => void;
+  /** 세팅 diff 교체 — 새 판을 연다(기보·슬롯 리셋: 이전 로그는 새 초기 국면과 정합이 깨진다). */
+  setSetup: (setup: EphemerisSetup | undefined) => void;
   dispatch: (action: BattleAction) => GameState;
   toFile: (meta?: EphemerisFile["meta"]) => EphemerisFile;
   loadReplay: (file: EphemerisFile) => void;
@@ -239,6 +241,13 @@ export function createBoardStore(
           console.warn("게스트 저장 복원 실패 — 새 판으로 시작한다", e);
           clearSlot(key);
         }
+      },
+
+      setSetup(setup) {
+        if (get().mode === "replay") return;
+        clearSlot(saveKey());
+        set({ setup });
+        fresh(get().difficulty, get().scenario);
       },
 
       undo() {

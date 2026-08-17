@@ -125,6 +125,27 @@ describe("setup 초기 세팅 diff (M4 편집기 백본)", () => {
   });
 });
 
+describe("setSetup — 세팅 변경 (M4 편집기)", () => {
+  it("세팅 주입 = 새 판(기보·슬롯 리셋) + 초기 국면 즉시 반영, 리플레이 중엔 잠금", () => {
+    // 왜 위험한가: 세팅 변경 후 이전 기보가 남으면 새 초기 국면과 정합이 깨진 로그가
+    // 저장·공유돼 재생이 폭발한다 — 세팅 변경은 반드시 판을 새로 연다.
+    const store = createBoardStore(props);
+    store.getState().dispatch({ type: "wait", unit: "u0" });
+    store.getState().setSetup({ units: { u0: { x: 4, y: 4 } } });
+    expect(store.getState().recording).toHaveLength(0);
+    const u0 = store.getState().game.units.find((u) => u.id === "u0")!;
+    expect([u0.x, u0.y]).toEqual([4, 4]);
+    const revived = createBoardStore(props);
+    revived.getState().restore();
+    expect(revived.getState().recording).toHaveLength(0); // 슬롯도 리셋
+
+    const file = store.getState().toFile();
+    const replay = createBoardStore(props, { file });
+    replay.getState().setSetup(undefined);
+    expect(replay.getState().setup).toEqual(file.setup); // 리플레이 잠금
+  });
+});
+
 describe("플레이 언두 (M4 수순층)", () => {
   it("마지막 행동을 물리고 국면·기보가 직전 시점과 일치한다 — 빈 기보에선 무동작", () => {
     // 왜 위험한가: 언두 재구성은 이벤트 절대값 재적용(applyStep)이라 실굴림과 무관하게 결정적이어야 한다 —

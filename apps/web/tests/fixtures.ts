@@ -59,6 +59,7 @@ const LABELS: BoardProps["labels"] = {
   forceNames: ["player", "enemy", "ally"],
   endPhase: "", waitCmd: "", attackCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
+  editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "" },
 };
 

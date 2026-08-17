@@ -48,6 +48,11 @@ interface Strings {
   defeat: string;
   reset: string;
   undoCmd: string;
+  editCmd: string;
+  editExit: string;
+  editHint: string;
+  removeCmd: string;
+  restoreCmd: string;
   copyRecord: string;
   copied: string;
   logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string };
@@ -122,6 +127,11 @@ export const UI: Record<Locale, Strings> = {
     defeat: "Defeat...",
     reset: "Reset",
     undoCmd: "Undo",
+    editCmd: "Edit",
+    editExit: "Done",
+    editHint: "Click a unit, then an empty tile to reposition",
+    removeCmd: "Remove",
+    restoreCmd: "Restore",
     copyRecord: "Copy record",
     copied: "Copied",
     logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!" },
@@ -201,6 +211,11 @@ export const UI: Record<Locale, Strings> = {
     defeat: "패배...",
     reset: "초기화",
     undoCmd: "물리기",
+    editCmd: "편집",
+    editExit: "편집 종료",
+    editHint: "유닛 클릭 후 빈 칸 클릭 = 배치 이동",
+    removeCmd: "제거",
+    restoreCmd: "복원",
     copyRecord: "기보 복사",
     copied: "복사됨",
     logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!" },
