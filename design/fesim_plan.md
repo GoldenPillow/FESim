@@ -57,13 +57,13 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [ ] 이월: 지형 커맨드(파괴·대포·횃불) = MP3 구조물 렌더와 연동 · 문·상자·방문·대화 = MP2(Lua) · 특수(인챈트·환영늑대·수송정거장·문장변경·계약·강행돌파·탈출) = 발현 시 흡수(장부 등재됨)
   - [x] MP2 이벤트 엔진 (2026-08-18) — 결정 4건(풀 Lua 실행기·전 API 1차 배선·AiSetSequence 기록만·연출 no-op) 반영 완료. 실행기 = fengari(순 JS·전 경로 동기·65KB gzip — 제작 경로 지연 청크만, /s/ 무반입), 스크립트 = 파이프라인 가공 사영(주석 제거·!= 정규화·유니코드 식별자 맹글링 — MoonSharp 확장 2종 실측), 엔진 = engine/events(인스펙터 26종·게임플레이 프리미티브 전수·조건 3형·1회성 발화 플래그 기계·코루틴 완주), 리플레이 = ★setup = 기보 스텝 0 + endPhase 절대 오버레이(열람 경로 Lua 무반입 복원), 승패 = settleOutcome 이원화(내장 3종 + 勝利/敗北 변수), RULE_VERSION fe17-6. 수기 국면 프리셋(phases.ts) 삭제 — 초기 배치 = "Dispos 없는 그룹" 규칙. TDD 11건(합성 + 실 스크립트 m003 증원·m002 1→2회전 전이 전 과정) + 헤드리스 실측(m003 18→21 유닛 증원·가입, m002 초기 7유닛·루미엘 적 전환). m002·m003 미지 네이티브 호출 0 실측. 장부 events.* 6건 신설. ☠이월 = Pickup/TargetSelect 발화(선택은 기보 행동이 아님 — 설계 필요)·지형 커맨드 트리거 발화(MP3)·보스 표지(dispos flag 비트) 사영·이벤트 챕터의 /s/ verify(= 기록 열람 모드 표기, 세션 재구축 verify는 보드 페이지만)·같은 그룹 재스폰·SSR 첫 페인트 = 원시판(이벤트 모듈 지연 로드 플래시). 조사 정본 = extracted/lua/LUA_USAGE.md + il2cpp/LUA_BINDINGS.md
   - [ ] MP3 전맵 변환·베이크 (2026-08-18 계획 승인 — 정본 설계 = MOVE_TERRAIN.md §4 FIX·§5 순서. 미결 4건 권장 채택: 용량 = 스크립트 분리+타일 팔레트+50KB gz 게이트 · interactions = 추출+마커 · 지형 커맨드 = 파괴만 · 잡몹 얼굴 = 현행 폴백. ★정확도 최우선 = 미판독 가정은 구현 전 IL2CPP 판독 선행, 실패 시에만 가정+장부 등재. RULE_VERSION fe17-7 1회 범프)
-    - [ ] 3-0 무의존 결함 정정 — FIX-4 재이동 Removable 정정·FIX-1 진영 동맹표 통과·FIX-5 movePowerOf(Limit 뒤 Enhance 가산)
-    - [ ] 3-1 지형 스키마 1층 완결 — 비대칭(Player/Enemy)·MoveFirst·회복 타일(endPhase, 판독 선행 = 사망 여부·IsFly dragon)·NotWarp bit17
-    - [ ] 3-2 오버레이·구조물 — engine/terrain.ts 합성 단일 소유(코스트 가산·전투 2층 합산·屋根 렌더 전용)·GameState.structures
-    - [ ] 3-3 렌더 공용 — visibleStructures(boards.ts)·BoardView 구조물/오버레이 레이어·TILE_OVERRIDE 증설·특수 타일 자체 SVG
-    - [ ] 3-4 파괴 커맨드 — destroy 액션(판독 선행 = 대미지 식)·Destroyer 필터·ChangeTid·EventEntryDestroy 발화(MP2 이월 흡수)·대포/횃불 이월
-    - [ ] 3-5 일괄 변환·베이크 — transform/bake --all·interactions 정규식 추출기(visit y+1)·verify_all.py 기대값 게이트
-    - [ ] 3-6 용량 정책 — common.lua 정적 분리·타일 팔레트 정규화·보드 JSON ≤50KB gz 게이트(./dev 편입)
+    - [x] 3-0 무의존 결함 정정 (2026-08-18) — FIX-4 재이동 Removable 정정·FIX-1 진영 동맹표 통과·FIX-5 movePowerOf(Limit 뒤 Enhance 가산)
+    - [x] 3-1 지형 스키마 1층 완결 (2026-08-18 — 판독 = MP3_READINGS §1·§2: 지형 사망 불가·면제 = Attrs Fly) — 비대칭(Player/Enemy)·MoveFirst·회복 타일(endPhase, 판독 선행 = 사망 여부·IsFly dragon)·NotWarp bit17
+    - [x] 3-2 오버레이·구조물 (2026-08-18 — 합성층은 battle.ts 소유(신파일 회피), 지붕 판별 = TID_屋根 실측) — engine/terrain.ts 합성 단일 소유(코스트 가산·전투 2층 합산·屋根 렌더 전용)·GameState.structures
+    - [x] 3-3 렌더 공용 (2026-08-18 — 레이어 absolute 스택 결함 헤드리스 실측 정정 포함) — visibleStructures(boards.ts)·BoardView 구조물/오버레이 레이어·TILE_OVERRIDE 증설·특수 타일 자체 SVG
+    - [x] 3-4 파괴 커맨드 (2026-08-18 — 판독 = MP3_READINGS §3: 결정론 공격력 차감·난수 0. EventEntryDestroy 발화 접점은 이벤트 세션 합류 시) — destroy 액션(판독 선행 = 대미지 식)·Destroyer 필터·ChangeTid·EventEntryDestroy 발화(MP2 이월 흡수)·대포/횃불 이월
+    - [x] 3-5 일괄 변환·베이크 (2026-08-18 — 54/54 변환·베이크, verify-all 전수 그린, interactions 추출+마커) — transform/bake --all·interactions 정규식 추출기(visit y+1)·verify_all.py 기대값 게이트
+    - [x] 3-6 용량 정책 (2026-08-18 — common 분리·팔레트 정규화·size 게이트: 108 JSON 최대 32.8KB gz) — common.lua 정적 분리·타일 팔레트 정규화·보드 JSON ≤50KB gz 게이트(./dev 편입)
     - [ ] 3-7 헤드리스 실측 — m003 회귀(fe17-7 기보 재생성)·m004/m005/m012/m015/m019/m024/g006 계층 커버
   - [ ] MP4 적턴 AI 자동 — IL2CPP AI 평가함수 판독 → 엔진 이식(AI.xml+dispos 파라미터 정본) → 실기 리플레이 코퍼스로 보정 (§10-4 M5 계획 승격 — 결정: 선행 포함)
   - [ ] MP5 캠페인층 — 챕터 연쇄 진행 상태 정식화(경험치·레벨·소지품·골드·SP 인계 — 현행 "직전 dispos 근사" 대체)·상점 등장 시기·연성/강화/진화·엠블렘 각인·스킬 계승·인연(絆) 진행·반지 회수 구간·외전 개방 시기·소미아 시설·난이도 주입(루나틱 = LunaticSids·SyncSids·경험 감쇠 — 미룸 흡수)
