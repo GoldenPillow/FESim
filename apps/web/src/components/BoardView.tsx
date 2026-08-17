@@ -1,5 +1,5 @@
 import type { Tile, UnitState } from "@fesim/engine";
-import { gridCol, gridRow, tileKey } from "../lib/grid";
+import { colLabel, coordLabel, gridCol, gridRow, tileKey } from "../lib/grid";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -16,7 +16,7 @@ export interface BoardViewProps {
   units: UnitState[];
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
-  range?: { move: Tile[]; attack: Tile[] };
+  range?: { move: Tile[]; attack: Tile[]; staff?: Tile[] };
   path?: Tile[];
   selectedId?: string;
   targetId?: string;
@@ -53,14 +53,14 @@ export default function BoardView({
       <div className="rail rail-x">
         {Array.from({ length: width }, (_, x) => (
           <span key={x} style={{ gridColumn: col(x) }}>
-            {x}
+            {colLabel(x)}
           </span>
         ))}
       </div>
       <div className="rail rail-y">
         {Array.from({ length: height }, (_, y) => (
           <span key={y} style={{ gridRow: row(y) }}>
-            {y}
+            {y + 1}
           </span>
         ))}
       </div>
@@ -74,7 +74,7 @@ export default function BoardView({
                 className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
                   .filter(Boolean)
                   .join(" ")}
-                title={`(${x}, ${y}) ${tile.name}`}
+                title={`${coordLabel(x, y)} ${tile.name}`}
                 style={{ gridColumn: col(x), gridRow: row(y), background: tile.color }}
                 onClick={() => onTileClick?.(x, y)}
                 onPointerEnter={() => onTileHover?.({ x, y })}
@@ -90,6 +90,9 @@ export default function BoardView({
             ))}
             {range.attack.map((t) => (
               <i key={tileKey(t.x, t.y)} className="ov atk" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
+            ))}
+            {(range.staff ?? []).map((t) => (
+              <i key={tileKey(t.x, t.y)} className="ov sta" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
             ))}
           </div>
         )}

@@ -8,6 +8,7 @@ export {
   createReducer,
   canterPower,
   moveBudget,
+  staffHealAmount,
   toCombatant,
   weaponAdvantage,
   type Advantage,
@@ -53,6 +54,7 @@ export {
   type Tile,
 } from "./range.js";
 export { makeSkillModifier, staticEnhances, type SkillRow } from "./skills.js";
+export type { StaffItem } from "@fesim/shared";
 export {
   deriveStats,
   grownLevels,

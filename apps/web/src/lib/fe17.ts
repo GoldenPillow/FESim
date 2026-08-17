@@ -1,4 +1,4 @@
-import type { ChapterData, DisposUnit, MapObject } from "@fesim/shared";
+import type { ChapterData, DisposUnit, MapObject, StaffItem } from "@fesim/shared";
 import {
   MOVE_TYPES,
   deriveStats,
@@ -324,20 +324,23 @@ const hasAttackItem = (u: DisposUnit): boolean =>
     return row !== undefined && WEAPON_KINDS.has(row.Kind ?? 0) && (row.RangeO ?? 0) >= 1;
   });
 
+const hasStaffItem = (u: DisposUnit): boolean =>
+  u.items.some((entry) => items[entry.iid]?.Kind === STAFF_KIND);
+
 /**
  * 소지품 인계 근사 — 후속장 dispos의 자군 items는 빈 배열이다(인게임에선 세이브가 소유·인계).
- * 공격 무기가 없는 자군 유닛은 앞선 챕터의 같은 인물 소지품을 그대로 쓴다.
+ * 공격 무기도 지팡이도 없는 자군 유닛은 앞선 챕터의 같은 인물 소지품을 그대로 쓴다(지팡이 전담자 포함).
  * ☠구매·강화·교환 진행은 재현 대상 아님(진행 소유) — 최후 등장 dispos가 근사의 정본이다.
  */
 const inheritItems = (chapter: ChapterData, u: DisposUnit): DisposUnit => {
-  if (u.force !== 0 || hasAttackItem(u)) return u;
+  if (u.force !== 0 || hasAttackItem(u) || hasStaffItem(u)) return u;
   const mapId = mapIdOfChapter.get(chapter);
   if (mapId === undefined) return u;
   for (const prevId of [...mapIds].reverse()) {
     if (prevId >= mapId) continue;
     for (const g of chapters[prevId].groups) {
       const prev = g.units.find((v) => v.pid === u.pid && v.force === 0);
-      if (prev !== undefined && hasAttackItem(prev)) return { ...u, items: prev.items };
+      if (prev !== undefined && (hasAttackItem(prev) || hasStaffItem(prev))) return { ...u, items: prev.items };
     }
   }
   return u;
@@ -540,6 +543,8 @@ export interface BoardUnitProp {
   weapon?: BoardWeaponProp;
   /** 소지 공격 무기 전체(소지품 순) — 예보 패널 무기 목록·attack.weapon 인덱스의 해석 대상. */
   weapons?: BoardWeaponProp[];
+  /** 소지 지팡이 전체(소지품 순) — staff.staff 인덱스의 해석 대상. */
+  staves?: StaffItem[];
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -575,6 +580,7 @@ export interface BoardProps {
     endPhase: string;
     waitCmd: string;
     attackCmd: string;
+    staffCmd: string;
     turnPhase: string;
     turnWord: string;
     victory: string;
@@ -594,6 +600,7 @@ export interface BoardProps {
 
 /** 공격 사거리를 갖는 무기 분류(Kind 실측) — 7 = 지팡이는 공격이 아니다. */
 const WEAPON_KINDS = new Set([1, 2, 3, 4, 5, 6, 8, 9]);
+const STAFF_KIND = 7;
 
 const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } => {
   let min = Infinity;
@@ -628,6 +635,25 @@ export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp
       rangeMin: row.RangeI ?? 1,
       rangeMax: row.RangeO ?? 1,
       kind: row.Kind ?? 0,
+    });
+  }
+  return list;
+};
+
+/** 소지 지팡이 스냅숏 — power는 기본값(연성·각인은 진행 소유라 dispos 근사에 없음). */
+export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
+  const list: StaffItem[] = [];
+  for (const entry of unit.items) {
+    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+    if (row === undefined || row.Kind !== STAFF_KIND) continue;
+    list.push({
+      name: namedOr(items, locale, entry.iid),
+      power: Number(row["Power"] ?? 0),
+      rangeMin: row.RangeI ?? 1,
+      rangeMax: row.RangeO ?? 1,
+      uses: Number(row["Endurance"] ?? 0),
+      rodType: Number(row["RodType"] ?? 0),
+      rodExp: Number(row["RodExp"] ?? 0),
     });
   }
   return list;
@@ -671,6 +697,10 @@ export function boardProps(
       ...(() => {
         const weapons = attackWeapons(v.unit, locale);
         return weapons.length > 0 ? { weapon: weapons[0], weapons } : {};
+      })(),
+      ...(() => {
+        const staves = staffItems(v.unit, locale);
+        return staves.length > 0 ? { staves } : {};
       })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
@@ -733,6 +763,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     restoreCmd: t.restoreCmd,
     waitCmd: t.waitCmd,
     attackCmd: t.attackCmd,
+    staffCmd: t.staffCmd,
     turnPhase: t.turnPhase,
     turnWord: t.turnWord,
     victory: t.victory,

@@ -146,8 +146,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.staff",
     label: { en: "Staves (heal, warp, status)", ko: "지팡이(회복·워프·상태)" },
-    status: "absent",
-    evidence: "정식화 — Kind=7 41건 전수 UseType×Power×Range×GiveSids(gaps/B §6-1) · 명중식 = combat.staff-hit",
+    status: "implemented",
+    evidence:
+      "회복(RodType 2) 배선 완료(2026-08-18, staff.test.ts) — staff 액션·회복량 = 위력+floor(마력/2)·잃은 HP 상한·사용 횟수 소모·기보 절대 재생. 정본 = CalcRodHit RVA 0x2473E10(il2cpp/EXP_CHAIN_ENGAGE §7) · ☠잔여 = 방해(RodType 3)·워프 등(reduce가 거부) · 전량 회복 축복 bit5 · ItemHealScale 스킬 배율 적용점 미판독 · 명중식 = combat.staff-hit · 정식화 = Kind=7 41건(gaps/B §6-1)",
   },
   {
     id: "actions.items",
@@ -468,9 +469,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.exp-staff",
     label: { en: "Staff EXP", ko: "지팡이 경험치" },
-    status: "absent",
+    status: "anchored",
     evidence:
-      "杖経験計算 = clamp(杖経験値+杖減衰値+杖補助レベル差減衰値,1,100)(gaps/A §0-2) · ★IL2CPP로 결손 해소·기존 서술 반증(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §4·§5): '杖経験値는 덤프 미정의'는 **틀렸다** — 실체 = ItemData.RodExp(item.xml, 오프셋 +0x84)이고 소비 = UnitCalculator.RodExpCommand.GetImpl(RVA 0x1B4B9F0) · 값 분포 = 0/25/30/35/40/45 · 엔진 미구현이라 absent 유지",
+      "杖経験計算 = clamp(杖経験値+杖減衰値+杖補助レベル差減衰値,1,100)(gaps/A §0-2) · ★IL2CPP로 결손 해소·기존 서술 반증(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §4·§5): '杖経験値는 덤프 미정의'는 **틀렸다** — 실체 = ItemData.RodExp(item.xml, 오프셋 +0x84)이고 소비 = UnitCalculator.RodExpCommand.GetImpl(RVA 0x1B4B9F0) · 값 분포 = 0/25/30/35/40/45 · 2026-08-18 엔진 배선(battle.ts staff 케이스, staff.test.ts — 노멀 25·루나틱 하한 clamp 1 정확값) · 반복 감쇠 없음(MapRodExpCount는 어느 식도 미참조)",
   },
   {
     id: "combat.exp-dance",

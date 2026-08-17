@@ -116,7 +116,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function applyEvents(
   state: GameState,
-  action: Extract<BattleAction, { type: "attack" }>,
+  action: Extract<BattleAction, { type: "attack" | "staff" }>,
   events: readonly BattleEvent[],
 ): GameState {
   const units = state.units.map((u) => ({ ...u }));
@@ -132,6 +132,9 @@ function applyEvents(
     switch (ev.type) {
       case "strike":
         require(ev.defender).hp = ev.hpAfter;
+        break;
+      case "heal":
+        require(ev.target).hp = ev.hpAfter;
         break;
       case "break":
         require(ev.unit).broken = true;
@@ -164,6 +167,16 @@ function applyEvents(
     }
   }
   const actor = require(action.unit);
+  // reduce와 동일 계약 복원 — 장비 전환·지팡이 횟수 소모는 이벤트에 없어 행동에서 되살린다.
+  // 안 하면 절대 적용 경로의 국면이 표류한다(이후 스텝의 반격 무기·잔여 횟수가 어긋난다).
+  if (action.type === "attack" && action.weapon !== undefined) {
+    const chosen = actor.weapons?.[action.weapon];
+    if (chosen !== undefined) actor.weapon = chosen;
+  }
+  if (action.type === "staff") {
+    const idx = action.staff ?? 0;
+    actor.staves = actor.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
+  }
   actor.acted = true;
   actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
   return { ...state, units, events: [...events], outcome };
@@ -176,7 +189,7 @@ export function createReplayer(reduce: Reduce) {
    * ReplayDesyncError로 끝난다(수기·LLM 기보의 정합 검증은 M4 검증기 몫 — 호출측이 잡아서 표시한다).
    */
   function applyStep(state: GameState, step: EphemerisStep): GameState {
-    if (step.action.type === "attack" && step.events !== undefined) {
+    if ((step.action.type === "attack" || step.action.type === "staff") && step.events !== undefined) {
       return applyEvents(state, step.action, step.events);
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));

@@ -1,4 +1,4 @@
-import type { BattleAction, BattleEvent, BattleWeapon, Difficulty, SkillRow, StatBlock } from "./battle.js";
+import type { BattleAction, BattleEvent, BattleWeapon, Difficulty, SkillRow, StaffItem, StatBlock } from "./battle.js";
 
 /**
  * ephemeris(.eph) 기보 포맷 헤더 — 타이틀 중립 원칙:
@@ -44,6 +44,8 @@ export interface SetupUnit {
   stats?: StatBlock;
   /** 소지 공격 무기 스냅숏([0] = 장비) — items 의도의 산출 결과, attack.weapon 인덱스의 해석 대상 */
   weapons?: BattleWeapon[];
+  /** 소지 지팡이 스냅숏 — items 의도의 산출 결과, staff.staff 인덱스의 해석 대상 */
+  staves?: StaffItem[];
   /** 장착 스킬 행 스냅숏 — sids 의도의 산출 결과(행 원형 그대로) */
   skills?: SkillRow[];
 }
@@ -70,7 +72,7 @@ function assert(ok: unknown, why: string): asserts ok {
 }
 
 const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
-const ACTION_TYPES: readonly unknown[] = ["move", "attack", "wait", "endPhase"];
+const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "wait", "endPhase"];
 
 /**
  * 남이 만든 파일이 들어오는 신뢰 경계 — 뼈대만 검사한다.

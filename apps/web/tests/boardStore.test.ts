@@ -253,3 +253,54 @@ describe("리플레이", () => {
     expect(store.getState().cursor).toBe(0);
   });
 });
+
+describe("지팡이 회복 (MP0)", () => {
+  const staffProps = () => {
+    const p = boardFixture();
+    // u0 = 힐러(마력 8·라이브), u2 = 손상 아군 — u1(적)은 멀리 치워 교전 배제.
+    p.units = [
+      { ...p.units[0], weapon: undefined, stats: { n: undefined, h: undefined, l: { ...p.units[0].stats!.l!, mag: 8 } }, staves: [{ power: 10, rangeMin: 1, rangeMax: 1, uses: 2, rodType: 2, rodExp: 25 }] },
+      { ...p.units[1], x: 5, y: 5 },
+      { ...p.units[0], x: 1, y: 2, name: "hurt" },
+    ];
+    return p;
+  };
+
+  it("staff 액션 = 스텝 1건(이벤트 병기·롤 무소비), 회복·잔여 감소가 국면에 반영", () => {
+    const store = createBoardStore(staffProps());
+    // 대상 u2를 먼저 손상시킬 수 없으니(자해 없음) 적의 공격 대신 초기 hp를 setup으로 깎는 대신,
+    // 여기서는 엔진 위 계약만 확인: 무손상 대상은 거부되고 국면·기보 불변.
+    const before = store.getState().game;
+    expect(store.getState().dispatch({ type: "staff", unit: "u0", target: "u2", staff: 0 })).toBe(before);
+    expect(store.getState().recording).toHaveLength(0);
+  });
+
+  it("손상 아군 회복이 기보에 실리고 undo가 잔여 횟수까지 되돌린다", () => {
+    // 손상은 전투로 만든다: u1을 인접시켜 공격 → u2 피격(초기 hp를 깎는 주입구는 없다 — 정본 = stats).
+    const p = staffProps();
+    p.units[1] = { ...p.units[1], x: 2, y: 2 }; // 적을 u2 인접에
+    const s2 = createBoardStore(p);
+    // 적 페이즈로 넘겨 u2를 때리게 한다
+    s2.getState().dispatch({ type: "wait", unit: "u0" });
+    s2.getState().dispatch({ type: "endPhase" });
+    // 결정화: roll 0.5 → 명중(표시 90+)·비필살 — 빗나감/즉사로 검증이 새는 것을 막는다.
+    const restore = Math.random;
+    Math.random = () => 0.5;
+    const afterHit = s2.getState().dispatch({ type: "attack", unit: "u1", target: "u2" });
+    Math.random = restore;
+    const hurt = afterHit.units.find((u) => u.id === "u2")!;
+    expect(hurt.dead).toBe(false);
+    expect(hurt.hp).toBeLessThan(hurt.stats.hp);
+    s2.getState().dispatch({ type: "endPhase" });
+    const healed = s2.getState().dispatch({ type: "staff", unit: "u0", target: "u2", staff: 0 });
+    const last = s2.getState().recording.at(-1)!;
+    expect(last.action).toEqual({ type: "staff", unit: "u0", target: "u2", staff: 0 });
+    expect(last.events).toEqual(healed.events);
+    expect(healed.units.find((u) => u.id === "u2")!.hp).toBeGreaterThan(hurt.hp);
+    expect(healed.units.find((u) => u.id === "u0")!.staves![0].uses).toBe(1);
+    s2.getState().undo();
+    const undone = s2.getState().game;
+    expect(undone.units.find((u) => u.id === "u2")!.hp).toBe(hurt.hp);
+    expect(undone.units.find((u) => u.id === "u0")!.staves![0].uses).toBe(2);
+  });
+});

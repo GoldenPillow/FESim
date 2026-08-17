@@ -7,6 +7,16 @@ export const FLIP_Y = true;
 
 export const tileKey = (x: number, y: number): string => `${x},${y}`;
 
+/** 좌표 인덱스 표기 정본 — 가로 A,B,…,Z,AA(스프레드시트식) · 세로 y+1. A1 = 데이터 (0,0) = 화면 좌하단. */
+export const colLabel = (x: number): string => {
+  let s = "";
+  for (let n = x; n >= 0; n = Math.floor(n / 26) - 1) {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+  }
+  return s;
+};
+export const coordLabel = (x: number, y: number): string => `${colLabel(x)}${y + 1}`;
+
 /** CSS Grid 1-based 라인 번호. SVG 좌표는 (gridCol(x) - 0.5, gridRow(y) - 0.5)가 타일 중심. */
 export const gridCol = (width: number, x: number): number => (FLIP_X ? width - x : x + 1);
 export const gridRow = (height: number, y: number): number => (FLIP_Y ? height - y : y + 1);
