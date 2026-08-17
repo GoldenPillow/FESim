@@ -210,3 +210,20 @@ describe("스냅숏·커서", () => {
     expect(toCursor(timeline, { t: 0, p: "player", a: 3 })).toBe(0); // 타임라인 앞
   });
 });
+
+describe("절대 적용의 국면 복원", () => {
+  /**
+   * 결함 박제(2026-08-18): attack.weapon 장비 전환이 이벤트에 없어 절대 적용 경로가
+   * 전환을 건너뛰었다 — 이후 스텝의 반격 무기·예보가 기록 당시와 어긋나는 표류였다.
+   */
+  it("attack.weapon 장비 전환을 events 경로에서도 복원한다", () => {
+    const lance = { might: 6, hit: 90, crit: 0, weight: 7, kind: 2, rangeMin: 1, rangeMax: 1 };
+    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, weapons: [sword, lance] });
+    const e = unit({ id: "e", force: 1, x: 1, y: 0, stats: foeStats, weapon: sword });
+    const initial = state([a, e]);
+    const action: BattleAction = { type: "attack", unit: "a", target: "e", weapon: 1 };
+    const recorded = reduce(initial, action, seq(0, 0, 0, 0));
+    const replayed = replayer.applyStep(initial, { action, events: recorded.events });
+    expect(replayed.units[0].weapon).toEqual(lance);
+  });
+});

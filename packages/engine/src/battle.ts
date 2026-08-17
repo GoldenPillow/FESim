@@ -3,6 +3,7 @@ import type {
   BattleEvent,
   BattleWeapon,
   Difficulty,
+  StaffItem,
   StrikeKind,
   SupportEffect,
   SupportLevel,
@@ -44,6 +45,8 @@ export interface UnitState {
   weapon?: BattleWeapon;
   /** 소지 공격 무기 목록 — attack.weapon 인덱스의 해석 대상. 부재 = 장비 무기 고정. */
   weapons?: BattleWeapon[];
+  /** 소지 지팡이 목록 — staff.staff 인덱스의 해석 대상. 잔여 사용 횟수는 국면 상태다(사용마다 감소). */
+  staves?: StaffItem[];
   skills?: SkillRow[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
@@ -204,6 +207,15 @@ function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
   return best;
 }
 
+/**
+ * 지팡이 회복량 = 위력 + floor(마력/2), 잃은 HP 상한 — CalcRodHit 0x2473E10 판독(il2cpp/EXP_CHAIN_ENGAGE §7).
+ * 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ */
+export function staffHealAmount(healer: UnitState, target: UnitState, staff: StaffItem): number {
+  const missing = Math.max(target.stats.hp - target.hp, 0);
+  return Math.min(staff.power + Math.floor(healer.stats.mag / 2), missing);
+}
+
 /** supports.json effects — [SupportCategory][支援レベル]. 수치의 정본은 이 표뿐이다(엔진 박제 금지). */
 export type SupportEffects = Record<string, Record<string, SupportEffect>>;
 
@@ -257,7 +269,13 @@ export function toCombatant(
 }
 
 export function createReducer(calc: Calculator, supportEffects?: SupportEffects) {
-  function expEnv(self: UnitState, foe: UnitState, chainCount: number, difficulty: Difficulty): FormulaEnv {
+  function expEnv(
+    self: UnitState,
+    foe: UnitState,
+    chainCount: number,
+    difficulty: Difficulty,
+    extra?: Record<string, number>,
+  ): FormulaEnv {
     const varsOf = (u: UnitState): Record<string, number | string> => ({
       レベル: u.level,
       内部レベル: u.internalLevel ?? 0,
@@ -268,10 +286,30 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       クリア済み: 0,
       チェインアタック回数: chainCount,
     });
-    const selfVars = varsOf(self);
+    const selfVars = { ...varsOf(self), ...extra };
     const foeVars = varsOf(foe);
     const foeEnv: FormulaEnv = { lookup: (n) => foeVars[n] };
     return { lookup: (n) => selfVars[n], opponent: () => foeEnv };
+  }
+
+  /** 경험치 가산 + 100 단위 레벨업(성장 롤 소비) — 전투·지팡이가 같은 경로를 쓴다(중복 구현 금지). */
+  function grantExp(u: UnitState, gained: number, events: BattleEvent[], rng: RandomSource): void {
+    if (gained <= 0) return;
+    u.exp += gained;
+    events.push({ type: "exp", unit: u.id, amount: gained, total: u.exp });
+    while (u.exp >= 100) {
+      u.exp -= 100;
+      u.level += 1;
+      const gains = rollGrowth(u, rng);
+      const stats = { ...u.stats };
+      for (const key of STAT_KEYS) {
+        const gain = gains[key];
+        if (gain !== undefined) stats[key] += gain;
+      }
+      u.stats = stats;
+      if (gains.hp !== undefined) u.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도
+      events.push({ type: "levelUp", unit: u.id, level: u.level, gains });
+    }
   }
 
   return function reduce(state: GameState, action: BattleAction, rng: RandomSource): GameState {
@@ -419,23 +457,40 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval(formula, expEnv(attacker, defender, chainCount, difficulty)) as number,
           );
-          if (gained > 0) {
-            attacker.exp += gained;
-            events.push({ type: "exp", unit: attacker.id, amount: gained, total: attacker.exp });
-            while (attacker.exp >= 100) {
-              attacker.exp -= 100;
-              attacker.level += 1;
-              const gains = rollGrowth(attacker, rng);
-              const stats = { ...attacker.stats };
-              for (const key of STAT_KEYS) {
-                const gain = gains[key];
-                if (gain !== undefined) stats[key] += gain;
-              }
-              attacker.stats = stats;
-              if (gains.hp !== undefined) attacker.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도
-              events.push({ type: "levelUp", unit: attacker.id, level: attacker.level, gains });
-            }
-          }
+          grantExp(attacker, gained, events, rng);
+        }
+        break;
+      }
+
+      case "staff": {
+        const healer = require(action.unit);
+        const target = require(action.target);
+        assertActable(healer);
+        if (healer.force !== target.force) throw new Error("지팡이 회복은 같은 군만 대상이다");
+        if (healer === target) throw new Error("자기 자신은 지팡이 대상이 아니다");
+        const idx = action.staff ?? 0;
+        const staff = healer.staves?.[idx];
+        if (staff === undefined) throw new Error(`불법 지팡이 인덱스: ${idx}`);
+        // ☠회복(RodType 2)만 배선 — 방해·워프는 결손인 채 정직하게 거부한다(과대 재현 금지, MP1 몫).
+        if (staff.rodType !== 2) throw new Error("미배선 지팡이 종류(회복만 배선)");
+        if (staff.uses < 1) throw new Error("지팡이 사용 횟수 소진");
+        const distance = manhattan(healer, target);
+        if (distance < staff.rangeMin || distance > staff.rangeMax) throw new Error("사거리 밖 지팡이");
+        if (target.stats.hp - target.hp < 1) throw new Error("회복 대상 아님(무손상)");
+        // 위력의 연성·각인 합산은 스냅숏(power) 소관. 전량 회복 축복(bit5)·ItemHealScale 스킬 훅은 미배선.
+        const amount = staffHealAmount(healer, target, staff);
+        target.hp += amount;
+        events.push({ type: "heal", unit: healer.id, target: target.id, amount, hpAfter: target.hp });
+        healer.staves = healer.staves?.map((s, i) => (i === idx ? { ...s, uses: s.uses - 1 } : s));
+        healer.acted = true;
+        healer.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        if (healer.force === 0) {
+          const difficulty = state.difficulty ?? "n";
+          // 杖経験計算 = clamp(杖経験値 + 자기 레벨 감쇠 + 레벨차 감쇠, 1, 100) — 杖経験値 = item RodExp.
+          const gained = Math.floor(
+            calc.eval("杖経験計算", expEnv(healer, target, 0, difficulty, { 杖経験値: staff.rodExp })) as number,
+          );
+          grantExp(healer, gained, events, rng);
         }
         break;
       }

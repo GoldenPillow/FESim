@@ -6,6 +6,7 @@ export {
   type CombatantWeapon,
   type Difficulty,
   type SkillRow,
+  type StaffItem,
   type StatBlock,
   type StatKey,
   type StrikeKind,

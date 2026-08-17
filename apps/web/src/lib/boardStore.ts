@@ -102,6 +102,7 @@ export function initGame(
       stats,
       weapon: su?.weapons?.[0] ?? u.weapon,
       weapons: su?.weapons ?? u.weapons,
+      staves: su?.staves ?? u.staves,
       skills: su?.skills ?? u.skills,
       growth: u.growth,
       level: su?.level ?? u.levels[difficulty],

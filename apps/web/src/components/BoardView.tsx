@@ -16,7 +16,7 @@ export interface BoardViewProps {
   units: UnitState[];
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
-  range?: { move: Tile[]; attack: Tile[] };
+  range?: { move: Tile[]; attack: Tile[]; staff?: Tile[] };
   path?: Tile[];
   selectedId?: string;
   targetId?: string;
@@ -90,6 +90,9 @@ export default function BoardView({
             ))}
             {range.attack.map((t) => (
               <i key={tileKey(t.x, t.y)} className="ov atk" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
+            ))}
+            {(range.staff ?? []).map((t) => (
+              <i key={tileKey(t.x, t.y)} className="ov sta" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
             ))}
           </div>
         )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, staffItems, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -97,5 +97,26 @@ describe("emblemSyncSids — 絆 레벨 싱크로", () => {
   it("unitSkillRows가 絆 레벨을 그대로 태운다", () => {
     const rows = unitSkillRows(disposUnit({ gid: "GID_マルス" }), 3);
     expect(rows.map((r) => r.Sid)).toContain("SID_技＋２");
+  });
+});
+
+describe("staffItems — 소지품 → 지팡이 목록 사영 (MP0)", () => {
+  it("지팡이만 소지 순서대로 — ライブ 실값(Power 10·Range 1-1·잔여 25·RodType 2·RodExp 25)", () => {
+    // 왜 위험한가: staff.staff 인덱스·회복량·경험치가 전부 이 사영을 지나 엔진에 들어간다 —
+    // 필드 하나라도 어긋나면 회복량·잔여 횟수·경험치가 통째로 어긋난다.
+    const u = disposUnit({
+      items: ["IID_鉄の剣", "IID_ライブ"].map((iid) => ({ iid, drop: false })),
+    });
+    const list = staffItems(u, "ko");
+    expect(list).toEqual([
+      { name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, rodExp: 25 },
+    ]);
+  });
+
+  it("m002 프랑은 지팡이를 실보유한다 (재현 결손 발현 케이스의 회귀 앵커)", () => {
+    const props = boardPropsFor("m002", "ko");
+    const framme = props.units.find((u) => u.name === "프랑");
+    expect(framme?.staves?.length).toBeGreaterThan(0);
+    expect(framme?.staves?.[0].rodType).toBe(2);
   });
 });

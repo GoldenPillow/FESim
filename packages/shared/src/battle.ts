@@ -71,8 +71,26 @@ export interface SkillRow {
   [key: string]: unknown;
 }
 
+/**
+ * 지팡이 소지 항목 — items.json Kind=7의 전투 소비분 스냅숏.
+ * power는 연성·각인·신기연성 합산 후 값(CalcRodHit 0x2473E10이 이 순서로 합성 — il2cpp/EXP_CHAIN_ENGAGE §7).
+ */
+export interface StaffItem {
+  power: number;
+  rangeMin: number;
+  rangeMax: number;
+  /** 잔여 사용 횟수(items.json Endurance 출발) — 사용마다 1 감소, 0이면 사용 불가. */
+  uses: number;
+  /** items.json RodType — 2 = 회복(현행 배선 범위 — 그 외는 reduce가 정직하게 거부한다). */
+  rodType: number;
+  /** items.json RodExp — 杖経験計算의 杖経験値 입력. */
+  rodExp: number;
+  name?: string;
+}
+
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
+  | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }
@@ -85,5 +103,7 @@ export type BattleAction =
   | { type: "move"; unit: string; x: number; y: number }
   /** weapon = 유닛 weapons 목록 인덱스 — 지정 시 그 무기로 장비 전환 후 판정(부재 = 현 장비). 기보 재현 계약의 일부. */
   | { type: "attack"; unit: string; target: string; weapon?: number }
+  /** staff = 유닛 staves 목록 인덱스(부재 = 0). 대상은 같은 군 — 회복·보조는 교전이 아니다. */
+  | { type: "staff"; unit: string; target: string; staff?: number }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };
