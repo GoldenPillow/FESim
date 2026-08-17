@@ -19,6 +19,8 @@ export interface BoardViewProps {
   structures?: BoardProps["structures"];
   /** 지속 오버레이(정적) — 반투명 틴트로 베이스 타일 위에 얹는다. */
   overlays?: BoardProps["overlays"];
+  /** 런타임 지형 교체(TerrainSet) — 베이스 타일을 **덮는다**(오버레이와 달리 불투명 치환). */
+  patches?: { x: number; y: number; tid: string; display?: { color?: string; name?: string } }[];
   /** 상호작용 마커(상자·민가·문·이탈점·파괴) — 표시 전용(실행은 이벤트 엔진 이월). */
   interactions?: BoardProps["interactions"];
   units: UnitState[];
@@ -42,6 +44,7 @@ export default function BoardView({
   objects,
   structures,
   overlays,
+  patches,
   interactions,
   units,
   byTile,
@@ -103,6 +106,26 @@ export default function BoardView({
             }),
           )}
         </div>
+
+        {patches !== undefined && patches.length > 0 && (
+          <div className="layer">
+            {patches.map((p) => (
+              <i
+                key={tileKey(p.x, p.y)}
+                className="tile"
+                title={`${coordLabel(p.x, p.y)} ${p.display?.name ?? p.tid}`}
+                style={{
+                  gridColumn: col(p.x),
+                  gridRow: row(p.y),
+                  background: p.display?.color ?? "transparent",
+                  filter: `brightness(${tileShade(p.x, p.y)})`,
+                }}
+                onClick={() => onTileClick?.(p.x, p.y)}
+                onPointerEnter={() => onTileHover?.({ x: p.x, y: p.y })}
+              />
+            ))}
+          </div>
+        )}
 
         {overlays !== undefined && overlays.length > 0 && (
           <div className="layer overlays">

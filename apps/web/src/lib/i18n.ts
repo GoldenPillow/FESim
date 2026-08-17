@@ -13,6 +13,12 @@ interface Strings {
   player: string;
   enemy: string;
   ally: string;
+  /** 챕터 노트(획득물·해금·상점·특이사항 — chapternotes.json 표시) */
+  notes: {
+    title: string; drops: string; visits: string; rewards: string; unlocks: string;
+    shop: string; shopKinds: { weapon: string; item: string; fleaMarket: string };
+    ringsGain: string; ringsLose: string; ringsRegain: string; joins: string; cautions: string;
+  };
   units: string;
   level: string;
   position: string;
@@ -40,6 +46,8 @@ interface Strings {
   diffH: string;
   diffL: string;
   endPhase: string;
+  enemyAuto: string;
+  enemyAutoBlocked: string;
   waitCmd: string;
   attackCmd: string;
   staffCmd: string;
@@ -100,6 +108,12 @@ export const UI: Record<Locale, Strings> = {
     player: "Player",
     enemy: "Enemy",
     ally: "Ally",
+    notes: {
+      title: "Chapter Notes", drops: "Drops", visits: "Visits", rewards: "Rewards", unlocks: "Unlocks",
+      shop: "Shop stock", shopKinds: { weapon: "Weapons", item: "Items", fleaMarket: "Flea market" },
+      ringsGain: "Rings gained", ringsLose: "Rings lost", ringsRegain: "Rings regained", joins: "Joins",
+      cautions: "Cautions",
+    },
     units: "units",
     level: "Lv",
     position: "Position",
@@ -127,6 +141,8 @@ export const UI: Record<Locale, Strings> = {
     diffH: "Hard",
     diffL: "Maddening",
     endPhase: "End phase",
+    enemyAuto: "Auto enemy turn",
+    enemyAutoBlocked: "AI gap — units skipped",
     waitCmd: "Wait",
     attackCmd: "Attack",
     staffCmd: "Staff",
@@ -192,6 +208,12 @@ export const UI: Record<Locale, Strings> = {
     player: "아군",
     enemy: "적군",
     ally: "우군",
+    notes: {
+      title: "챕터 노트", drops: "드랍", visits: "민가", rewards: "입수", unlocks: "해금",
+      shop: "상점 입하", shopKinds: { weapon: "무기점", item: "도구점", fleaMarket: "벼룩시장" },
+      ringsGain: "반지 획득", ringsLose: "반지 상실", ringsRegain: "반지 회수", joins: "가입",
+      cautions: "주의",
+    },
     units: "유닛",
     level: "Lv",
     position: "위치",
@@ -219,6 +241,8 @@ export const UI: Record<Locale, Strings> = {
     diffH: "하드",
     diffL: "루나틱",
     endPhase: "페이즈 종료",
+    enemyAuto: "적턴 자동",
+    enemyAutoBlocked: "AI 결손 — 건너뛴 유닛",
     waitCmd: "대기",
     attackCmd: "공격",
     staffCmd: "지팡이",

@@ -62,7 +62,7 @@ const LABELS: BoardProps["labels"] = {
   endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", engageCmd: "", tradeCmd: "", closeCmd: "", turnPhase: "", turnWord: "",
   victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
-  warpPick: "", guardCmd: "", destroyCmd: "",
+  warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
 };
 

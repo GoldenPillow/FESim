@@ -182,7 +182,7 @@ describe("staffItems — 소지품 → 지팡이 목록 사영 (MP0)", () => {
     });
     const list = staffItems(u, "ko");
     expect(list).toEqual([
-      { name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, useType: 2, hit: 100, distance: 0, rodExp: 25 },
+      { iid: "IID_ライブ", name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, useType: 2, hit: 100, distance: 0, rodExp: 25 },
     ]);
   });
 
@@ -218,7 +218,64 @@ describe("consumableItems — 소지품 → 사용형 아이템 사영 (MP1-1)",
     });
     const list = consumableItems(u, "ko");
     expect(list).toHaveLength(2);
-    expect(list[0]).toEqual({ name: "상처약", addType: 2, power: 15, range: 2, uses: 3 });
+    expect(list[0]).toEqual({ iid: "IID_傷薬", name: "상처약", addType: 2, power: 15, range: 2, uses: 3 });
     expect(list[1].addType).toBe(18); // 독소약 — 미배선이지만 인덱스 자리를 지킨다
+  });
+});
+
+describe("script.terrains — 런타임 지형 교체 사영 (MP3)", () => {
+  it("챕터 Lua 폐포의 TID 전수를 굳혀 넘긴다 — 클라이언트엔 terrain 표가 없다", () => {
+    // 왜 위험한가: 이벤트 TerrainSet이 이 사영만 보고 지형을 바꾼다. 빠지면 세션이 정직 거부하고
+    // 챕터가 통째로 원시판으로 강하한다(효과 없는 교체 = 오재현이라 no-op 강하가 금지돼 있다).
+    const board = boardPropsFor("m015", "ko");
+    const terrains = board.script?.terrains ?? {};
+    expect(Object.keys(terrains).length).toBeGreaterThan(0);
+    const door = terrains["TID_扉"]; // m015 스크립트가 문자열로 부르는 TID
+    expect(door).toBeDefined();
+    expect(door.cell.tid).toBe("TID_扉");
+    expect(door.cell.costName).toBe("COST_不可"); // TerrainGetMoveCost가 비교하는 문자열
+    expect(door.cost?.foot).toBe(255); // 통행 불가 — 교체 시 코스트가 실제로 바뀐다
+    expect(door.name).not.toBe(""); // 렌더 표시(display)의 원천
+    // 표시 필드는 cell에 중복 직렬화하지 않는다(보드 JSON 용량 정책).
+    expect("color" in door.cell).toBe(false);
+  });
+});
+
+describe("script.items — ItemGain 아이템 사영 (MP3)", () => {
+  it("챕터 Lua 폐포의 IID 전수를 채널·스냅숏으로 굳힌다 — 표에 없는 IID만 빠진다(정직 거부의 근거)", () => {
+    // 왜 위험한가: 이벤트 ItemGain이 이 사영만 보고 소지품을 늘린다. 채널 판별이 setup 사영과
+    // 어긋나면 런타임 지급 아이템이 초기 배치 아이템과 다른 물건이 된다(인덱스·위력 계약 붕괴).
+    const board = boardPropsFor("s009", "ko");
+    const pack = board.script?.items ?? {};
+    expect(Object.keys(pack).length).toBeGreaterThan(0);
+    // 여신상 = Kind 10 · AddTarget 0 · AddType/AddPower 0(매각 귀중품) → 맵 국면 효과 없음을 명시.
+    expect(pack["IID_女神の像"]).toEqual({ kind: "none" });
+  });
+
+  it("무기·지팡이·사용형은 setup 사영과 같은 스냅숏을 준다(중복 구현 금지의 증거)", () => {
+    const board = boardPropsFor("m004", "ko");
+    const pack = board.script?.items ?? {};
+    const u = { pid: "x", jid: "y", force: 0, x: 0, y: 0, level: { n: 1, h: 1, l: 1 }, items: [], sids: [] } as unknown as DisposUnit;
+    for (const [iid, row] of Object.entries(pack)) {
+      if (row.kind === "none") continue;
+      const one = { ...u, items: [{ iid, drop: false }] } as DisposUnit;
+      const mirror =
+        row.kind === "weapon" ? attackWeapons(one, "ko")[0]
+          : row.kind === "staff" ? staffItems(one, "ko")[0]
+            : consumableItems(one, "ko")[0];
+      expect(row.item).toEqual(mirror);
+    }
+  });
+});
+
+describe("hpStock 사영 — 다단 보스 (MP3)", () => {
+  it("dispos HpStockCount가 보드 props까지 실린다 — 0은 생략(부활 거동은 미배선)", () => {
+    // 왜 위험한가: 이벤트 UnitGetHpStock이 이 값으로 국면을 분기한다(e006 보스 다단 연출).
+    // ☠값이 실려도 부활은 일어나지 않는다 — 장부 combat.hp-stock은 absent 그대로다.
+    const board = boardPropsFor("e006", "ko");
+    const stocked = board.units.filter((u) => u.hpStock !== undefined);
+    expect(stocked.length).toBeGreaterThan(0);
+    expect(stocked.every((u) => (u.hpStock ?? 0) > 0)).toBe(true);
+    expect(board.units.find((u) => u.pid === "PID_E006_Boss")?.hpStock).toBe(3);
   });
 });

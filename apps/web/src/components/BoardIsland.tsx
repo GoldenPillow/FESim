@@ -3,7 +3,10 @@ import {
   attackRange,
   BAD_STATE,
   canBreak,
+  createAi,
+  emptyAiMemory,
   canChainGuard,
+  canDance,
   canterPower,
   chainGuardFor,
   destroyTargets,
@@ -22,6 +25,7 @@ import {
   staffHitRate,
   toCombatant,
   warpDestinations,
+  type AiDeficit,
   type BattleAction,
   type BattleEvent,
   type BattleWeapon,
@@ -84,6 +88,18 @@ function eventWiringFor(
             return unit === undefined ? [] : [unit];
           }),
         skillRow: (sid) => script.skills[sid],
+        // IID → 채널·스냅숏 — SSG가 굳힌 script.items만 안다(클라이언트엔 items 표가 없다).
+        gainItem: (iid) => script.items?.[iid] as never,
+        // TID → 지형 1칸 — SSG가 굳힌 script.terrains만 안다(클라이언트엔 terrain 표가 없다).
+        terrainCell: (tid) => {
+          const row = script.terrains?.[tid];
+          if (row === undefined) return undefined;
+          return {
+            cell: row.cell,
+            ...(row.cost !== undefined ? { cost: row.cost } : {}),
+            display: { color: row.color, name: row.name },
+          };
+        },
         godUnit: (_unit, gid) => {
           const god = script.gods[gid];
           if (god === undefined) return undefined;
@@ -114,6 +130,11 @@ export default function BoardIsland(props: BoardProps) {
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  /** 적턴 자동이 건너뛴 유닛(정직 결손) — 몰래 대기시키지 않고 여기에 남긴다. */
+  const [aiGaps, setAiGaps] = useState<AiDeficit[]>([]);
+  // ★AI 난수 = `Random.System` — 전투 RNG(기보 스트림)와 **별도**다(AI_ENGINE §7-4).
+  //   AI가 고른 행동 자체가 기보에 액션으로 남으므로 재생에는 이 스트림이 필요 없다.
+  const aiRng = useRef({ next: (bound: number) => Math.floor(Math.random() * bound) }).current;
 
   // 세팅층 편집(M4): 배치 이동·제거·복원 — diff는 스토어 setup이 소유(setSetup = 새 판).
   const setup = useBoard(store, (s) => s.setup);
@@ -597,6 +618,11 @@ export default function BoardIsland(props: BoardProps) {
           case "crestAdd":
           case "reset":
           case "unitFlags":
+          case "equip":
+          case "terrainSet":
+          case "gain":
+          case "hpStock":
+          case "putOff":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }
       })
@@ -623,6 +649,32 @@ export default function BoardIsland(props: BoardProps) {
   const tryDispatch = (action: BattleAction): boolean => {
     const prev = store.getState().game;
     return dispatch(action) !== prev;
+  };
+
+  /**
+   * 적턴 자동 — `aiNextAction`을 반복 실행하고 액션마다 dispatch한다(기보에 그대로 기록된다).
+   * ☠결손 유닛만 남으면 **정지하고 표시**한다 — 몰래 wait을 먹이면 그것도 오재현이다.
+   * AI 난수는 전투 RNG와 **별도 스트림**이다(Random.System — AI_ENGINE §7-4).
+   */
+  const runEnemyAuto = (): void => {
+    const ai = createAi(calculator);
+    let memory = emptyAiMemory();
+    setAiGaps([]);
+    for (let guard = 0; guard < 1000; guard++) {
+      const state = store.getState().game;
+      if (state.outcome !== undefined || state.phase === 0) return;
+      const decision = ai.next(state, aiRng, memory);
+      memory = decision.memory;
+      if (decision.actions.length === 0) {
+        if (decision.deficits.length > 0) {
+          setAiGaps(decision.deficits);
+          return; // 결손 유닛이 남았다 — 페이즈를 자동으로 닫지 않는다.
+        }
+        dispatch({ type: "endPhase" });
+        return;
+      }
+      for (const action of decision.actions) dispatch(action);
+    }
   };
 
   /** 공격 액션 — 무기 목록이 있으면 선택 인덱스를 기보에 싣는다(장비 전환 포함 재현 계약). */
@@ -697,6 +749,27 @@ export default function BoardIsland(props: BoardProps) {
         ) {
           setPending({ x: engageAt.x, y: engageAt.y });
         }
+        return;
+      }
+      // 춤(재행동) — 무희 + 인접(잠정 위치 기준 1칸) 행동 완료 아군: 클릭 = 대상 지정, 재클릭 = 커밋.
+      if (
+        selected !== undefined &&
+        !selected.acted &&
+        canDance(selected) &&
+        clicked.force === selected.force &&
+        clicked.id !== selected.id &&
+        clicked.acted &&
+        selectedAt !== undefined &&
+        Math.abs(selectedAt.x - clicked.x) + Math.abs(selectedAt.y - clicked.y) === 1
+      ) {
+        if (clicked.id === targetId) {
+          if (commitMove() && tryDispatch({ type: "dance", unit: selected.id, target: clicked.id })) {
+            if (canterPower(selected) === undefined) setSelectedId(undefined);
+            setTargetId(undefined);
+          }
+          return;
+        }
+        setTargetId(clicked.id);
         return;
       }
       // 지팡이 아군 대상 — 회복 = 손상 아군(재클릭 = 커밋), 워프 = 아군 전부(확정 후 목적지 클릭).
@@ -819,6 +892,13 @@ export default function BoardIsland(props: BoardProps) {
         </button>
         <button
           type="button"
+          onClick={runEnemyAuto}
+          disabled={game.outcome !== undefined || mode === "replay" || game.phase === 0}
+        >
+          {labels.enemyAuto}
+        </button>
+        <button
+          type="button"
           onClick={() => {
             store.getState().undo();
             clearLocal();
@@ -861,6 +941,7 @@ export default function BoardIsland(props: BoardProps) {
         objects={visibleObjects(objects, game.crests)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}
+        patches={game.terrainPatches}
         interactions={props.interactions}
         units={viewUnits}
         byTile={byTileView}
@@ -1052,6 +1133,17 @@ export default function BoardIsland(props: BoardProps) {
         <div className="battle-log" role="status">
           {log.map((line, i) => (
             <span key={i}>{line}</span>
+          ))}
+        </div>
+      )}
+
+      {aiGaps.length > 0 && (
+        <div className="battle-log" role="status">
+          <span>{labels.enemyAutoBlocked}</span>
+          {aiGaps.map((gap, i) => (
+            <span key={i}>
+              {unitName(gap.unit)} · {gap.reason}
+            </span>
           ))}
         </div>
       )}

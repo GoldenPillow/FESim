@@ -12,6 +12,7 @@ import type {
   SupportEffect,
   SupportLevel,
 } from "@fesim/shared";
+import type { AiSnapshot } from "./ai/types.js";
 import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
@@ -48,6 +49,13 @@ export interface UnitState {
   aiScript?: (string | number | boolean)[][];
   /** UNIT_STATUS_* 비트(common.lua 96~104) — 이벤트가 세우고 지운다. 소비 = MP4(이동 금지·출격 로스터). */
   flags?: number;
+  /**
+   * HP 스톡(dispos HpStockCount +0xB0) — 다단 보스의 남은 부활 횟수.
+   * ☠**사영·이벤트만**이다: 부활 거동(HP 0 → 스톡 소모 부활)은 미배선 — 소비 경로는 확정됐으나
+   * (TryAddDeadScene 0x2472D20 → CanRevive 0x1A4F860 → Revive 0x1A4F8B0) 부활 후 HP·상태가 미판독이다.
+   * 장부 combat.hp-stock. 0이면 필드 자체를 두지 않는다.
+   */
+  hpStock?: number;
   force: number;
   x: number;
   y: number;
@@ -91,6 +99,11 @@ export interface UnitState {
    * 없으면 지원 보정 없음(무회귀).
    */
   supports?: Record<string, SupportLevel>;
+  /**
+   * dispos AI 사영 + 이 유닛이 쓰는 ai.xml 루틴 스냅숏 — 소비 = `aiNextAction`(적턴 AI 층).
+   * reduce는 읽지 않는다(AI는 액션을 만들 뿐 룰이 아니다).
+   */
+  ai?: AiSnapshot;
   acted: boolean;
   dead: boolean;
   broken: boolean;
@@ -116,6 +129,8 @@ export interface UnitState {
    * ☠moveType으로 갈음 금지 — 용(邪竜류, MoveType 4)은 Fly 비트가 없어 면제 대상이 아니다.
    */
   flying?: boolean;
+  /** 특효 피격 판정 마스크 — person.Attrs | job.Attrs(대상 측 소비 — combatEnv efficacyOf). */
+  attrs?: number;
 }
 
 /** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
@@ -131,7 +146,11 @@ export function hasBadState(u: UnitState, bit: number): boolean {
  * ☠u.skills 직접 소비 금지 — 판정·예보·UI 전부 이 함수를 거쳐야 교체가 새지 않는다.
  */
 export function effectiveSkills(u: UnitState): SkillRow[] | undefined {
-  return u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+  const base = u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+  // 무기 부여 스킬(EquipSids) — 장비 중에만 합류(특효·무기 스킬의 원천, 무장 해제 시 소멸).
+  const granted = u.weapon?.sids;
+  if (granted === undefined || granted.length === 0) return base;
+  return [...(base ?? []), ...granted];
 }
 
 /**
@@ -143,6 +162,16 @@ export function effectiveWeapons(u: UnitState): BattleWeapon[] | undefined {
     return [...(u.weapons ?? []), ...u.engageWeapons];
   }
   return u.weapons;
+}
+
+/**
+ * 장비 후보 목록 — weapons ++ engageWeapons(인게이지 여부 무관).
+ * ☠effectiveWeapons(전투용)와 다르다: 장비 전환은 인게이지 **전에도** 일어난다(m014·m020의 MapOpening이
+ * 비인게이지 보스에게 엠블렘 무기를 물린다 — 실측). equip 이벤트의 인덱스 공간이 이것이라 인게이지
+ * 상태가 바뀌어도 기록 인덱스가 흔들리지 않는다.
+ */
+export function equipCandidates(u: UnitState): BattleWeapon[] {
+  return [...(u.weapons ?? []), ...(u.engageWeapons ?? [])];
 }
 
 /**
@@ -257,6 +286,31 @@ export interface StructureState {
   name?: string;
 }
 
+/**
+ * 런타임 지형 교체 1칸(TerrainSet·TerrainSetOne 사영) — 베이스 격자를 **변이하지 않고** 덮는다.
+ * 격자를 그대로 두는 이유: 패치 리스트는 직렬화·절대 재생(terrainSet 이벤트)에 그대로 실린다.
+ * 우선순위 = 살아있는 비지붕 구조물 > 패치 > 베이스(구조물은 m_Layers 별도 층 — §2-13).
+ */
+export interface TerrainPatch {
+  x: number;
+  y: number;
+  tid: string;
+  cell: TerrainCell;
+  /** 이동타입별 진입 코스트(terrain.json 地形コスト) — 부재 = 베이스 코스트 유지. */
+  cost?: Partial<Record<MoveType, number>>;
+  /** 렌더 표시(색·이름) — 데이터층이 굳혀 넘긴다(엔진은 소비하지 않는다). */
+  display?: { color?: string; name?: string };
+}
+
+/** 해당 칸의 지형 패치 — 나중 것이 이긴다(같은 칸 재교체는 덮어쓴다). */
+export function terrainPatchAt(
+  patches: readonly TerrainPatch[] | undefined,
+  x: number,
+  y: number,
+): TerrainPatch | undefined {
+  return patches?.find((p) => p.x === x && p.y === y);
+}
+
 export interface BattleMap {
   width: number;
   height: number;
@@ -323,12 +377,13 @@ export function makeCostAt(
   map: BattleMap,
   structures: readonly StructureState[] | undefined,
   moveType: MoveType,
+  patches?: readonly TerrainPatch[],
 ): (x: number, y: number) => number {
   const grid = map.costs[moveType];
   const flying = moveType === "fly" || moveType === "dragon";
   return (x, y) => {
     const s = structureAt(structures, x, y);
-    const base = s?.costs?.[moveType] ?? grid?.[y]?.[x] ?? 255;
+    const base = s?.costs?.[moveType] ?? terrainPatchAt(patches, x, y)?.cost?.[moveType] ?? grid?.[y]?.[x] ?? 255;
     const o = overlayAt(map, x, y);
     const add = o === undefined ? 0 : (flying ? o.flyCost ?? 0 : o.moveCost ?? 0);
     return Math.min(base + add, 255);
@@ -339,11 +394,18 @@ export function makeCostAt(
  * 지형 전투 보정 — 진영 비대칭 합산의 단일 정본(예보·전투·지팡이 명중이 전부 이것만 소비).
  * force 0 → +Player항 · 1 → +Enemy항 · 2 이상 → 무가산 (CalcDefense/CalcAvoid 동형).
  */
-export function terrainBonusAt(map: BattleMap, x: number, y: number, force: number): { avoid: number; def: number } {
+export function terrainBonusAt(
+  map: BattleMap,
+  x: number,
+  y: number,
+  force: number,
+  patches?: readonly TerrainPatch[],
+): { avoid: number; def: number } {
   let avoid = 0;
   let def = 0;
   // 2층 순회(베이스 + 오버레이) — CalcDefense가 Terrain(0x40)·OverlapTerrain(0x48) 슬롯을 각각 더한다(FIX-2).
-  for (const t of [map.terrain?.[y]?.[x], overlayAt(map, x, y)?.cell]) {
+  // 베이스 자리는 런타임 교체가 있으면 패치 셀이 대신한다(교체 = 지형 자체가 바뀐 것).
+  for (const t of [terrainPatchAt(patches, x, y)?.cell ?? map.terrain?.[y]?.[x], overlayAt(map, x, y)?.cell]) {
     if (t === undefined) continue;
     const side = force === 0
       ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
@@ -361,12 +423,17 @@ export function terrainBonusAt(map: BattleMap, x: number, y: number, force: numb
  * 정본 = GetMovePowerImpl 경로: 예산 ≥ 1일 때만 clamp(예산 + moveFirst, 0, 100), 비행·용 면제.
  * 재이동도 동일 루틴이라 자동 적용된다(MOVE_TERRAIN.md FIX-6).
  */
-export function moveBudgetOn(map: BattleMap, u: UnitState): number | undefined {
+export function moveBudgetOn(
+  map: BattleMap,
+  u: UnitState,
+  patches?: readonly TerrainPatch[],
+): number | undefined {
   const budget = moveBudget(u);
   if (budget === undefined || budget < 1) return budget;
   if (u.moveType === "fly" || u.moveType === "dragon") return budget;
   const first =
-    (map.terrain?.[u.y]?.[u.x]?.moveFirst ?? 0) + (overlayAt(map, u.x, u.y)?.cell.moveFirst ?? 0);
+    ((terrainPatchAt(patches, u.x, u.y)?.cell ?? map.terrain?.[u.y]?.[u.x])?.moveFirst ?? 0) +
+    (overlayAt(map, u.x, u.y)?.cell.moveFirst ?? 0);
   return clamp(budget + first, 0, 100);
 }
 
@@ -431,6 +498,8 @@ export interface GameState {
   crests?: { x: number; y: number }[];
   /** 구조물 상태(m_Layers 사영) — hp = Hp_{난이도} 초기값, 파괴 = hp 0(통행 개방·지붕 걷힘). */
   structures?: StructureState[];
+  /** 런타임 지형 교체(TerrainSet·TerrainSetOne) — 베이스 격자를 덮는 패치 리스트. */
+  terrainPatches?: TerrainPatch[];
   outcome?: "victory" | "defeat";
   /** 직전 행동의 이벤트(휘발) — 리플레이 정본은 행동 로그다. */
   events: BattleEvent[];
@@ -475,6 +544,25 @@ export function canBreak(from: UnitState, to: UnitState): boolean {
 
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
   u.weapon !== undefined && distance >= u.weapon.rangeMin && distance <= u.weapon.rangeMax;
+
+/**
+ * 체인어택 참가자 — 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
+ * reduce와 AI 평가(`UnitUtil$$CanChainAttack` 대응)가 이것 하나를 공유한다(☠중복 구현 금지).
+ */
+export function chainAttackers(
+  attacker: UnitState,
+  defender: UnitState,
+  units: readonly UnitState[],
+): UnitState[] {
+  return units.filter(
+    (u) =>
+      !u.dead &&
+      u.force === attacker.force &&
+      u.id !== attacker.id &&
+      u.style === "連携スタイル" &&
+      inWeaponRange(u, manhattan(u, defender)),
+  );
+}
 
 /** 한 레벨에 이만큼도 못 올리면 다시 굴린다 — Unit.GrowAbortCount. */
 const GROW_ABORT = 2;
@@ -545,6 +633,7 @@ export function staffHitRate(
   target: UnitState,
   staff: StaffItem,
   map: BattleMap,
+  patches?: readonly TerrainPatch[],
 ): number {
   const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
   const casterEnv = combatEnv({
@@ -553,7 +642,7 @@ export function staffHitRate(
   });
   const targetEnv = combatEnv({
     stats: { ...target.stats, maxHp: target.stats.hp, hp: target.hp },
-    terrain: terrainBonusAt(map, target.x, target.y, target.force),
+    terrain: terrainBonusAt(map, target.x, target.y, target.force, patches),
   });
   const hit = clamp(calc.eval("妨害杖命中値計算", casterEnv) as number, 0, 999);
   const avoid = clamp(calc.eval("妨害杖回避値計算", targetEnv) as number, 0, 999);
@@ -572,16 +661,18 @@ export function warpDestinations(
   map: BattleMap,
   units: readonly UnitState[],
   structures?: readonly StructureState[],
+  patches?: readonly TerrainPatch[],
 ): { x: number; y: number }[] {
   const radius = staff.distance ?? 0;
   const out: { x: number; y: number }[] = [];
   if (map.costs[target.moveType] === undefined) return out;
-  const costAt = makeCostAt(map, structures, target.moveType);
+  const costAt = makeCostAt(map, structures, target.moveType, patches);
   for (let y = Math.max(target.y - radius, 0); y <= Math.min(target.y + radius, map.height - 1); y++) {
     for (let x = Math.max(target.x - radius, 0); x <= Math.min(target.x + radius, map.width - 1); x++) {
       if (Math.abs(x - target.x) + Math.abs(y - target.y) > radius) continue;
       if (costAt(x, y) >= 255) continue;
-      if (map.terrain?.[y]?.[x]?.notWarp === true || overlayAt(map, x, y)?.cell.notWarp === true) continue;
+      if ((terrainPatchAt(patches, x, y)?.cell ?? map.terrain?.[y]?.[x])?.notWarp === true
+        || overlayAt(map, x, y)?.cell.notWarp === true) continue;
       if (units.some((u) => !u.dead && u.id !== target.id && u.x === x && u.y === y)) continue;
       out.push({ x, y });
     }
@@ -674,13 +765,15 @@ export function toCombatant(
   map: BattleMap,
   units: readonly UnitState[] = [],
   supportEffects?: SupportEffects,
+  patches?: readonly TerrainPatch[],
 ): Combatant {
   return {
     stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
     weapon: u.weapon,
-    terrain: terrainBonusAt(map, u.x, u.y, u.force),
+    terrain: terrainBonusAt(map, u.x, u.y, u.force, patches),
     skills: effectiveSkills(u),
     support: supportOf(u, units, supportEffects),
+    ...(u.attrs !== undefined ? { attrs: u.attrs } : {}),
   };
 }
 
@@ -775,7 +868,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const u = require(action.unit);
         if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
         if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
-        const budget = moveBudgetOn(state.map, u);
+        const budget = moveBudgetOn(state.map, u, state.terrainPatches);
         if (budget === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
         if (state.map.costs[u.moveType] === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
         const reachable = movementRange({
@@ -783,7 +876,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           height: state.map.height,
           movePoints: budget,
           start: { x: u.x, y: u.y },
-          costAt: makeCostAt(state.map, state.structures, u.moveType),
+          costAt: makeCostAt(state.map, state.structures, u.moveType, state.terrainPatches),
           ...movePredicates(state.map, units, u),
         });
         if (!reachable.some((t) => t.x === action.x && t.y === action.y)) {
@@ -806,7 +899,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (legal === undefined) throw new Error(`파괴 대상 없음: (${action.x}, ${action.y})`);
         const idx = legal.structure;
         const target = state.structures![idx];
-        const self = { ...toCombatant(u, state.map, units, supportEffects), initiator: true, striking: true };
+        const self = { ...toCombatant(u, state.map, units, supportEffects, state.terrainPatches), initiator: true, striking: true };
         const env = combatEnv(self);
         const atk = Math.trunc(Math.min(Math.max(calc.eval("攻撃力計算", env) as number, 0), 999));
         const flow = makeSkillModifier(effectiveSkills(u) ?? [], env, { initiator: true, striking: true });
@@ -847,8 +940,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (!inWeaponRange(attacker, distance)) throw new Error("사거리 밖 공격");
 
         // 스킬 발동 필터: 전투를 건 쪽(Stand)은 전투 내내 고정이고, 때리는 쪽(Action)은 타격마다 뒤집힌다.
-        const attackerC = { ...toCombatant(attacker, state.map, units, supportEffects), initiator: true };
-        const defenderC = { ...toCombatant(defender, state.map, units, supportEffects), initiator: false };
+        const attackerC = { ...toCombatant(attacker, state.map, units, supportEffects, state.terrainPatches), initiator: true };
+        const defenderC = { ...toCombatant(defender, state.map, units, supportEffects, state.terrainPatches), initiator: false };
         const striking = (c: Combatant, value: boolean): Combatant => ({ ...c, striking: value });
         const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
         const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
@@ -858,14 +951,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         let guardBlocks = 0;
 
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
-        const chainUnits = units.filter(
-          (u) =>
-            !u.dead &&
-            u.force === attacker.force &&
-            u !== attacker &&
-            u.style === "連携スタイル" &&
-            inWeaponRange(u, manhattan(u, defender)),
-        );
+        const chainUnits = chainAttackers(attacker, defender, units);
 
         const strike = (
           from: UnitState,
@@ -908,7 +994,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         // kr 원문 "한 번 전투를 하거나 다음 턴이 되기 전까지"가 정확히 이 둘이다 — 아래가 (A)에 해당한다.
         const defenderEnteredBroken = defender.broken;
         const chainNumbers = (backup: UnitState) => {
-          const env = combatEnv(toCombatant(backup, state.map, units, supportEffects), defenderC);
+          const env = combatEnv(toCombatant(backup, state.map, units, supportEffects, state.terrainPatches), defenderC);
           return {
             damage: Math.floor(calc.eval("チェインアタック威力計算", env) as number),
             hitRate: calc.eval("チェインアタック命中率計算", env) as number,
@@ -1025,7 +1111,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           if (caster.force !== target.force) throw new Error("워프는 같은 군만 대상이다");
           if (action.x === undefined || action.y === undefined) throw new Error("워프 목적지 없음");
           // 목적지 = 대상 좌표 중심 맨해튼 Distance 반경(UnitWarp 0x2C1F880) — 열거는 warpDestinations 공용.
-          const legal = warpDestinations(target, staff, state.map, units, state.structures);
+          const legal = warpDestinations(target, staff, state.map, units, state.structures, state.terrainPatches);
           if (!legal.some((t) => t.x === action.x && t.y === action.y)) {
             throw new Error(`불법 워프 목적지: (${action.x}, ${action.y})`);
           }
@@ -1177,13 +1263,13 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         // 기술 스킬 세트(기술 행 + SyncSids 전개)는 이 전투 한정으로 공격측에 합류한다 — 국면 스킬은 불변.
         const artSkills = [...(effectiveSkills(attacker) ?? []), ...art.skills];
         const attackerC = {
-          ...toCombatant(attacker, state.map, units, supportEffects),
+          ...toCombatant(attacker, state.map, units, supportEffects, state.terrainPatches),
           skills: artSkills,
           initiator: true,
           striking: true,
         };
         const defenderC = {
-          ...toCombatant(defender, state.map, units, supportEffects),
+          ...toCombatant(defender, state.map, units, supportEffects, state.terrainPatches),
           initiator: false,
           striking: false,
         };
@@ -1295,7 +1381,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
               // ☠사망 불가: canDie=false 상수 경로라 하한 1(max) · 회복은 잃은 HP 상한. 비행(Attrs Fly) 전면 면제.
               if (!fresh.dead && fresh.flying !== true) {
                 const net =
-                  (state.map.terrain?.[fresh.y]?.[fresh.x]?.heal ?? 0) +
+                  ((terrainPatchAt(state.terrainPatches, fresh.x, fresh.y)?.cell
+                    ?? state.map.terrain?.[fresh.y]?.[fresh.x])?.heal ?? 0) +
                   (overlayAt(state.map, fresh.x, fresh.y)?.cell.heal ?? 0);
                 if (net !== 0) {
                   const after = net > 0 ? Math.min(fresh.hp + net, fresh.stats.hp) : Math.max(fresh.hp + net, 1);

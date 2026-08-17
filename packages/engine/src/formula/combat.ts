@@ -34,7 +34,26 @@ export interface Combatant {
   initiator?: boolean;
   /** 이번 타격에서 때리는 쪽인가 — 스킬 Action 게이트. 공격·반격마다 뒤집힌다. */
   striking?: boolean;
+  /** 특효 피격 판정 마스크 — person|job Attrs 합집합(대상 측에서 소비). */
+  attrs?: number;
 }
+
+/**
+ * 특효 배율 — 공격자 스킬 Efficacy ∩ (대상 attrs ∖ 대상 스킬 EfficacyIgnore 합집합)이 비지 않으면
+ * 걸린 스킬 EfficacyValue **최댓값**(합산 아님), 평시 1. BattleDetail.CalcAttack(0x1E744E8~) 정본.
+ */
+const efficacyOf = (self: Combatant, foe: Combatant | undefined): number => {
+  const attrs = foe?.attrs ?? 0;
+  if (attrs === 0) return 1;
+  let ignore = 0;
+  for (const s of foe?.skills ?? []) if (typeof s.EfficacyIgnore === "number") ignore |= s.EfficacyIgnore;
+  let best = 1;
+  for (const s of self.skills ?? []) {
+    if (typeof s.Efficacy !== "number" || typeof s.EfficacyValue !== "number") continue;
+    if ((s.Efficacy & attrs & ~ignore) !== 0 && s.EfficacyValue > best) best = s.EfficacyValue;
+  }
+  return best;
+};
 
 export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
   const { stats, weapon, support, terrain } = self;
@@ -56,7 +75,7 @@ export function combatEnv(self: Combatant, foe?: Combatant): FormulaEnv {
     武器の重さ: weapon?.weight ?? 0,
     武器回避: weapon?.avoid ?? 0,
     武器必殺回避: weapon?.dodge ?? 0,
-    武器特効: weapon?.effective ?? 1,
+    武器特効: weapon?.effective ?? efficacyOf(self, foe),
     支援命中: support?.hit ?? 0,
     支援回避: support?.avoid ?? 0,
     支援必殺: support?.crit ?? 0,

@@ -82,6 +82,7 @@ def build_tables(src: Path, out: Path) -> None:
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
     build_gods(src, out)
+    build_ai(src, out)
     build_supports(src, out)
     build_calculator(src, out)
     build_chapterlist(src, out)
@@ -138,6 +139,28 @@ def build_gods(src: Path, out: Path) -> None:
                 if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})
+
+
+def build_ai(src: Path, out: Path) -> None:
+    """ai.xml コマンド 시트 → {루틴명: [명령행]}. 원문 무손실(Active/Code/Mind/StrValue0/1/Trans 그대로).
+
+    Group 열이 채워진 행이 루틴 머리이고, 뒤따르는 Group="" 행들이 그 루틴의 명령 목록이다
+    (`App.AIData` 1행 = 1명령 — il2cpp/AI_ENGINE §2-1). 소비는 엔진 AI 층이 하되
+    챕터 유닛이 실제로 쓰는 루틴만 골라 스냅숏으로 넘긴다.
+    """
+    _, rows = load_sheet(src / "gamedata" / "ai.xml")
+    routines: dict[str, list[dict]] = {}
+    current: list[dict] | None = None
+    for row in rows:
+        name = row.get("Group")
+        if name:
+            current = routines.setdefault(name, [])
+            continue
+        if current is None:
+            continue
+        current.append({k: row[k] for k in ("Active", "Code", "Mind", "StrValue0", "StrValue1", "Trans")
+                        if k in row})
+    write_json(out / "tables" / "ai.json", routines)
 
 
 def build_supports(src: Path, out: Path) -> None:

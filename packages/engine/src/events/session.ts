@@ -1,6 +1,6 @@
 import { lua, lauxlib, lualib, to_luastring, to_jsstring, type LuaState } from "fengari-web";
-import type { BattleEvent, SkillRow, StatusGive } from "@fesim/shared";
-import { makeCostAt, overlayAt, structureAt, type GameState, type StructureState, type UnitState, type WinRule } from "../battle.js";
+import type { BattleEvent, BattleWeapon, ConsumableItem, SkillRow, StaffItem, StatusGive } from "@fesim/shared";
+import { equipCandidates, makeCostAt, overlayAt, structureAt, terrainPatchAt, type GameState, type RandomSource, type StructureState, type TerrainCell, type TerrainPatch, type UnitState, type WinRule } from "../battle.js";
 
 /**
  * 이벤트 세션 — 챕터 Lua 스크립트(정본 그대로, 파이프라인 가공본)를 fengari로 실행한다.
@@ -17,10 +17,25 @@ export interface EventHost {
   skillRow?(sid: string): SkillRow | undefined;
   /** 엠블렘 유닛화(UnitSetGodUnit) — 유닛 필드 패치 산출(engage·engagedSkills 등). */
   godUnit?(unit: Readonly<UnitState>, gid: string): Partial<UnitState> | undefined;
-  /** 아이템 지급(ItemGain) — 유닛 필드 패치 산출(소지품 확장). */
-  gainItem?(unit: Readonly<UnitState>, iid: string): Partial<UnitState> | undefined;
+  /**
+   * IID → 소지품 채널·스냅숏(ItemGain). 데이터층이 챕터 폐포의 "IID_..." 전수를 굳혀 넘긴다(script.items).
+   * kind "none" = 맵 국면에 효과가 없는 종별(귀중품·도구·금전) — 지급해도 국면이 안 변한다.
+   * 부재(표에 아예 없음) = 정직 거부.
+   */
+  gainItem?(iid: string):
+    | { kind: "weapon"; item: BattleWeapon }
+    | { kind: "staff"; item: StaffItem }
+    | { kind: "consumable"; item: ConsumableItem }
+    | { kind: "none" }
+    | undefined;
   /** PersonGetIndex — person.xml 행 인덱스(AI 예약 변수에 저장됨, 소비 = MP4). 부재 = 0. */
   personIndex?(pid: string): number;
+  /**
+   * TID → 지형 1칸 사영(TerrainSet·TerrainSetOne). 클라이언트엔 terrain 표가 없어 데이터층이
+   * 챕터 Lua 폐포의 "TID_..." 전수를 미리 굳혀 넘긴다(보드 script.terrains).
+   * 부재·미상이면 정직 거부한다 — 효과 없는 지형 교체는 오재현이다.
+   */
+  terrainCell?(tid: string): { cell: TerrainCell; cost?: TerrainPatch["cost"]; display?: { color?: string; name?: string } } | undefined;
 }
 
 export interface HookResult {
@@ -41,6 +56,7 @@ interface Draft {
   winRule: WinRule;
   crests: { x: number; y: number }[] | undefined;
   structures: StructureState[] | undefined;
+  terrainPatches: TerrainPatch[] | undefined;
   events: BattleEvent[];
   base: Readonly<GameState>;
   mind: Mind;
@@ -175,6 +191,13 @@ export interface EventSession {
   battle(state: GameState, kinds: ("battleBefore" | "battleTalk" | "battleAfter")[], attackerId: string, defenderId: string): HookResult;
   /** 유닛 행동 종료 폴링(Fixed, terminal일 때만) + 영역 진입(Area) — ⚠발화 시점 근사(장부 참조). */
   acted(state: GameState, unitId: string, terminal: boolean): HookResult;
+  /** 파괴 완파 발화(Destroy) — 완파된 구조물 사각과 교차하는 EventEntryDestroy 트리거. */
+  destroyed(state: GameState, rects: { x1: number; y1: number; x2: number; y2: number }[]): HookResult;
+  /**
+   * 스텝 난수원 주입 — ☠이벤트 콜백의 굴림(RandomGet)도 기보 난수다. 리듀서가 매 스텝 넘긴다.
+   * 미주입 상태에서 RandomGet이 불리면 정직 거부한다(0 강하 = 기보 재현 파괴).
+   */
+  setRng(rng: RandomSource | undefined): void;
   /** 미배선·미지 네이티브 호출 기록(정직성 표면) — [함수명, 호출 수]. */
   unknownCalls(): [string, number][];
 }
@@ -195,15 +218,10 @@ export function createEventSession(opts: {
   const inspectors: Inspector[] = [];
   /** 생성된 GodUnit(엠블렘 실체) — GodUnitCreate/Delete가 소유, GodUnitExists가 읽는다. */
   const gods = new Set<string>();
-  /**
-   * 런타임 지형 교체(TerrainSet·TerrainSetOne) — "x,y" → TID.
-   * ⚠**Lua 가시성만** 정합시킨다: TerrainGet이 자기가 쓴 값을 되읽게 한다. 지형 **효과**(코스트·회피·
-   * 방어)는 미반영이다(장부 turn.map-gimmicks — TID → TerrainCell 해석 훅과 보드 팔레트 확장이 선행).
-   */
-  const terrainOverride = new Map<string, string>();
   const unknown = new Map<string, number>();
   const loaded = new Set<string>();
   let ctx: Draft | undefined;
+  let rng: RandomSource | undefined;
 
   const draft = (): Draft => {
     if (ctx === undefined) throw new Error("이벤트 프리미티브가 훅 밖에서 불렸다");
@@ -473,16 +491,24 @@ export function createEventSession(opts: {
     }
     return 0;
   });
-  register("ItemGain", () => {
-    const u = unitAt(1);
-    const iid = str(2);
-    if (u !== undefined) {
-      const patch = host.gainItem?.(u, iid);
-      if (patch !== undefined) Object.assign(u, patch);
-      else unknown.set(`ItemGain:${iid}`, (unknown.get(`ItemGain:${iid}`) ?? 0) + 1);
-    }
-    return 0;
-  });
+  for (const name of ["ItemGain", "ItemGainSilent"]) {
+    register(name, () => {
+      // 1번 인자 nil = 수송대(맵 밖 창고) 지급 — 국면(맵)에 실체가 없다. GodSaveEquip과 같은 층.
+      if (lua.lua_type(A, 1) === lua.LUA_TNIL) return 0;
+      const u = unitAt(1);
+      const iid = str(2);
+      if (u === undefined) return 0;
+      const row = host.gainItem?.(iid);
+      if (row === undefined) return lauxlib.luaL_error(A, to_luastring(`${name}: 아이템 사영 없음 ${iid}`));
+      if (row.kind === "none") return 0; // 데이터가 "맵 효과 없음"을 명시한 종별 — 조용한 no-op이 아니다
+      const item = JSON.parse(JSON.stringify(row.item)) as never;
+      if (row.kind === "weapon") u.weapons = [...(u.weapons ?? []), item];
+      else if (row.kind === "staff") u.staves = [...(u.staves ?? []), item];
+      else u.consumables = [...(u.consumables ?? []), item];
+      emit({ type: "gain", unit: u.id, kind: row.kind, item: row.item as unknown as Record<string, unknown> });
+      return 0;
+    });
+  }
   register("EventOpenDoor", () => {
     // 문 개방 = 구조물 소멸(통행 개방·같은 group 지붕 걷힘) — 파괴 타격과 같은 국면 변이라 destroy로 사영한다.
     const d = draft();
@@ -500,6 +526,43 @@ export function createEventSession(opts: {
     const opener = d.mind.unit === undefined ? undefined : d.units[d.mind.unit];
     emit({ type: "destroy", unit: opener?.id ?? "", structure: idx, tid: target.tid, hpAfter: 0 });
     return 0;
+  });
+
+  register("UnitSetItemEquip", () => {
+    // 장비 전환 — 인덱스 공간 = effectiveWeapons(attack.weapon과 동일 계약). ☠못 찾으면 정직 거부다:
+    // 조용히 넘기면 보스가 틀린 무기로 싸운다(위력·상성·사거리가 통째로 어긋난다).
+    const u = unitAt(1);
+    const iid = str(2);
+    if (u === undefined) return 0;
+    const list = equipCandidates(u);
+    const idx = list.findIndex((w) => w.iid === iid);
+    if (idx < 0) return lauxlib.luaL_error(A, to_luastring(`UnitSetItemEquip: 소지 무기 아님 ${iid}`));
+    u.weapon = list[idx];
+    emit({ type: "equip", unit: u.id, index: idx });
+    return 0;
+  });
+  register("UnitPutOffItem", () => {
+    // 소지품 회수 — e006이 `UnitPutOffItem(리베라시온) → ItemGain(리베라시온改)`로 **교체**에 쓴다
+    // (장비 해제만이 아니다). e005는 소모품 IID_特効薬까지 회수한다 → 세 채널 전부를 훑는다.
+    const u = unitAt(1);
+    const iid = str(2);
+    if (u === undefined) return 0;
+    for (const kind of ["weapon", "staff", "consumable"] as const) {
+      const list: { iid?: string }[] | undefined =
+        kind === "weapon" ? u.weapons : kind === "staff" ? u.staves : u.consumables;
+      const idx = list?.findIndex((it) => it.iid === iid) ?? -1;
+      if (idx < 0) continue;
+      const dropped = list![idx];
+      const rest = list!.filter((_, i) => i !== idx);
+      if (kind === "weapon") {
+        u.weapons = rest as UnitState["weapons"];
+        if (u.weapon === dropped) delete u.weapon;
+      } else if (kind === "staff") u.staves = rest as UnitState["staves"];
+      else u.consumables = rest as UnitState["consumables"];
+      emit({ type: "putOff", unit: u.id, kind, index: idx });
+      return 0;
+    }
+    return lauxlib.luaL_error(A, to_luastring(`UnitPutOffItem: 소지품 아님 ${iid}`));
   });
 
   register("MapOverlapSetOne", () => {
@@ -586,6 +649,12 @@ export function createEventSession(opts: {
   register("AiGetActive", () => {
     // 기록만 배선(미소비)이라 "행동 개시 전"으로 강하 — ⚠MP4에서 실상태로 교체(장부 events.ai).
     lua.lua_pushboolean(A, false);
+    return 1;
+  });
+  register("AiGetRerewarpPosition", () => {
+    // AI 재워프 예약 좌표 — AI 실행기가 MP4라 예약이 없다(nil). 스크립트가 nil 분기를 갖고 있다
+    // (m020: `if pos ~= nil then ... else Warning(...) end`) — AiGetActive와 같은 ⚠강하다.
+    lua.lua_pushnil(A);
     return 1;
   });
   register("AiGetBandNo", () => {
@@ -704,10 +773,26 @@ export function createEventSession(opts: {
     });
   // 파괴 시 ChangeTid로 지형이 교체되는 원기 사상(MOVE_TERRAIN §2-13) → 살아있는 구조물 TID가 베이스를 덮는다.
   tileField("TerrainGet", (map, x, y) =>
-    terrainOverride.get(`${x},${y}`) ?? structureAt(draft().structures, x, y)?.tid ?? map.terrain?.[y]?.[x]?.tid);
+    structureAt(draft().structures, x, y)?.tid
+    ?? terrainPatchAt(draft().terrainPatches, x, y)?.tid
+    ?? map.terrain?.[y]?.[x]?.tid);
   for (const name of ["TerrainSet", "TerrainSetOne"]) {
     register(name, () => {
-      terrainOverride.set(`${lua.lua_tointeger(A, 1)},${lua.lua_tointeger(A, 2)}`, str(3));
+      const d = draft();
+      const x = lua.lua_tointeger(A, 1);
+      const y = lua.lua_tointeger(A, 2);
+      const tid = str(3);
+      const row = host.terrainCell?.(tid);
+      // ☠효과 없는 교체는 오재현이다(코스트·회피·회복이 그대로 남는다) — 표에 없으면 거부한다.
+      if (row === undefined) return lauxlib.luaL_error(A, to_luastring(`${name}: 지형 사영 없음 ${tid}`));
+      const patch: TerrainPatch = {
+        x, y, tid, cell: row.cell,
+        ...(row.cost === undefined ? {} : { cost: row.cost }),
+        ...(row.display === undefined ? {} : { display: row.display }),
+      };
+      d.terrainPatches = [...(d.terrainPatches ?? []).filter((p) => p.x !== x || p.y !== y), patch];
+      emit({ type: "terrainSet", ...patch, cell: patch.cell as unknown as Record<string, unknown>,
+        ...(patch.cost === undefined ? {} : { cost: patch.cost as Record<string, number> }) });
       return 0;
     });
   }
@@ -734,6 +819,25 @@ export function createEventSession(opts: {
     if (u === undefined) lua.lua_pushnil(A);
     else lua.lua_pushinteger(A, u.hp);
     return 1;
+  });
+  register("UnitGetHpStock", () => {
+    lua.lua_pushinteger(A, unitAt(1)?.hpStock ?? 0);
+    return 1;
+  });
+  register("UnitGetHpStockMax", () => {
+    // 최대 스톡 = 초기 배치 원값 — 국면은 잔여만 든다. ⚠현재값으로 강하(장부 combat.hp-stock).
+    lua.lua_pushinteger(A, unitAt(1)?.hpStock ?? 0);
+    return 1;
+  });
+  register("UnitSetHpStock", () => {
+    const u = unitAt(1);
+    const stock = lua.lua_tointeger(A, 2);
+    if (u !== undefined) {
+      if (stock === 0) delete u.hpStock;
+      else u.hpStock = stock;
+      emit({ type: "hpStock", unit: u.id, stock });
+    }
+    return 0;
   });
   register("UnitGetLevel", () => {
     const u = unitAt(1);
@@ -793,6 +897,13 @@ export function createEventSession(opts: {
       return 0;
     });
   }
+  register("RandomGet", () => {
+    // RandomGet(n) = App.Random.GetValue(n) = [0, n) 정수(HIT_RANDOM §1-3·§2-6) — RandomSource와 동일 계약.
+    const bound = lua.lua_tointeger(A, 1);
+    if (rng === undefined) return lauxlib.luaL_error(A, to_luastring("RandomGet: 난수원 미주입"));
+    lua.lua_pushinteger(A, bound <= 0 ? 0 : rng.next(bound));
+    return 1;
+  });
   register("StringContains", () => {
     lua.lua_pushboolean(A, str(1).includes(str(2)));
     return 1;
@@ -875,6 +986,7 @@ export function createEventSession(opts: {
     const boot: Draft = {
       units: [], variables: {}, winRule: {}, crests: undefined, events: [],
       structures: undefined,
+      terrainPatches: undefined,
       base: { turn: 0, phase: 0, map: { width: 0, height: 0, costs: {} }, units: [], events: [] },
       mind: {},
     };
@@ -949,6 +1061,7 @@ export function createEventSession(opts: {
     winRule: { ...state.winRule },
     crests: state.crests === undefined ? undefined : [...state.crests],
     structures: state.structures === undefined ? undefined : state.structures.map((v) => ({ ...v })),
+    terrainPatches: state.terrainPatches === undefined ? undefined : [...state.terrainPatches],
     events: [],
     base: state,
     mind,
@@ -962,6 +1075,7 @@ export function createEventSession(opts: {
       winRule: d.winRule,
       ...(d.crests === undefined ? {} : { crests: d.crests }),
       ...(d.structures === undefined ? {} : { structures: d.structures }),
+      ...(d.terrainPatches === undefined ? {} : { terrainPatches: d.terrainPatches }),
       events: d.events,
     };
     return { state, events: d.events };
@@ -1069,6 +1183,17 @@ export function createEventSession(opts: {
           unit.x >= i.rect.x1 && unit.x <= i.rect.x2 && unit.y >= i.rect.y1 && unit.y <= i.rect.y2,
         );
       });
+    },
+    destroyed(state, rects) {
+      return withDraft(state, {}, () => {
+        fire("destroy", (i) =>
+          i.rect !== undefined &&
+          rects.some((r) => r.x1 <= i.rect!.x2 && i.rect!.x1 <= r.x2 && r.y1 <= i.rect!.y2 && i.rect!.y1 <= r.y2),
+        );
+      });
+    },
+    setRng(next) {
+      rng = next;
     },
     unknownCalls() {
       return [...unknown.entries()];

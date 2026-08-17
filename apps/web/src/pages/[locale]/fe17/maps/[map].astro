@@ -4,6 +4,7 @@ import TopBar from "../../../../components/TopBar.astro";
 import Board from "../../../../components/Board.astro";
 import Roster from "../../../../components/Roster.astro";
 import Brief from "../../../../components/Brief.astro";
+import ChapterNotes from "../../../../components/ChapterNotes.astro";
 import { chapterTitle, chapters, mapIds } from "../../../../lib/fe17";
 import { DEFAULT_LOCALE, LOCALES, UI, isLocale } from "../../../../lib/i18n";
 
@@ -32,6 +33,8 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
     </aside>
     <aside class="order-3 w-full lg:col-start-3 lg:row-start-1 lg:w-[19rem] lg:justify-self-end">
       <Brief locale={locale} mapId={mapId} chapter={chapter} />
+      <ChapterNotes locale={locale} mapId={mapId} />
+
     </aside>
   </div>
 

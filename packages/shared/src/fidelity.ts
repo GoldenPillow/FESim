@@ -211,7 +211,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Destroy terrain/structures", ko: "파괴(구조물 부수기)" },
     status: "anchored",
     evidence:
-      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·EventEntryDestroy 발화 접점(이벤트 세션과 합류 시)",
+      "클래스 3종 = Destroy/Breakdown/BreakdownEnemy(진영 고정 Force.Player/Enemy — MAP_COMMANDS §1-3) · 데이터 정본 실재 = terrain.json Destroyer(1=Player/2=Enemy)·Hp_N/H/L(난이도별 내구도) · 선행 = 구조물 레이어 렌더(MP3) · ★IL2CPP 신규 판독(2026-08-18, MP3_READINGS §3 — CalcDestroy 0x246AF20 호출 전수 스캔): 파괴 = 결정론적 공격력 차감 — 대미지 = min((int)clamp(공격력,0,999), 잔여HP)×ActionCount, 명중·필살·반격·난수 소비 전무, 방어 차감 없음, HP = 난이도별 Hp_N/H/L, Destroyer = 0 양군/1 자군/2 적군 · ★배선 완료(MP3 3-4): destroy 액션(destroyTargets 열거 = UI·reduce 공용)·destroy 이벤트 절대 재생·커맨드 바 버튼 — destroy.test.ts 3건(난수 소비 시 즉사 계약 포함) · 잔여 = 베이스 격자 파괴물(TID_水晶 1맵) 정직 거부·~~EventEntryDestroy 발화 접점~~(2026-08-18 배선 — 완파 사각 교차 destroyed 훅, events.test.ts)",
   },
   {
     id: "actions.cannon",
@@ -457,8 +457,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.effectiveness",
     label: { en: "Effectiveness (armored, cavalry, flying, dragon)", ko: "특효(중장·기병·비병·용족 등)" },
-    status: "absent",
-    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2) · ★IL2CPP 코드로 합성 규칙까지 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-3·SKILL_ENGINE.md §4): 배수 = SkillArray.GetEfficacyValue(Unit)(RVA 0x24895A0) — 초기 1에서 매치마다 Mathf.Max(acc, skill.EfficacyValue)(0x24896FC)라 **중복 특효는 곱이 아니라 최댓값**이고 무매치 기본은 1 · 마스크 = (공격자.m_Efficacys & 대상.(Person.Attrs|Job.Attrs)) & ~대상.MaskSkill.m_EfficacyIgnores(0x24895F0 bics) · 저장처 = BattleDetail.WeaponEfficacy = m_BaseParams[10], IsEfficacy()(RVA 0x1E768C0) = >1 · 곱하는 자리 = calculator 攻撃力計算의 武器攻撃力 항에만(BattleDetail.CalcAttack RVA 0x1E74400) · ☠엔진 반증 = formula/combat.ts는 특효 배수 기본을 무기 필드 2로 두고 있다(정본 3, 邪竜特効만 2) — 판별 함수 자체가 미배선",
+    status: "implemented",
+    evidence: "정식화 완결 — 판별 = Attrs 비트(job|person OR 합성, Efficacy 비트와 반례 0 — gaps/H) · 배수 = EfficacyValue 3(17/18행, 邪竜特効만 2 — gaps/I 정정) · 무기 위력에만 곱함(gaps/A) · 데이터 사영 완료, 배선만 결손 · 3회차 텍스트 경로 종결 권고: patch0-3 전수에서 특효는 攻撃結果(特効) 불리언으로만 등장(혜안 +5는 가산 보정, 배수 아님) — 배수 확정은 실행부/실측 전용(gaps/N §4-2) · ★IL2CPP 코드로 합성 규칙까지 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-3·SKILL_ENGINE.md §4): 배수 = SkillArray.GetEfficacyValue(Unit)(RVA 0x24895A0) — 초기 1에서 매치마다 Mathf.Max(acc, skill.EfficacyValue)(0x24896FC)라 **중복 특효는 곱이 아니라 최댓값**이고 무매치 기본은 1 · 마스크 = (공격자.m_Efficacys & 대상.(Person.Attrs|Job.Attrs)) & ~대상.MaskSkill.m_EfficacyIgnores(0x24895F0 bics) · 저장처 = BattleDetail.WeaponEfficacy = m_BaseParams[10], IsEfficacy()(RVA 0x1E768C0) = >1 · 곱하는 자리 = calculator 攻撃力計算의 武器攻撃力 항에만(BattleDetail.CalcAttack RVA 0x1E74400) · ★배선 완료(2026-08-18): combatEnv efficacyOf — Efficacy ∩ (attrs ∖ 대상 EfficacyIgnore 합집합)·EfficacyValue 최댓값·무기 위력에만 적용, 원천 = 무기 EquipSids 사영(effectiveSkills 합류) + UnitState.attrs(person|job OR) — efficacy.test.ts 4건",
   },
   {
     id: "combat.terrain-bonus",
@@ -472,7 +472,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Effectiveness immunity/negation", ko: "특효 무효(가호·배리어)" },
     status: "absent",
     evidence:
-      "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H) · ★IL2CPP로 적용 주체 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·DAMAGE.md §4): 무효 비트는 **피격 대상 자신의** SkillArray 캐시에서 걸린다 — GetEfficacyValue(RVA 0x24895A0)가 target.MaskSkill.m_EfficacyIgnores(unit+0xF0 → +0x34)로 특효 마스크를 BIC 제거한다(공격자 측 판정이 아니다). SkillData.EfficacyIgnore(+0x1AC)가 그 비트의 소스",
+      "EfficacyIgnore 비트 — 神竜の加護 127(전 일반 특효)·バリア 32(邪竜만) · 보스 전용 특효 12비트는 무효 대상 아님(gaps/H) · ★IL2CPP로 적용 주체 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4·DAMAGE.md §4): 무효 비트는 **피격 대상 자신의** SkillArray 캐시에서 걸린다 — GetEfficacyValue(RVA 0x24895A0)가 target.MaskSkill.m_EfficacyIgnores(unit+0xF0 → +0x34)로 특효 마스크를 BIC 제거한다(공격자 측 판정이 아니다). SkillData.EfficacyIgnore(+0x1AC)가 그 비트의 소스 · ★배선(2026-08-18): efficacyOf가 대상 유효 스킬 EfficacyIgnore 합집합을 BIC — efficacy.test.ts 特効無効 케이스",
   },
   {
     id: "combat.terrain-asymmetric",
@@ -525,7 +525,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Boss HP stocks (multi-phase revival)", ko: "보스 HP 스톡(다단부활)" },
     status: "absent",
     evidence:
-      "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열) · ★IL2CPP 경로 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-10·§4): 소비는 전투 계산기가 아니라 **커밋 계층**이다 — TryAddDeadScene(RVA 0x2472D20)이 사망 시 Unit.CanRevive(RVA 0x1A4F860 = HpStockCount + ExtraHpStockCount != 0)를 묻고 Unit.Revive(RVA 0x1A4F8B0)가 부활시킨다 · 출처 = DisposData.HpStockCount(+0xB0) · HP 반영 자체는 CommitHp(RVA 0x1E88580) = clamp(Hp - (Damage - Heal), 0, MaxHp) — 회복이 같은 프레임에서 상계되고 MaxHp 상한도 있다(엔진은 상계·상한 모두 없음) · 부활 후 HP·상태 규칙은 여전히 미판독",
+      "사영 복원 완료(hpStock·state1 — projection.test.ts, FIX_NOTES_2 P1) · 비영값은 미변환 챕터에만(m017·m025·g/e 계열) · ★IL2CPP 경로 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-10·§4): 소비는 전투 계산기가 아니라 **커밋 계층**이다 — TryAddDeadScene(RVA 0x2472D20)이 사망 시 Unit.CanRevive(RVA 0x1A4F860 = HpStockCount + ExtraHpStockCount != 0)를 묻고 Unit.Revive(RVA 0x1A4F8B0)가 부활시킨다 · 출처 = DisposData.HpStockCount(+0xB0) · HP 반영 자체는 CommitHp(RVA 0x1E88580) = clamp(Hp - (Damage - Heal), 0, MaxHp) — 회복이 같은 프레임에서 상계되고 MaxHp 상한도 있다(엔진은 상계·상한 모두 없음) · 부활 후 HP·상태 규칙은 여전히 미판독 · ★국면 사영 배선(2026-08-18, MP3 이벤트 5라운드): UnitState.hpStock + BoardUnitProp/projectUnit 사영 + 이벤트 네이티브(UnitGetHpStock·UnitGetHpStockMax·UnitSetHpStock)·hpStock 절대 이벤트·재생 — ☠**사영·이벤트만**이고 부활 거동은 여전히 미배선이다(부활 후 HP·상태 미판독이라 굴리면 픽션). UnitGetHpStockMax는 초기 원값을 국면이 안 들어 현재값으로 강하(⚠근사)",
   },
   {
     id: "combat.scripted-modifiers",
@@ -1015,9 +1015,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "turn.enemy-ai",
     label: { en: "Automatic enemy phase AI", ko: "적턴 AI 자동 진행" },
-    status: "deferred",
+    status: "assumed",
     evidence:
-      "M5 — L1층(루틴 배정·인자 결선·개시 조건·타겟 지정)은 덤프 확정 · 지원 스코어 상수 3/2/1(gaps/J) · ★IL2CPP로 L2층까지 전량 판독 완료(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md): 종전 'L2 스코어링 = 실행파일 미판독'은 해소됐다 — 옵코드 사전 App.AIConst 95/95 · 인터프리터 AIThink.Processing(RVA 0x1925420)·ProcessingActive(RVA 0x193AAD0) · 평가함수 AIBattleSimulator.CalculateScore(RVA 0x1928570) 비트필드 3종 · 적턴 페이즈 13단 AIOrder..cctor(RVA 0x1936C70) · 난수 사용 지점까지 특정(동점 시 Random.System 코인플립) ⇒ **선행 결손 없음, 남은 것은 구현 공수뿐** · 조합 집계 재산출 = 상위 3 82.9% / 상위 4 84.1%(gaps/K의 83.3%은 AI_MindName 제외 4열 조합이라 미세 차이)",
+      "M5 — L1층(루틴 배정·인자 결선·개시 조건·타겟 지정)은 덤프 확정 · 지원 스코어 상수 3/2/1(gaps/J) · ★IL2CPP로 L2층까지 전량 판독 완료(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md): 종전 'L2 스코어링 = 실행파일 미판독'은 해소됐다 — 옵코드 사전 App.AIConst 95/95 · 인터프리터 AIThink.Processing(RVA 0x1925420)·ProcessingActive(RVA 0x193AAD0) · 평가함수 AIBattleSimulator.CalculateScore(RVA 0x1928570) 비트필드 3종 · 적턴 페이즈 13단 AIOrder..cctor(RVA 0x1936C70) · 난수 사용 지점까지 특정(동점 시 Random.System 코인플립) ⇒ **선행 결손 없음, 남은 것은 구현 공수뿐** · 조합 집계 재산출 = 상위 3 82.9% / 상위 4 84.1%(gaps/K의 83.3%은 AI_MindName 제외 4열 조합이라 미세 차이) · ★MP4 이식 완료(2026-08-18): engine `packages/engine/src/ai/` — `createAi(calc).next(state, aiRng, memory)`가 다음 행동 1건(이동+공격 등 액션 배열)을 돌려주는 순수 함수이고 실행은 호출측이 reduce로 한다(☠AI는 reduce를 부르지 않는다). 난수는 전투 RNG와 **별도 스트림**(Random.System)으로 주입 · 페이즈 13단·우선도식·Active 게이트·조건 OR·표적/위치 2중 스코어·밴드 전파·MoveLimit·회복 임계 전량 배선 · UI = BoardIsland '적턴 자동' 버튼(액션마다 dispatch → 기보에 그대로 기록, 결손만 남으면 정지·표시) · **실측** = m002·m003 헤드리스 적 페이즈가 결손 0으로 완주하고 잠든 적은 움직이지 않으며 먼 적은 매 턴 접근한다 · ☠**assumed 사유** = 행동 핸들러 커버리지가 부분이다(장부 ai.action-handlers의 잔여 결손 목록) · 위임(turn.delegate)은 별도 경로로 미배선",
   },
   {
     id: "turn.delegate",
@@ -1031,9 +1031,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "ai.routine-vocabulary",
     label: { en: "AI routine opcode programs", ko: "AI 루틴(옵코드 프로그램 141종)" },
-    status: "deferred",
+    status: "implemented",
     evidence:
-      "ai.xml 802행 = AC32·MI11·AT63·MV35, dispos 실사용 77종(gaps/K §2) · ★IL2CPP로 사전 확정 — 미지 0종(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §3): 옵코드 사전 = App.AIConst(dump.cs:566105)이고 실사용 95종 전부 이름·핸들러 RVA가 확정됐다(종전 '옵코드 사전은 실행파일 영역' 결손 해소) · 루틴의 실체 = **우선순위순 후보 행동 목록**이며 Active 열 = AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} · ☠gaps/K §2-3의 '정형 M41 프롤로그 → M71 → M74 에필로그' 해석은 **반증**됐다(41=HE_MiddleLow 회복 · 71/72/74=MI_Guard/GuardBattleScore/GuardNoMove) · 선행 = M5 구현",
+      "ai.xml 802행 = AC32·MI11·AT63·MV35, dispos 실사용 77종(gaps/K §2) · ★IL2CPP로 사전 확정 — 미지 0종(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §3): 옵코드 사전 = App.AIConst(dump.cs:566105)이고 실사용 95종 전부 이름·핸들러 RVA가 확정됐다(종전 '옵코드 사전은 실행파일 영역' 결손 해소) · 루틴의 실체 = **우선순위순 후보 행동 목록**이며 Active 열 = AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} · ☠gaps/K §2-3의 '정형 M41 프롤로그 → M71 → M74 에필로그' 해석은 **반증**됐다(41=HE_MiddleLow 회복 · 71/72/74=MI_Guard/GuardBattleScore/GuardNoMove) · 선행 = M5 구현 · ★사영(2026-08-18, MP4): tools/pipeline/transform.py build_ai → data/fe17/tables/ai.json(141루틴 원문 무손실). 아일랜드에는 **챕터가 쓰는 루틴만** BoardProps.aiRoutines로 한 번 싣는다(유닛 복사 금지 — 보드 JSON 예산 50KB gz 유지, 실측 최대 42.9KB). 옵코드 **해석**의 커버리지는 별도 항목 ai.action-handlers 참조",
   },
   {
     id: "ai.data-projection",
@@ -1045,16 +1045,16 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "ai.move-limit",
     label: { en: "AI movement boxes (hard constraint)", ko: "AI 이동 제한 박스(AI_MoveLimit)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "36건 — 이동을 물리적으로 자르는 하드 제약(m016·m021·m024·m025 포함, gaps/K) · ★IL2CPP 파싱·집행식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §9-2): 원문 `(x1,z1),(x2,z2)` → Rect{X:x1, Z:z1, W:x2-x1+1, H:z2-z1+1}(Unit.SetDisposAi RVA 0x1A0C268), 허용 = X <= x < X+W && Z <= z < Z+H 반개구간이되 **자기 발밑 칸은 항상 예외 허용** · 집행 지점은 MapDeployTemplate.UnitAIMoveLimit(RVA 0x2C227C0) 단 1곳이 범위 밖을 코스트 0xff로 막는 방식 · 실데이터 형식은 Rect/None뿐",
+      "36건 — 이동을 물리적으로 자르는 하드 제약(m016·m021·m024·m025 포함, gaps/K) · ★IL2CPP 파싱·집행식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §9-2): 원문 `(x1,z1),(x2,z2)` → Rect{X:x1, Z:z1, W:x2-x1+1, H:z2-z1+1}(Unit.SetDisposAi RVA 0x1A0C268), 허용 = X <= x < X+W && Z <= z < Z+H 반개구간이되 **자기 발밑 칸은 항상 예외 허용** · 집행 지점은 MapDeployTemplate.UnitAIMoveLimit(RVA 0x2C227C0) 단 1곳이 범위 밖을 코스트 0xff로 막는 방식 · 실데이터 형식은 Rect/None뿐 · ★배선(2026-08-18, MP4): engine ai/unit.ts parseMoveLimit·moveLimitAllows — 이동 코스트 이미지(moveImageOf)가 범위 밖 칸을 애초에 제외한다, ai.test.ts 4건",
   },
   {
     id: "ai.band-activation",
     label: { en: "Band-linked AI activation", ko: "밴드 연동 기동(AI_BandNo)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "328밴드 — 집단 각성 구조(gaps/K) · ★IL2CPP 전파식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §8-4): UnitUtil.BandActivate(RVA 0x1C73E30)가 같은 AI_BandNo 전원을 Active=1로 세운다 · 게이트 BandActivation은 AI_BandNo!=0이면 자동 세팅(0x1A0C4C4) · ☠BandActivationMove/Attacked 비트는 **세우는 코드가 없어 정규 플레이에서 항상 0** · 개시 조건 AC_BandRange의 첫 인자는 반경이 아니라 **커버 인원 임계** · 거리 인자 단위는 칸이 아니라 **이동력 백분율(%)**(GetMovePower RVA 0x1943F70)이고 다행 조건은 AND가 아니라 **OR**(§8-1·8-2)",
+      "328밴드 — 집단 각성 구조(gaps/K) · ★IL2CPP 전파식 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §8-4): UnitUtil.BandActivate(RVA 0x1C73E30)가 같은 AI_BandNo 전원을 Active=1로 세운다 · 게이트 BandActivation은 AI_BandNo!=0이면 자동 세팅(0x1A0C4C4) · ☠BandActivationMove/Attacked 비트는 **세우는 코드가 없어 정규 플레이에서 항상 0** · 개시 조건 AC_BandRange의 첫 인자는 반경이 아니라 **커버 인원 임계** · 거리 인자 단위는 칸이 아니라 **이동력 백분율(%)**(GetMovePower RVA 0x1943F70)이고 다행 조건은 AND가 아니라 **OR**(§8-1·8-2) · ★배선(2026-08-18, MP4): engine ai/unit.ts bandMembers — 기동한 유닛이 같은 AI_BandNo 전원을 Active=1로 전파(aiNextAction 내부). BandActivationMove/Attacked는 항상 0이므로 **구현하지 않는 것이 정확**하다",
   },
   {
     id: "ai.sub-routine-swap",
@@ -1066,16 +1066,30 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "ai.opcode-interpreter",
     label: { en: "AI opcode interpreter (slot order, Active gates)", ko: "AI 옵코드 인터프리터(슬롯 순서·Active 게이트)" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §4·§7): 슬롯 실행 순서 = Cause → Mind → Attack → Move 고정 · Active 게이트 4종(AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} + 서브상태) · 변경은 Trans에 스테이징했다가 Update에서 반영 · AI_Retry는 Cause부터 재시작 · 적턴 페이즈 13단 테이블 = AIOrder..cctor(RVA 0x1936C70)이고 공격이 3단으로 도는 이유는 유닛이 아니라 **액션**이 걸러지기 때문 · AI_Priority 해석식 = 512*P + 256*enchant + 16 − clamp(removable,0,99), **P < 100이면 Priority 페이즈에서 제외** · ☠gaps/K의 'Trans=-128=무변화'는 코드에 없다(기각) · 선행 = turn.enemy-ai",
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §4·§7): 슬롯 실행 순서 = Cause → Mind → Attack → Move 고정 · Active 게이트 4종(AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} + 서브상태) · 변경은 Trans에 스테이징했다가 Update에서 반영 · AI_Retry는 Cause부터 재시작 · 적턴 페이즈 13단 테이블 = AIOrder..cctor(RVA 0x1936C70)이고 공격이 3단으로 도는 이유는 유닛이 아니라 **액션**이 걸러지기 때문 · AI_Priority 해석식 = 512*P + 256*enchant + 16 − clamp(removable,0,99), **P < 100이면 Priority 페이즈에서 제외** · ☠gaps/K의 'Trans=-128=무변화'는 코드에 없다(기각) · 선행 = turn.enemy-ai · ★이식(2026-08-18, MP4): engine ai/interpreter.ts processing/processingActive + ai/order.ts AI_PHASES 13단·aiPriorityKey·attackTierAllowed·slotGateOpen. 연속 중복 억제(직전 명령과 Code/Mind/v0/v1 전부 일치 시 스킵)·Trans 스테이징→Update 반영·Retry는 Cause부터 재시작까지 그대로. ai.test.ts 우선도 5건",
   },
   {
     id: "ai.attack-scoring",
     label: { en: "AI target scoring (bitfield lexicographic)", ko: "AI 표적 평가(비트필드 사전식 비교)" },
-    status: "absent",
+    status: "assumed",
     evidence:
-      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §5·§9-4): 표적 평가 = uint32 비트필드의 사전식 비교이고 **AI_BattleRate 3값(Rush/Attack/Chariness)이 비트 레이아웃을 통째로 바꾼다**(AIBattleSimulator.CalculateScore RVA 0x1928570) · 격파 확률이 최상위 비트 = 절대 우선 · 동점이면 Random.System 50% 코인플립(난수 주입 설계 직결 — combat.rng-source의 System 스트림) · 지형 스코어 가중치·가드 3분기(GuardTo RVA 0x194CF60)도 확정 · ☠params.xml AI 가드 3상수(0.3/0.5/0.4)와 CalculateScore의 즉치 0.3/0.5/0.7은 **무관**하다(후자는 하드코딩, GameParam 호출 없음) · 선행 = turn.enemy-ai",
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §5·§9-4): 표적 평가 = uint32 비트필드의 사전식 비교이고 **AI_BattleRate 3값(Rush/Attack/Chariness)이 비트 레이아웃을 통째로 바꾼다**(AIBattleSimulator.CalculateScore RVA 0x1928570) · 격파 확률이 최상위 비트 = 절대 우선 · 동점이면 Random.System 50% 코인플립(난수 주입 설계 직결 — combat.rng-source의 System 스트림) · 지형 스코어 가중치·가드 3분기(GuardTo RVA 0x194CF60)도 확정 · ☠params.xml AI 가드 3상수(0.3/0.5/0.4)와 CalculateScore의 즉치 0.3/0.5/0.7은 **무관**하다(후자는 하드코딩, GameParam 호출 없음) · 선행 = turn.enemy-ai · ★이식(2026-08-18, MP4): engine ai/score.ts battleScore(3레이아웃 정수 비트필드)·killProbability(명중 결과 재귀, MaxSceneTimes 4)·expectationScoreNormalize(바닥 1·bit폭 포화) + ai/attack.ts getAttackScore·betterAttack(파레토 5단 → 스코어 → 50% 코인플립). ai.test.ts 스코어 6건 · ☠**assumed 사유**: 명중 분포를 엔진 forecastSide로 근사한다(경감 Prevent·스킬 발동 Skill/SkillCritical·기습·연속공격은 엔진 미모델링 = 확률 0) · 유인(Decoy) 하드 게이트·탄 적합성·AI 커맨드 좌표 비교자 미모델링 · 연계 기대 데미지(m_ChainAttackExpectation)는 0(인원수만 위치 스코어에 반영)",
+  },
+  {
+    id: "ai.attack-position",
+    label: { en: "AI attack-position scoring", ko: "AI 공격 위치 평가(사전식 정수)" },
+    status: "assumed",
+    evidence:
+      "★IL2CPP 코드 확정(5.0.0, 2026-08-18, il2cpp/AI_ENGINE.md §5-A): 표적 스코어와 **완전히 별개인 두 번째 스코어**가 '어느 칸에서 때릴지'를 고른다 — `((chainCnt<<2|blow)<<5 | outOfEnemyRange<<4 | terrain)<<8 + (100-moveCost)`(GetAttackPosition RVA 0x193CB30 클로저 b__1). ☠**기대 대미지·격파확률이 들어가지 않는다** · 후보 칸 열거 = 대상 중심 맨해튼 링(z 내림·x 오름, RangeEnumerator 0x24C5300) · 단일 칸 유닛은 목적지 탐색이 없다(목적지 = 공격 위치, GetMovePosition 0x193F3C0) · AI는 후보마다 유닛을 **실제로 옮겨** 지원을 재계산한 뒤 전투를 시뮬한다 · 동점 = AI.IsRandom 50% 코인플립 · 회복 지팡이만 층위가 뒤집혀 이동코스트 > 지형(GetHealRodPosition 0x1958120) · ★이식(2026-08-18, MP4): engine ai/position.ts attackPositionScore·terrainScoreAt·blowScoreAt·enumerateRing + ai/attack.ts getAttackPosition(지원 재계산은 toCombatant(units 교체본) 경유). ai.test.ts 위치·지형·밀치기·열거 10건 · ☠**assumed 사유**: 밀치기 가능 판정(BattleInfoSide.BlowRatio)이 엔진 미모델링이라 blow 항이 항상 0 · 대상 유효무기 판정 세부(장비 봉인·인그레이브 사거리·인챈트)는 원 판독도 부분이라 **장비 무기 사거리 마스크로 근사**(AI_ENGINE §13 #13) · GetAttackRange(0x193E700) 본체 미판독이라 mRange = 무기 rangeMin..rangeMax 마스크로 근사(§13 #14)",
+  },
+  {
+    id: "ai.action-handlers",
+    label: { en: "AI action handler bodies", ko: "AI 행동 핸들러 본문" },
+    status: "assumed",
+    evidence:
+      "옵코드 **사전**은 95/95 확정이지만 핸들러 **본문**은 일부만 판독됐다(il2cpp/AI_ENGINE.md는 사전·인터프리터·스코어·순번을 다루고 핸들러 본문은 다루지 않는다). ☠미판독 = 지어내지 않고 정직 결손으로 노출한다 — aiNextAction이 그 유닛을 건너뛰고 사유를 AiDecision.deficits에 남기며, UI(적턴 자동)는 결손만 남으면 **정지하고 표시**한다(몰래 wait 강하 = 오재현이므로 금지) · 미판독 목록 = AttackTo(0x1945DB0 — 표적 열거 순서·옵코드별 표적 필터 AT_Hero/Person/ExcludePerson/Force·AttackFlag 합성) · ActionMoveAttackRange(0x194E0D0 — MV_WeakRange가 비자군 유닛의 83%) · ActionMoveIdle(0x194D890) · ActionMindGuard/GuardTo(0x194CF60 — params 임계 3개만 확정) · ActionHealMiddleLow/HealMindTo(0x1948A60/0x19489E0) · ActionRodHeal(0x19469F0) · Mind 계열(Treasure·Village·Torch·BreakDown) · 인게이지/커맨드 스킬 계열 전량 · ★MP4 신규 판독 + 이식(2026-08-18, il2cpp/ai_engine_src/H_handlers.md — 본 갈래가 직접 디스어셈블): `AttackTo`(0x1945DB0) = 표적 열거 `MapFor.EachEnemyUnit`(진영 0→1→2, 각 진영 배치 순, 조기 종료 없음) + 옵코드 필터 `IsAttackPermissionOnlyCommand`(0x193C830, 점프테이블 33바이트 실측) — ☠**AT_Default는 필터가 전혀 없고 `GetAttackScore`에 넘기는 AttackFlag는 항상 0**이다(`str wzr` 1곳, Break/Chain/Nearest 어느 비트도 안 붙는다 — 종전 '연계·브레이크 비트가 붙을 것'이라는 추정을 반증) · `ActionMoveAttackRange`(0x194E0D0) = isWeak(86·87)면 `GetAttackScore(ScoreExpectation)` 최대화, 그 외(82~85·109)는 `(도달 턴 수)*256 + 이미 노린 아군 수` 최소화 · `MoveTo`(0x1948E20) = A버퍼(이번 턴 코스트)·B버퍼(목표 거리장) 2장으로 `distB(1<<16) ≫ 지형(1<<12) ≫ costA(1<<5)` 가중 최대화 — **여러 턴 접근이 여기서 자연 발생** · `ActionMoveIdle`(0x194D890)은 ☠**제자리 대기를 행동으로 확정하지 않는다**(항상 None) · `GuardTo`(0x194CF60)는 제자리 방어가 아니라 **체인가드로 아군을 감싸는 행동**(MapMind.Type=Guard 35) · `HealMindTo`(0x19489E0) 진입 게이트는 AskHealB 하나뿐(Hc_Vulnerary는 그 안쪽 — D_fields §1-4 표기 정정) · ★☠**빈 dispos 토큰은 0이 아니라 -1(V_Default)**이다(`AIValue$$SetValue` 0x27B30B4 `mov w8,#0xffff; strh`) — AI_MV_WeakEnemy(moveVal 미지정 5403/5403건)의 factor는 0이 아니라 **200**(이동력 2배 반경) · `GetBoundaryIceTileMove`(0x1942B80) = 얼음 없는 맵에서 목표 칸 4·그 외 0(확정) · **이식 배선** = engine ai/handlers.ts(attackTo·moveAttackRange·moveTo·moveIdle·guardTo·healMindTo) — m002·m003 헤드리스 적턴 자동이 **결손 0**으로 완주(aiChapter.test.ts 4건, ai.test.ts 표적필터·열거순서 10건) · ☠**잔여 결손** = AT_Hero(PersonData.IsHero 미사영)·AT_Job(Job 미사영)·체인가드 자격 유닛의 가드 위치(`GetSidePosition` 0x195FC80 미판독)·회복 지형 경로(`Hc_Terrain` 출처 미판독)·Mind 계열(Treasure·Village·Torch·BreakDown)·지팡이/방해/인게이지/커맨드 스킬 계열 전량",
   },
   {
     id: "events.engine",
