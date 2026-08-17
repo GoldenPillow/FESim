@@ -228,8 +228,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "actions.guard",
     label: { en: "Chain guard assignment", ko: "체인가드 지정" },
-    status: "absent",
-    evidence: "GuardMenuItem(m_GuardType/m_GuardSkill) + Unit.GuardType(ChainGuard=1/DualGuard=2/NotEnoughHP=3) + SID_チェインガード許可(MAP_COMMANDS §1-4) · 경험치 = combat.exp-guard",
+    status: "implemented",
+    evidence:
+      "배선(2026-08-18 MP1-6, guard.test.ts) — guard 액션: 행동 소모·스탠스 진입(guarding)·인게이지 무충전 · 자격 = 気功スタイル(styles.json이 SID_チェインガード許可 부여) 또는 스킬 직접 보유 · ★게이트 신규 판독 = GetGuardType(0x1A34F50) 디스어셈블: **만HP && HP≥2**(미달 = GuardType.NotEnoughHP=3), 차단 상태 비트 0x4D0(사영분 = 기절), DualGuard(2) 분기 = 스킬 Flag bit29(미배선 — combat.engage-guard와 동건) · 수명 = 자기 군 페이즈 복귀 시 해제(⚠춤 재행동 시 지속은 가정 — 실측 대조 대상) · 원 출처 = GuardMenuItem(MAP_COMMANDS §1-4) · 경험치 = combat.exp-chain-guard",
   },
   {
     id: "actions.enchant",
@@ -421,9 +422,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.chain-guard",
     label: { en: "Chain guard", ko: "체인가드" },
-    status: "absent",
+    status: "assumed",
     evidence:
-      "정식화 — 데미지 = 자기 HP*0.2 · 경험 = clamp(基本値+레벨차감쇠,1,100) · 게이트 SID_チェインガード許可(gaps/A §2-4, E §1-6) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9·EXP_CHAIN_ENGAGE.md §2·SEQUENCE_BREAK.md §2-11): 대미지 = trunc(가드 유닛의 **전투 내 현재 HP**(BattleInfoSide.Hp +0x94) * 0.2)이고 **하한 1이 없다**(HP 4 이하면 0) · 공격 대상이 받는 대미지는 0으로 치환 · 산식 선택 = GetChainGuardDamage(RVA 0x24720C0)가 Unit.Status.ChainGuard(64) 분기에서 calculator의 チェインガードダメージ를 평가 · 발동 게이트 = CalcChainGuardSide(RVA 0x246F3C0) — 피격 측이 Defense 또는 ChainDefense1~4일 때만 · 공격 측이 체인어택이면 무효 · BattleInfo.Flags.EngageAttack(인게이지 기술)이면 무효",
+      "배선(2026-08-18 MP1-6, guard.test.ts) — 치환 = 대상 대미지 0(브레이크 불발)·가드 trunc(현재 HP*0.2)·하한 없음·guardBlock 이벤트(절대 재생)·**가드가 서면 필살 롤 무소비**(CalcAttackHit 통째 스킵 = 난수 계약, CalcAttack 0x24716BC) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9·SEQUENCE_BREAK.md §2-11): 대미지 = trunc(가드 유닛의 **전투 내 현재 HP**(BattleInfoSide.Hp +0x94) * 0.2)이고 **하한 1이 없다**(HP 4 이하면 0) · 산식 선택 = GetChainGuardDamage(RVA 0x24720C0)가 Unit.Status.ChainGuard(64) 분기에서 calculator의 チェインガードダメージ를 평가 · 발동 게이트 = CalcChainGuardSide(RVA 0x246F3C0) — 피격 측이 Defense 또는 ChainDefense1~4일 때만 · 공격 측이 체인어택이면 무효 · BattleInfo.Flags.EngageAttack(인게이지 기술)이면 무효(둘 다 엔진 반영) · ⚠가정 = 보호 범위 인접 1(공식 도움말 '隣接する味方' 앵커 — 열거 코드 CalcChain 미판독)·복수 가드 선두 선택 = 유닛 목록 순",
   },
   {
     id: "combat.engage-guard",
@@ -566,9 +567,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.exp-chain-guard",
     label: { en: "Chain guard EXP", ko: "체인가드 경험치" },
-    status: "absent",
+    status: "implemented",
     evidence:
-      "チェインガード経験計算 = clamp(ガード基本値+補助レベル差減衰値,1,100)(gaps/A §0-2) · ★IL2CPP 정합 확인(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §2): 지팡이·체인가드 경험도 전투 경험과 같은 CalculatorManager 평가·fcvtzs 절삭 경로를 탄다 — 식 이름만 갈릴 뿐 별도 파이프라인이 아니다",
+      "배선(2026-08-18 MP1-6, guard.test.ts) — チェインガード経験計算 = clamp(ガード基本値+補助レベル差減衰値,1,100) 원문 평가·전투당 1회(다타격 무관)·상대 = 지킨 아군(GetGuardExp 0x1E94390의 m_Parent) · ★IL2CPP 정합 확인(5.0.0, 2026-08-17, il2cpp/EXP_CHAIN_ENGAGE.md §2): 지팡이·체인가드 경험도 전투 경험과 같은 CalculatorManager 평가·fcvtzs 절삭 경로를 탄다 — 식 이름만 갈릴 뿐 별도 파이프라인이 아니다 · ⚠경험 부여 순서(공격측 → 가드)는 사이드 순서 가정 — 레벨업 롤 소비 순서에 걸린다",
   },
   {
     id: "combat.exp-summon",

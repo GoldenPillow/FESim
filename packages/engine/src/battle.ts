@@ -94,6 +94,11 @@ export interface UnitState {
   /** 이 활성화에서 교환·수송대를 썼는가 — 인게이지 발동만 봉쇄(실기 판별 2026-08-18). 페이즈 복귀 시 리셋. */
   traded?: boolean;
   /**
+   * 체인가드 스탠스(Unit.Status.ChainGuard 64) — 인접 아군이 받을 타격을 대신 받는다.
+   * 수명 = 자기 군 페이즈 복귀까지(춤 재행동 시 지속은 가정 — 실측 대조 대상, 장부 actions.guard).
+   */
+  guarding?: boolean;
+  /**
    * 걸린 상태이상(BadState 스킬) — 인게임 실체는 스킬 배열(m_PrivateSkill)이지만 엔진은
    * 소비 비트만 사영한다. 지속 = 페이즈 종료마다 age+1, life×3 도달 시 소멸(life 0 = 무제한).
    */
@@ -333,6 +338,31 @@ export function canDance(u: UnitState): boolean {
   return effectiveSkills(u)?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
 }
 
+/** 체인가드 자격 스킬 — 원천 = 気功スタイル(styles.json이 SID_チェインガード許可 부여). 스킬 직접 보유도 인정. */
+export function hasChainGuardSkill(u: UnitState): boolean {
+  return u.style === "気功スタイル" || effectiveSkills(u)?.some((s) => s.Sid === "SID_チェインガード許可") === true;
+}
+
+/**
+ * 체인가드 지정 가능 — GetGuardType(0x1A34F50) 디스어셈블 확정: 스킬 게이트 + **만HP && HP 2 이상**
+ * (미달 = GuardType.NotEnoughHP). 차단 상태 비트 0x4D0 중 엔진 사영분은 기절뿐이다. UI 버튼과 reduce 공용.
+ */
+export function canChainGuard(u: UnitState): boolean {
+  if (!hasChainGuardSkill(u) || hasBadState(u, BAD_STATE.stun)) return false;
+  return u.hp === u.stats.hp && u.hp >= 2;
+}
+
+/**
+ * 이 유닛을 지키는 체인가드 — 스탠스 중·같은 군·생존(BattleInfo.CanChainGuard 0x1E7ACA0 게이트).
+ * ⚠인접 1 = 공식 도움말 원문("隣接する味方") 앵커 — 열거 코드(CalcChain)는 미판독. 복수 가드 시
+ * 선두 선택은 유닛 목록 순 가정. 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
+ */
+export function chainGuardFor(target: UnitState, units: readonly UnitState[]): UnitState | undefined {
+  return units.find(
+    (g) => !g.dead && g.guarding === true && g.id !== target.id && g.force === target.force && manhattan(g, target) === 1,
+  );
+}
+
 /**
  * 아이템 범위 회복 대상 — 자신 포함, 같은 군, 반경(맨해튼) 내, 손상 유닛만.
  * 傷薬 = "자신과 주위 2칸 아군 회복"(공식 도움말 원문). 예보 UI와 reduce가 같은 판정을 쓴다(중복 구현 금지).
@@ -547,6 +577,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
         const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
 
+        // 체인가드: 대상을 지키는 스탠스 유닛 — 본공격·추격만 치환(체인어택은 무효 — CalcChainGuardSide).
+        const guard = chainGuardFor(defender, units);
+        let guardBlocks = 0;
+
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
         const chainUnits = units.filter(
           (u) =>
@@ -565,6 +599,18 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         ): void => {
           if (from.dead || to.dead) return;
           const hit = isHit(numbers.hitRate, rng.next(10000));
+          if (hit && to === defender && kind !== "chain" && guard !== undefined) {
+            // 체인가드 치환 — 가드가 서면 CalcAttackHit(대미지·필살 롤)를 통째로 건너뛴다(CalcAttack 0x24716BC).
+            // 대상 대미지 0(브레이크도 없음), 가드 = trunc(자기 현재 HP*0.2)·하한 없음(GetChainGuardDamage 0x24720C0).
+            const gd = Math.trunc(
+              calc.eval("チェインガードダメージ", combatEnv({ stats: { ...guard.stats, maxHp: guard.stats.hp, hp: guard.hp } })) as number,
+            );
+            guard.hp = Math.max(guard.hp - gd, 0);
+            guardBlocks += 1;
+            events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit: true, crit: false, damage: 0, hpAfter: to.hp });
+            events.push({ type: "guardBlock", unit: guard.id, target: to.id, damage: gd, hpAfter: guard.hp });
+            return;
+          }
           // 명중 시에만 필살 롤 — 롤 소비 순서는 리플레이 계약.
           const crit = hit && numbers.critRate > 0 ? isProbability100(numbers.critRate, rng.next(100000)) : false;
           const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
@@ -623,6 +669,15 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
             calc.eval(formula, expEnv(attacker, defender, chainCount, difficulty)) as number,
           );
           grantExp(attacker, gained, events, rng);
+        }
+        // 가드 경험치 — チェインガード経験計算(상대 = 지킨 아군 = m_Parent, GetGuardExp 0x1E94390).
+        // 다타격을 받아도 전투당 1회. 공격측 경험 뒤 = 사이드 순서(Offense 0 < ChainDefense 26+) 가정.
+        if (guardBlocks > 0 && guard !== undefined && guard.force === 0 && !guard.dead) {
+          const difficulty = state.difficulty ?? "n";
+          const gained = Math.floor(
+            calc.eval("チェインガード経験計算", expEnv(guard, defender, 0, difficulty)) as number,
+          );
+          grantExp(guard, gained, events, rng);
         }
         break;
       }
@@ -759,6 +814,21 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           );
           grantExp(dancer, gained, events, rng);
         }
+        break;
+      }
+
+      case "guard": {
+        const u = require(action.unit);
+        assertActable(u);
+        if (!hasChainGuardSkill(u)) throw new Error("체인가드 자격 없음(気功 스타일)");
+        // 만HP && HP≥2 게이트 — 미달이 인게임 GuardType.NotEnoughHP(GetGuardType 0x1A34F50 판독).
+        if (!canChainGuard(u)) throw new Error("체인가드 불가 — HP가 가득해야 한다");
+        u.guarding = true;
+        events.push({ type: "guard", unit: u.id });
+        u.acted = true;
+        u.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(u);
+        // 인게이지 충전 없음 — AddEngageCount는 전투·지팡이 행동만(지정 자체는 전투가 아니다).
         break;
       }
 
@@ -929,6 +999,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
               if (aged.force !== nextForce) return aged;
               const fresh: UnitState = { ...aged, acted: false, broken: false, moved: false };
               delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
+              delete fresh.guarding; // 체인가드 스탠스 해제 — 수명 = 자기 활성화 복귀까지
               // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
               const g = fresh.engage;
               if (g?.engaging === true && !fresh.dead) {

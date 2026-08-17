@@ -688,6 +688,7 @@ export interface BoardProps {
     attackCmd: string;
     staffCmd: string;
     itemCmd: string;
+    guardCmd: string;
     warpPick: string;
     engageCmd: string;
     tradeCmd: string;
@@ -705,7 +706,7 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
-    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string };
+    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string };
   };
 }
 
@@ -996,6 +997,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     attackCmd: t.attackCmd,
     staffCmd: t.staffCmd,
     itemCmd: t.itemCmd,
+    guardCmd: t.guardCmd,
     warpPick: t.warpPick,
     engageCmd: t.engageCmd,
     tradeCmd: t.tradeCmd,

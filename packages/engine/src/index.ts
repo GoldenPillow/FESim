@@ -6,9 +6,12 @@
 export {
   BAD_STATE,
   canBreak,
+  canChainGuard,
   canDance,
+  chainGuardFor,
   createReducer,
   canterPower,
+  hasChainGuardSkill,
   effectiveSkills,
   effectiveWeapons,
   hasBadState,

@@ -3,7 +3,10 @@ import {
   attackRange,
   BAD_STATE,
   canBreak,
+  canChainGuard,
   canterPower,
+  chainGuardFor,
+  hasChainGuardSkill,
   effectiveWeapons,
   forecastSide,
   hasBadState,
@@ -436,19 +439,21 @@ export default function BoardIsland(props: BoardProps) {
       engageDist <= fcTarget.weapon.rangeMax;
     const attack = activeWeapon !== undefined ? forecastSide(calculator, a, d) : undefined;
     const counter = counterable ? forecastSide(calculator, d, a) : undefined;
+    // 체인가드 — 대상이 지켜지면 본공격·추격 대미지는 가드에게 치환된다(판정 = 엔진 chainGuardFor 공용).
+    const guarded = chainGuardFor(fcTarget, game.units) !== undefined;
     // 예상 잔여 HP — 전 타격 명중 가정(인게임 예보 문법), 엔진 타격 순서 그대로:
     // 본공격 → (생존·미브레이크 시) 반격 → 추격 → 반격측 추격. 브레이크면 반격 몰수. 체인어택 제외.
-    const brk = attack !== undefined && attack.damage >= 1 && canBreak(aU, fcTarget);
+    const brk = attack !== undefined && attack.damage >= 1 && !guarded && canBreak(aU, fcTarget);
     let targetHp = fcTarget.hp;
     let selfHp = selected.hp;
     const counters = counter !== undefined && !brk;
-    if (attack !== undefined) targetHp -= attack.damage;
+    if (attack !== undefined && !guarded) targetHp -= attack.damage;
     if (counters && targetHp > 0) selfHp -= counter.damage;
-    if (attack?.followUp === true && targetHp > 0) targetHp -= attack.damage;
+    if (attack?.followUp === true && !guarded && targetHp > 0) targetHp -= attack.damage;
     if (counters && counter.followUp && targetHp > 0 && selfHp > 0) selfHp -= counter.damage;
     targetHp = Math.max(targetHp, 0);
     selfHp = Math.max(selfHp, 0);
-    return { attack, counter, inRange, brk, selfHp, targetHp };
+    return { attack, counter, inRange, brk, selfHp, targetHp, guarded };
   }, [selected, fcAt, fcTarget, game, activeWeapon, staffMode]);
 
   const describe = (events: BattleEvent[]): string[] => {
@@ -477,6 +482,10 @@ export default function BoardIsland(props: BoardProps) {
             return `${name(ev.target)} ${t.warp}`;
           case "refresh":
             return `${name(ev.unit)} ${t.refresh}`;
+          case "guard":
+            return `${name(ev.unit)} ${t.guard}`;
+          case "guardBlock":
+            return `${name(ev.unit)} ${t.guard} −${ev.damage}`;
           case "engage":
             return `${name(ev.unit)} ${t.engage}`;
           case "disengage":
@@ -771,7 +780,7 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2)) && (
+      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2) || hasChainGuardSkill(selected)) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
           {selected.engage !== undefined && (
             <span className="edit-hint">
@@ -791,6 +800,22 @@ export default function BoardIsland(props: BoardProps) {
                 {labels.engageCmd}
               </button>
             )}
+          {/* 체인가드 지정 — 만HP 미달이면 비활성(인게임 GuardType.NotEnoughHP 문법). */}
+          {hasChainGuardSkill(selected) && !selected.acted && selected.force === game.phase && (
+            <button
+              type="button"
+              className={selected.guarding === true ? "on" : undefined}
+              disabled={selected.guarding === true || !canChainGuard(selected)}
+              onClick={() => {
+                if (commitMove() && tryDispatch({ type: "guard", unit: selected.id })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                }
+              }}
+            >
+              {labels.guardCmd}
+            </button>
+          )}
           {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}
           {usableStaves.some(({ s }) => s.rodType !== 2) &&
             !selected.acted &&
@@ -977,7 +1002,11 @@ export default function BoardIsland(props: BoardProps) {
             brk={forecast.brk}
             labels={labels}
           />
-          <small className="fc-note">{forecast.inRange ? "" : labels.currentPosNote}</small>
+          <small className="fc-note">
+            {[forecast.guarded ? labels.logTags.guard : "", forecast.inRange ? "" : labels.currentPosNote]
+              .filter(Boolean)
+              .join(" · ")}
+          </small>
         </div>
       )}
 

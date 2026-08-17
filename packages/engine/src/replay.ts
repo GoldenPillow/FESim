@@ -13,7 +13,7 @@ import { effectiveWeapons, type GameState, type RandomSource, type UnitState } f
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-4";
+export const RULE_VERSION = "fe17-5";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -163,6 +163,13 @@ function applyEvents(
         u.moved = false;
         break;
       }
+      case "guard":
+        require(ev.unit).guarding = true;
+        break;
+      case "guardBlock":
+        // 체인가드 치환 — 가드 잔여 HP 절대값. 대상 무피해는 동반 strike(damage 0)가 이미 소유한다.
+        require(ev.unit).hp = ev.hpAfter;
+        break;
       case "charge": {
         const u = require(ev.unit);
         if (u.engage !== undefined) u.engage = { ...u.engage, count: ev.count };

@@ -178,6 +178,10 @@ export type BattleEvent =
   | { type: "warp"; unit: string; target: string; x: number; y: number }
   /** 재행동 부여(춤) — 대상의 행동·이동 창이 새로 열린다. */
   | { type: "refresh"; unit: string }
+  /** 체인가드 지정 — unit이 스탠스에 들어간다(해제는 자기 페이즈 복귀가 소유 — 이벤트 없음). */
+  | { type: "guard"; unit: string }
+  /** 체인가드 치환 — unit(가드)이 target 대신 damage를 받았다. hpAfter = 가드 잔여(절대 재생용). */
+  | { type: "guardBlock"; unit: string; target: string; damage: number; hpAfter: number }
   /** 인게이지 게이지 변화 — count = 변화 후 절대값(절대 재생이 이 값을 그대로 쓴다). */
   | { type: "charge"; unit: string; count: number }
   | { type: "engage"; unit: string }
@@ -205,6 +209,8 @@ export type BattleAction =
   | { type: "item"; unit: string; item?: number }
   /** 춤(재행동 부여) — 대상 = 행동 완료한 인접 아군. 시전 자격 = SID_踊り 계열 보유(엔진 canDance). */
   | { type: "dance"; unit: string; target: string }
+  /** 체인가드 지정 — 행동을 소모하고 스탠스 진입. 자격 = 엔진 canChainGuard(만HP·기공 스타일). */
+  | { type: "guard"; unit: string }
   /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
   | { type: "engage"; unit: string }
   /** 인게이지 기술(공격기) — engaging 중에만. 기술 스냅숏(engageArt)이 흐름·무기·비용을 소유한다. */
