@@ -99,9 +99,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "movement.structures",
     label: { en: "Structures (doors, walls) affect passability", ko: "구조물(문·벽) 통행 반영" },
-    status: "deferred",
+    status: "implemented",
     evidence:
-      "M005 구조물 렌더 시점(§0 미룸) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-13): 통행 특례 로직은 **없다** — 구조물은 CostName/오버레이 코스트로 환원되고(Map.CanEnterTerrain RVA 0x1EECF90) 파괴 시 ChangeTid로 지형 자체가 교체돼 코스트가 바뀔 뿐 · ⇒ 구현 부담은 렌더·파괴 이벤트 쪽이고 이동 규칙 신설은 불요",
+      "M005 구조물 렌더 시점(§0 미룸) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-13): 통행 특례 로직은 **없다** — 구조물은 CostName/오버레이 코스트로 환원되고(Map.CanEnterTerrain RVA 0x1EECF90) 파괴 시 ChangeTid로 지형 자체가 교체돼 코스트가 바뀔 뿐 · ⇒ 구현 부담은 렌더·파괴 이벤트 쪽이고 이동 규칙 신설은 불요 · ★배선 완료(2026-08-18, MP3 3-2·3-3): GameState.structures(hp = Hp_난이도)·makeCostAt 코스트 치환(지붕 = 렌더 전용 제외)·visibleStructures 렌더(파괴·group 지붕 걷힘) — terrain.test.ts·boards.test.ts. 잔여 = 파괴 커맨드(actions.destroy, 3-4)",
   },
   {
     id: "movement.multi-tile-unit",
@@ -465,7 +465,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Terrain avoid/defense bonuses", ko: "지형 회피·방어 보정" },
     status: "anchored",
     evidence:
-      "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유(gaps/N §4-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-11·DAMAGE.md §2-4): 지형 보정은 **베이스 지형(+0x40)과 오버레이 지형(+0x48) 2층을 각각 합산**한다(BattleDetail.CalcDefense RVA 0x1E746C0 / CalcAvoid RVA 0x1E74900) — 엔진은 BattleMap.terrain 단일값 1층뿐이라 설치물·기믹 오버레이가 얹히면 갈린다 · 진영 비대칭항은 별건(combat.terrain-asymmetric)",
+      "corpus.test.ts 예보 일치에 포함 — 스타일 변형(隠密 2배·魔法 무시)은 units.style-grant-skills 소관(코퍼스 케이스는 비해당 스타일) · 3회차 교차자료: patch0.msbt MSID_H_CamillaEngage(천구)가 '지형 효과를 받지 않게 된다'는 무효화 경로 보유(gaps/N §4-2) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §2-11·DAMAGE.md §2-4): 지형 보정은 **베이스 지형(+0x40)과 오버레이 지형(+0x48) 2층을 각각 합산**한다(BattleDetail.CalcDefense RVA 0x1E746C0 / CalcAvoid RVA 0x1E74900) — ★2층 배선 완료(2026-08-18, MP3 3-2): BattleMap.overlays + terrainBonusAt 2층 순회 합산(대체 아님) — terrain.test.ts 森+瘴気 가산 · 진영 비대칭항은 별건(combat.terrain-asymmetric)",
   },
   {
     id: "combat.effectiveness-ignore",
@@ -992,7 +992,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Map gimmicks (spread, hazards, collapse)", ko: "맵 기믹(확산·위험타일·붕괴 등)" },
     status: "absent",
     evidence:
-      "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴(gaps/M §4) · 안개 기믹은 원문 0건 · ★IL2CPP 구조 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3): 기믹의 그릇 = **MapOverlap**(SingletonClass, MaxCount=128) — Data{X,Z,Index,Hp,Life,Turn,Phase}를 들고 GetMoveCost/GetFlyCost/GetTerrain로 이동·전투 양쪽에 합류한다 ⇒ 지형 2층 합산(combat.terrain-bonus)·오버레이 이동 코스트(movement.range-terrain-cost)·문장기 타일 소멸(emblem.crest-tile)이 전부 이 한 층의 소비처다 · 난수 스트림은 combat.rng-source의 Game 스트림 공유 여부가 여전히 미판정",
+      "RNG 소비 3계열(미아즈마 확산·파괴 장애물·위험타일 텔레그래프) + 독가스·얼음·구역붕괴(gaps/M §4) · 안개 기믹은 원문 0건 · ★IL2CPP 구조 확정(5.0.0, 2026-08-17, il2cpp/MOVE_TERRAIN.md §3): 기믹의 그릇 = **MapOverlap**(SingletonClass, MaxCount=128) — Data{X,Z,Index,Hp,Life,Turn,Phase}를 들고 GetMoveCost/GetFlyCost/GetTerrain로 이동·전투 양쪽에 합류한다 ⇒ 지형 2층 합산(combat.terrain-bonus)·오버레이 이동 코스트(movement.range-terrain-cost)·문장기 타일 소멸(emblem.crest-tile)이 전부 이 한 층의 소비처다 · 난수 스트림은 combat.rng-source의 Game 스트림 공유 여부가 여전히 미판정 · ★정적 층 배선(2026-08-18, MP3 3-2): m_Overlaps 초기 상태 = BattleMap.overlays(전투·코스트·MoveFirst·heal 가산 소비) — 런타임 생성(MapOverlapSet)·Life 수명은 여전히 미배선",
   },
   {
     id: "turn.victory-rout",
