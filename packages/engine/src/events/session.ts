@@ -652,7 +652,8 @@ export function createEventSession(opts: {
         return 1;
       }
       const v = pick(d.base.map, x, y);
-      if (v === undefined) throw new Error(`${name}: 타일 데이터 미배선 (${x}, ${y})`);
+      // ☠Lua 오류로 올린다(JS throw는 코루틴 경계에서 메시지가 소실된다) — 원인이 보여야 정직 강하다.
+      if (v === undefined) return lauxlib.luaL_error(A, to_luastring(`${name}: 타일 데이터 미배선 (${x}, ${y})`));
       lua.lua_pushstring(A, to_luastring(v));
       return 1;
     });
@@ -665,7 +666,7 @@ export function createEventSession(opts: {
     const d = draft();
     const spot = overlayAt(d.base.map, lua.lua_tointeger(A, 1), lua.lua_tointeger(A, 2));
     if (spot === undefined) lua.lua_pushnil(A);
-    else if (spot.tid === undefined) throw new Error("MapOverlapGet: 오버레이 TID 미배선");
+    else if (spot.tid === undefined) return lauxlib.luaL_error(A, to_luastring("MapOverlapGet: 오버레이 TID 미배선"));
     else lua.lua_pushstring(A, to_luastring(spot.tid));
     return 1;
   });

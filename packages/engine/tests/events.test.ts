@@ -335,7 +335,11 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
   const chapterDir = fileURLToPath(new URL("../../../data/fe17/chapters/", import.meta.url));
   const scriptNames = readdirSync(scriptDir).filter((f) => f.endsWith(".lua")).map((f) => f.slice(0, -4));
   const commons = scriptNames.filter((n) => n.startsWith("common"));
-  const chapters = scriptNames.filter((n) => !n.startsWith("common")).sort();
+  // 챕터 = chapters/*.json 존재 기준 — 스크립트 목록엔 Include 부속(g002_gimmick 등)이 섞여 있다.
+  const chapterJsons = new Set(
+    readdirSync(chapterDir).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)),
+  );
+  const chapters = scriptNames.filter((n) => !n.startsWith("common") && chapterJsons.has(n)).sort();
   const sources = Object.fromEntries(
     scriptNames.map((n) => [n, readFileSync(`${scriptDir}${n}.lua`, "utf-8")]),
   );
@@ -430,6 +434,92 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
       expect(r.state.units.length).toBeGreaterThan(0);
       // 미지 호출은 실패가 아니라 표면 — 있으면 무엇이 미배선인지 남는다(정직성).
       expect(session.unknownCalls().map(([n]) => n)).toEqual([]);
+    });
+  }
+});
+
+describe("이벤트 타일 질의·문 개방", () => {
+  const TILE_SCRIPT = `
+Include("Common")
+function Startup()
+  VariableSet("지형", TerrainGet(1, 0))
+  VariableSet("코스트", TerrainGetMoveCost(1, 0))
+  VariableSet("구조물지형", TerrainGet(0, 1))
+  VariableSet("오버레이", MapOverlapGet(1, 1))
+  VariableSet("빈칸", MapOverlapGet(0, 0) == nil and "없음" or "있음")
+  VariableSet("맵밖", TerrainGet(99, 99) == nil and "없음" or "있음")
+end
+`;
+  const cell = (tid: string, costName: string) => ({ tid, costName, avoid: 0, def: 0 });
+  const tileState = (): GameState => ({
+    turn: 1,
+    phase: 0,
+    map: {
+      width: 2,
+      height: 2,
+      costs: { foot: [[1, 1], [1, 1]] },
+      terrain: [
+        [cell("TID_道", "COST_平地"), cell("TID_岩", "COST_空")],
+        [cell("TID_床", "COST_平地"), cell("TID_道", "COST_平地")],
+      ],
+      overlays: [{ x: 1, y: 1, tid: "TID_瘴気_永続", cell: { avoid: 0, def: 0 } }],
+    },
+    structures: [{ x: 0, y: 1, w: 1, h: 1, tid: "TID_扉", group: 7, hp: 50 }],
+    units: [unit({ id: "p", force: 0, x: 0, y: 0 })],
+    events: [],
+  });
+
+  it("TerrainGet·TerrainGetMoveCost·MapOverlapGet은 국면의 실제 타일을 읽는다(맵 밖·빈칸 = nil)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: TILE_SCRIPT }, chapter: "tile", host: host(),
+    });
+    const v = session.setup(tileState()).state.variables!;
+    expect(v["지형"]).toBe("TID_岩");
+    expect(v["코스트"]).toBe("COST_空"); // 비행 전용 칸 — m024 눈사태가 이 문자열로 정지 판정한다
+    expect(v["구조물지형"]).toBe("TID_扉"); // 살아있는 구조물이 베이스 지형을 덮는다(ChangeTid 사영)
+    expect(v["오버레이"]).toBe("TID_瘴気_永続");
+    expect(v["빈칸"]).toBe("없음");
+    expect(v["맵밖"]).toBe("없음");
+  });
+
+  it("☠타일 데이터가 없으면 nil로 강하하지 않고 거부한다(== 비교 분기 오염 방지)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: `Include("Common")\nfunction Startup() TerrainGet(0, 0) end` },
+      chapter: "tile", host: host(),
+    });
+    expect(() => session.setup(state([unit({ id: "p", force: 0, x: 0, y: 0 })]))).toThrow(/미배선/);
+  });
+
+  it("EventOpenDoor = 구조물 소멸(hp 0) + destroy 이벤트 — 통행 개방·같은 group 지붕 걷힘", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, tile: `Include("Common")\nfunction Startup() EventOpenDoor(0, 1) end` },
+      chapter: "tile", host: host(),
+    });
+    const r = session.setup(tileState());
+    expect(r.state.structures![0].hp).toBe(0);
+    expect(r.events).toContainEqual({ type: "destroy", unit: "", structure: 0, tid: "TID_扉", hpAfter: 0 });
+  });
+});
+
+/**
+ * 정직 결손 — 정확 구현이 불가능해 **일부러 등록하지 않은** 네이티브. 등록하면 호출이 조용히 no-op가 되어
+ * 국면이 틀린 채 진행된다(☠오재현 > 강하). 여기 목록은 구현되면 지운다(그때 이 테스트가 빨개진다).
+ */
+describe("정직 결손 — 미등록 유지 네이티브", () => {
+  const GAPS: [string, string, string][] = [
+    ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks)"],
+    ["UnitSetItemEquip", `UnitSetItemEquip("PID_p", "IID_鉄の剣")`, "iid → 장비 무기 해석 훅 부재(호스트 미배선)"],
+    ["UnitSetStatus", `UnitSetStatus("PID_p", 1)`, "출격 로스터 상태(DEFECT·NEVER_SORTIE) 미모델"],
+  ];
+  for (const [name, call, why] of GAPS) {
+    it(`${name}은 등록하지 않는다 — ${why}`, () => {
+      const session = createEventSession({
+        sources: { common: COMMON_MIN, gap: `Include("Common")\nfunction Startup() ${call} end` },
+        chapter: "gap", host: host(),
+      });
+      expect(() => session.setup(state([unit({ id: "p", force: 0, x: 0, y: 0 })]))).toThrow(
+        new RegExp(`nil value \\(global '${name}'\\)`),
+      );
     });
   }
 });

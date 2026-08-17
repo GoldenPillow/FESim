@@ -224,7 +224,8 @@ def main() -> int:
         if not listing.is_file():
             print(f"chapterlist not found: {listing} (먼저 ./dev transform --tables)", file=sys.stderr)
             return 2
-        chapters = [e["cid"] for e in json.loads(listing.read_text(encoding="utf-8"))]
+        # chapterlist cid = "CID_M002" 형식 — 챕터 파일명(m002.json)은 접두 없는 꼬리를 쓴다.
+        chapters = [e["cid"].removeprefix("CID_") for e in json.loads(listing.read_text(encoding="utf-8"))]
 
     assets = load_assets(args.romfs)
     failed = 0
