@@ -706,6 +706,8 @@ export interface BoardTileProp {
 }
 
 export interface BoardWeaponProp {
+  /** items.json Iid — 이벤트(UnitSetItemEquip)의 주소. 엔진 BattleWeapon.iid의 원천. */
+  iid?: string;
   name: string;
   might: number;
   hit: number;
@@ -807,6 +809,17 @@ export interface BoardProps {
     skills: Record<string, SkillRow>;
     /** 스크립트가 부르는 GID 사영(UnitSetGodUnit 패치 — 기술(art)은 미배선·발현 시 흡수). */
     gods: Record<string, { engage: EngageState; engageWeapons?: BoardWeaponProp[] }>;
+    /**
+     * 스크립트가 부르는 TID 사영(TerrainSet·TerrainSetOne — 런타임 지형 교체).
+     * ☠클라이언트엔 terrain 표가 없다 — 챕터 Lua 폐포(챕터 + common*)의 "TID_..." 전수를 여기 굳힌다.
+     */
+    terrains: Record<string, {
+      /** 엔진 TerrainCell 그대로(표시 필드 제외 — 색·이름은 아래가 소유, 중복 직렬화 금지). */
+      cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean };
+      cost?: Partial<Record<MoveType, number>>;
+      color: string;
+      name: string;
+    }>;
   };
   labels: {
     board: string;
@@ -871,6 +884,7 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
   const row = items[iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
   if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) return undefined;
   return {
+    iid,
     name: namedOr(items, locale, iid),
     might: Number(row["Power"] ?? 0),
     hit: Number(row["Hit"] ?? 0),
@@ -972,6 +986,7 @@ export const staffItems = (unit: DisposUnit, locale: Locale): StaffItem[] => {
       }];
     });
     list.push({
+      iid: entry.iid,
       name: namedOr(items, locale, entry.iid),
       power: Number(row["Power"] ?? 0),
       rangeMin: row.RangeI ?? 1,
@@ -998,6 +1013,7 @@ export const consumableItems = (unit: DisposUnit, locale: Locale): ConsumableIte
     const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
     if (row === undefined || row.Kind !== 10 || Number(row["AddTarget"] ?? 0) === 0) continue;
     list.push({
+      iid: entry.iid,
       name: namedOr(items, locale, entry.iid),
       addType: Number(row["AddType"] ?? 0),
       power: Number(row["AddPower"] ?? 0),
@@ -1216,7 +1232,33 @@ export function boardProps(
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
       }
-      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods } };
+      // 지형 사영 — 폐포 = 챕터 + common*(공용 헬퍼도 TerrainSet을 부른다). 실사용 TID만 담긴다(종별 선형).
+      const terrains: NonNullable<BoardProps["script"]>["terrains"] = {};
+      for (const name of [mapId, ...commons]) {
+        for (const m of (scriptFiles[name] ?? "").matchAll(/"(TID_[^"]+)"/g)) {
+          const row = terrain[m[1]];
+          if (row === undefined || terrains[m[1]] !== undefined) continue;
+          terrains[m[1]] = {
+            cell: {
+              tid: m[1],
+              ...(row.CostName !== undefined ? { costName: row.CostName } : {}),
+              avoid: row.Avoid ?? 0,
+              def: row.Defense ?? 0,
+              ...opt("playerAvoid", row.PlayerAvoid),
+              ...opt("playerDef", row.PlayerDefense),
+              ...opt("enemyAvoid", row.EnemyAvoid),
+              ...opt("enemyDef", row.EnemyDefense),
+              ...opt("heal", row.Heal),
+              ...opt("moveFirst", row.MoveFirst),
+              ...((Number(row.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+            },
+            ...(row.cost !== undefined ? { cost: row.cost } : {}),
+            color: tileColor(m[1]),
+            name: tileName(locale, m[1]),
+          };
+        }
+      }
+      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods, terrains } };
     })(),
   };
 }

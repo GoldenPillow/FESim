@@ -116,6 +116,7 @@ function LiveFrame({ board, file, store, unit, labels }: Loaded & { unit?: strin
   return (
     <ReplayFrame
       board={{ ...board, objects: visibleObjects(board.objects, game.crests), structures: visibleStructures(board.structures, game.structures) }}
+      patches={game.terrainPatches}
       address={address}
       badge={badge}
       at={at}

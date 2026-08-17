@@ -42,6 +42,8 @@ export interface CombatantWeapon {
 }
 
 export interface BattleWeapon extends CombatantWeapon {
+  /** items.json Iid — 이벤트(UnitSetItemEquip·UnitPutOffItem)가 아이템을 부르는 주소. 스냅숏 옵셔널. */
+  iid?: string;
   rangeMin: number;
   rangeMax: number;
   /** items.json Kind — 상성 판정의 입력. */
@@ -104,6 +106,8 @@ export interface StatusEffect extends StatusGive {
  * power는 연성·각인·신기연성 합산 후 값(CalcRodHit 0x2473E10이 이 순서로 합성 — il2cpp/EXP_CHAIN_ENGAGE §7).
  */
 export interface StaffItem {
+  /** items.json Iid — 이벤트가 아이템을 부르는 주소. 스냅숏 옵셔널. */
+  iid?: string;
   power: number;
   rangeMin: number;
   rangeMax: number;
@@ -129,6 +133,8 @@ export interface StaffItem {
  * ☠목록엔 사용형 전부를 싣는다(미배선 포함) — 필터를 넓힐 때 item 인덱스 계약이 흔들리면 기보가 깨진다.
  */
 export interface ConsumableItem {
+  /** items.json Iid — 이벤트가 아이템을 부르는 주소. 스냅숏 옵셔널. */
+  iid?: string;
   /** items.json AddType — 2 = 범위 회복(배선 범위). 그 외는 reduce가 정직하게 거부한다. */
   addType: number;
   /** items.json AddPower — 회복량 등 효과 수치(고정값 — 능력치 무관). */
@@ -211,6 +217,18 @@ export type BattleEvent =
   | { type: "despawn"; unit: string }
   /** 세력 전환(UnitTransfer·UnitJoin) — force = 전환 후 절대값. */
   | { type: "transfer"; unit: string; force: number }
+  /**
+   * 장비 전환(UnitSetItemEquip) — index = effectiveWeapons(weapons ++ 인게이지 중 engageWeapons) 인덱스로
+   * attack.weapon과 **같은 공간**이다(기보 계약 재사용). index 부재 = 장비 해제.
+   */
+  | { type: "equip"; unit: string; index?: number }
+  /** 소지품 회수(UnitPutOffItem) — 제거 직전 목록의 절대 인덱스. 장비 중이던 무기면 해제까지. */
+  | { type: "putOff"; unit: string; kind: "weapon" | "staff" | "consumable"; index: number }
+  /**
+   * 런타임 지형 교체(TerrainSet·TerrainSetOne) — 좌표 1칸의 **절대 스냅숏**(셀·코스트·표시까지).
+   * 데이터 표를 안 든 열람 경로가 이 행만으로 효과·렌더를 복원한다. 같은 칸 재교체는 덮어쓴다.
+   */
+  | { type: "terrainSet"; x: number; y: number; tid: string; cell: Record<string, unknown>; cost?: Record<string, number>; display?: { color?: string; name?: string } }
   /** 이벤트 좌표 이동(UnitSetPos) — 절대 좌표. */
   | { type: "setPos"; unit: string; x: number; y: number }
   /** 게임 변수(GameVariable) 변경 — 발화 플래그 잠금 포함, value = 변경 후 절대값. */

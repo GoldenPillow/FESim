@@ -6,6 +6,9 @@ import {
   createCalculator,
   createReducer,
   createReplayer,
+  makeCostAt,
+  moveBudgetOn,
+  terrainBonusAt,
   type BattleWeapon,
   type GameState,
   type RandomSource,
@@ -380,17 +383,18 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
    * 결손 사유는 세 갈래뿐이다 — (1) 아이템 iid 사영 부재 (2) 미모델 유닛 속성 (3) 원문 스크립트 문법 오류.
    */
   const HONEST_GAPS: Record<string, string[]> = {
-    // (1) 아이템 iid 미사영 — BattleWeapon·StaffItem·ConsumableItem에 iid가 없다. 호출 전수 8건 중
-    //     6건이 **엠블렘 무기**(EngageItems)라 소지품에도 없다 → 어느 쪽도 해석 불가.
+    // (1) 대상 아이템이 국면 어디에도 없다 — iid 사영은 끝났지만(weapons·engageWeapons 전부 iid 보유)
+    //     이 둘은 스크립트가 **미소지 아이템**을 물리거나 뺏는다. 원기가 어떻게 조달하는지 미판독.
+    //     e005 = リュール의 IID_銀の剣(dispos 소지품에 없음 — 진행 인벤토리는 시뮬 모델 밖).
+    //     m014 = IID_ベレト_ルーン(dispos = IID_コラプス_M014 · GID_M014_敵ベレト 絆1 = IID_ベレト_ルーン_M010).
     e005: ["UnitPutOffItem"],
-    m010: ["UnitSetItemEquip"],
     m014: ["UnitSetItemEquip"],
-    m020: ["UnitSetItemEquip"],
     // (2) 미모델 유닛 속성 — hpStock(dispos에 실재하나 UnitState 미보유) · MPID(인물 이름 ID 미사영).
     e006: ["UnitSetHpStock"],
     m022: ["UnitGetMPID"],
-    // (3) ☠원문(romfs 추출본) 자체의 Lua 문법 오류 — `if ... then return x` 뒤에 end 없이 다음 if가 온다.
-    //     파이프라인 변환 산물이 아니라 추출 원문 그대로다(extracted/scripts/g001.txt:157 대조).
+    // (3) ☠원문 Lua 문법 오류(추출 산물 아님 — 게임의 실행 형태 미확인). g001.txt:157이 `if A then
+    //     return a` 뒤에 end 없이 다음 if를 연다(elseif 오타 — 메인 실검 확정). fengari는 로드를 거부한다.
+    //     ☠손대지 않는다: data/는 파이프라인 산출물이라 손수정이 곧 표류다.
     g001: ["Lua 문법"],
     g004: ["Lua 문법"],
   };
@@ -398,7 +402,30 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
   // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
   const terrainTable = JSON.parse(
     readFileSync(new URL("../../../data/fe17/tables/terrain.json", import.meta.url), "utf-8"),
-  ) as Record<string, { CostName?: string; Avoid?: number; Defense?: number; Hp_N?: number }>;
+  ) as Record<string, {
+    CostName?: string; Avoid?: number; Defense?: number; Hp_N?: number;
+    PlayerAvoid?: number; PlayerDefense?: number; EnemyAvoid?: number; EnemyDefense?: number;
+    Heal?: number; MoveFirst?: number; Flag?: number; cost?: Record<string, number>;
+  }>;
+  // TID → 지형 1칸 사영 — 보드 script.terrains(fe17.ts)가 굳혀 넘기는 것과 같은 모양.
+  const opt = (k: string, v: number | undefined) => (typeof v === "number" && v !== 0 ? { [k]: v } : {});
+  const terrainCellOf = (tid: string) => {
+    const row = terrainTable[tid];
+    if (row === undefined) return undefined;
+    return {
+      cell: {
+        tid,
+        ...(row.CostName !== undefined ? { costName: row.CostName } : {}),
+        avoid: row.Avoid ?? 0,
+        def: row.Defense ?? 0,
+        ...opt("playerAvoid", row.PlayerAvoid), ...opt("playerDef", row.PlayerDefense),
+        ...opt("enemyAvoid", row.EnemyAvoid), ...opt("enemyDef", row.EnemyDefense),
+        ...opt("heal", row.Heal), ...opt("moveFirst", row.MoveFirst),
+        ...((Number(row.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      },
+      ...(row.cost === undefined ? {} : { cost: row.cost }),
+    };
+  };
   const cellOf = (tid: string) => ({
     tid,
     ...(terrainTable[tid]?.CostName !== undefined ? { costName: terrainTable[tid].CostName } : {}),
@@ -406,6 +433,42 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     def: terrainTable[tid]?.Defense ?? 0,
   });
 
+  // 무기 종별(items.json Kind) — 공격 무기만 weapons에 실린다(fe17.ts WEAPON_KINDS와 같은 기준).
+  const itemTable = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/items.json", import.meta.url), "utf-8"),
+  ) as Record<string, { Kind?: number; Power?: number; RangeI?: number; RangeO?: number }>;
+  const godsTable = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/gods.json", import.meta.url), "utf-8"),
+  ) as {
+    gods: Record<string, { GrowTable?: string; Level?: number }>;
+    growth: Record<string, Record<string, { EngageItems?: string[] }>>;
+  };
+  const WEAPON_KINDS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+  const weaponOf = (iid: string): BattleWeapon | undefined => {
+    const row = itemTable[iid];
+    if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) return undefined;
+    return { ...sword, iid, might: row.Power ?? 0, rangeMin: row.RangeI ?? 1, rangeMax: row.RangeO ?? 1, kind: row.Kind ?? 0 };
+  };
+  // fe17.ts godGrowthRows와 같은 경로 — gods[gid].GrowTable → growth[GGID][絆레벨].EngageItems 누적.
+  const engageWeaponsOf = (gid: string): BattleWeapon[] => {
+    const god = godsTable.gods[gid];
+    const table = god === undefined ? undefined : godsTable.growth[String(god.GrowTable ?? "")];
+    if (table === undefined) return [];
+    const iids: string[] = [];
+    for (let level = 1; level <= Number(god?.Level ?? 1); level++) {
+      for (const iid of table[String(level)]?.EngageItems ?? []) if (!iids.includes(iid)) iids.push(iid);
+    }
+    return iids.map(weaponOf).filter((w): w is BattleWeapon => w !== undefined);
+  };
+
+  interface ChapterUnit {
+    pid: string;
+    force: number;
+    x: number;
+    y: number;
+    gid?: string;
+    items?: { iid: string }[];
+  }
   interface ChapterJson {
     map: {
       width: number;
@@ -414,7 +477,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
       overlays?: { x: number; y: number; tid: string }[];
       structures?: { x: number; y: number; w: number; h: number; tid: string; group: number }[];
     };
-    groups: { name: string; units: { pid: string; force: number; x: number; y: number }[] }[];
+    groups: { name: string; units: ChapterUnit[] }[];
   }
 
   it(`스크립트가 있는 챕터 전수(${chapters.join(", ")})가 스크립트+데이터 짝을 갖는다`, () => {
@@ -427,11 +490,19 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     const src = sources[cid];
     // 자동 배치 = Dispos로 소환되지 않는 그룹(웹 초기 배치 규칙과 동일 — fe17.ts disposGroups).
     const disposed = new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]));
+    // 웹 projectUnit과 같은 계약 — 소지 무기(iid 포함)·엠블렘 무기까지 실어야 이벤트가 장비를 찾는다.
     const project = (group: string): UnitState[] => {
       const g = json.groups.find((x) => x.name === group);
-      return (g?.units ?? []).map((u, i) =>
-        unit({ id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y }),
-      );
+      return (g?.units ?? []).map((u, i) => {
+        const weapons = (u.items ?? []).map((it) => weaponOf(it.iid)).filter((w): w is BattleWeapon => w !== undefined);
+        const engageWeapons = u.gid === undefined ? [] : engageWeaponsOf(u.gid);
+        return unit({
+          id: `${group}#${i}`, pid: u.pid, force: u.force, x: u.x, y: u.y,
+          ...(weapons.length > 0 ? { weapons, weapon: weapons[0] } : {}),
+          ...(u.gid === undefined ? {} : { engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
+          ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
+        });
+      });
     };
     const initial = json.groups.filter((g) => !disposed.has(g.name)).flatMap((g) => project(g.name));
     const { width, height } = json.map;
@@ -465,12 +536,17 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
       skillRow: (sid) => ({ Sid: sid }),
       godUnit: () => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
       gainItem: () => ({}),
+      terrainCell: terrainCellOf,
     };
     const gap = HONEST_GAPS[cid];
 
     if (gap !== undefined) {
       it(`${cid}: 정직 결손 — 미구현 네이티브 ${gap.join(", ")}로 부트가 거부된다`, () => {
-        const boot = () => createEventSession({ sources, chapter: cid, host: h }).setup(s0);
+        const boot = () => {
+          const se = createEventSession({ sources, chapter: cid, host: h });
+          se.setRng(rolls([0]));
+          return se.setup(s0);
+        };
         expect(boot).toThrow(new RegExp(gap.join("|")));
       });
       continue;
@@ -478,6 +554,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
 
     it(`${cid}: createEventSession + setup(스텝 0)이 오류 0`, () => {
       const session = createEventSession({ sources, chapter: cid, host: h });
+      session.setRng(rolls([0])); // 리듀서가 매 스텝 넘기는 것과 같은 계약(이벤트 콜백 굴림도 기보 난수다)
       const r = session.setup(s0);
       expect(r.state.units.length).toBeGreaterThan(0);
       // 미지 호출은 실패가 아니라 표면 — 있으면 무엇이 미배선인지 남는다(정직성).
@@ -557,14 +634,11 @@ describe("정직 결손 — 미등록 유지 네이티브", () => {
   const GAPS: [string, string, string][] = [
     ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
     ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
-    ["UnitSetItemEquip", `UnitSetItemEquip("PID_p", "IID_鉄の剣")`, "아이템 iid 미사영 + 호출 대부분이 엠블렘 무기(EngageItems)"],
-    ["UnitPutOffItem", `UnitPutOffItem("PID_p", "IID_鉄の剣")`, "위와 같은 iid 결손"],
     ["UnitGetHpStock", `UnitGetHpStock("PID_p")`, "HP 스톡 미모델(dispos에는 hpStock이 실재 — UnitState 확장이 선행)"],
     ["UnitSetHpStock", `UnitSetHpStock("PID_p", 1)`, "위와 같음"],
     ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
     ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
     ["UnitSetHp", `UnitSetHp("PID_p", 1)`, "HP 절대 대입 이벤트 미정의(절대 재생 계약이 선행)"],
-    ["RandomGet", `RandomGet(100)`, "☠난수는 항상 주입한다 — 세션에 RandomSource 주입구가 없다(엔진 계약)"],
     ["Battle", `Battle("PID_p", "PID_p")`, "이벤트 전투 실행 — 난수·대미지 파이프라인 주입 필요"],
     ["BattleSetAttack", `BattleSetAttack("PID_p", "IID_鉄の剣")`, "위와 같음"],
     ["BattleAddTarget", `BattleAddTarget("PID_p")`, "위와 같음"],
@@ -573,7 +647,6 @@ describe("정직 결손 — 미등록 유지 네이티브", () => {
     ["TerrainFill", `TerrainFill(1, 1, "TID_床")`, "채움 경계 규칙 미판독(TerrainSet/SetOne은 좌표 지정이라 배선)"],
     ["DisposGetGroupCount", `DisposGetGroupCount("Enemy")`, "dispos 원본 조회 훅 부재(호스트는 스폰만 제공)"],
     ["GodDataGetMGID", `GodDataGetMGID("GID_マルス")`, "엠블렘 데이터 표 미사영"],
-    ["AiGetRerewarpPosition", `AiGetRerewarpPosition("PID_p")`, "AI 재워프 좌표 — AI 실행기가 MP4"],
   ];
   for (const [name, call, why] of GAPS) {
     it(`${name}은 등록하지 않는다 — ${why}`, () => {
@@ -586,4 +659,204 @@ describe("정직 결손 — 미등록 유지 네이티브", () => {
       );
     });
   }
+});
+
+/**
+ * 이벤트 난수 — ☠엔진 계약(난수는 항상 주입)을 이벤트 콜백까지 관통시킨다. Math.random을 쓰면
+ * 기보 재현이 깨진다(같은 기보가 다른 국면을 만든다). RandomGet(n) = Random.GetValue(n) = [0, n)
+ * (HIT_RANDOM §1-3·§2-6 — RandomSource.next 규약과 동일 상한 계약).
+ */
+describe("이벤트 난수 — 주입 소스 소비", () => {
+  const RNG_SCRIPT = `
+Include("Common")
+function Startup()
+  VariableSet("굴림1", RandomGet(100))
+  VariableSet("굴림2", RandomGet(6))
+end`;
+  const mk = () =>
+    createEventSession({ sources: { common: COMMON_MIN, r: RNG_SCRIPT }, chapter: "r", host: host() });
+  const p = () => unit({ id: "p", force: 0, x: 0, y: 0 });
+
+  it("RandomGet(n)은 주입 소스를 [0, n) 상한 계약으로 소비한다", () => {
+    const session = mk();
+    const bounds: number[] = [];
+    session.setRng({ next: (b) => { bounds.push(b); return b - 1; } });
+    const v = session.setup(state([p()])).state.variables!;
+    expect(bounds).toEqual([100, 6]); // 상한이 그대로 넘어간다(해상도 = 호출부 소유)
+    expect(v["굴림1"]).toBe(99);
+    expect(v["굴림2"]).toBe(5);
+  });
+
+  it("☠난수원 미주입이면 0으로 강하하지 않고 거부한다", () => {
+    expect(() => mk().setup(state([p()]))).toThrow(/난수원/);
+  });
+
+  it("evented reduce가 스텝 난수원을 세션에 관통시킨다 — 콜백 굴림이 기보 난수 순서에 든다", () => {
+    const script = `
+Include("Common")
+function Startup()
+  EventEntryTurn(roll, -1, -1, FORCE_PLAYER)
+end
+function roll()
+  VariableSet("턴굴림", RandomGet(10))
+end`;
+    const session = createEventSession({ sources: { common: COMMON_MIN, r: script }, chapter: "r", host: host() });
+    const reduce = createEventedReducer(base, session);
+    const drawn: number[] = [];
+    const rng: RandomSource = { next: (b) => { drawn.push(b); return 3; } };
+    session.setRng(rng);
+    let s = session.setup(state([p(), unit({ id: "e", force: 1, x: 7, y: 7 })])).state;
+    expect(s.variables?.["턴굴림"]).toBe(3);
+    s = reduce(s, { type: "endPhase" }, rng); // 자군 → 적군
+    s = reduce(s, { type: "endPhase" }, rng); // 적군 → 자군: Turn 발화가 다시 굴린다
+    expect(drawn).toEqual([10, 10]); // 세션이 스텝 난수원을 소비했다 = 기보에 기록되는 굴림이다
+  });
+});
+
+/**
+ * 아이템 iid 사영 — 이벤트가 장비를 바꾸고(UnitSetItemEquip) 소지품을 뺏는다(UnitPutOffItem).
+ * 인덱스 계약 = effectiveWeapons(weapons ++ 인게이지 중 engageWeapons) — attack.weapon과 같은 공간이라
+ * 기보 계약을 새로 만들지 않는다. ☠목록에 없는 iid는 정직 거부(조용한 no-op = 위력이 틀린 채 진행).
+ */
+describe("이벤트 장비 전환·소지품 회수", () => {
+  const iron: BattleWeapon = { ...sword, iid: "IID_鉄の剣", might: 5 };
+  const silver: BattleWeapon = { ...sword, iid: "IID_銀の剣", might: 12 };
+  const emblem: BattleWeapon = { ...sword, iid: "IID_ロイ_封印の剣", might: 20 };
+  const potion = { iid: "IID_特効薬", addType: 2, power: 10, range: 0, uses: 1 };
+  const armed = (over: Partial<UnitState> = {}): UnitState =>
+    unit({ id: "p", force: 0, x: 0, y: 0, weapon: iron, weapons: [iron, silver], consumables: [potion], ...over });
+  const run = (body: string, u: UnitState) => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, eq: `Include("Common")\nfunction Startup() ${body} end` },
+      chapter: "eq", host: host(),
+    });
+    return session.setup(state([u]));
+  };
+
+  it("UnitSetItemEquip = 소지 무기 iid로 장비 전환 + 절대 인덱스 이벤트", () => {
+    const r = run(`UnitSetItemEquip("PID_p", "IID_銀の剣")`, armed());
+    expect(r.state.units[0].weapon?.iid).toBe("IID_銀の剣");
+    expect(r.events).toContainEqual({ type: "equip", unit: "p", index: 1 });
+  });
+
+  it("엠블렘 무기(EngageItems)는 **인게이지 전에도** 잡힌다 — 인덱스 = weapons.length + n", () => {
+    // ☠전투용 effectiveWeapons와 다른 공간이다: m014·m020의 MapOpening이 비인게이지 보스에게 물린다.
+    const off = armed({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false }, engageWeapons: [emblem] });
+    const r = run(`UnitSetItemEquip("PID_p", "IID_ロイ_封印の剣")`, off);
+    expect(r.state.units[0].weapon?.might).toBe(20);
+    expect(r.events).toContainEqual({ type: "equip", unit: "p", index: 2 });
+    // 인게이지 중에도 같은 인덱스 — 기록이 인게이지 상태에 흔들리지 않는다.
+    const on = armed({ engage: { count: 7, limit: 7, turnLimit: 3, turn: 0, engaging: true }, engageWeapons: [emblem] });
+    expect(run(`UnitSetItemEquip("PID_p", "IID_ロイ_封印の剣")`, on).events)
+      .toContainEqual({ type: "equip", unit: "p", index: 2 });
+  });
+
+  it("☠목록에 없는 iid는 조용히 넘기지 않고 거부한다(장비가 틀린 채 진행 금지)", () => {
+    expect(() => run(`UnitSetItemEquip("PID_p", "IID_ロイ_封印の剣")`, armed())).toThrow(/IID_ロイ_封印の剣/);
+  });
+
+  it("UnitPutOffItem = 소지품에서 제거(장비 중이면 해제까지) — e006의 회수→ItemGain 교체 패턴", () => {
+    const r = run(`UnitPutOffItem("PID_p", "IID_鉄の剣")\nUnitPutOffItem("PID_p", "IID_特効薬")`, armed());
+    const u = r.state.units[0];
+    expect(u.weapons?.map((w) => w.iid)).toEqual(["IID_銀の剣"]);
+    expect(u.consumables).toEqual([]);
+    expect(u.weapon).toBeUndefined(); // 장비 중이던 철검을 뺏겼다
+    expect(r.events).toContainEqual({ type: "putOff", unit: "p", kind: "weapon", index: 0 });
+    expect(r.events).toContainEqual({ type: "putOff", unit: "p", kind: "consumable", index: 0 });
+  });
+
+  it("절대 재생 — 기록 이벤트만으로 장비 전환·회수가 복원된다(세션 무반입)", () => {
+    const r = run(`UnitSetItemEquip("PID_p", "IID_銀の剣")\nUnitPutOffItem("PID_p", "IID_鉄の剣")`, armed());
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(state([armed()]), { action: { type: "setup" }, events: r.events });
+    expect(replayed.units[0].weapon?.iid).toBe("IID_銀の剣");
+    expect(replayed.units[0].weapons?.map((w) => w.iid)).toEqual(["IID_銀の剣"]);
+  });
+});
+
+/**
+ * 런타임 지형 교체(TerrainSet·TerrainSetOne) — 가시성이 아니라 **효과까지** 바꾼다.
+ * 국면 표현 = terrainPatches(패치 리스트 — 2D 격자 변이 금지: 직렬화·절대 재생에 맞다).
+ * 우선순위 = 살아있는 구조물 > 패치 > 베이스(구조물은 m_Layers 별도 층 — 파괴 시 ChangeTid로
+ * 지형이 바뀌는 원기 사상 MOVE_TERRAIN §2-13에서 패치가 곧 "바뀐 지형"이다).
+ */
+describe("런타임 지형 교체 — terrainPatches", () => {
+  const floor = { tid: "TID_床", costName: "COST_平地", avoid: 0, def: 0 };
+  const rock = { tid: "TID_岩", costName: "COST_空", avoid: 0, def: 0 };
+  const bridgeCell = { avoid: 10, def: 5, heal: -3, moveFirst: -1, notWarp: true };
+  const terrainHost = (over?: Partial<EventHost>): EventHost => ({
+    ...host(over),
+    // 데이터층 훅 — 보드 script.terrains 사영(fe17.ts)이 클라이언트에 굳혀 넘기는 것과 같은 모양.
+    terrainCell: (tid) =>
+      tid === "TID_橋"
+        ? { cell: bridgeCell, cost: { foot: 2, fly: 1 }, display: { color: "#888", name: "다리" } }
+        : undefined,
+  });
+  const s0 = (): GameState => ({
+    turn: 1,
+    phase: 0,
+    map: {
+      width: 2,
+      height: 2,
+      costs: { foot: [[1, 1], [1, 255]], fly: [[1, 1], [1, 1]] },
+      terrain: [[floor, floor], [floor, rock]],
+    },
+    units: [unit({ id: "p", force: 0, x: 0, y: 0 })],
+    events: [],
+  });
+  const run = (body: string, h = terrainHost()) => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, t: `Include("Common")\nfunction Startup() ${body} end` },
+      chapter: "t", host: h,
+    });
+    return session.setup(s0());
+  };
+
+  it("TerrainSet은 패치를 세우고 TerrainGet이 그 값을 되읽는다 + 절대 이벤트가 실린다", () => {
+    const r = run(`TerrainSet(1, 1, "TID_橋")\nVariableSet("되읽기", TerrainGet(1, 1))`);
+    expect(r.state.variables?.["되읽기"]).toBe("TID_橋");
+    expect(r.state.terrainPatches).toEqual([
+      { x: 1, y: 1, tid: "TID_橋", cell: bridgeCell, cost: { foot: 2, fly: 1 }, display: { color: "#888", name: "다리" } },
+    ]);
+    expect(r.events).toContainEqual({
+      type: "terrainSet", x: 1, y: 1, tid: "TID_橋",
+      cell: bridgeCell, cost: { foot: 2, fly: 1 }, display: { color: "#888", name: "다리" },
+    });
+  });
+
+  it("효과가 실제로 바뀐다 — 코스트·전투 보정·MoveFirst·워프 금지", () => {
+    const s = run(`TerrainSet(1, 1, "TID_橋")`).state;
+    // 통행 불가(255)였던 칸이 다리 코스트 2로 열린다.
+    expect(makeCostAt(s.map, s.structures, "foot", s.terrainPatches)(1, 1)).toBe(2);
+    expect(terrainBonusAt(s.map, 1, 1, 0, s.terrainPatches)).toEqual({ avoid: 10, def: 5 });
+    const on = { ...s.units[0], x: 1, y: 1 };
+    expect(moveBudgetOn(s.map, on, s.terrainPatches)).toBe(3); // movePoints 4 + moveFirst −1
+  });
+
+  it("살아있는 구조물이 패치보다 우선 — 파괴되면 패치가 드러난다(ChangeTid 사영)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, t: `Include("Common")\nfunction Startup()\n TerrainSet(1, 1, "TID_橋")\n VariableSet("문", TerrainGet(1, 1))\n EventOpenDoor(1, 1)\n VariableSet("연", TerrainGet(1, 1))\nend` },
+      chapter: "t", host: terrainHost(),
+    });
+    const withDoor: GameState = {
+      ...s0(),
+      structures: [{ x: 1, y: 1, w: 1, h: 1, tid: "TID_扉", group: 0, hp: 50 }],
+    };
+    const v = session.setup(withDoor).state.variables!;
+    expect(v["문"]).toBe("TID_扉"); // 구조물이 살아 있는 동안은 구조물 TID
+    expect(v["연"]).toBe("TID_橋"); // 파괴 뒤 패치가 드러난다
+  });
+
+  it("☠데이터층이 TID를 모르면 조용히 넘기지 않고 거부한다(효과 없는 교체 = 오재현)", () => {
+    expect(() => run(`TerrainSet(1, 1, "TID_未知")`)).toThrow(/TID_未知/);
+  });
+
+  it("같은 칸 재교체는 덮어쓴다(패치 누적 금지) + 절대 재생이 세션 없이 복원한다", () => {
+    const r = run(`TerrainSet(1, 1, "TID_橋")\nTerrainSetOne(1, 1, "TID_橋")`);
+    expect(r.state.terrainPatches?.length).toBe(1);
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(s0(), { action: { type: "setup" }, events: r.events });
+    expect(replayed.terrainPatches?.[0]?.tid).toBe("TID_橋");
+    expect(makeCostAt(replayed.map, undefined, "foot", replayed.terrainPatches)(1, 1)).toBe(2);
+  });
 });

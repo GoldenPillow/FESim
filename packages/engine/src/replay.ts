@@ -1,5 +1,5 @@
 import type { BattleAction, BattleEvent, EphemerisStep, StatKey } from "@fesim/shared";
-import { effectiveWeapons, type GameState, type RandomSource, type UnitState } from "./battle.js";
+import { effectiveWeapons, equipCandidates, type GameState, type TerrainPatch, type RandomSource, type UnitState } from "./battle.js";
 
 
 /**
@@ -128,6 +128,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
   let outcome = state.outcome;
   let crests = state.crests;
   let structures = state.structures;
+  let terrainPatches = state.terrainPatches;
   let variables = state.variables;
   let winRule = state.winRule;
   for (const ev of events) {
@@ -286,6 +287,41 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         delete u.statuses;
         break;
       }
+      case "equip": {
+        const u = require(ev.unit);
+        if (ev.index === undefined) delete u.weapon;
+        else {
+          const w = equipCandidates(u)[ev.index];
+          if (w === undefined) throw new ReplayDesyncError(`기록의 무기 인덱스가 국면에 없다: #${ev.index}`);
+          u.weapon = w;
+        }
+        break;
+      }
+      case "putOff": {
+        const u = require(ev.unit);
+        const list = ev.kind === "weapon" ? u.weapons : ev.kind === "staff" ? u.staves : u.consumables;
+        if (list === undefined || list[ev.index] === undefined) {
+          throw new ReplayDesyncError(`기록의 소지품이 국면에 없다: ${ev.kind}#${ev.index}`);
+        }
+        const dropped = list[ev.index];
+        const rest = list.filter((_, i) => i !== ev.index);
+        if (ev.kind === "weapon") {
+          u.weapons = rest as typeof u.weapons;
+          if (u.weapon === dropped) delete u.weapon;
+        } else if (ev.kind === "staff") u.staves = rest as typeof u.staves;
+        else u.consumables = rest as typeof u.consumables;
+        break;
+      }
+      case "terrainSet": {
+        const patch = {
+          x: ev.x, y: ev.y, tid: ev.tid,
+          cell: ev.cell as unknown as TerrainPatch["cell"],
+          ...(ev.cost === undefined ? {} : { cost: ev.cost as unknown as TerrainPatch["cost"] }),
+          ...(ev.display === undefined ? {} : { display: ev.display }),
+        };
+        terrainPatches = [...(terrainPatches ?? []).filter((p) => p.x !== ev.x || p.y !== ev.y), patch];
+        break;
+      }
       case "unitFlags": {
         const u = require(ev.unit);
         if (ev.flags === 0) delete u.flags;
@@ -301,6 +337,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
     units,
     ...(crests === undefined ? {} : { crests }),
     ...(structures === undefined ? {} : { structures }),
+    ...(terrainPatches === undefined ? {} : { terrainPatches }),
     ...(variables === undefined ? {} : { variables }),
     ...(winRule === undefined ? {} : { winRule }),
     events: [...events],

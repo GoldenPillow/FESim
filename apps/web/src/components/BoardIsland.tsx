@@ -85,6 +85,16 @@ function eventWiringFor(
             return unit === undefined ? [] : [unit];
           }),
         skillRow: (sid) => script.skills[sid],
+        // TID → 지형 1칸 — SSG가 굳힌 script.terrains만 안다(클라이언트엔 terrain 표가 없다).
+        terrainCell: (tid) => {
+          const row = script.terrains?.[tid];
+          if (row === undefined) return undefined;
+          return {
+            cell: row.cell,
+            ...(row.cost !== undefined ? { cost: row.cost } : {}),
+            display: { color: row.color, name: row.name },
+          };
+        },
         godUnit: (_unit, gid) => {
           const god = script.gods[gid];
           if (god === undefined) return undefined;
@@ -598,6 +608,9 @@ export default function BoardIsland(props: BoardProps) {
           case "crestAdd":
           case "reset":
           case "unitFlags":
+          case "equip":
+          case "terrainSet":
+          case "putOff":
             return ""; // 이벤트 내부 상태 — 로그 소음(연출 no-op 결정과 동급)
         }
       })
@@ -883,6 +896,7 @@ export default function BoardIsland(props: BoardProps) {
         objects={visibleObjects(objects, game.crests)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}
+        patches={game.terrainPatches}
         interactions={props.interactions}
         units={viewUnits}
         byTile={byTileView}

@@ -21,7 +21,7 @@ interface RawNotes {
     turnLimit?: { n?: number; h?: number; l?: number };
     bossStock?: { pid: string; count: number }[];
     gold?: number;
-    conditionalRewards?: { condition: string; items: string[] }[];
+    conditionalRewards?: { condition: string; items?: string[]; iid?: string; where?: string }[];
   };
 }
 
@@ -92,9 +92,10 @@ export function chapterNoteView(mapId: string, locale: Locale): ChapterNoteView 
     ...(n.eventRewards ?? []).map((r) =>
       r.gold !== undefined ? `${r.gold.toLocaleString()}G` : itemName(locale, r.iid ?? ""),
     ),
-    ...(n.specials.conditionalRewards ?? []).map(
-      (c) => `${c.items.map((i) => itemName(locale, i)).join(", ")} (${c.condition})`,
-    ),
+    ...(n.specials.conditionalRewards ?? []).map((c) => {
+      const its = c.items ?? (c.iid !== undefined ? [c.iid] : []);
+      return `${its.map((i) => itemName(locale, i)).join(", ")} (${c.condition})`;
+    }),
   ];
   const unlocks = n.unlocks.map((u) => u.text?.[locale] ?? label(locale, u.mid) ?? u.tutid.replace(/^TUTID_/, ""));
   const shopNew = Object.entries(n.shopNew)

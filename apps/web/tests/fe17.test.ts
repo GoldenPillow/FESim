@@ -182,7 +182,7 @@ describe("staffItems — 소지품 → 지팡이 목록 사영 (MP0)", () => {
     });
     const list = staffItems(u, "ko");
     expect(list).toEqual([
-      { name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, useType: 2, hit: 100, distance: 0, rodExp: 25 },
+      { iid: "IID_ライブ", name: "라이브", power: 10, rangeMin: 1, rangeMax: 1, uses: 25, rodType: 2, useType: 2, hit: 100, distance: 0, rodExp: 25 },
     ]);
   });
 
@@ -218,7 +218,25 @@ describe("consumableItems — 소지품 → 사용형 아이템 사영 (MP1-1)",
     });
     const list = consumableItems(u, "ko");
     expect(list).toHaveLength(2);
-    expect(list[0]).toEqual({ name: "상처약", addType: 2, power: 15, range: 2, uses: 3 });
+    expect(list[0]).toEqual({ iid: "IID_傷薬", name: "상처약", addType: 2, power: 15, range: 2, uses: 3 });
     expect(list[1].addType).toBe(18); // 독소약 — 미배선이지만 인덱스 자리를 지킨다
+  });
+});
+
+describe("script.terrains — 런타임 지형 교체 사영 (MP3)", () => {
+  it("챕터 Lua 폐포의 TID 전수를 굳혀 넘긴다 — 클라이언트엔 terrain 표가 없다", () => {
+    // 왜 위험한가: 이벤트 TerrainSet이 이 사영만 보고 지형을 바꾼다. 빠지면 세션이 정직 거부하고
+    // 챕터가 통째로 원시판으로 강하한다(효과 없는 교체 = 오재현이라 no-op 강하가 금지돼 있다).
+    const board = boardPropsFor("m015", "ko");
+    const terrains = board.script?.terrains ?? {};
+    expect(Object.keys(terrains).length).toBeGreaterThan(0);
+    const door = terrains["TID_扉"]; // m015 스크립트가 문자열로 부르는 TID
+    expect(door).toBeDefined();
+    expect(door.cell.tid).toBe("TID_扉");
+    expect(door.cell.costName).toBe("COST_不可"); // TerrainGetMoveCost가 비교하는 문자열
+    expect(door.cost?.foot).toBe(255); // 통행 불가 — 교체 시 코스트가 실제로 바뀐다
+    expect(door.name).not.toBe(""); // 렌더 표시(display)의 원천
+    // 표시 필드는 cell에 중복 직렬화하지 않는다(보드 JSON 용량 정책).
+    expect("color" in door.cell).toBe(false);
   });
 });

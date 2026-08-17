@@ -13,6 +13,8 @@ import "./replay.css";
  */
 export interface ReplayFrameProps {
   board: Pick<BoardProps, "width" | "height" | "tiles" | "palette" | "objects" | "structures" | "overlays" | "interactions" | "labels">;
+  /** 런타임 지형 교체 — 재생 국면이 소유한다(보드 props가 아니라 국면 상태). */
+  patches?: { x: number; y: number; tid: string; display?: { color?: string; name?: string } }[];
   address?: StepAddress;
   badge?: { text: string; ok: boolean };
   at: number;
@@ -57,6 +59,7 @@ export default function ReplayFrame(p: ReplayFrameProps) {
         objects={p.board.objects}
         structures={p.board.structures}
         overlays={p.board.overlays}
+        patches={p.patches}
         interactions={p.board.interactions}
         units={p.alive}
         byTile={p.byTile}

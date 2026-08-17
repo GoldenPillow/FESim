@@ -14,6 +14,8 @@ export function createEventedReducer(base: Reduce, session: EventSession): Reduc
     settleOutcome({ ...r.state, events: r.state.events });
 
   return function reduce(state: GameState, action: BattleAction, rng: RandomSource): GameState {
+    // ☠이벤트 콜백의 굴림(RandomGet)도 이 스텝의 난수다 — 같은 소스를 관통시켜야 기보가 재현된다.
+    session.setRng(rng);
     if (action.type === "setup") {
       // 챕터 초기화 = 기보 스텝 0 — Startup(등록)·MapOpening(초기 스폰)·1턴 개시 발화가 이벤트로 실린다.
       return settle(session.setup(state));
