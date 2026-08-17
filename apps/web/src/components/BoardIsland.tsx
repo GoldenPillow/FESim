@@ -11,6 +11,7 @@ import {
   forecastSide,
   hasBadState,
   itemTargets,
+  makeCostAt,
   moveBudget,
   moveBudgetOn,
   movePredicates,
@@ -271,15 +272,14 @@ export default function BoardIsland(props: BoardProps) {
     // 이동 예산의 정본은 엔진 moveBudgetOn(MoveFirst 출발 보정 포함) — UI 중복 구현 금지(C4, §2-3).
     const budget = moveBudgetOn(game.map, selected);
     if (budget === undefined) return undefined;
-    const grid = game.map.costs[selected.moveType];
-    if (grid === undefined) return undefined;
+    if (game.map.costs[selected.moveType] === undefined) return undefined;
     const query: MoveQuery = {
       width,
       height,
       movePoints: budget,
       start: { x: selected.x, y: selected.y },
-      costAt: (x, y) => grid[y]?.[x] ?? 255,
-      // 통과·정지 판정도 엔진 movePredicates 단일 정본(진영 동맹표 — 자군↔우군 통과 가능).
+      // 코스트·통과·정지 전부 엔진 단일 정본(구조물 치환·오버레이 가산·진영 동맹표 — C4 중복 금지).
+      costAt: makeCostAt(game.map, game.structures, selected.moveType),
       ...movePredicates(game.map, viewUnits, selected),
     };
     const move = movementRange(query);
@@ -456,7 +456,7 @@ export default function BoardIsland(props: BoardProps) {
   const warpTiles = useMemo(() => {
     if (staffMode !== "warp" || staff === undefined || allyTarget === undefined) return undefined;
     // 술자의 잠정 발판은 제외 — 커밋 시 그 칸으로 이동하므로 점유 충돌이 된다.
-    return warpDestinations(allyTarget, staff, game.map, game.units).filter(
+    return warpDestinations(allyTarget, staff, game.map, game.units, game.structures).filter(
       (t) => selectedAt === undefined || t.x !== selectedAt.x || t.y !== selectedAt.y,
     );
   }, [staffMode, staff, allyTarget, game, selectedAt]);

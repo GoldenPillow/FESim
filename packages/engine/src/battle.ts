@@ -211,11 +211,44 @@ export interface TerrainCell {
   notWarp?: boolean;
 }
 
+/**
+ * 1칸 지속 오버레이(m_Overlaps 사영) — 밑의 베이스 지형에 **가산**된다(대체 아님, FIX-2).
+ * moveCost/flyCost = terrain.json MoveCost/FlyCost(이동 코스트 가산분 — 오버레이 자체 地形コスト는 미사용).
+ */
+export interface OverlaySpot {
+  x: number;
+  y: number;
+  cell: TerrainCell;
+  moveCost?: number;
+  flyCost?: number;
+}
+
+/**
+ * 구조물 상태(m_Layers 사영) — 살아있으면(hp>0) 자기 TID 코스트가 베이스를 치환한다(통행 특례 없음, §2-13).
+ * roof(TID_屋根)는 렌더 전용 — 통행·전투에 관여하지 않고 같은 group의 문 개방 시 걷힌다.
+ */
+export interface StructureState {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tid: string;
+  group: number;
+  /** Hp_{난이도} 초기값 — 0 이하 = 파괴됨(통행 개방). 파괴 불가 구조물은 큰 값 유지. */
+  hp: number;
+  roof?: boolean;
+  /** 구조물 TID의 이동 코스트(치환용) — 부재 시 베이스 코스트 유지. */
+  costs?: Partial<Record<MoveType, number>>;
+  name?: string;
+}
+
 export interface BattleMap {
   width: number;
   height: number;
   costs: Partial<Record<MoveType, number[][]>>;
   terrain?: TerrainCell[][];
+  /** 지속 오버레이 초기 상태(정적) — 런타임 MapOverlapSet 생성은 이월(장부 turn.map-gimmicks). */
+  overlays?: OverlaySpot[];
   /**
    * 진영 동맹표 — force 인덱스 → 진영 번호(MapSituation.IsAllide 0x1F48EC0 사영).
    * 기본 [0,1,0]: 자군(0)↔우군(2) 같은 진영 = 상호 통과 가능, 적(1)은 양쪽과 차단.
@@ -223,19 +256,61 @@ export interface BattleMap {
   alliance?: number[];
 }
 
+/** 해당 칸의 오버레이 — 데이터상 칸당 최대 1(OverlapTerrain 슬롯 단수). */
+export function overlayAt(map: BattleMap, x: number, y: number): OverlaySpot | undefined {
+  return map.overlays?.find((o) => o.x === x && o.y === y);
+}
+
+/** 해당 칸을 덮는 살아있는 비지붕 구조물 — 통행·파괴 판정용(지붕은 렌더 전용이라 제외). */
+export function structureAt(
+  structures: readonly StructureState[] | undefined,
+  x: number,
+  y: number,
+): StructureState | undefined {
+  return structures?.find(
+    (s) => !s.roof && s.hp > 0 && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
+  );
+}
+
+/**
+ * 합성 이동 코스트 — (구조물 TID 코스트 ?? 베이스) + 오버레이 가산(비행·용 = FlyCost·그 외 = MoveCost),
+ * 255 클램프. reduce·UI가 이 함수만 소비한다(☠중복 구현 금지). MOVE_TERRAIN.md FIX-7·§2-13.
+ */
+export function makeCostAt(
+  map: BattleMap,
+  structures: readonly StructureState[] | undefined,
+  moveType: MoveType,
+): (x: number, y: number) => number {
+  const grid = map.costs[moveType];
+  const flying = moveType === "fly" || moveType === "dragon";
+  return (x, y) => {
+    const s = structureAt(structures, x, y);
+    const base = s?.costs?.[moveType] ?? grid?.[y]?.[x] ?? 255;
+    const o = overlayAt(map, x, y);
+    const add = o === undefined ? 0 : (flying ? o.flyCost ?? 0 : o.moveCost ?? 0);
+    return Math.min(base + add, 255);
+  };
+}
+
 /**
  * 지형 전투 보정 — 진영 비대칭 합산의 단일 정본(예보·전투·지팡이 명중이 전부 이것만 소비).
  * force 0 → +Player항 · 1 → +Enemy항 · 2 이상 → 무가산 (CalcDefense/CalcAvoid 동형).
  */
 export function terrainBonusAt(map: BattleMap, x: number, y: number, force: number): { avoid: number; def: number } {
-  const t = map.terrain?.[y]?.[x];
-  if (t === undefined) return { avoid: 0, def: 0 };
-  const side = force === 0
-    ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
-    : force === 1
-      ? { avoid: t.enemyAvoid ?? 0, def: t.enemyDef ?? 0 }
-      : { avoid: 0, def: 0 };
-  return { avoid: t.avoid + side.avoid, def: t.def + side.def };
+  let avoid = 0;
+  let def = 0;
+  // 2층 순회(베이스 + 오버레이) — CalcDefense가 Terrain(0x40)·OverlapTerrain(0x48) 슬롯을 각각 더한다(FIX-2).
+  for (const t of [map.terrain?.[y]?.[x], overlayAt(map, x, y)?.cell]) {
+    if (t === undefined) continue;
+    const side = force === 0
+      ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
+      : force === 1
+        ? { avoid: t.enemyAvoid ?? 0, def: t.enemyDef ?? 0 }
+        : { avoid: 0, def: 0 };
+    avoid += t.avoid + side.avoid;
+    def += t.def + side.def;
+  }
+  return { avoid, def };
 }
 
 /**
@@ -247,7 +322,8 @@ export function moveBudgetOn(map: BattleMap, u: UnitState): number | undefined {
   const budget = moveBudget(u);
   if (budget === undefined || budget < 1) return budget;
   if (u.moveType === "fly" || u.moveType === "dragon") return budget;
-  const first = map.terrain?.[u.y]?.[u.x]?.moveFirst ?? 0;
+  const first =
+    (map.terrain?.[u.y]?.[u.x]?.moveFirst ?? 0) + (overlayAt(map, u.x, u.y)?.cell.moveFirst ?? 0);
   return clamp(budget + first, 0, 100);
 }
 
@@ -310,6 +386,8 @@ export interface GameState {
   winRule?: WinRule;
   /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
   crests?: { x: number; y: number }[];
+  /** 구조물 상태(m_Layers 사영) — hp = Hp_{난이도} 초기값, 파괴 = hp 0(통행 개방·지붕 걷힘). */
+  structures?: StructureState[];
   outcome?: "victory" | "defeat";
   /** 직전 행동의 이벤트(휘발) — 리플레이 정본은 행동 로그다. */
   events: BattleEvent[];
@@ -450,16 +528,17 @@ export function warpDestinations(
   staff: StaffItem,
   map: BattleMap,
   units: readonly UnitState[],
+  structures?: readonly StructureState[],
 ): { x: number; y: number }[] {
   const radius = staff.distance ?? 0;
-  const grid = map.costs[target.moveType];
   const out: { x: number; y: number }[] = [];
-  if (grid === undefined) return out;
+  if (map.costs[target.moveType] === undefined) return out;
+  const costAt = makeCostAt(map, structures, target.moveType);
   for (let y = Math.max(target.y - radius, 0); y <= Math.min(target.y + radius, map.height - 1); y++) {
     for (let x = Math.max(target.x - radius, 0); x <= Math.min(target.x + radius, map.width - 1); x++) {
       if (Math.abs(x - target.x) + Math.abs(y - target.y) > radius) continue;
-      if ((grid[y]?.[x] ?? 255) >= 255) continue;
-      if (map.terrain?.[y]?.[x]?.notWarp === true) continue;
+      if (costAt(x, y) >= 255) continue;
+      if (map.terrain?.[y]?.[x]?.notWarp === true || overlayAt(map, x, y)?.cell.notWarp === true) continue;
       if (units.some((u) => !u.dead && u.id !== target.id && u.x === x && u.y === y)) continue;
       out.push({ x, y });
     }
@@ -654,14 +733,13 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (u.moved === true) throw new Error(`재이동 불가: ${u.id}는 이 창에서 이미 이동했다`);
         const budget = moveBudgetOn(state.map, u);
         if (budget === undefined) throw new Error(`행동 완료 유닛: ${u.id}`);
-        const grid = state.map.costs[u.moveType];
-        if (grid === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
+        if (state.map.costs[u.moveType] === undefined) throw new Error(`이동타입 코스트 없음: ${u.moveType}`);
         const reachable = movementRange({
           width: state.map.width,
           height: state.map.height,
           movePoints: budget,
           start: { x: u.x, y: u.y },
-          costAt: (x, y) => grid[y]?.[x] ?? 255,
+          costAt: makeCostAt(state.map, state.structures, u.moveType),
           ...movePredicates(state.map, units, u),
         });
         if (!reachable.some((t) => t.x === action.x && t.y === action.y)) {
@@ -875,7 +953,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           if (caster.force !== target.force) throw new Error("워프는 같은 군만 대상이다");
           if (action.x === undefined || action.y === undefined) throw new Error("워프 목적지 없음");
           // 목적지 = 대상 좌표 중심 맨해튼 Distance 반경(UnitWarp 0x2C1F880) — 열거는 warpDestinations 공용.
-          const legal = warpDestinations(target, staff, state.map, units);
+          const legal = warpDestinations(target, staff, state.map, units, state.structures);
           if (!legal.some((t) => t.x === action.x && t.y === action.y)) {
             throw new Error(`불법 워프 목적지: (${action.x}, ${action.y})`);
           }

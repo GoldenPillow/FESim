@@ -169,6 +169,27 @@ export function initGame(
           ...(t.notWarp === true ? { notWarp: true } : {}),
         })),
       ),
+      ...(props.overlays !== undefined && props.overlays.length > 0
+        ? {
+            overlays: props.overlays.map((o) => ({
+              x: o.x,
+              y: o.y,
+              cell: {
+                avoid: o.avoid,
+                def: o.def,
+                ...(o.playerAvoid !== undefined ? { playerAvoid: o.playerAvoid } : {}),
+                ...(o.playerDef !== undefined ? { playerDef: o.playerDef } : {}),
+                ...(o.enemyAvoid !== undefined ? { enemyAvoid: o.enemyAvoid } : {}),
+                ...(o.enemyDef !== undefined ? { enemyDef: o.enemyDef } : {}),
+                ...(o.heal !== undefined ? { heal: o.heal } : {}),
+                ...(o.moveFirst !== undefined ? { moveFirst: o.moveFirst } : {}),
+                ...(o.notWarp === true ? { notWarp: true } : {}),
+              },
+              ...(o.moveCost !== undefined ? { moveCost: o.moveCost } : {}),
+              ...(o.flyCost !== undefined ? { flyCost: o.flyCost } : {}),
+            })),
+          }
+        : {}),
     },
     units,
     events: [],
@@ -176,6 +197,21 @@ export function initGame(
   // 紋章氣 = 소비 가능한 국면 상태 — 렌더는 objects, 잔존 판별은 이 목록이 정본.
   const crests = props.objects.filter((o) => o.crest === true).map((o) => ({ x: o.x, y: o.y }));
   if (crests.length > 0) game.crests = crests;
+  // 구조물 = 국면 상태(hp — 파괴로 변한다). 지붕(roof)은 렌더 전용이지만 걷힘 판별을 위해 함께 싣는다.
+  if (props.structures !== undefined && props.structures.length > 0) {
+    game.structures = props.structures.map((s) => ({
+      x: s.x,
+      y: s.y,
+      w: s.w,
+      h: s.h,
+      tid: s.tid,
+      group: s.group,
+      hp: s.hp[difficulty] ?? 0,
+      ...(s.roof === true ? { roof: true } : {}),
+      ...(s.costs !== undefined ? { costs: s.costs } : {}),
+      name: s.name,
+    }));
+  }
   return { game, visuals };
 }
 

@@ -36,6 +36,13 @@ export interface TerrainRow {
   Heal?: number;
   MoveFirst?: number;
   Flag?: number;
+  MoveCost?: number;
+  FlyCost?: number;
+  Hp_N?: number;
+  Hp_H?: number;
+  Hp_L?: number;
+  /** ☠지붕 판별자 아님 — m_Layers 실사용 TID 전수가 1(레이어 배치 표식). 지붕 = TID_屋根. */
+  Layer?: number;
   /** 이동타입별 진입 코스트(파이프라인이 地形コスト에서 병합, 255 = 불가) — 통행 판정의 정본. */
   cost?: Record<MoveType, number>;
 }
@@ -611,6 +618,44 @@ export function unitEngagedSkillRows(unit: DisposUnit, bondLevel?: number): Skil
 /* ── 보드 아일랜드 props ─────────────────────────────────────
    아일랜드(클라이언트)는 이 직렬화 산출물만 받는다 — 대용량 테이블 JSON은 SSG에만 남는다. */
 
+export interface BoardStructureProp {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tid: string;
+  group: number;
+  name: string;
+  color: string;
+  /** 난이도별 초기 HP(terrain.json Hp_N/H/L) — 0 = 파괴 불가 표시 없음. */
+  hp: { n: number; h: number; l: number };
+  /** TID_屋根 = 지붕(렌더 전용 — 통행·전투 무관, 문 개방 시 걷힘). ☠Layer 필드는 판별자 아님(전 레이어 TID가 1). */
+  roof?: boolean;
+  /** 구조물 TID의 이동 코스트(통행 치환용). */
+  costs?: Partial<Record<MoveType, number>>;
+}
+
+export interface BoardOverlayProp {
+  x: number;
+  y: number;
+  tid: string;
+  name: string;
+  color: string;
+  /** 전투·상태 가산분(TerrainCell 동형, 0 생략). */
+  avoid: number;
+  def: number;
+  playerAvoid?: number;
+  playerDef?: number;
+  enemyAvoid?: number;
+  enemyDef?: number;
+  heal?: number;
+  moveFirst?: number;
+  notWarp?: boolean;
+  /** 이동 코스트 가산(terrain.json MoveCost/FlyCost). */
+  moveCost?: number;
+  flyCost?: number;
+}
+
 export interface BoardTileProp {
   color: string;
   name: string;
@@ -704,6 +749,10 @@ export interface BoardProps {
   costs: Partial<Record<MoveType, number[][]>>;
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
+  /** 구조물 레이어(m_Layers) — 엔진 StructureState의 초기값 + 렌더 표시 필드(색·이름은 SSG에서 굳힘). */
+  structures?: BoardStructureProp[];
+  /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
+  overlays?: BoardOverlayProp[];
   units: BoardUnitProp[];
   /**
    * 챕터 이벤트 스크립트 팩(MP2) — 있으면 보드가 이벤트 구동으로 초기 배치·증원·승리조건을 돌린다.
@@ -1027,6 +1076,53 @@ export function boardProps(
       name: objectName(locale, o),
       ...(o.pid === "PID_紋章氣" ? { crest: true } : {}),
     })),
+    ...(() => {
+      const opt = (key: string, value: number | undefined): Record<string, number> =>
+        typeof value === "number" && value !== 0 ? { [key]: value } : {};
+      const structures = (map.structures ?? []).map((s) => {
+        const row = terrain[s.tid];
+        return {
+          x: s.x,
+          y: s.y,
+          w: s.w,
+          h: s.h,
+          tid: s.tid,
+          group: s.group,
+          name: tileName(locale, s.tid),
+          color: tileColorAt(s.tid, s.x, s.y),
+          hp: { n: row?.Hp_N ?? 0, h: row?.Hp_H ?? 0, l: row?.Hp_L ?? 0 },
+          // 지붕 판별 = TID (m_Layers 실사용 11종 전수에서 Layer=1 공통이라 Layer는 판별자가 아니다 —
+          // TID_屋根만 Hp 0·렌더 전용, 2026-08-18 전수 실측).
+          ...(s.tid === "TID_屋根" ? { roof: true } : {}),
+          ...(row?.cost !== undefined ? { costs: row.cost } : {}),
+        };
+      });
+      const overlays = (map.overlays ?? []).map((o) => {
+        const row = terrain[o.tid];
+        return {
+          x: o.x,
+          y: o.y,
+          tid: o.tid,
+          name: tileName(locale, o.tid),
+          color: tileColorAt(o.tid, o.x, o.y),
+          avoid: row?.Avoid ?? 0,
+          def: row?.Defense ?? 0,
+          ...opt("playerAvoid", row?.PlayerAvoid),
+          ...opt("playerDef", row?.PlayerDefense),
+          ...opt("enemyAvoid", row?.EnemyAvoid),
+          ...opt("enemyDef", row?.EnemyDefense),
+          ...opt("heal", row?.Heal),
+          ...opt("moveFirst", row?.MoveFirst),
+          ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+          ...opt("moveCost", row?.MoveCost),
+          ...opt("flyCost", row?.FlyCost),
+        };
+      });
+      return {
+        ...(structures.length > 0 ? { structures } : {}),
+        ...(overlays.length > 0 ? { overlays } : {}),
+      };
+    })(),
     units,
     labels,
     ...(() => {
