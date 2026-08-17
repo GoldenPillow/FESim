@@ -1,5 +1,5 @@
 import type { BattleAction, BattleEvent, EphemerisStep, StatKey } from "@fesim/shared";
-import type { GameState, RandomSource, UnitState } from "./battle.js";
+import { effectiveWeapons, type GameState, type RandomSource, type UnitState } from "./battle.js";
 
 /**
  * 기록·재생 — 공유 링크가 남의 화면에서 같은 국면을 내게 하는 층.
@@ -128,6 +128,7 @@ function applyEvents(
   };
 
   let outcome = state.outcome;
+  let crests = state.crests;
   for (const ev of events) {
     switch (ev.type) {
       case "strike":
@@ -155,6 +156,14 @@ function applyEvents(
       case "disengage": {
         const u = require(ev.unit);
         if (u.engage !== undefined) u.engage = { ...u.engage, engaging: false, turn: 0, count: 0 };
+        // reduce와 동일 계약 — 엠블렘 무기 장비 중이었으면 소지품 첫 무기로 복귀.
+        if (u.weapon !== undefined && u.engageWeapons?.includes(u.weapon) === true) u.weapon = u.weapons?.[0];
+        break;
+      }
+      case "crest": {
+        const u = require(ev.unit);
+        if (u.engage !== undefined) u.engage = { ...u.engage, count: ev.count };
+        crests = crests?.filter((c) => !(c.x === ev.x && c.y === ev.y));
         break;
       }
       case "break":
@@ -191,7 +200,7 @@ function applyEvents(
   // reduce와 동일 계약 복원 — 장비 전환·지팡이 횟수 소모는 이벤트에 없어 행동에서 되살린다.
   // 안 하면 절대 적용 경로의 국면이 표류한다(이후 스텝의 반격 무기·잔여 횟수가 어긋난다).
   if (action.type === "attack" && action.weapon !== undefined) {
-    const chosen = actor.weapons?.[action.weapon];
+    const chosen = effectiveWeapons(actor)?.[action.weapon];
     if (chosen !== undefined) actor.weapon = chosen;
   }
   if (action.type === "staff") {
@@ -204,7 +213,7 @@ function applyEvents(
   }
   actor.acted = true;
   actor.moved = false; // reduce와 동일 계약 — 행동이 재이동 창을 연다
-  return { ...state, units, events: [...events], outcome };
+  return { ...state, units, ...(crests === undefined ? {} : { crests }), events: [...events], outcome };
 }
 
 export function createReplayer(reduce: Reduce) {

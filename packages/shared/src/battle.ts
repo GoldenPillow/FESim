@@ -128,6 +128,8 @@ export type BattleEvent =
   | { type: "charge"; unit: string; count: number }
   | { type: "engage"; unit: string }
   | { type: "disengage"; unit: string }
+  /** 紋章氣 소비 — count = 대입 후 절대값(= limit), (x, y) 타일은 1회성 소멸(절대 재생이 그대로 적용). */
+  | { type: "crest"; unit: string; x: number; y: number; count: number }
   | { type: "break"; unit: string }
   | { type: "breakRelease"; unit: string }
   | { type: "death"; unit: string }

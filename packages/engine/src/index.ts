@@ -8,6 +8,8 @@ export {
   canDance,
   createReducer,
   canterPower,
+  effectiveSkills,
+  effectiveWeapons,
   itemTargets,
   moveBudget,
   staffHealAmount,

@@ -467,24 +467,85 @@ const slimSkill = (sid: string): SkillRow | undefined => {
 };
 
 /**
- * 동계열 판별 키 — 덤프에 계열 필드가 없어 SID 명명 규칙(SID_技＋１ / SID_技＋２ / SID_不屈＋＋)으로만 읽는다(가정).
+ * 동계열의 정본 = SkillData.Group — XML에 없고, 로드 시 GroupAssign(RVA 0x248D0C0)이
+ * skill.xml 習得優先度(Priority) 연속 오름차순 구간으로 부여한다(il2cpp/EMBLEM_ENGAGE §2-2, 100그룹·412스킬).
+ * skills.json이 원본 행 순서를 보존하므로 같은 식을 여기서 1회 재현한다. ☠SID 명명 규칙 근사는 반증돼 폐기.
  */
-const skillSeries = (sid: string): string => sid.replace(/[＋+]+[０-９0-9]*$/u, "");
+const skillGroups = new Map<string, { group?: number; priority: number; canOverride: boolean }>();
+{
+  let groupId = 0;
+  let prev = 0;
+  for (const [sid, row] of Object.entries(skills)) {
+    const p = Number((row as Record<string, unknown>)["Priority"] ?? 0);
+    if (p === 0) {
+      prev = 0;
+      skillGroups.set(sid, { priority: 0, canOverride: false });
+      continue;
+    }
+    if (prev === 0 || prev > p || prev + 50 < p) groupId += 1;
+    skillGroups.set(sid, { group: groupId, priority: p, canOverride: p <= 99 });
+    prev = p;
+  }
+}
 
 /**
- * 絆 레벨 N까지의 싱크로 스킬 = 레벨 1..N 합집합, 동계열은 최고 레벨만(실측 반증: 絆3 마르스 = 技＋２ 단독).
+ * LevelData.Add(RVA 0x1CD7500)의 병합 규칙: 같은 SID = 스킵 · 새 스킬이 CanOverride이고 같은 Group
+ * 엔트리가 있으면 Priority 크거나 같은 쪽이 그 자리를 차지 · 그 외 = 합집합(Priority 0은 그룹이 없어 항상 합집합).
+ */
+const addGodSkill = (out: string[], sid: string): void => {
+  if (out.includes(sid)) return;
+  const m = skillGroups.get(sid);
+  if (m?.group !== undefined && m.canOverride) {
+    const idx = out.findIndex((other) => skillGroups.get(other)?.group === m.group);
+    if (idx >= 0) {
+      if (m.priority >= (skillGroups.get(out[idx])?.priority ?? 0)) out[idx] = sid;
+      return;
+    }
+  }
+  out.push(sid);
+};
+
+const godGrowthRows = (gid: string, bondLevel?: number) => {
+  const god = godsTable.gods[gid];
+  const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
+  if (god === undefined || table === undefined) return undefined;
+  const max = bondLevel ?? Number(god["Level"] ?? 1);
+  const rows = [];
+  for (let level = 1; level <= max; level++) {
+    const row = table[String(level)];
+    if (row !== undefined) rows.push(row);
+  }
+  return rows;
+};
+
+/**
+ * 絆 레벨 N까지의 싱크로 스킬 = 레벨 1..N 누적(LevelData.Add 재현 — 합집합·동계열 대체).
  * N 기본값 = god.xml Level(엠블렘 초기 絆 레벨) — 진행 중 絆 레벨은 덤프·dispos 어디에도 없어 호출측이 넘긴다.
  */
 export const emblemSyncSids = (gid: string, bondLevel?: number): string[] => {
-  const god = godsTable.gods[gid];
-  const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
-  if (god === undefined || table === undefined) return [];
-  const max = bondLevel ?? Number(god["Level"] ?? 1);
-  const bySeries = new Map<string, string>();
-  for (let level = 1; level <= max; level++) {
-    for (const sid of table[String(level)]?.SynchroSkills ?? []) bySeries.set(skillSeries(sid), sid);
+  const out: string[] = [];
+  for (const row of godGrowthRows(gid, bondLevel) ?? []) {
+    for (const sid of row.SynchroSkills ?? []) addGodSkill(out, sid);
   }
-  return [...bySeries.values()];
+  return out;
+};
+
+/**
+ * 인게이지 중 스킬 세트 = EngagedSkills(싱크로 ∪ 인게이지 스킬) — GetSyncroSkills(RVA 0x2342530)가
+ * Engaging이면 이 배열로 교체한다. 담기 직전 EngageSid(エンゲージ変化スキル)가 있으면 그 변형으로 치환
+ * (0x1CD7ACC — 月の腕輪 → 日月の腕輪 등. SID_無し 치환도 원본 그대로 담는다 — 무효과 행이라 무해).
+ */
+export const emblemEngagedSids = (gid: string, bondLevel?: number): string[] => {
+  const variant = (sid: string): string => {
+    const engageSid = (skills[sid] as Record<string, unknown> | undefined)?.["EngageSid"];
+    return typeof engageSid === "string" ? engageSid : sid;
+  };
+  const out: string[] = [];
+  for (const row of godGrowthRows(gid, bondLevel) ?? []) {
+    for (const sid of row.SynchroSkills ?? []) addGodSkill(out, variant(sid));
+    for (const sid of row.EngageSkills ?? []) addGodSkill(out, variant(sid));
+  }
+  return out;
 };
 
 /**
@@ -515,6 +576,17 @@ export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] 
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
   const sync = unit.gid !== undefined ? emblemSyncSids(unit.gid, bondLevel) : [];
   const sids = [...new Set([...unit.sids, ...commons, ...sync])];
+  return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+}
+
+/** 인게이지 중 스킬 행 — 싱크로 층만 EngagedSkills로 교체한 전체 목록(엔진 effectiveSkills의 소비물). */
+export function unitEngagedSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] | undefined {
+  if (unit.gid === undefined) return undefined;
+  const engaged = emblemEngagedSids(unit.gid, bondLevel);
+  if (engaged.length === 0) return undefined;
+  const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
+  const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
+  const sids = [...new Set([...unit.sids, ...commons, ...engaged])];
   return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
 }
 
@@ -572,6 +644,10 @@ export interface BoardUnitProp {
   consumables?: ConsumableItem[];
   /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
   engage?: EngageState;
+  /** 인게이지 중 스킬 세트(EngagedSkills 교체본) — engaging일 때 skills 대신 이 목록이 유효. */
+  engagedSkills?: SkillRow[];
+  /** 엠블렘 무기(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지). */
+  engageWeapons?: BoardWeaponProp[];
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -592,7 +668,8 @@ export interface BoardProps {
   tiles: BoardTileProp[][];
   /** 이동타입별 진입 코스트 [y][x] — 실사용 타입만 담는다. */
   costs: Partial<Record<MoveType, number[][]>>;
-  objects: { x: number; y: number; name: string }[];
+  /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
+  objects: { x: number; y: number; name: string; crest?: boolean }[];
   units: BoardUnitProp[];
   labels: {
     board: string;
@@ -650,25 +727,44 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
 /** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
 const MAGIC_FLAG = 0x10000;
 
+const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefined => {
+  const row = items[iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
+  if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) return undefined;
+  return {
+    name: namedOr(items, locale, iid),
+    might: Number(row["Power"] ?? 0),
+    hit: Number(row["Hit"] ?? 0),
+    crit: Number(row["Critical"] ?? 0),
+    weight: Number(row["Weight"] ?? 0),
+    avoid: Number(row["Avoid"] ?? 0),
+    magic: row.Kind === 6 || (Number(row["Flag"] ?? 0) & MAGIC_FLAG) !== 0,
+    rangeMin: row.RangeI ?? 1,
+    rangeMax: row.RangeO ?? 1,
+    kind: row.Kind ?? 0,
+  };
+};
+
 export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp[] => {
   const list: BoardWeaponProp[] = [];
   for (const entry of unit.items) {
-    const row = items[entry.iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
-    if (row === undefined || !WEAPON_KINDS.has(row.Kind ?? 0) || (row.RangeO ?? 0) < 1) continue;
-    list.push({
-      name: namedOr(items, locale, entry.iid),
-      might: Number(row["Power"] ?? 0),
-      hit: Number(row["Hit"] ?? 0),
-      crit: Number(row["Critical"] ?? 0),
-      weight: Number(row["Weight"] ?? 0),
-      avoid: Number(row["Avoid"] ?? 0),
-      magic: row.Kind === 6 || (Number(row["Flag"] ?? 0) & MAGIC_FLAG) !== 0,
-      rangeMin: row.RangeI ?? 1,
-      rangeMax: row.RangeO ?? 1,
-      kind: row.Kind ?? 0,
-    });
+    const prop = attackWeaponProp(entry.iid, locale);
+    if (prop !== undefined) list.push(prop);
   }
   return list;
+};
+
+/**
+ * 엠블렘 무기 = 成長表 EngageItems 레벨 1..N 누적(같은 IID 스킵 — 가정, Add의 스킬 배열과 동형).
+ * 공격 무기만 사영한다 — 엠블렘 지팡이(リカバー 등)는 미배선 결손으로 등재(장부 emblem.engage-kit).
+ */
+export const emblemEngageWeapons = (gid: string, locale: Locale, bondLevel?: number): BoardWeaponProp[] => {
+  const iids: string[] = [];
+  for (const row of godGrowthRows(gid, bondLevel) ?? []) {
+    for (const iid of row.EngageItems ?? []) if (!iids.includes(iid)) iids.push(iid);
+  }
+  return iids
+    .map((iid) => attackWeaponProp(iid, locale))
+    .filter((w): w is BoardWeaponProp => w !== undefined);
 };
 
 /** 소지 지팡이 스냅숏 — power는 기본값(연성·각인은 진행 소유라 dispos 근사에 없음). */
@@ -758,8 +854,16 @@ export function boardProps(
         return consumables.length > 0 ? { consumables } : {};
       })(),
       ...(() => {
-        const engage = v.unit.gid === undefined ? undefined : engageStateFor(v.unit.gid);
-        return engage !== undefined ? { engage } : {};
+        if (v.unit.gid === undefined) return {};
+        const engage = engageStateFor(v.unit.gid);
+        if (engage === undefined) return {};
+        const engagedSkills = unitEngagedSkillRows(v.unit);
+        const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
+        return {
+          engage,
+          ...(engagedSkills !== undefined ? { engagedSkills } : {}),
+          ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
+        };
       })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
@@ -788,7 +892,12 @@ export function boardProps(
       })),
     ),
     costs,
-    objects: (map.objects ?? []).map((o) => ({ x: o.x, y: o.y, name: objectName(locale, o) })),
+    objects: (map.objects ?? []).map((o) => ({
+      x: o.x,
+      y: o.y,
+      name: objectName(locale, o),
+      ...(o.pid === "PID_紋章氣" ? { crest: true } : {}),
+    })),
     units,
     labels,
   };

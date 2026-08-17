@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData } from "@fesim/shared";
 import {
+  canBreak,
   createCalculator,
   createReducer,
+  createReplayer,
+  recordingSource,
   type BattleAction,
   type EngageState,
   type GameState,
@@ -133,5 +136,105 @@ describe("인게이지 발동·지속·해제", () => {
       s = reduce(s, { type: "endPhase" } as BattleAction, roll());
     }
     expect(s.units[0].engage?.engaging).toBe(true); // 3주기 뒤에도 유지(4턴째까지)
+  });
+});
+
+/**
+ * MP1-4b 인게이지 효과 — 정본 = il2cpp/EMBLEM_ENGAGE §2·§4(전부 코드 확정):
+ * (1) engaging이면 스킬 세트가 EngagedSkills 교체본으로 바뀐다(GetSyncroSkills 0x2342530).
+ *     안 바꾸면 인게이지 스킬(면역·발동기)이 전부 무발동 = 예보·판정이 실기와 어긋난다.
+ * (2) 엠블렘 무기는 weapons 뒤 인덱스로만 유효(기존 인덱스 불변 = 기보 계약) · 해제 시 장비 복귀.
+ * (3) 紋章氣 = count 만충 **대입** + 타일 1회성 소멸(EngageHeal 0x2681CC0) — 가산으로 구현하면 과소/과대.
+ */
+describe("인게이지 효과 — 스킬 세트 교체", () => {
+  const axe = { might: 5, hit: 100, crit: 0, weight: 5, kind: 3, rangeMin: 1, rangeMax: 1 };
+
+  it("브레이크 면역이 engagedSkills에만 있으면 인게이지 중에만 발동한다", () => {
+    const from = unit({ id: "f", force: 0, x: 0, y: 0, weapon: sword });
+    const target = unit({
+      id: "t", force: 1, x: 1, y: 0, weapon: axe,
+      skills: [{ Sid: "SID_力＋１" }],
+      engagedSkills: [{ Sid: "SID_力＋１" }, { Sid: "SID_ブレイク無効" }],
+      engage: gauge({ count: 7 }),
+    });
+    expect(canBreak(from, target)).toBe(true);
+    const engaged = { ...target, engage: gauge({ count: 7, engaging: true }) };
+    expect(canBreak(from, engaged)).toBe(false);
+  });
+});
+
+describe("인게이지 효과 — 엠블렘 무기", () => {
+  const emblem = { might: 9, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1, name: "엠블렘검" };
+
+  it("엠블렘 무기 인덱스(weapons.length + n)는 engaging일 때만 유효하고 장비 전환된다", () => {
+    const mk = () => [
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, weapons: [sword], engageWeapons: [emblem], engage: gauge({ count: 7 }) }),
+      unit({ id: "e", force: 1, x: 1, y: 0 }),
+    ];
+    expect(() =>
+      reduce(state(mk()), { type: "attack", unit: "a", target: "e", weapon: 1 } as BattleAction, roll(9999, 9999)),
+    ).toThrow(/불법 무기 인덱스/);
+    let s = reduce(state(mk()), { type: "engage", unit: "a" } as BattleAction, roll());
+    s = reduce(s, { type: "attack", unit: "a", target: "e", weapon: 1 } as BattleAction, roll(9999, 9999, 9999, 9999));
+    expect(s.units[0].weapon?.might).toBe(9);
+  });
+
+  it("인게이지 해제 시 장비 중인 엠블렘 무기는 소지품 첫 무기로 복귀한다", () => {
+    const a = unit({
+      id: "a", force: 0, x: 0, y: 0,
+      weapon: emblem, weapons: [sword], engageWeapons: [emblem],
+      engage: gauge({ count: 7, engaging: true, turnLimit: 1 }),
+    });
+    const e = unit({ id: "e", force: 1, x: 5, y: 5 });
+    let s = state([a, e]);
+    s = reduce(s, { type: "endPhase" } as BattleAction, roll()); // → 적 페이즈
+    s = reduce(s, { type: "endPhase" } as BattleAction, roll()); // → 자군: turnLimit 1 도달 = 해제
+    expect(s.units[0].engage?.engaging).toBe(false);
+    expect(s.units[0].weapon).toBe(sword);
+  });
+});
+
+describe("인게이지 효과 — 紋章氣", () => {
+  it("타일 위 대기 = count 만충 대입 + 타일 소멸 + crest 이벤트(절대값)", () => {
+    const a = unit({ id: "a", force: 0, x: 2, y: 3, engage: gauge({ count: 1 }) });
+    const s0: GameState = { ...state([a]), crests: [{ x: 2, y: 3 }, { x: 5, y: 5 }] };
+    const s1 = reduce(s0, { type: "wait", unit: "a" } as BattleAction, roll());
+    expect(s1.units[0].engage?.count).toBe(7);
+    expect(s1.crests).toEqual([{ x: 5, y: 5 }]);
+    expect(s1.events).toContainEqual({ type: "crest", unit: "a", x: 2, y: 3, count: 7 });
+  });
+
+  it("인게이지 중·만충·엠블렘 미장착은 소비하지 않는다(타일 잔존)", () => {
+    const cases: UnitState[] = [
+      unit({ id: "a", force: 0, x: 2, y: 3, engage: gauge({ count: 3, engaging: true }) }),
+      unit({ id: "a", force: 0, x: 2, y: 3, engage: gauge({ count: 7 }) }),
+      unit({ id: "a", force: 0, x: 2, y: 3 }),
+    ];
+    for (const u of cases) {
+      const s1 = reduce({ ...state([u]), crests: [{ x: 2, y: 3 }] }, { type: "wait", unit: "a" } as BattleAction, roll());
+      expect(s1.crests).toEqual([{ x: 2, y: 3 }]);
+      expect(s1.events.some((ev) => ev.type === "crest")).toBe(false);
+    }
+  });
+
+  it("전투로 활성화가 끝나도 그 칸이면 소비된다 — 절대 재생(events)이 같은 국면을 복원한다", () => {
+    const mk = (): GameState => ({
+      ...state([
+        unit({ id: "a", force: 0, x: 2, y: 3, weapon: sword, engage: gauge({ count: 1 }) }),
+        unit({ id: "e", force: 1, x: 3, y: 3, stats: { ...baseStats, hp: 99 }, hp: 99 }),
+      ]),
+      crests: [{ x: 2, y: 3 }],
+    });
+    const rng = recordingSource(roll(9999, 9999, 9999, 9999));
+    const live = reduce(mk(), { type: "attack", unit: "a", target: "e" } as BattleAction, rng);
+    expect(live.units[0].engage?.count).toBe(7); // 충전 +1 뒤 만충 대입
+    expect(live.crests).toEqual([]);
+    const { applyStep } = createReplayer(reduce);
+    const replayed = applyStep(mk(), {
+      action: { type: "attack", unit: "a", target: "e" } as BattleAction,
+      events: live.events,
+    });
+    expect(replayed.units[0].engage?.count).toBe(7);
+    expect(replayed.crests).toEqual([]);
   });
 });

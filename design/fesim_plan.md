@@ -50,7 +50,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [x] MP1-3 춤(재행동) (2026-08-18) — dance 액션·refresh 이벤트(절대 재생 복원)·인접 1·행동 완료 대상·acted/moved 리셋·踊り経験計算(노멀 13·루나틱 clamp 1 정확값)·canDance 자격 판정. TDD 5건. ☠UI 이월 = 무희 실재 맵 변환 시(MP3)
     - [ ] MP1-4 인게이지 시스템 — EMBLEM_ENGAGE.md 판독 소비 (최대 덩어리)
       - [x] 4a 상태 기계 (2026-08-18) — EngageState(게이지·지속)·engage 액션(행동 무소모)·충전(전투 양측 +1, 지팡이 = 가정)·페이즈 소비·해제·charge/engage/disengage 이벤트(절대 재생)·성장표 Flag 파이프라인(絆11 = 4턴·絆20 = 상한-1)·게이지 UI(커맨드 바). TDD 6건. ☠발현 = 자군 gid가 dispos에 없음(세이브 소유) — 적측은 m008~ 변환 시 자연 발현, 자군 = 편집기 god 의도·캠페인층(chart.xml)
-      - [ ] 4b 인게이지 효과 — 스킬 세트 교체(EngagedSkills·EngageSid 치환)·엠블렘 무기(EngageItems — weapons 뒤에 증설, 인덱스 계약 유지)·紋章氣 만충 소비
+      - [x] 4b 인게이지 효과 (2026-08-17) — ★동계열 정본 교체(SID 정규식 폐기 → GroupAssign 재현 100그룹·412스킬 + LevelData.Add 병합 이식)·EngagedSkills 스킬 세트 교체(EngageSid 치환, 엔진 effectiveSkills — canBreak·toCombatant·canDance·canterPower 전 소비처)·엠블렘 무기(EngageItems 누적 → engaging 중 weapons 뒤 증설 = 인덱스 계약 유지·해제 시 장비 복귀·☠엠블렘 지팡이 미배선)·紋章氣 만충 대입+타일 소멸(국면 crests·crest 이벤트 절대 재생·보드/리플레이//s/ 렌더 공용 visibleObjects — ⚠발동 시점 = 활성화 종료 가정). TDD 엔진 5건+웹 5건, 전 테스트 302건 그린·타입 그린. 발현 제약은 4a와 동건(자군 gid 세이브 소유)
       - [ ] 4c 세부기 6종·기술 선택(暴走>連動>기본·스타일 분기) — 선행 = skills.style-variant
     - [ ] MP1-5 지팡이 잔여 — 방해 지팡이 명중식(RATES_FORMULA §6)·워프·상태 지팡이(선행 = 상태 시스템)
     - [ ] MP1-6 체인가드 지정(GuardMenuItem·GuardType) + チェインガード経験計算

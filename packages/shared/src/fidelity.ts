@@ -189,7 +189,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Engage activation command", ko: "인게이지 발동 명령" },
     status: "implemented",
     evidence:
-      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = 인게이지 중 스킬 세트 교체·엠블렘 무기·세부기 6종·NotEngageAdd 지형·紋章氣 만충(별항) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
+      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선) · 효과층 배선(2026-08-18 4b): engaging 중 스킬 세트 = EngagedSkills 교체(effectiveSkills)·엠블렘 무기 증설(effectiveWeapons — weapons 뒤 인덱스, 해제 시 장비 복귀). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = 세부기 6종·기술 선택(4c)·NotEngageAdd 지형·엠블렘 지팡이(リカバー류 — 공격 무기만 증설) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
   },
   {
     id: "actions.destroy",
@@ -822,9 +822,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "emblem.sync-bond-level",
     label: { en: "Sync skills = union of bond levels 1..N (highest per series)", ko: "싱크로 스킬 = 絆 1..N 합집합·동계열 최고 레벨" },
-    status: "assumed",
+    status: "anchored",
     evidence:
-      "絆3 실측 정합(fe17.test.ts 技+2·ブレイク時追撃 — gaps/C §4-3) · 레벨값은 편집기(M4) 소유(기본 = god Level) · ★IL2CPP로 규칙 확정 + 엔진 근사 반증(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6): 합집합·동계열 대체 자체는 코드가 확인한다 — GodGrowthData.OnCompletedEnd(RVA 0x2332320)가 레벨별 누적 LevelData를 사전 생성하고 LevelData.Add(RVA 0x1CD7500)가 병합을 수행한다 · ☠**동계열의 정본은 SID 명명 규칙이 아니라 SkillData.Group(+0x90)**이고 그 Group은 GroupAssign(RVA 0x248D0C0)이 skill.xml 習得優先度 연속 구간으로 부여한다(100그룹·412스킬) · 대체 게이트 = PrivateFlags.CanOverride(Priority<=99), 승자 = Priority 큰 쪽 · Priority=0은 그룹이 없어 항상 합집합(SID_ブレイク時追撃) · 인게이지 중에는 EngagedSkills로 배열 교체 + EngageSid 치환 · ⇒ fe17.ts의 SID 정규식 근사는 **반증**됐고 Group 필드 사영이 선행이라 assumed 유지",
+      "絆3 실측 정합(fe17.test.ts 技+2·ブレイク時追撃 — gaps/C §4-3) · 레벨값은 편집기(M4) 소유(기본 = god Level) · ★IL2CPP로 규칙 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6): GodGrowthData.OnCompletedEnd(RVA 0x2332320)가 레벨별 누적 LevelData를 사전 생성하고 LevelData.Add(RVA 0x1CD7500)가 병합을 수행 · **동계열의 정본 = SkillData.Group(+0x90)** — GroupAssign(RVA 0x248D0C0)이 skill.xml 習得優先度 연속 구간으로 부여(100그룹·412스킬) · 대체 게이트 = PrivateFlags.CanOverride(Priority<=99), 승자 = Priority 큰 쪽 · Priority=0은 그룹이 없어 항상 합집합(SID_ブレイク時追撃) · ★배선 완료(2026-08-18 4b, fe17.ts): SID 정규식 근사 폐기 → GroupAssign 로드 시 재현(전수 100그룹·412스킬 일치)·LevelData.Add 병합 규칙 이식 · 인게이지 중 EngagedSkills 교체 + EngageSid 치환도 배선(emblemEngagedSids·엔진 effectiveSkills, fe17.test.ts 에이리크 腕輪 치환·대체)",
   },
   {
     id: "emblem.chapter-bond-level",
@@ -836,16 +836,16 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "emblem.engage-activation",
     label: { en: "Engage activation, meter, duration", ko: "인게이지 발동·카운트·지속" },
-    status: "deferred",
+    status: "implemented",
     evidence:
-      "실측 = 충전은 전투 참가당 +1(공격·피격 각 1, 대기 무충전) · 지속 표본 3(정규 반지 3턴·외전 클리어 4·DLC 팔찌 4) · 정수 증감 사례 = TikiEngageAtk+(+3)·JobSkill_ShadowLordR(+1)·MIID_HE_Medicine(+2)(gaps/C §2·N §2-2) · ★IL2CPP 코드로 전 항목 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §3·EXP_CHAIN_ENGAGE.md §3): 초기값 = min(params エンゲージ初期値=7, limit)(Unit.ResetEngageCount RVA 0x1A1A740) · limit = max(0, god.EngageCount − 成長表 Flag SubEngageCountLimit − 스킬 Flag bit42)(RVA 0x1A57B90) · 발동 = count>=limit(CanEngageImpl RVA 0x1A26F70), 발동 시 차감이 아니라 해제 경로에서 0으로 소각(SetEngageImpl RVA 0x1A25D10) · **충전은 전투/지팡이 행동당 +1뿐이고 턴당 자연 증가는 원래 없다**(BattleCalculator.AddEngageCount RVA 0x2470740, 호출자 = CalcAction·CalcRodAttack 둘뿐 · 인게이지 중·체인 참가·지형 NotEngageAdd는 무충전) = 실측과 코드 일치, '턴당 증가량 미상'은 결손이 아니라 부재로 종결 · 지속 = params エンゲージ継続ターン(3) + (成長表 Flag AddEngageTurnLimit ? 1 : 0), 경과는 자기 페이즈 시작마다 +1(ResetPhaseBeginAfter RVA 0x1A19810) · ☠**종전 '마르스 인연10=3이 레벨 가설을 기각한다'는 판정을 철회한다** — 임계는 10이 아니라 **絆 11**(god.xml 成長表 Lv11 Flag=2 AddEngageTurnLimit, 絆 20에서 SubEngageCountLimit, リュール만 Lv20에서 AddEngageTurnLimit·EngageCount=9)이므로 인연 10에서 3턴인 것은 반증이 아니라 임계가 11이라는 증거였다 · 엔진 미구현이라 deferred 유지(설계 선행, §0)",
+      "실측 = 충전은 전투 참가당 +1(공격·피격 각 1, 대기 무충전) · 지속 표본 3(정규 반지 3턴·외전 클리어 4·DLC 팔찌 4) · 정수 증감 사례 = TikiEngageAtk+(+3)·JobSkill_ShadowLordR(+1)·MIID_HE_Medicine(+2)(gaps/C §2·N §2-2) · ★IL2CPP 코드로 전 항목 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §3·EXP_CHAIN_ENGAGE.md §3): 초기값 = min(params エンゲージ初期値=7, limit)(Unit.ResetEngageCount RVA 0x1A1A740) · limit = max(0, god.EngageCount − 成長表 Flag SubEngageCountLimit − 스킬 Flag bit42)(RVA 0x1A57B90) · 발동 = count>=limit(CanEngageImpl RVA 0x1A26F70), 발동 시 차감이 아니라 해제 경로에서 0으로 소각(SetEngageImpl RVA 0x1A25D10) · **충전은 전투/지팡이 행동당 +1뿐이고 턴당 자연 증가는 원래 없다**(BattleCalculator.AddEngageCount RVA 0x2470740, 호출자 = CalcAction·CalcRodAttack 둘뿐 · 인게이지 중·체인 참가·지형 NotEngageAdd는 무충전) = 실측과 코드 일치, '턴당 증가량 미상'은 결손이 아니라 부재로 종결 · 지속 = params エンゲージ継続ターン(3) + (成長表 Flag AddEngageTurnLimit ? 1 : 0), 경과는 자기 페이즈 시작마다 +1(ResetPhaseBeginAfter RVA 0x1A19810) · ☠**종전 '마르스 인연10=3이 레벨 가설을 기각한다'는 판정을 철회한다** — 임계는 10이 아니라 **絆 11**(god.xml 成長表 Lv11 Flag=2 AddEngageTurnLimit, 絆 20에서 SubEngageCountLimit, リュール만 Lv20에서 AddEngageTurnLimit·EngageCount=9)이므로 인연 10에서 3턴인 것은 반증이 아니라 임계가 11이라는 증거였다 · ★상태 기계 배선 완료(2026-08-18 4a, actions.engage 참조 — engageStateFor가 limit·turnLimit·초기값 산출) ☠잔여 = 장착 스킬 Flag bit42(SubEngageCountLimit) 차감 미배선(skills 사영에 Flags 없음)",
   },
   {
     id: "emblem.engage-kit",
     label: { en: "Engage weapons and engage skills", ko: "엠블렘 무기·인게이지 기술" },
     status: "deferred",
     evidence:
-      "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · 스타일 분기 문장사 = ベレト·チキ 2종(gaps/F 정정) · §0 미룸(M2 이월) · ★IL2CPP 선택 규칙 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §5·§6): 인게이지 기술 선택 우선순위 = 暴走(GodState.Rampage) > 連動(IsAround 링크 인접) > 기본(GodData +0xB0/+0xB8/+0xA8), 그 뒤 SkillData.m_StyleSkills[job.Style]로 스타일 분기(GetEngageAttack RVA 0x2341640) · 인게이지 중에는 데이터 소스가 GodData.MainData(+0x100)로 치환된다 · 카운트 소비(技コスト)는 전수 9행뿐(三級長 戦技 狂嵐3/無残1/落星1 × 스타일 3)",
+      "구조 규명 — 成長表 레벨별 EngageSkills/EngageItems·神将 EngageAttack/LinkGid(gaps/C §3) · 스타일 분기 문장사 = ベレト·チキ 2종(gaps/F 정정) · ★엠블렘 무기 배선 완료(2026-08-18 4b): EngageItems 레벨 누적 → engaging 중 weapons 뒤 증설(인덱스 계약 유지)·해제 시 장비 복귀(engage.test.ts) — ☠엠블렘 지팡이(リカバー류)는 미배선(공격 무기만) · ☠잔여 = 인게이지 기술(戦技) 자체(4c) · ★IL2CPP 선택 규칙 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §5·§6): 인게이지 기술 선택 우선순위 = 暴走(GodState.Rampage) > 連動(IsAround 링크 인접) > 기본(GodData +0xB0/+0xB8/+0xA8), 그 뒤 SkillData.m_StyleSkills[job.Style]로 스타일 분기(GetEngageAttack RVA 0x2341640) · 인게이지 중에는 데이터 소스가 GodData.MainData(+0x100)로 치환된다 · 카운트 소비(技コスト)는 전수 9행뿐(三級長 戦技 狂嵐3/無残1/落星1 × 스타일 3)",
   },
   {
     id: "emblem.bond-ring",
@@ -870,9 +870,9 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "emblem.crest-tile",
     label: { en: "Emblem energy tile effect", ko: "紋章氣(문장기) 효과" },
-    status: "absent",
+    status: "assumed",
     evidence:
-      "렌더만 구현(M1.5) — 효과 = 인게이지 카운트 풀충전(사용자 실측 2026-08-17, gaps/C §5) · 발동 구현은 인게이지 시스템 선행 · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §4·MOVE_TERRAIN.md §3): 판별 = TerrainData Flag bit15 EngageHeal(32768, TID_紋章氣) — IsEngageHeal(RVA 0x21E33C0) · 처리 = MapSequenceMind.EngageHeal(RVA 0x2681CC0)이 그 칸의 설치물(MapOverlap) 지형이 EngageHeal이고 비인게이지·비만충일 때 EngageCount = limit을 **대입**(가산 아님)하고 직후 MapOverlap.Remove로 **타일이 1회성 소멸**한다 ⇒ '회복량' 필드는 존재하지 않는다(덤프 부재값의 정체) · 자매 Flag NotEngageAdd(8192) = 그 칸 전투는 무충전",
+      "★배선 완료(2026-08-18 4b, engage.test.ts) — 국면 crests 상태 + crest 이벤트(절대 재생 복원): 비인게이지·비만충일 때 count = limit **대입** + 타일 1회성 소멸, 보드·리플레이·/s/ 렌더도 잔존 목록(visibleObjects)을 따른다 · ⚠가정 = 발동 시점을 '그 칸에서 활성화 종료(대기 포함)'로 두었다(실측 대조 대상 — 코드 확정은 처리 내용뿐) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §4·MOVE_TERRAIN.md §3): 판별 = TerrainData Flag bit15 EngageHeal(32768, TID_紋章氣) — IsEngageHeal(RVA 0x21E33C0) · 처리 = MapSequenceMind.EngageHeal(RVA 0x2681CC0)이 그 칸의 설치물(MapOverlap) 지형이 EngageHeal이고 비인게이지·비만충일 때 EngageCount = limit을 대입(가산 아님)하고 직후 MapOverlap.Remove ⇒ '회복량' 필드는 존재하지 않는다(덤프 부재값의 정체) · 자매 Flag NotEngageAdd(8192) = 그 칸 전투는 무충전(미배선 — 지형 스키마 확장 선행)",
   },
 
   // ── 무기·아이템 ──

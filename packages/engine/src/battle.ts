@@ -54,6 +54,13 @@ export interface UnitState {
   /** 인게이지 게이지 — 엠블렘 장착 유닛만. limit·turnLimit 산출은 데이터층(스냅숏) 소관. */
   engage?: EngageState;
   skills?: SkillRow[];
+  /**
+   * 인게이지 중 스킬 세트(EngagedSkills 교체본 — 싱크로 ∪ 인게이지 스킬, EngageSid 치환 완료본).
+   * engaging일 때 skills 대신 이 목록이 유효(GetSyncroSkills 0x2342530). 산출은 데이터층 소관.
+   */
+  engagedSkills?: SkillRow[];
+  /** 엠블렘 무기(EngageItems) — engaging일 때 weapons 뒤에 증설. 인덱스 계약 = weapons.length + n. */
+  engageWeapons?: BattleWeapon[];
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
@@ -85,12 +92,31 @@ export interface UnitState {
 }
 
 /**
+ * 유효 스킬 세트 — 인게이지 중엔 EngagedSkills 교체본(GetSyncroSkills 0x2342530 코드 확정).
+ * ☠u.skills 직접 소비 금지 — 판정·예보·UI 전부 이 함수를 거쳐야 교체가 새지 않는다.
+ */
+export function effectiveSkills(u: UnitState): SkillRow[] | undefined {
+  return u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+}
+
+/**
+ * 유효 무기 목록 — 인게이지 중엔 엠블렘 무기(EngageItems)를 weapons 뒤에 증설.
+ * attack.weapon 인덱스의 해석 대상(기존 인덱스 불변 = 기보 계약 유지). UI 무기 목록도 이것만 소비한다.
+ */
+export function effectiveWeapons(u: UnitState): BattleWeapon[] | undefined {
+  if (u.engage?.engaging === true && u.engageWeapons !== undefined && u.engageWeapons.length > 0) {
+    return [...(u.weapons ?? []), ...u.engageWeapons];
+  }
+  return u.weapons;
+}
+
+/**
  * 재이동(시구르드 싱크로) 이동 칸수 — 행동 후에만 유효, 없으면 undefined.
  * 거리 정본 = skills.json Power(재이동=2·재이동+=3, 공식 도움말 실측 일치). 지형 코스트 적용은 가정(실기 반증 시 갱신).
  */
 export function canterPower(u: UnitState): number | undefined {
   let best: number | undefined;
-  for (const s of u.skills ?? []) {
+  for (const s of effectiveSkills(u) ?? []) {
     if (!s.Sid.startsWith("SID_再移動")) continue;
     if (typeof s.Power === "number" && (best === undefined || s.Power > best)) best = s.Power;
   }
@@ -124,6 +150,8 @@ export interface GameState {
   difficulty?: Difficulty;
   map: BattleMap;
   units: UnitState[];
+  /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
+  crests?: { x: number; y: number }[];
   outcome?: "victory" | "defeat";
   /** 직전 행동의 이벤트(휘발) — 리플레이 정본은 행동 로그다. */
   events: BattleEvent[];
@@ -163,7 +191,7 @@ export function canBreak(from: UnitState, to: UnitState): boolean {
   if (from.weapon === undefined || to.weapon === undefined || to.broken) return false;
   if (weaponAdvantage(from.weapon.kind, to.weapon.kind) !== 1) return false;
   if (to.style === "重装スタイル") return false;
-  return to.skills?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) !== true;
+  return effectiveSkills(to)?.some((s) => BREAK_IMMUNE_SIDS.has(s.Sid)) !== true;
 }
 
 const inWeaponRange = (u: UnitState, distance: number): boolean =>
@@ -226,7 +254,7 @@ export function staffHealAmount(healer: UnitState, target: UnitState, staff: Sta
 
 /** 춤(재행동) 시전 자격 — 무희 직업 스킬 SID_踊り/SID_特別な踊り(MAP_COMMANDS §1-4). UI 공용. */
 export function canDance(u: UnitState): boolean {
-  return u.skills?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
+  return effectiveSkills(u)?.some((s) => s.Sid === "SID_踊り" || s.Sid === "SID_特別な踊り") === true;
 }
 
 /**
@@ -290,7 +318,7 @@ export function toCombatant(
     stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
     weapon: u.weapon,
     terrain: { avoid: tile?.avoid ?? 0, def: tile?.def ?? 0 },
-    skills: u.skills,
+    skills: effectiveSkills(u),
     support: supportOf(u, units, supportEffects),
   };
 }
@@ -364,6 +392,20 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (u.force !== state.phase) throw new Error(`페이즈 위반: ${u.id}는 지금 군의 유닛이 아니다`);
       if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
     };
+    let crests = state.crests;
+    /**
+     * 紋章氣 소비 — MapSequenceMind.EngageHeal(0x2681CC0) 코드 확정: 비인게이지·비만충일 때
+     * count = limit **대입** + 타일 1회성 소멸(MapOverlap.Remove). '회복량' 수치는 존재하지 않는다.
+     * 발동 시점 = 그 칸에서 활성화 종료(대기 포함) — 가정(실측 대조 대상, 장부 emblem.crest-tile).
+     */
+    const consumeCrest = (u: UnitState): void => {
+      const g = u.engage;
+      if (crests === undefined || g === undefined || g.engaging || u.dead || g.count >= g.limit) return;
+      if (!crests.some((c) => c.x === u.x && c.y === u.y)) return;
+      crests = crests.filter((c) => !(c.x === u.x && c.y === u.y));
+      u.engage = { ...g, count: g.limit };
+      events.push({ type: "crest", unit: u.id, x: u.x, y: u.y, count: g.limit });
+    };
 
     switch (action.type) {
       case "move": {
@@ -403,6 +445,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         assertActable(u);
         u.acted = true;
         u.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(u);
         break;
       }
 
@@ -412,7 +455,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         assertActable(attacker);
         if (attacker.force === defender.force) throw new Error("같은 군은 공격할 수 없다");
         if (action.weapon !== undefined) {
-          const chosen = attacker.weapons?.[action.weapon];
+          // 인게이지 중엔 엠블렘 무기가 목록 뒤에 증설된다 — 기존 인덱스는 불변(기보 계약).
+          const chosen = effectiveWeapons(attacker)?.[action.weapon];
           if (chosen === undefined) throw new Error(`불법 무기 인덱스: ${action.weapon}`);
           attacker.weapon = chosen; // 무기 선택 = 장비 전환(인게임 문법) — 이후 피격 반격도 이 무기
         }
@@ -491,6 +535,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
 
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(attacker);
 
         // 경험치: 자군만(적/우군 성장은 재현 대상 아님 — 인게임 문법).
         if (attacker.force === 0 && !attacker.dead) {
@@ -529,6 +574,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         chargeEngage(healer, events);
         healer.acted = true;
         healer.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(healer);
         if (healer.force === 0) {
           const difficulty = state.difficulty ?? "n";
           // 杖経験計算 = clamp(杖経験値 + 자기 레벨 감쇠 + 레벨차 감쇠, 1, 100) — 杖経験値 = item RodExp.
@@ -560,6 +606,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         user.consumables = user.consumables?.map((c, i) => (i === idx ? { ...c, uses: c.uses - 1 } : c));
         user.acted = true;
         user.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(user);
         // 경험치 없음 — calculator에 아이템 경험식이 없다(杖·踊り·チェインガード만 존재).
         break;
       }
@@ -579,6 +626,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         events.push({ type: "refresh", unit: target.id });
         dancer.acted = true;
         dancer.moved = false;
+        consumeCrest(dancer);
         if (dancer.force === 0) {
           const difficulty = state.difficulty ?? "n";
           // 踊り経験計算 = clamp(踊り基本値(자기 레벨) + 補助レベル差減衰値(레벨차), 1, 100).
@@ -651,6 +699,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
                 const turn = g.turn + 1;
                 if (turn >= g.turnLimit) {
                   fresh.engage = { ...g, engaging: false, turn: 0, count: 0 };
+                  // 엠블렘 무기는 인게이지와 함께 사라진다 — 장비 중이었으면 소지품 첫 무기로 복귀.
+                  if (fresh.weapon !== undefined && fresh.engageWeapons?.includes(fresh.weapon) === true) {
+                    fresh.weapon = fresh.weapons?.[0];
+                  }
                   phaseEvents.push({ type: "disengage", unit: u.id });
                 } else {
                   fresh.engage = { ...g, turn };
@@ -675,6 +727,6 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (outcome !== undefined) events.push({ type: "outcome", outcome });
     }
 
-    return { ...state, units, events, outcome };
+    return { ...state, units, ...(crests === undefined ? {} : { crests }), events, outcome };
   };
 }

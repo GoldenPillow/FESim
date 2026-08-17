@@ -52,6 +52,10 @@ export interface SetupUnit {
   skills?: SkillRow[];
   /** 인게이지 게이지 스냅숏 — god·bond 의도의 산출 결과 */
   engage?: EngageState;
+  /** 인게이지 중 스킬 세트 스냅숏(EngagedSkills 교체본) — god·bond 의도의 산출 결과 */
+  engagedSkills?: SkillRow[];
+  /** 엠블렘 무기 스냅숏(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지) */
+  engageWeapons?: BattleWeapon[];
 }
 
 /** 초기 세팅 diff 전체 — dispos 기본 대비 변경분만 담는다. */
