@@ -189,7 +189,21 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Engage activation command", ko: "인게이지 발동 명령" },
     status: "implemented",
     evidence:
-      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선) · 효과층 배선(2026-08-18 4b): engaging 중 스킬 세트 = EngagedSkills 교체(effectiveSkills)·엠블렘 무기 증설(effectiveWeapons — weapons 뒤 인덱스, 해제 시 장비 복귀). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = 세부기 6종·기술 선택(4c)·NotEngageAdd 지형·엠블렘 지팡이(リカバー류 — 공격 무기만 증설) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
+      "상태 기계 배선(2026-08-18, engage.test.ts — 전부 코드 확정 il2cpp/EMBLEM_ENGAGE §3): 충전 = 전투 참가당 +1(양측·체인 제외·인게이지 중 제외) · 발동 = 만충·행동 무소모 · 소비 = 자기 페이즈 시작 +1, 도달 시 해제+게이지 0 · 絆11 = 4턴·絆20 = 상한 -1(성장표 Flag 파이프라인 배선) · 효과층 배선(2026-08-18 4b): engaging 중 스킬 세트 = EngagedSkills 교체(effectiveSkills)·엠블렘 무기 증설(effectiveWeapons — weapons 뒤 인덱스, 해제 시 장비 복귀). ⚠가정 1건 = 지팡이 사용도 술자 +1(실측 대조 대상) ☠잔여 = NotEngageAdd 지형·엠블렘 지팡이(リカバー류 — 공격 무기만 증설) · 세부기·기술은 별항(actions.engage-attack·engage-subcommands) · ☠발현 = 자군 반지 장착 데이터가 세이브 소유라 dispos에 없음(후반 맵 적측부터 자연 발현, 자군 = 캠페인층·편집기 god 의도)",
+  },
+  {
+    id: "actions.engage-attack",
+    label: { en: "Engage attack (art) command", ko: "인게이지 기술(공격기)" },
+    status: "assumed",
+    evidence:
+      "배선(2026-08-17 4c, engage.test.ts) — engageAttack 액션: engaging 중·技コスト 게이지 차감(charge 절대값)·기술 스킬 세트(기술 행+SyncSids 전개) 전투 한정 주입·흐름 = 汎用設定 데이터 소유(攻撃回数·手番回数·相手の手番回数 — makeSkillModifier 질의, 기본 1)·명중 100/필살 0은 기존 파라미터 훅 경유·ダメージ% = 相手のダメージ 자기참조 대입(올림은 원문 식 소유)·슬롯별 강제 무기(EquipIids, IID_無し = 현 장비) · 선택 = 기본 + 스타일 분기(GetEngageAttack 0x2341640, emblemEngageArt) · ⚠가정 = WeaponProhibit 비트 해석((mask>>kind)&1 — 마르스 1021 = 검만 허용 정합) · 체인어택/추격/브레이크 미발동 · 실기 앵커 없음(실측 대조 대상) · ☠미배선 = 連動(EngageAttackLink — リュール)·暴走(Rampage)·리워프형(세리카 Rewarp>0 정직 거부)",
+  },
+  {
+    id: "actions.engage-subcommands",
+    label: { en: "Engage sub-commands (rewarp/rod/charge/wait/summon)", ko: "인게이지 세부기(리워프·로드·차지·대기·소환)" },
+    status: "absent",
+    evidence:
+      "MAP_COMMANDS §1-2 세부기 6종 중 공격기(EngageAttackMenuItem)만 배선(actions.engage-attack) — 잔여 5종 = EngageRewarpMenuItem(세리카 리워프)·EngageRodMenuItem(미카야 지팡이기)·EngageChargeMenuItem(Flags.EngageCharge=4)·EngageWaitMenuItem(EngageWait=16)·EngageSummonMenuItem(EngageSummon=32) · 각각 워프·지팡이 시스템·소환(유닛 신설) 선행 — 발현 시 MP 선두 흡수",
   },
   {
     id: "actions.destroy",
@@ -693,13 +707,13 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "skills.timing-filter",
     label: { en: "Skill activation filters (Stand/Action/Timing/Order)", ko: "스킬 발동 필터(Stand/Action/Timing/Order) 준수" },
     status: "anchored",
-    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleInfoSide.IsEnableSkill이 네 필드를 전부 게이트로 소비한다. Stand(0x78, Stands: None0/Offence1/Defence2)는 m_SideType(BattleSide.Type: Offense0/Defense1)과 대조 = **전투 주도권**(0x1E8CDFC~0x1E8CE24, Stand!=None이면 상대 실재도 추가 확인, ChainOffense2~7은 Offence 판정에서 탈락) · Action(0x7c)은 CalcActiveSkill이 때리는 쪽에 1·맞는 쪽에 2를 넘겨 대조 = **이번 타격의 역할**(0x2469FC0~) · Timing은 파이프라인 단계 셀렉터(27종 열거, HitBefore=10은 CalcAttack이 타격마다 연다) · Order는 HitSkill.SortKey(0x19B60F0)의 정렬 키 · 평가 순서 = Flag → Timing → Action → Stand → Target → Condition/Cycle. ☠앞선 '실기로 Stand 게이트 기각' 판정은 **오독이었고 철회한다** — 그 실측(선공 예보 vs 피격 예보 적 명중 동일)은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 간파 코퍼스도 동일 구조). 엔진 배선 = skills.ts passesFilter + Combatant.initiator/striking, battle.ts가 전투 주도권 고정·타격 역할 반전으로 주입 · 미확정 = Timing=Always류가 이 게이트를 우회하는 별도 경로(SkillArray 비트마스크) 유무 · 상세 = extracted/il2cpp/STATUS_FILTER.md",
+    evidence: "★IL2CPP 코드 확정(2026-08-17) — BattleInfoSide.IsEnableSkill이 네 필드를 전부 게이트로 소비한다. Stand(0x78, Stands: None0/Offence1/Defence2)는 m_SideType(BattleSide.Type: Offense0/Defense1)과 대조 = **전투 주도권**(0x1E8CDFC~0x1E8CE24, Stand!=None이면 상대 실재도 추가 확인, ChainOffense2~7은 Offence 판정에서 탈락) · Action(0x7c)은 CalcActiveSkill이 때리는 쪽에 1·맞는 쪽에 2를 넘겨 대조 = **이번 타격의 역할**(0x2469FC0~) · Timing은 파이프라인 단계 셀렉터(27종 열거, HitBefore=10은 CalcAttack이 타격마다 연다) · Order는 HitSkill.SortKey(0x19B60F0)의 정렬 키 · 평가 순서 = Flag → Timing → Action → Stand → Target → Condition/Cycle. ☠앞선 '실기로 Stand 게이트 기각' 판정은 **오독이었고 철회한다** — 그 실측(선공 예보 vs 피격 예보 적 명중 동일)은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 간파 코퍼스도 동일 구조). 엔진 배선 = skills.ts passesFilter + Combatant.initiator/striking, battle.ts가 전투 주도권 고정·타격 역할 반전으로 주입 · ☠사영 결손 정정(2026-08-17 4c): 웹 슬림 사영(fe17.ts slimSkill)이 Stand·Action·Power를 떨어뜨려 웹 경로에선 필터·재이동 거리가 무장전이었다(현행 변환 맵 전수 무발현 확인 = 잠복) — SKILL_ROW_FIELDS 편입으로 해소 · 미확정 = Timing=Always류가 이 게이트를 우회하는 별도 경로(SkillArray 비트마스크) 유무 · 상세 = extracted/il2cpp/STATUS_FILTER.md",
   },
   {
     id: "skills.opponent-act",
     label: { en: "Opponent-side value modifiers", ko: "상대측 계산값 보정(相手の~ ActName)" },
     status: "absent",
-    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건 · ★IL2CPP로 배선 방법까지 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-5·§4): 相手の는 특수 규칙이 아니라 **훅의 이중 등록**이다 — GameCalculator.AddCommandWithReverse<T>가 훅 121종 전부를 정방향/Reverse 두 벌로 등록하고 Reverse()(RVA 0x22791B0)가 m_Index=1·Header='相手の'만 세운다. Get/Set/Add/Scale(RVA 0x2278AD0·0x2278C20·0x2279010·0x2279160)이 그 인덱스로 obj1/obj2 대상만 스왑한다 ⇒ **부호 반전이 아님이 코드로 확정**(문자 그대로 해석 지지가 방증에서 확정으로) · 배선 = 접두 제거 + 대상측 전환 1줄, 선행 없음",
+    evidence: "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건 · ★IL2CPP로 배선 방법까지 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-5·§4): 相手の는 특수 규칙이 아니라 **훅의 이중 등록**이다 — GameCalculator.AddCommandWithReverse<T>가 훅 121종 전부를 정방향/Reverse 두 벌로 등록하고 Reverse()(RVA 0x22791B0)가 m_Index=1·Header='相手の'만 세운다. Get/Set/Add/Scale(RVA 0x2278AD0·0x2278C20·0x2279010·0x2279160)이 그 인덱스로 obj1/obj2 대상만 스왑한다 ⇒ **부호 반전이 아님이 코드로 확정**(문자 그대로 해석 지지가 방증에서 확정으로) · 배선 = 접두 제거 + 대상측 전환 1줄, 선행 없음 · ★부분 배선(2026-08-17 4c): 인게이지 기술의 相手のダメージ 대입 경로만(makeSkillModifier 자기참조 오버레이 — 相手の~ 이름은 상대 env 쪽에 현재값을 노출) — 일반 전투의 훅 이중 등록은 여전히 미배선",
   },
   {
     id: "skills.raw-stat-act",
@@ -740,7 +754,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Style-variant skill branches", ko: "스타일 분기 스킬(병종별 변형)" },
     status: "absent",
     evidence:
-      "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5) · ★IL2CPP 범위 확장(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6·SKILL_ENGINE.md §2-8): 인게이지 기술도 같은 경로를 탄다 — GetEngageAttack(RVA 0x2341640)이 최종 단계에서 SkillData.m_StyleSkills[job.Style]로 치환(0x2341A6C) ⇒ 스타일 분기는 스킬·기술 공통 층",
+      "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5) · ★IL2CPP 범위 확장(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6·SKILL_ENGINE.md §2-8): 인게이지 기술도 같은 경로를 탄다 — GetEngageAttack(RVA 0x2341640)이 최종 단계에서 SkillData.m_StyleSkills[job.Style]로 치환(0x2341A6C) ⇒ 스타일 분기는 스킬·기술 공통 층 · ★기술 경로만 배선(2026-08-17 4c — emblemEngageArt가 StyleName→8필드 분기, fe17.test.ts 竜族 변형) ☠일반 스킬(EngagedSkills 내 カウンター 등 49건)의 스타일 분기는 여전히 미배선",
   },
   {
     id: "skills.orphan-sids",

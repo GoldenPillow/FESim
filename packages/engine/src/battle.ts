@@ -4,6 +4,7 @@ import type {
   BattleWeapon,
   ConsumableItem,
   Difficulty,
+  EngageArt,
   EngageState,
   StaffItem,
   StrikeKind,
@@ -15,7 +16,7 @@ import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
 import { movementRange, type MoveType } from "./range.js";
-import type { SkillRow } from "./skills.js";
+import { makeSkillModifier, type SkillRow } from "./skills.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
 
 /**
@@ -61,6 +62,8 @@ export interface UnitState {
   engagedSkills?: SkillRow[];
   /** 엠블렘 무기(EngageItems) — engaging일 때 weapons 뒤에 증설. 인덱스 계약 = weapons.length + n. */
   engageWeapons?: BattleWeapon[];
+  /** 인게이지 기술 스냅숏(스타일 분기 해소 후) — engageAttack 액션의 실행물. 산출은 데이터층 소관. */
+  engageArt?: EngageArt;
   /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
   growth?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
@@ -675,6 +678,106 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (g.limit < 1 || g.count < g.limit) throw new Error("게이지 미만충");
         u.engage = { ...g, engaging: true, turn: 0 };
         events.push({ type: "engage", unit: u.id });
+        break;
+      }
+
+      case "engageAttack": {
+        const attacker = require(action.unit);
+        const defender = require(action.target);
+        assertActable(attacker);
+        if (attacker.force === defender.force) throw new Error("같은 군은 공격할 수 없다");
+        const art = attacker.engageArt;
+        const g = attacker.engage;
+        if (art === undefined || g === undefined) throw new Error("인게이지 기술 없음");
+        if (!g.engaging) throw new Error("인게이지 중에만 기술을 쓸 수 있다");
+        // ☠리워프형(세리카 Rewarp>0)·무기 없는 시전은 미배선 결손인 채 정직하게 거부한다(과대 재현 금지).
+        if ((art.rewarp ?? 0) > 0) throw new Error("미배선 인게이지 기술(리워프형)");
+        // WeaponProhibit = kind 비트 금지 마스크 — 가정((mask>>kind)&1, 마르스 1021 = 검만 허용 정합).
+        const own = attacker.weapon;
+        if (own !== undefined && art.weaponProhibit !== undefined && ((art.weaponProhibit >> own.kind) & 1) === 1) {
+          throw new Error("현 장비로는 쓸 수 없는 인게이지 기술");
+        }
+        if (g.count < art.cost) throw new Error("게이지 부족(技コスト)");
+        const strikeWeapon = (i: number): BattleWeapon | undefined => art.weapons?.[i] ?? own ?? undefined;
+        const firstWeapon = strikeWeapon(0);
+        if (firstWeapon === undefined) throw new Error("무기 없는 유닛은 기술을 쓸 수 없다");
+        const distance = manhattan(attacker, defender);
+        const rangeMin = art.rangeMin ?? firstWeapon.rangeMin;
+        const rangeMax = art.rangeMax ?? firstWeapon.rangeMax;
+        if (distance < rangeMin || distance > rangeMax) throw new Error("사거리 밖 기술");
+
+        // 기술 스킬 세트(기술 행 + SyncSids 전개)는 이 전투 한정으로 공격측에 합류한다 — 국면 스킬은 불변.
+        const artSkills = [...(effectiveSkills(attacker) ?? []), ...art.skills];
+        const attackerC = {
+          ...toCombatant(attacker, state.map, units, supportEffects),
+          skills: artSkills,
+          initiator: true,
+          striking: true,
+        };
+        const defenderC = {
+          ...toCombatant(defender, state.map, units, supportEffects),
+          initiator: false,
+          striking: false,
+        };
+        // 흐름 변수는 汎用設定(SyncSids)이 데이터로 소유한다: 攻撃回数·手番回数·相手の手番回数.
+        // 기본값 1은 통상 전투의 문법 — 汎用設定이 없으면 1타·반격 허용으로 강하한다.
+        const flowEnv = combatEnv({ ...attackerC, skills: undefined }, defenderC);
+        const flow = makeSkillModifier(artSkills, flowEnv, { initiator: true, striking: true });
+        const strikesPerTurn = Math.max(Math.trunc(flow("攻撃回数", 1)), 0);
+        const turns = Math.max(Math.trunc(flow("手番回数", 1)), 0);
+        const foeTurns = Math.max(Math.trunc(flow("相手の手番回数", 1)), 0);
+
+        const strike = (
+          from: UnitState,
+          to: UnitState,
+          numbers: { damage: number; hitRate: number; critRate: number },
+        ): void => {
+          if (from.dead || to.dead) return;
+          const hit = isHit(numbers.hitRate, rng.next(10000));
+          const crit = hit && numbers.critRate > 0 ? isProbability100(numbers.critRate, rng.next(100000)) : false;
+          const damage = hit ? numbers.damage * (crit ? 3 : 1) : 0;
+          to.hp = Math.max(to.hp - damage, 0);
+          events.push({ type: "strike", attacker: from.id, defender: to.id, kind: from === attacker ? "attack" : "counter", hit, crit, damage, hpAfter: to.hp });
+          if (to.hp === 0 && !to.dead) {
+            to.dead = true;
+            events.push({ type: "death", unit: to.id });
+          }
+        };
+
+        // ⚠단순화(가정): 체인어택·추격·브레이크는 기술 전투에서 미발동으로 둔다 — 汎用設定이 회수를
+        // 고정하는 문법과 정합하나 실기 앵커는 없다(실측 대조 대상, 장부 actions.engage-attack).
+        for (let turn = 0; turn < turns && !defender.dead; turn++) {
+          for (let i = 0; i < strikesPerTurn && !defender.dead; i++) {
+            const weapon = strikeWeapon(i);
+            const numbers = forecastSide(calc, { ...attackerC, weapon }, defenderC);
+            // 대미지 감쇠(ダメージ３０％류) = 공격측 스킬의 相手のダメージ 대입 — 원문 식이 올림을 소유한다.
+            const damage = Math.trunc(flow("相手のダメージ", numbers.damage));
+            strike(attacker, defender, { ...numbers, damage });
+          }
+        }
+        if (foeTurns > 0 && !defender.dead && !defender.broken && inWeaponRange(defender, distance)) {
+          const defF = forecastSide(calc, { ...defenderC, striking: true }, { ...attackerC, striking: false });
+          for (let i = 0; i < foeTurns && !attacker.dead; i++) strike(defender, attacker, defF);
+        }
+
+        // 게이지 차감(技コスト — 대부분 0) — charge 이벤트 절대값으로 기보에 실린다.
+        if (art.cost > 0) {
+          attacker.engage = { ...g, count: g.count - art.cost };
+          events.push({ type: "charge", unit: attacker.id, count: attacker.engage.count });
+        }
+        // 충전: 공격측은 인게이지 중이라 항상 무충전, 피격측은 통상 규칙.
+        chargeEngage(defender, events);
+        attacker.acted = true;
+        attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
+        consumeCrest(attacker);
+        if (attacker.force === 0 && !attacker.dead) {
+          const difficulty = state.difficulty ?? "n";
+          const formula = defender.dead ? "撃破経験計算" : "戦闘経験計算";
+          const gained = Math.floor(
+            calc.eval(formula, expEnv(attacker, defender, 0, difficulty)) as number,
+          );
+          grantExp(attacker, gained, events, rng);
+        }
         break;
       }
 

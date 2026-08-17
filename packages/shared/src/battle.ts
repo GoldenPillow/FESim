@@ -119,6 +119,28 @@ export interface EngageState {
   engaging: boolean;
 }
 
+/**
+ * 인게이지 기술(EngageAttack) 스냅숏 — god.EngageAttack → 스타일 분기 해소 후의 실행물.
+ * 산출은 데이터층 소관(基本 경로만 — 連動·暴走 선택은 미배선). 실행 문법은 엔진 engageAttack이 소유.
+ */
+export interface EngageArt {
+  sid: string;
+  name?: string;
+  /** 기술 행 + SyncSids 1단 전개 — engageAttack 전투에서만 공격측 스킬에 합류한다. */
+  skills: SkillRow[];
+  /** 타격 슬롯별 강제 무기(EquipIids 사영) — null = 그 타격은 현 장비(IID_無し). 부재 슬롯 = 현 장비. */
+  weapons?: (BattleWeapon | null)[];
+  /** 기술 행 RangeI/O — 부재 시 엔진이 강제 무기·현 장비 사거리로 강하한다. */
+  rangeMin?: number;
+  rangeMax?: number;
+  /** 技コスト — 발동 시 게이지 차감(전수 9행 三級長 戦技만 0 초과). */
+  cost: number;
+  /** 기술 행 Rewarp — 0 초과면 리워프형(세리카). 엔진이 미배선 정직 거부하는 판별자. */
+  rewarp?: number;
+  /** 기술 행 WeaponProhibit — 비트 kind 금지 마스크(가정: (mask >> kind) & 1 = 금지. 마르스 1021 = 검만 허용 정합). */
+  weaponProhibit?: number;
+}
+
 export type BattleEvent =
   | { type: "strike"; attacker: string; defender: string; kind: StrikeKind; hit: boolean; crit: boolean; damage: number; hpAfter: number }
   | { type: "heal"; unit: string; target: string; amount: number; hpAfter: number }
@@ -150,6 +172,8 @@ export type BattleAction =
   | { type: "dance"; unit: string; target: string }
   /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
   | { type: "engage"; unit: string }
+  /** 인게이지 기술(공격기) — engaging 중에만. 기술 스냅숏(engageArt)이 흐름·무기·비용을 소유한다. */
+  | { type: "engageAttack"; unit: string; target: string }
   /**
    * 교환 — 인접 아군과 소지품 1점 이동(행동 무소모라 연속 액션 = 인게임 다중 이동).
    * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.

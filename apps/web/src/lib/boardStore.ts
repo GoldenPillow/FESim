@@ -107,6 +107,7 @@ export function initGame(
       engage: su?.engage ?? u.engage,
       engagedSkills: su?.engagedSkills ?? u.engagedSkills,
       engageWeapons: su?.engageWeapons ?? u.engageWeapons,
+      engageArt: su?.engageArt ?? u.engageArt,
       skills: su?.skills ?? u.skills,
       growth: u.growth,
       level: su?.level ?? u.levels[difficulty],

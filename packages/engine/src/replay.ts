@@ -116,7 +116,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function applyEvents(
   state: GameState,
-  action: Extract<BattleAction, { type: "attack" | "staff" | "item" | "dance" }>,
+  action: Extract<BattleAction, { type: "attack" | "engageAttack" | "staff" | "item" | "dance" }>,
   events: readonly BattleEvent[],
 ): GameState {
   const units = state.units.map((u) => ({ ...u }));
@@ -225,6 +225,7 @@ export function createReplayer(reduce: Reduce) {
   function applyStep(state: GameState, step: EphemerisStep): GameState {
     if (
       (step.action.type === "attack" ||
+        step.action.type === "engageAttack" ||
         step.action.type === "staff" ||
         step.action.type === "item" ||
         step.action.type === "dance") &&

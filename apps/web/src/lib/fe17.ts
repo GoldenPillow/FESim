@@ -1,4 +1,4 @@
-import type { ChapterData, ConsumableItem, DisposUnit, EngageState, MapObject, StaffItem } from "@fesim/shared";
+import type { ChapterData, ConsumableItem, DisposUnit, EngageArt, EngageState, MapObject, StaffItem } from "@fesim/shared";
 import {
   MOVE_TYPES,
   deriveStats,
@@ -451,8 +451,8 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
 /* ── 유닛 스킬 (dispos Sid + 인물 CommonSids + 장착 엠블렘 絆 레벨 싱크로) ── */
 
 const SKILL_ROW_FIELDS = [
-  "Sid", "Timing", "Condition", "ActNames", "ActOperations", "ActValues",
-  "GiveSids", "GiveTarget", "Target", "RangeI", "RangeO",
+  "Sid", "Timing", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
+  "GiveSids", "GiveTarget", "Target", "Power", "RangeI", "RangeO",
 ] as const;
 
 /** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
@@ -648,6 +648,8 @@ export interface BoardUnitProp {
   engagedSkills?: SkillRow[];
   /** 엠블렘 무기(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지). */
   engageWeapons?: BoardWeaponProp[];
+  /** 인게이지 기술 스냅숏(스타일 분기 해소 후) — engageAttack 액션의 실행물. */
+  engageArt?: EngageArt;
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
@@ -751,6 +753,49 @@ export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp
     if (prop !== undefined) list.push(prop);
   }
   return list;
+};
+
+/** 직업 StyleName → skills.json 스타일 분기 필드(SkillData.m_StyleSkills의 데이터 원형). */
+const STYLE_SKILL_FIELD: Record<string, string> = {
+  連携スタイル: "CooperationSkill",
+  隠密スタイル: "CovertSkill",
+  竜族スタイル: "DragonSkill",
+  魔法スタイル: "MagicSkill",
+  騎馬スタイル: "HorseSkill",
+  重装スタイル: "HeavySkill",
+  気功スタイル: "PranaSkill",
+  飛行スタイル: "FlySkill",
+};
+
+/**
+ * 인게이지 기술 선택 — god.EngageAttack → 스타일 분기 1회(GetEngageAttack 0x2341640의 최종 단계).
+ * ☠連動(EngageAttackLink — リュール 전용)·暴走(Rampage — 적 GodState)은 미배선: 기본 경로만 산출한다.
+ * 스킬 세트 = 기술 행 + SyncSids 1단 전개(汎用設定·ダメージ% 류) — engageAttack 전투 한정 주입물.
+ */
+export const emblemEngageArt = (gid: string, styleName: string | undefined, locale: Locale): EngageArt | undefined => {
+  const god = godsTable.gods[gid];
+  const baseSid = god === undefined ? undefined : String(god["EngageAttack"] ?? "");
+  if (baseSid === undefined || baseSid === "" || skills[baseSid] === undefined) return undefined;
+  const field = STYLE_SKILL_FIELD[styleName ?? ""];
+  const variant = field === undefined ? undefined : (skills[baseSid] as Record<string, unknown>)[field];
+  const sid = typeof variant === "string" && skills[variant] !== undefined ? variant : baseSid;
+  const row = skills[sid] as Record<string, unknown>;
+  const rows = [sid, ...((row["SyncSids"] as string[] | undefined) ?? [])]
+    .map(slimSkill)
+    .filter((r): r is SkillRow => r !== undefined);
+  const equipIids = (row["EquipIids"] as string[] | undefined) ?? [];
+  const weapons = equipIids.map((iid) => (iid === "IID_無し" ? null : (attackWeaponProp(iid, locale) ?? null)));
+  return {
+    sid,
+    name: namedOr(skills, locale, sid),
+    skills: rows,
+    ...(weapons.length > 0 ? { weapons } : {}),
+    ...(typeof row["RangeI"] === "number" ? { rangeMin: row["RangeI"] as number } : {}),
+    ...(typeof row["RangeO"] === "number" ? { rangeMax: row["RangeO"] as number } : {}),
+    cost: Number(row["Cost"] ?? 0),
+    ...(Number(row["Rewarp"] ?? 0) > 0 ? { rewarp: Number(row["Rewarp"]) } : {}),
+    ...(row["WeaponProhibit"] !== undefined ? { weaponProhibit: Number(row["WeaponProhibit"]) } : {}),
+  };
 };
 
 /**
@@ -859,10 +904,12 @@ export function boardProps(
         if (engage === undefined) return {};
         const engagedSkills = unitEngagedSkillRows(v.unit);
         const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
+        const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);
         return {
           engage,
           ...(engagedSkills !== undefined ? { engagedSkills } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
+          ...(engageArt !== undefined ? { engageArt } : {}),
         };
       })(),
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },

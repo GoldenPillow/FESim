@@ -17,7 +17,7 @@ export interface FormulaEnv {
   modify?(valueName: string, value: number): number;
 }
 
-const OPPONENT_PREFIX = "相手の";
+export const OPPONENT_PREFIX = "相手の";
 
 function truthy(value: FormulaValue): boolean {
   return typeof value === "number" ? value !== 0 : value !== "";

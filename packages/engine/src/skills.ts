@@ -1,4 +1,4 @@
-import { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
+import { evaluateFormula, OPPONENT_PREFIX, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 import { parseFormula, type FormulaNode } from "./formula/parser.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
 
@@ -124,6 +124,23 @@ export function makeSkillModifier(
     let add = 0;
     let scale = 1;
     let out = value; // 원시 스탯·追撃条件 = 즉시 반영 경로
+    // DSL은 대입식 안에서 자기 값을 이름으로 참조한다(ダメージ% 류: 相手のダメージ = f(相手のダメージ)) —
+    // 진행 중 값(즉시 경로 = out, 합성 경로 = base)을 그 이름으로 노출해야 원문 식이 그대로 돈다.
+    // ☠相手の~ 이름은 평가기가 상대 env의 무접두 이름으로 푼다 — 오버레이도 그쪽에 걸어야 잡힌다.
+    const current = (): number => (composed ? base : out);
+    const valueEnv: FormulaEnv = valueName.startsWith(OPPONENT_PREFIX)
+      ? {
+          ...env,
+          opponent: () => {
+            const rest = valueName.slice(OPPONENT_PREFIX.length);
+            const foe = env.opponent?.();
+            return { lookup: (name) => (name === rest ? current() : foe?.lookup(name)), opponent: foe?.opponent };
+          },
+        }
+      : {
+          ...env,
+          lookup: (name) => (name === valueName ? current() : env.lookup(name)),
+        };
     for (const skill of active) {
       const names = skill.ActNames;
       if (names === undefined) continue;
@@ -133,7 +150,7 @@ export function makeSkillModifier(
           if (skill.Condition !== undefined && !truthy(evaluateFormula(node(skill.Condition), condEnv))) {
             continue;
           }
-          const amount = evaluateFormula(node(skill.ActValues?.[i] ?? "0"), env);
+          const amount = evaluateFormula(node(skill.ActValues?.[i] ?? "0"), valueEnv);
           if (typeof amount !== "number") continue;
           const op = skill.ActOperations?.[i] ?? "+";
           if (composed) {

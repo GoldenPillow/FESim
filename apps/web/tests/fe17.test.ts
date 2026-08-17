@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -138,6 +138,38 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
   it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {
     const props = boardPropsFor("m003", "ko");
     expect(props.objects.some((o) => o.crest === true && o.x === 9 && o.y === 10)).toBe(true);
+  });
+});
+
+describe("인게이지 기술 선택 (MP1-4c) — emblemEngageArt", () => {
+  it("마르스 기본 = 기술 행 + SyncSids 전개(汎用設定·ダメージ３０％), 사거리 1-1", () => {
+    // 왜 위험한가: 흐름 변수(攻撃回数 7·명중 100·반격 몰수)는 전부 SyncSids의 汎用設定이 소유한다 —
+    // 전개가 빠지면 기술이 통상 전투 문법으로 돌아 타수·명중·반격이 전부 어긋난다.
+    const art = emblemEngageArt("GID_マルス", undefined, "ko");
+    expect(art?.sid).toBe("SID_マルスエンゲージ技");
+    const sids = art?.skills.map((r) => r.Sid);
+    expect(sids).toEqual(["SID_マルスエンゲージ技", "SID_エンゲージ技_汎用設定", "SID_ダメージ３０％"]);
+    expect(art?.rangeMin).toBe(1);
+    expect(art?.rangeMax).toBe(1);
+    expect(art?.cost).toBe(0);
+    expect(art?.weaponProhibit).toBe(1021); // 검(kind 1)만 허용 — 가정 비트 해석의 앵커 값
+    // 사영 결손 정정 확인: 汎用設定의 Stand·기술 행의 Action이 슬림 사영에 실려야 필터가 돈다.
+    expect(art?.skills[1]?.Stand).toBe(1);
+    expect(art?.skills[0]?.Action).toBe(1);
+  });
+
+  it("스타일 분기 — 竜族 직업이면 SID_マルスエンゲージ技_竜族(攻撃回数 9 변형)", () => {
+    const art = emblemEngageArt("GID_マルス", "竜族スタイル", "ko");
+    expect(art?.sid).toBe("SID_マルスエンゲージ技_竜族");
+    expect(art?.skills[0]?.ActValues?.[0]).toBe("9");
+  });
+
+  it("에이리크 = 슬롯별 강제 무기([IID_無し, ジークムント] → [null, 창]) · 세리카 = rewarp 판별자", () => {
+    const eirika = emblemEngageArt("GID_エイリーク", undefined, "ko");
+    expect(eirika?.weapons?.[0]).toBeNull(); // IID_無し = 현 장비
+    expect(eirika?.weapons?.[1]?.kind).toBe(2); // ジークムント = 창
+    const celica = emblemEngageArt("GID_セリカ", undefined, "ko");
+    expect(celica?.rewarp).toBe(10); // 리워프형 — 엔진이 정직 거부하는 판별자
   });
 });
 

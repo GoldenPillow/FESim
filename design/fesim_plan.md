@@ -51,7 +51,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [ ] MP1-4 인게이지 시스템 — EMBLEM_ENGAGE.md 판독 소비 (최대 덩어리)
       - [x] 4a 상태 기계 (2026-08-18) — EngageState(게이지·지속)·engage 액션(행동 무소모)·충전(전투 양측 +1, 지팡이 = 가정)·페이즈 소비·해제·charge/engage/disengage 이벤트(절대 재생)·성장표 Flag 파이프라인(絆11 = 4턴·絆20 = 상한-1)·게이지 UI(커맨드 바). TDD 6건. ☠발현 = 자군 gid가 dispos에 없음(세이브 소유) — 적측은 m008~ 변환 시 자연 발현, 자군 = 편집기 god 의도·캠페인층(chart.xml)
       - [x] 4b 인게이지 효과 (2026-08-17) — ★동계열 정본 교체(SID 정규식 폐기 → GroupAssign 재현 100그룹·412스킬 + LevelData.Add 병합 이식)·EngagedSkills 스킬 세트 교체(EngageSid 치환, 엔진 effectiveSkills — canBreak·toCombatant·canDance·canterPower 전 소비처)·엠블렘 무기(EngageItems 누적 → engaging 중 weapons 뒤 증설 = 인덱스 계약 유지·해제 시 장비 복귀·☠엠블렘 지팡이 미배선)·紋章氣 만충 대입+타일 소멸(국면 crests·crest 이벤트 절대 재생·보드/리플레이//s/ 렌더 공용 visibleObjects — ⚠발동 시점 = 활성화 종료 가정). TDD 엔진 5건+웹 5건, 전 테스트 302건 그린·타입 그린. 발현 제약은 4a와 동건(자군 gid 세이브 소유)
-      - [ ] 4c 세부기 6종·기술 선택(暴走>連動>기본·스타일 분기) — 선행 = skills.style-variant
+      - [x] 4c 기술 선택 + 공격기 실행 (2026-08-17) — 선택 = 기본 + 스타일 분기(emblemEngageArt, StyleName→8필드 — 連動·暴走 미배선)·engageAttack 액션(기술 행+SyncSids 전투 한정 주입·흐름 = 汎用設定 데이터 소유(攻撃回数·상대 手番 0 = 반격 몰수)·ダメージ% 자기참조 대입·슬롯별 강제 무기 EquipIids·技コスト 게이지 차감·WeaponProhibit 비트 가정)·절대 재생 편입. 부수 정정 = slimSkill Stand·Action·Power 사영 결손(웹 경로 필터·재이동 잠복 무장전 — 현행 맵 무발현 확인). TDD 엔진 6건+웹 3건. ☠이월 = 세부기 잔여 5종(리워프·로드·차지·대기·소환 — 장부 engage-subcommands, 발현 시 흡수)·기술 UI(발현 시 — 적측 m008~ 변환 or 편집기 god 의도)
     - [ ] MP1-5 지팡이 잔여 — 방해 지팡이 명중식(RATES_FORMULA §6)·워프·상태 지팡이(선행 = 상태 시스템)
     - [ ] MP1-6 체인가드 지정(GuardMenuItem·GuardType) + チェインガード経験計算
     - [ ] 이월: 지형 커맨드(파괴·대포·횃불) = MP3 구조물 렌더와 연동 · 문·상자·방문·대화 = MP2(Lua) · 특수(인챈트·환영늑대·수송정거장·문장변경·계약·강행돌파·탈출) = 발현 시 흡수(장부 등재됨)
