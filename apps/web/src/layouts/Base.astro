@@ -25,15 +25,20 @@ const { locale, title } = Astro.props;
   </head>
   <body class="min-h-screen antialiased">
     <slot />
-    <!-- 베타 워터마크 — 채널 판별은 호스트명(같은 빌드가 승격되므로 빌드 플래그로는 못 가른다) -->
-    <div id="beta-mark" hidden>BETA</div>
+    <!-- 채널 워터마크(규약 — rules/deploy.md): 베타 = 황색 BETA+버전 · 릴리즈 = 청회색 버전.
+         채널 판별은 호스트명(같은 빌드가 승격되므로 빌드 플래그로는 못 가른다). 버전 = git 짧은 해시. -->
+    <div id="chan-mark" hidden data-build={import.meta.env.PUBLIC_BUILD ?? "dev"}></div>
     <script is:inline>
-      if (location.hostname.startsWith("beta-") || location.hostname === "localhost") {
-        document.getElementById("beta-mark").hidden = false;
-      }
+      (() => {
+        const el = document.getElementById("chan-mark");
+        const beta = location.hostname.startsWith("beta-") || location.hostname === "localhost";
+        el.textContent = (beta ? "BETA " : "") + el.dataset.build;
+        el.classList.add(beta ? "beta" : "rel");
+        el.hidden = false;
+      })();
     </script>
     <style>
-      #beta-mark {
+      #chan-mark {
         position: fixed;
         right: 14px;
         bottom: 12px;
@@ -41,13 +46,21 @@ const { locale, title } = Astro.props;
         pointer-events: none;
         font-weight: 900;
         font-size: 13px;
-        letter-spacing: 0.18em;
+        letter-spacing: 0.14em;
         padding: 4px 10px;
         border-radius: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      #chan-mark.beta {
         color: #ffd23e;
         background: rgb(20 16 4 / 0.72);
         border: 1px solid rgb(255 210 62 / 0.65);
         text-shadow: 0 0 6px rgb(255 210 62 / 0.35);
+      }
+      #chan-mark.rel {
+        color: #9db4cc;
+        background: rgb(10 14 20 / 0.6);
+        border: 1px solid rgb(157 180 204 / 0.4);
       }
     </style>
   </body>
