@@ -4,6 +4,7 @@ import {
   BAD_STATE,
   canBreak,
   canChainGuard,
+  canDance,
   canterPower,
   chainGuardFor,
   destroyTargets,
@@ -697,6 +698,27 @@ export default function BoardIsland(props: BoardProps) {
         ) {
           setPending({ x: engageAt.x, y: engageAt.y });
         }
+        return;
+      }
+      // 춤(재행동) — 무희 + 인접(잠정 위치 기준 1칸) 행동 완료 아군: 클릭 = 대상 지정, 재클릭 = 커밋.
+      if (
+        selected !== undefined &&
+        !selected.acted &&
+        canDance(selected) &&
+        clicked.force === selected.force &&
+        clicked.id !== selected.id &&
+        clicked.acted &&
+        selectedAt !== undefined &&
+        Math.abs(selectedAt.x - clicked.x) + Math.abs(selectedAt.y - clicked.y) === 1
+      ) {
+        if (clicked.id === targetId) {
+          if (commitMove() && tryDispatch({ type: "dance", unit: selected.id, target: clicked.id })) {
+            if (canterPower(selected) === undefined) setSelectedId(undefined);
+            setTargetId(undefined);
+          }
+          return;
+        }
+        setTargetId(clicked.id);
         return;
       }
       // 지팡이 아군 대상 — 회복 = 손상 아군(재클릭 = 커밋), 워프 = 아군 전부(확정 후 목적지 클릭).
