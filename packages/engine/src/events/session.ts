@@ -460,7 +460,7 @@ export function createEventSession(opts: {
     return 1;
   });
   // 엠블렘 클러스터 — UnitGetGodUnit 핸들이 통째로 떼었다 붙이는 필드 묶음(m026 오프닝 브래킷).
-  const GOD_FIELDS = ["engage", "engagedSkills", "engageWeapons", "engageArt"] as const;
+  const GOD_FIELDS = ["gid", "engage", "engagedSkills", "engageWeapons", "engageArt"] as const;
   /** UnitGetGodUnit이 발급한 핸들(1-based) → 그 시점의 엠블렘 클러스터 스냅숏. */
   const godStash: Partial<Pick<UnitState, (typeof GOD_FIELDS)[number]>>[] = [];
   /** 클러스터 대입 — patch null = 삭제(재생 replay.ts와 같은 계약). draft에는 delete로 반영한다. */
@@ -506,7 +506,7 @@ export function createEventSession(opts: {
       lua.lua_pushnil(A);
       return 1;
     }
-    godStash.push({ engage: u.engage, engagedSkills: u.engagedSkills, engageWeapons: u.engageWeapons, engageArt: u.engageArt });
+    godStash.push({ gid: u.gid, engage: u.engage, engagedSkills: u.engagedSkills, engageWeapons: u.engageWeapons, engageArt: u.engageArt });
     lua.lua_pushinteger(A, godStash.length);
     return 1;
   });

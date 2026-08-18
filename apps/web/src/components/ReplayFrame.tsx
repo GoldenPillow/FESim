@@ -12,7 +12,7 @@ import "./replay.css";
  * 넘는 순간 LCP 게이트가 깨지고, 실전 기보 로그는 그 예산에 절대 들어가지 않는다.
  */
 export interface ReplayFrameProps {
-  board: Pick<BoardProps, "width" | "height" | "tiles" | "palette" | "objects" | "structures" | "overlays" | "interactions" | "labels">;
+  board: Pick<BoardProps, "width" | "height" | "tiles" | "palette" | "objects" | "structures" | "overlays" | "interactions" | "godFaces" | "labels">;
   /** 런타임 지형 교체 — 재생 국면이 소유한다(보드 props가 아니라 국면 상태). */
   patches?: { x: number; y: number; tid: string; display?: { color?: string; name?: string } }[];
   address?: StepAddress;
@@ -64,6 +64,7 @@ export default function ReplayFrame(p: ReplayFrameProps) {
         units={p.alive}
         byTile={p.byTile}
         visuals={p.visuals}
+        godFaces={p.board.godFaces}
         selectedId={p.selectedId}
       />
 

@@ -70,10 +70,10 @@ describe("소지품 인계 — dispos가 비운 자군 무기", () => {
     // 인계 없이는 자군 전원이 비무장 — 공격 범위·전투 예보·공격이 통째로 성립하지 않는다(3장 실측).
     const props = boardPropsFor("m003", "ko");
     const ruell = props.units.find((u) => u.name === "뤼에르");
-    expect(ruell?.weapon?.kind).toBe(1); // 철의 검
+    expect(ruell?.weapons?.[0]?.kind).toBe(1); // 철의 검
     expect(ruell?.rangeMax).toBe(1);
     // 무회귀: 자체 소지가 있는 유닛은 그대로
-    const boss = props.units.find((u) => u.force === 1 && u.weapon !== undefined);
+    const boss = props.units.find((u) => u.force === 1 && u.weapons !== undefined);
     expect(boss).toBeDefined();
   });
 });
@@ -300,5 +300,31 @@ describe("hpStock 사영 — 다단 보스 (MP3)", () => {
     expect(stocked.length).toBeGreaterThan(0);
     expect(stocked.every((u) => (u.hpStock ?? 0) > 0)).toBe(true);
     expect(board.units.find((u) => u.pid === "PID_E006_Boss")?.hpStock).toBe(3);
+  });
+});
+
+describe("문장사 배지 사영 (엠블렘 초상·게이지)", () => {
+  it("반지 장착 유닛은 gid를 싣고, 보드가 그 gid의 초상 경로를 한 번만 싣는다", () => {
+    // 왜 위험한가: 배지의 얼굴 원천은 gid 하나뿐이다 — 유닛에 gid가 안 실리거나
+    // godFaces에 그 gid가 빠지면 반지 유닛이 게이지만 남고 누구의 반지인지 사라진다.
+    // ☠경로를 유닛마다 싣지 않는 것도 계약이다(같은 문자열 반복 = 챕터 JSON 예산 §11 지출).
+    const props = boardPropsFor("g001", "ko");
+    const ringed = props.units.filter((u) => u.gid !== undefined);
+    expect(ringed.length).toBeGreaterThan(0);
+    for (const u of ringed) {
+      expect(u.engage).toBeDefined(); // gid가 실렸으면 게이지도 함께다
+      expect(props.godFaces?.[u.gid!]).toMatch(/^\/fe17\/assets\/faces\/.+\.webp$/);
+    }
+    // 얼굴 경로는 유닛 사영에 없다 — 보드 단위 표가 유일한 소유자다
+    expect(JSON.stringify(ringed)).not.toContain("assets/faces/");
+  });
+
+  it("장비 무기는 보드 JSON에 따로 실리지 않는다 — weapons[0]이 정본", () => {
+    // 왜 위험한가: 같은 무기를 weapon과 weapons[0]으로 두 번 실어 e006.ko 기준 1.8KB gz를
+    // 중복 지출했고, 그 탓에 유닛 필드 증설(gid)이 예산을 넘겼다. 둘로 갈리면 장비 해석도 갈린다.
+    const props = boardPropsFor("m002", "ko");
+    const armed = props.units.filter((u) => u.weapons !== undefined);
+    expect(armed.length).toBeGreaterThan(0);
+    expect(Object.keys(props.units[0]!)).not.toContain("weapon");
   });
 });

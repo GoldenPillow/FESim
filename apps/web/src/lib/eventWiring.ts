@@ -49,7 +49,8 @@ export function eventWiringFor(
           const god = script.gods[gid];
           if (god === undefined) return undefined;
           // 기술(engageArt)·인게이지 스킬 세트는 미배선(발현 시 흡수) — 게이지·엠블렘 무기까지 사영.
-          return { engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
+          // gid를 함께 실어야 배지가 교체를 따라간다(해제 = patch null → 필드 삭제).
+          return { gid, engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
         },
       };
       const session = mod.createEventSession({ sources, chapter: script.chapter, host });
