@@ -163,6 +163,9 @@ try {
   };
 
   try {
+  // ★교착 감시 — 양쪽 다 안 붙으면 판이 안 끝난다(정책은 여유를 남기고 적 AI는 게이트가 있다).
+  //   전투가 3턴간 없으면 그 뒤로는 여유를 접고 밀고 들어간다.
+  let lastCombatTurn = 0;
   for (let guard = 0; guard < maxTurns * 4; guard++) {
     const before = state();
     if (before.outcome !== undefined) break;
@@ -178,8 +181,10 @@ try {
         opening,
         cid,
         openingVerbose: openingCheck,
+        aggressive: before.turn - lastCombatTurn >= 3,
       });
     else enemyPhase();
+    if (state().units.some((u, i) => u.hp !== before.units[i]?.hp)) lastCombatTurn = state().turn;
     if (state() === before) {
       // 한 페이즈를 통째로 돌고도 국면이 그대로 = 진행 불가. 침묵 금지.
       deficits.push({ unit: "-", kind: "engine", reason: `페이즈가 진행되지 않았다(turn ${before.turn} phase ${before.phase})` });

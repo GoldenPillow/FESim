@@ -165,26 +165,28 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
 });
 
 describe("인게이지 기술 선택 (MP1-4c) — emblemEngageArt", () => {
-  it("마르스 기본 = 기술 행 + SyncSids 전개(汎用設定·ダメージ３０％), 사거리 1-1", () => {
-    // 왜 위험한가: 흐름 변수(攻撃回数 7·명중 100·반격 몰수)는 전부 SyncSids의 汎用設定이 소유한다 —
-    // 전개가 빠지면 기술이 통상 전투 문법으로 돌아 타수·명중·반격이 전부 어긋난다.
+  it("마르스 기본 = SyncSids 전개(汎用設定·ダメージ３０％) **뒤에** 기술 행, 사거리 1-1", () => {
+    // 왜 위험한가: 흐름 변수(攻撃回数·명중 100·반격 몰수)는 SyncSids의 汎用設定이 기본값으로 `=` 대입한다 —
+    // ☠**순서가 값을 정한다**: 기술 행이 앞에 오면 汎用設定의 攻撃回数=1이 기술의 7(竜族 9)을 덮어
+    // 스타 러시가 1타로 나간다(2026-08-18 프롤로그 실측 — 4피해 1타로 마무리에 실패했다).
     const art = emblemEngageArt("GID_マルス", undefined, "ko");
     expect(art?.sid).toBe("SID_マルスエンゲージ技");
     const sids = art?.skills.map((r) => r.Sid);
-    expect(sids).toEqual(["SID_マルスエンゲージ技", "SID_エンゲージ技_汎用設定", "SID_ダメージ３０％"]);
+    expect(sids).toEqual(["SID_エンゲージ技_汎用設定", "SID_ダメージ３０％", "SID_マルスエンゲージ技"]);
     expect(art?.rangeMin).toBe(1);
     expect(art?.rangeMax).toBe(1);
     expect(art?.cost).toBe(0);
     expect(art?.weaponProhibit).toBe(1021); // 검(kind 1)만 허용 — 가정 비트 해석의 앵커 값
     // 사영 결손 정정 확인: 汎用設定의 Stand·기술 행의 Action이 슬림 사영에 실려야 필터가 돈다.
-    expect(art?.skills[1]?.Stand).toBe(1);
-    expect(art?.skills[0]?.Action).toBe(1);
+    expect(art?.skills[0]?.Stand).toBe(1); // 汎用設定
+    expect(art?.skills[2]?.Action).toBe(1); // 기술 행(맨 뒤 = 최종 대입)
+    expect(art?.skills[2]?.ActValues?.[0]).toBe("7"); // 攻撃回数 7 — 기본값 1을 이긴다
   });
 
   it("스타일 분기 — 竜族 직업이면 SID_マルスエンゲージ技_竜族(攻撃回数 9 변형)", () => {
     const art = emblemEngageArt("GID_マルス", "竜族スタイル", "ko");
     expect(art?.sid).toBe("SID_マルスエンゲージ技_竜族");
-    expect(art?.skills[0]?.ActValues?.[0]).toBe("9");
+    expect(art?.skills.at(-1)?.ActValues?.[0]).toBe("9");
   });
 
   it("에이리크 = 슬롯별 강제 무기([IID_無し, ジークムント] → [null, 창]) · 세리카 = rewarp 판별자", () => {

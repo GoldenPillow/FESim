@@ -1081,7 +1081,10 @@ export const emblemEngageArt = (gid: string, styleName: string | undefined, loca
   const variant = field === undefined ? undefined : (skills[baseSid] as Record<string, unknown>)[field];
   const sid = typeof variant === "string" && skills[variant] !== undefined ? variant : baseSid;
   const row = skills[sid] as Record<string, unknown>;
-  const rows = [sid, ...((row["SyncSids"] as string[] | undefined) ?? [])]
+  // ☠순서가 값을 정한다 — `SID_エンゲージ技_汎用設定`이 攻撃回数=1 같은 **기본값**을 `=`로 대입하므로
+  //   기술 자신의 행이 **뒤에** 와야 한다(마르스 스타 러시 = 7타, 竜族 변형 9타). 앞에 두면 1타로 깎여
+  //   프롤로그 마무리가 4피해 1타로 나갔다(2026-08-18 실측).
+  const rows = [...((row["SyncSids"] as string[] | undefined) ?? []), sid]
     .map(slimSkill)
     .filter((r): r is SkillRow => r !== undefined);
   const equipIids = (row["EquipIids"] as string[] | undefined) ?? [];

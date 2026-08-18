@@ -877,14 +877,16 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
   }
 
   /**
-   * 인게이지 충전 — 전투 1회 참가당 +1(상한 클램프). 코드 확정(AddEngageCount 0x2470740):
-   * 인게이지 중·체인 참가는 충전 없음, 턴당 자연 증가는 기전 자체가 없다. 사망자는 무의미라 생략.
+   * 인게이지 충전 — ★**타격 단위**다: 공격 1 · 방어 1이고 추격이 붙으면 3(2026-08-18 사용자 실기 확정).
+   * 종전 "전투 1회당 +1" 모델로는 프롤로그(m000) 수순이 성립하지 않았다 —
+   * 실기는 2턴 교전으로 6/7, 적턴 피격으로 만충, 3턴 스타 러시인데 +1이면 4회 교전이 필요해
+   * 그 전에 리월이 죽는다. 인게이지 중·체인 참가는 충전 없음, 턴당 자연 증가는 기전 자체가 없다.
    * ☠NotEngageAdd 지형(8192) 게이트는 미배선 — BattleMap.terrain 스키마 확장 선행(§0 미룸과 동건).
    */
-  function chargeEngage(u: UnitState, events: BattleEvent[]): void {
+  function chargeEngage(u: UnitState, events: BattleEvent[], amount = 1): void {
     const g = u.engage;
-    if (g === undefined || g.engaging || u.dead || g.count >= g.limit) return;
-    u.engage = { ...g, count: Math.min(g.count + 1, g.limit) };
+    if (g === undefined || g.engaging || u.dead || g.count >= g.limit || amount < 1) return;
+    u.engage = { ...g, count: Math.min(g.count + amount, g.limit) };
     events.push({ type: "charge", unit: u.id, count: u.engage.count });
   }
 
@@ -1120,20 +1122,32 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         };
         // 체인어택은 공격측 첫 오더 슬롯 직전 = 본공격보다 먼저다(코드 확정 — 종전 '본공격 뒤'는 가정이었다).
         for (const backup of chainUnits) strike(backup, defender, "chain", chainNumbers(backup));
+        // 타격 수 = 인게이지 충전량(공격·반격·추격 각 1). 체인은 세지 않는다(Status 4|8 필터).
+        let strikes = 0;
         strike(attacker, defender, "attack", atkF);
+        strikes += 1;
         const canCounter = () =>
           !defender.dead && !defender.broken && inWeaponRange(defender, distance);
-        if (canCounter()) strike(defender, attacker, "counter", defF);
-        if (atkF.followUp) strike(attacker, defender, "followUp", atkF);
-        if (defF.followUp && canCounter()) strike(defender, attacker, "counterFollowUp", defF);
+        if (canCounter()) {
+          strike(defender, attacker, "counter", defF);
+          strikes += 1;
+        }
+        if (atkF.followUp) {
+          strike(attacker, defender, "followUp", atkF);
+          strikes += 1;
+        }
+        if (defF.followUp && canCounter()) {
+          strike(defender, attacker, "counterFollowUp", defF);
+          strikes += 1;
+        }
         if (defenderEnteredBroken && !defender.dead) {
           defender.broken = false;
           events.push({ type: "breakRelease", unit: defender.id });
         }
 
-        // 인게이지 충전 = 공격·피격 양측 각 +1 (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
-        chargeEngage(attacker, events);
-        chargeEngage(defender, events);
+        // 인게이지 충전 = 양측 모두 **타격 수만큼** (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
+        chargeEngage(attacker, events, strikes);
+        chargeEngage(defender, events, strikes);
 
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다

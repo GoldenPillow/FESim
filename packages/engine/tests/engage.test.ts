@@ -66,14 +66,37 @@ function state(units: UnitState[], phase = 0): GameState {
 }
 
 describe("인게이지 충전", () => {
-  it("전투 1회 = 공격·피격 양측 +1(상한 클램프), charge 이벤트 절대값", () => {
-    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, engage: gauge({ count: 6 }) });
+  /**
+   * ★타격 단위 충전 — **공격 1 · 방어 1**, 추격이 붙으면 3(2026-08-18 사용자 실기 확정).
+   * 왜 위험한가: 종전 모델은 "전투 1회당 +1"이라 프롤로그(m000)에서 게이지가 영영 안 찼다.
+   * 실기 수순은 2턴 교전으로 6/7, 적턴 피격으로 만충, 3턴 스타 러시 마무리인데
+   * +1 모델로는 4회 교전이 필요해 그 전에 리월이 죽는다 — 한 판이 통째로 재현 불가였다.
+   */
+  it("전투 1회 = 타격 수만큼 양측 충전(공격 1 · 방어 1), charge 이벤트 절대값", () => {
+    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, engage: gauge({ count: 5 }) });
     const e = unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, engage: gauge({ count: 0 }) });
     const next = reduce(state([a, e]), { type: "attack", unit: "a", target: "e" } as BattleAction, roll(9999, 9999, 9999, 9999));
-    expect(next.units[0].engage?.count).toBe(7);
+    expect(next.units[0].engage?.count).toBe(7); // 5 + 2(공격·반격) — 상한 7
+    expect(next.units[1].engage?.count).toBe(2);
+    expect(next.events).toContainEqual({ type: "charge", unit: "e", count: 2 });
+  });
+
+  it("추격이 붙으면 3충전 — 타격 3회(공격·반격·추격)", () => {
+    const fast = { ...sword, might: 1 };
+    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: fast, stats: { ...baseStats, spd: 20 }, engage: gauge({ count: 0 }) });
+    const e = unit({ id: "e", force: 1, x: 1, y: 0, weapon: fast, stats: { ...baseStats, spd: 1 }, engage: gauge({ count: 0 }) });
+    const next = reduce(state([a, e]), { type: "attack", unit: "a", target: "e" } as BattleAction, roll(9999, 9999, 9999, 9999));
+    expect(next.units[0].engage?.count).toBe(3);
+    expect(next.units[1].engage?.count).toBe(3);
+  });
+
+  it("반격이 없으면 1충전 — 사거리 밖 상대는 때리기만 한다", () => {
+    const bow = { might: 5, hit: 100, crit: 0, weight: 5, kind: 4, rangeMin: 2, rangeMax: 2 };
+    const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: bow, engage: gauge({ count: 0 }) });
+    const e = unit({ id: "e", force: 1, x: 2, y: 0, weapon: sword, engage: gauge({ count: 0 }) });
+    const next = reduce(state([a, e]), { type: "attack", unit: "a", target: "e" } as BattleAction, roll(9999, 9999, 9999, 9999));
+    expect(next.units[0].engage?.count).toBe(1);
     expect(next.units[1].engage?.count).toBe(1);
-    expect(next.events).toContainEqual({ type: "charge", unit: "a", count: 7 });
-    expect(next.events).toContainEqual({ type: "charge", unit: "e", count: 1 });
   });
 
   it("인게이지 중인 유닛은 충전되지 않는다 · 만충도 그대로", () => {

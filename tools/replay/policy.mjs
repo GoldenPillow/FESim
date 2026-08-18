@@ -215,14 +215,16 @@ function bestHeal(engine, game, unit, allies) {
  * 전진 — 가장 가까운 적 쪽으로 붙되, **버틸 수 있는 칸**까지만 나간다.
  * 죽을 칸은 아예 후보에서 빼고, 남은 칸 중에서 (거리 ↓ · 예상 피해 ↓)로 고른다.
  */
-function bestAdvance(engine, calculator, game, unit, foes, zones) {
+function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = false) {
   if (foes.length === 0) return undefined;
   let best;
   for (const at of reachable(engine, game, unit)) {
     const threat = incoming(engine, calculator, game, unit, at, zones);
     // ☠**여유를 남긴다**(2026-08-18 사용자 지적 "지나친 공격위치에 있는지도 확인").
     //   "죽지만 않으면 간다"로 두면 잔여 HP 1로 적진 앞에 서고, 증원 한 명이면 그대로 끝난다.
-    if (threat.total >= unit.hp - Math.floor(unit.stats.hp * ADVANCE_MARGIN)) continue;
+    // ★단 **교착이면 여유를 접는다** — 양쪽 다 대기만 하면 판이 안 끝난다(m002 61턴 미결 실측).
+    const margin = aggressive ? 0 : Math.floor(unit.stats.hp * ADVANCE_MARGIN);
+    if (threat.total >= unit.hp - margin) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
     const score = -near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
@@ -289,7 +291,7 @@ function dispatchEngageArt({ engine, calculator, dispatch, state, unit, art, tar
   return state() !== before;
 }
 
-export function playerPhase({ engine, calculator, dispatch, state, log, opening, cid, openingVerbose }) {
+export function playerPhase({ engine, calculator, dispatch, state, log, opening, cid, openingVerbose, aggressive = false }) {
   // ★오프닝 스크립트가 먼저다 — 사람이 적은 정석 수순은 국소 최적으로는 안 나온다(design/opening_script.md).
   //   실패는 던진다(조용한 휴리스틱 강하 금지) — 잘못된 수순으로 만든 기보가 정본이 되면 안 된다.
   const owned =
@@ -352,7 +354,7 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
           : false;
       if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
-      const go = bestAdvance(engine, calculator, cur, self, enemies, zones);
+      const go = bestAdvance(engine, calculator, cur, self, enemies, zones, aggressive);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
       }

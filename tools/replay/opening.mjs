@@ -169,6 +169,16 @@ export function resolveTile(engine, game, spec, self, opts) {
     if (!inBounds(game, at.x, at.y)) throw new OpeningError(`맵 밖 좌표 — ${label(ref)} ${spec.dir} ${n}칸`);
     return at;
   }
+  if (spec.toward !== undefined) {
+    // "최대전진" — 그 유닛 쪽으로 이번 턴 갈 수 있는 만큼(거리 최소 → 코스트 최소 → 칸 순번).
+    const goal = resolveUnit(game, { pid: spec.toward, pick: spec.pick }, self);
+    const tiles = reachableTiles(engine, game, self);
+    const t = [...tiles].sort(
+      (a, b) => dist(a, goal) - dist(b, goal) || a.cost - b.cost || a.y - b.y || a.x - b.x,
+    )[0];
+    if (t === undefined) throw new OpeningError(`갈 칸이 없다 — ${label(self)}`);
+    return { x: t.x, y: t.y };
+  }
   if (spec.tid !== undefined) {
     // 지형 지정("가장 가까운 요새 칸") — 갈 수 있는 칸 중에서만 고른다. 못 가면 실패다.
     // ★워프 착지(anywhere)는 이동이 아니므로 맵 전체가 후보다 — 사거리 게이트는 호출자가 건다.
