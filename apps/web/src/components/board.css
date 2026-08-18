@@ -89,6 +89,24 @@
 
 .board .tile {
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.07);
+  position: relative;
+}
+/*
+  칸마다 인게임 좌표(X,Z) — 흐린 회색. 대화·스크립트·판독 문서가 같은 수로 말하기 위한 표시다.
+  ☠타일 배율에서 떼어낸다: 큰 맵의 기본 줌은 타일 24px대라 비례 폰트는 못 읽는다(전투 요약과 같은 처방).
+  작은 줌에서는 아예 감춘다 — 읽히지 않는 글자는 노이즈다.
+*/
+.board .tile .coord {
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  font: 400 clamp(7px, calc(var(--tile) * 0.17), 11px) / 1 ui-monospace, monospace;
+  color: rgb(120 120 120 / 0.55);
+  pointer-events: none;
+  user-select: none;
+}
+@media (max-width: 480px) {
+  .board .tile .coord { display: none; }
 }
 .board .tile.blocked {
   box-shadow:

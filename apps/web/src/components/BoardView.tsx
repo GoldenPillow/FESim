@@ -135,7 +135,7 @@ export default function BoardView({
       <div className="rail rail-y">
         {Array.from({ length: height }, (_, y) => (
           <span key={y} style={{ gridRow: row(y) }}>
-            {y + 1}
+            {y}
           </span>
         ))}
       </div>
@@ -161,7 +161,10 @@ export default function BoardView({
                   }}
                   onClick={() => onTileClick?.(x, y)}
                   onPointerEnter={() => onTileHover?.({ x, y })}
-                />
+                >
+                  {/* 인게임 좌표를 칸마다 흐리게 — 대화·스크립트·판독 문서가 같은 수로 말한다(사용자 지정). */}
+                  <b className="coord">{coordLabel(x, y)}</b>
+                </i>
               );
             }),
           )}

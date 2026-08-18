@@ -1,3 +1,4 @@
+import { coordLabel } from "./grid";
 import chapternotesRaw from "../../../../data/fe17/tables/chapternotes.json?raw";
 import { label, persons } from "./fe17";
 import type { Locale } from "./i18n";
@@ -69,16 +70,9 @@ export interface ChapterNoteView {
   cautions: string[];
 }
 
-const colLabel = (x: number): string => {
-  let n = x;
-  let out = "";
-  do {
-    out = String.fromCharCode(65 + (n % 26)) + out;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return out;
-};
-const coord = (x: number, y: number): string => `${colLabel(x)}${y + 1}`;
+// ☠좌표 표기는 `grid.ts`가 단일 정본이다 — 여기 사본을 두었더니 정본이 인게임 (X, Z)로 바뀐 뒤에도
+//   챕터 노트만 옛 체스식(H5·O11)으로 남아 화면 안에서 두 표기가 섞였다(2026-08-18 실측).
+const coord = coordLabel;
 
 export function chapterNoteView(mapId: string, locale: Locale): ChapterNoteView | undefined {
   const n = notes[mapId];
