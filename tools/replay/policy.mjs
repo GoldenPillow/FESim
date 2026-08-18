@@ -15,6 +15,9 @@
 /** 이 HP 비율 밑으로 떨어질 각오까지만 한다(그 이하 = 위험수로 보고 회피). */
 const RISK_FLOOR = 0.45;
 
+/** 전진 시 남겨 둘 여유(최대 HP 비율) — 증원·필살 한 방을 흘려보낼 몫. */
+const ADVANCE_MARGIN = 0.25;
+
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 function reachable(engine, game, unit) {
@@ -112,6 +115,28 @@ function incoming(engine, calculator, game, unit, at, zones) {
   return { total: total + worstCrit, hits };
 }
 
+/**
+ * 상처약류 — 소모품 회복(AddType 2 = 자신 중심 반경 내 아군 일괄). 행동을 소모하므로 **칠 게 없거나
+ * 자신이 위험할 때만** 쓴다. 사용자 지적(2026-08-18): "바깥타일로 도망치고 상처약을 이용하고있는지 확인".
+ * ☠회복량은 아이템 고정값(AddPower)이라 능력치와 무관하다 — 넘치는 회복은 낭비이므로 손상량으로 점수를 낸다.
+ */
+function bestItem(engine, game, unit, mine) {
+  const list = unit.consumables ?? [];
+  let best;
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i];
+    if (it === undefined || it.addType !== 2 || (it.uses ?? 0) < 1) continue;
+    const targets = engine.itemTargets(unit, game.units, it);
+    if (targets.length === 0) continue;
+    // 실제로 채워지는 양의 합 — 상한을 넘는 몫은 세지 않는다.
+    const gain = targets.reduce((a, t) => a + Math.min(it.power ?? 0, t.stats.hp - t.hp), 0);
+    if (gain <= 0) continue;
+    if (best === undefined || gain > best.gain) best = { gain, item: i };
+  }
+  void mine;
+  return best;
+}
+
 function bestAttack(engine, calculator, game, unit, foes, zones) {
   const weapons = engine.effectiveWeapons(unit) ?? (unit.weapon !== undefined ? [unit.weapon] : []);
   if (weapons.length === 0) return undefined;
@@ -173,7 +198,9 @@ function bestAdvance(engine, calculator, game, unit, foes, zones) {
   let best;
   for (const at of reachable(engine, game, unit)) {
     const threat = incoming(engine, calculator, game, unit, at, zones);
-    if (threat.total >= unit.hp) continue; // 이 칸에서 턴을 마치면 죽는다
+    // ☠**여유를 남긴다**(2026-08-18 사용자 지적 "지나친 공격위치에 있는지도 확인").
+    //   "죽지만 않으면 간다"로 두면 잔여 HP 1로 적진 앞에 서고, 증원 한 명이면 그대로 끝난다.
+    if (threat.total >= unit.hp - Math.floor(unit.stats.hp * ADVANCE_MARGIN)) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
     const score = -near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
@@ -267,11 +294,15 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
     const zones = threatZones(engine, cur, enemies);
     const heal = bestHeal(engine, cur, self, mine);
     const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
+    // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
+    const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
     // 다친 아군이 있으면 힐 우선 — 단 확실한 격파가 있으면 격파가 먼저다(적 화력 자체를 줄인다).
     if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
       if (heal.at.x !== actor.x || heal.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: heal.at.x, y: heal.at.y });
       dispatch({ type: "staff", unit: actor.id, target: heal.ally.id, staff: heal.staff });
+    } else if (item !== undefined && atk === undefined && self.hp < self.stats.hp * 0.7) {
+      dispatch({ type: "item", unit: actor.id, item: item.item });
     } else if (atk !== undefined) {
       if (atk.at.x !== actor.x || atk.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: atk.at.x, y: atk.at.y });
       // ★인게이지 기술 — 인게이지 중이고 게이지가 기술 코스트를 감당하면 통상 공격 대신 기술을 쓴다.
