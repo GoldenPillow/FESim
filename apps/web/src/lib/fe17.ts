@@ -530,11 +530,18 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
   const job = jobs[unit.jid] as unknown as Record<string, unknown> | undefined;
   if (person === undefined || job === undefined) return undefined;
   const suffix = DIFF_SUFFIX[difficulty];
+  // ☠성장률은 **택일**이다(person.Grow 전 0 → job.BaseGrow + 난이도 델타). 일반 적 1379행이 전 0이라
+  //   이 갈래가 없으면 적이 통째로 약해진다 — M002 보스가 반격 한 번에 죽던 실사례(2026-08-18).
+  const diffGrow = { n: "DiffGrowNormal.", h: "DiffGrowHard.", l: "DiffGrowLunatic." }[difficulty];
   return deriveStats({
     jobBase: statBlock(job, "Base."),
-    jobInternalLevel: Number(job["InternalLevel"] ?? 0),
+    jobRank: Number(job["Rank"] ?? 0),
     personOffset: statBlock(person, `Offset${suffix}.`),
     personGrowth: statBlock(person, "Grow."),
+    jobBaseGrow: statBlock(job, "BaseGrow."),
+    jobDiffGrow: statBlock(job, diffGrow),
+    // AutoGrowOffset은 `person.AssetForce == Enemy(1)`일 때만 성장 레벨 수에 든다.
+    enemy: Number(person["AssetForce"] ?? 0) === 1,
     level: unitLevel(unit, difficulty),
     autoGrowOffset: Number(person[`AutoGrowOffset${suffix}`] ?? 0),
     cap: statCap(job, person),

@@ -22,6 +22,7 @@ const RISK_FLOOR = 0.45;
 /** 전진 시 남겨 둘 여유(최대 HP 비율) — 증원·필살 한 방을 흘려보낼 몫. */
 const ADVANCE_MARGIN = 0.25;
 
+
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 function reachable(engine, game, unit) {

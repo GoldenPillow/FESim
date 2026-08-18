@@ -148,6 +148,12 @@ try {
         dispatch({ type: "endPhase" });
         return;
       }
+      if (process.env.FESIM_AI_TRACE !== undefined) {
+        const u = before.units.find((x) => x.id === decision.unit);
+        if (u !== undefined && String(u.pid).includes(process.env.FESIM_AI_TRACE)) {
+          console.error("AITRACE", u.pid, "ai=", JSON.stringify(u.ai), "actions=", JSON.stringify(decision.actions));
+        }
+      }
       for (const action of decision.actions) dispatch(action);
       if (state() === before && decision.unit !== undefined) {
         memory = { ...memory, skipped: { ...memory.skipped, [decision.unit]: "엔진이 거부한 액션" } };
