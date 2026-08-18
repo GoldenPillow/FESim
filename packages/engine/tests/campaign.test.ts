@@ -23,6 +23,26 @@ const state = (units: UnitState[]): GameState => ({
 });
 
 describe("carryover — 챕터 종료 국면 → 다음 챕터 setup", () => {
+  /**
+   * 왜 위험한가: 인게이지는 **그 판의 상태**다. 발동 중인 채로 인계하면 다음 챕터가 이미
+   * 발동 중인 판으로 시작하고, 그 유닛은 **발동을 다시 못 켠다**(엔진이 거부한다) —
+   * m002 오프닝의 "2턴 인게이지"가 m001에서 켜 둔 발동 때문에 통째로 막혔다(2026-08-18 실측).
+   * 기공도 같다: 챕터 시작 기본값은 만충(engageStateFor count = min(7, limit))이라
+   * 앞 판에서 쓴 잔량을 물고 오면 인계한 판만 조용히 다른 규칙이 된다.
+   */
+  it("☠인게이지 발동·턴·기공은 인계하지 않는다 — 엠블렘(무기·기술)만 남는다", () => {
+    const roster = carryover(state([
+      unit({
+        id: "u0",
+        force: 0,
+        pid: "PID_A",
+        gid: "GID_マルス",
+        engage: { count: 0, limit: 7, turnLimit: 3, turn: 2, engaging: true },
+      }),
+    ]));
+    expect(roster["PID_A"]?.engage).toEqual({ count: 7, limit: 7, turnLimit: 3, turn: 0, engaging: false });
+  });
+
   it("생존 자군만 pid 키로 뽑는다(적·우군은 인계 대상이 아니다)", () => {
     const roster = carryover(state([
       unit({ id: "u0", force: 0, pid: "PID_A" }),

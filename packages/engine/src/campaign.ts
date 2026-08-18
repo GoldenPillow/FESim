@@ -29,7 +29,13 @@ export function carryover(state: GameState): Record<string, SetupUnit> {
     if (u.staves !== undefined) entry.staves = u.staves;
     if (u.consumables !== undefined) entry.consumables = u.consumables;
     if (u.skills !== undefined) entry.skills = u.skills;
-    if (u.engage !== undefined) entry.engage = u.engage;
+    // ☠인게이지는 **그 판의 상태**다 — 발동·경과 턴·기공 잔량을 물고 가면 다음 챕터가 이미
+    //   발동 중인 판으로 시작하고 그 유닛은 발동을 다시 못 켠다(엔진 거부). 챕터 시작 기본값과
+    //   같은 자리로 되돌린다(engageStateFor: count = min(7, limit) · turn 0 · engaging false).
+    //   엠블렘 자체(gid·무기·기술·싱크로 스킬)는 인계 대상이다 — 반지는 사람이 들고 다닌다.
+    if (u.engage !== undefined) {
+      entry.engage = { ...u.engage, count: Math.min(7, u.engage.limit), turn: 0, engaging: false };
+    }
     if (u.engagedSkills !== undefined) entry.engagedSkills = u.engagedSkills;
     if (u.engageWeapons !== undefined) entry.engageWeapons = u.engageWeapons;
     if (u.engageArt !== undefined) entry.engageArt = u.engageArt;

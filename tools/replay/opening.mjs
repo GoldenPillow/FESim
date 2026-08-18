@@ -13,13 +13,21 @@ import { resolve } from "node:path";
 
 export class OpeningError extends Error {}
 
-/** 화면 방향 → 데이터 좌표 델타(화면 위 = y+, MP0a 좌표계). */
+/**
+ * 화면 방향 → 데이터 좌표 델타(화면 위 = y+, MP0a 좌표계).
+ * 대각도 받는다 — 사람은 "왼쪽 아래에서 추가공격"처럼 말한다(2026-08-18 사용자 수순).
+ */
 const DIRS = {
   up: { x: 0, y: 1 },
   down: { x: 0, y: -1 },
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
+  upLeft: { x: -1, y: 1 },
+  upRight: { x: 1, y: 1 },
+  downLeft: { x: -1, y: -1 },
+  downRight: { x: 1, y: -1 },
 };
+const DIR_NAMES = Object.keys(DIRS).join("/");
 
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
@@ -39,6 +47,16 @@ export function openingSteps(opening, turn) {
   return opening?.turns?.find((t) => t.turn === turn)?.steps ?? [];
 }
 
+/**
+ * 그 턴에 **정책이 건드리면 안 되는 pid** — "지금은 저놈을 깨우지 마라".
+ * ☠오프닝의 절반은 두는 수가 아니라 **안 두는 수**다: m002는 정책이 2턴에 뤼미에르를 먼저 잡아
+ * 3턴 스타 러시가 통째로 사라졌다(스크립트가 1회전 종료로 기공까지 0으로 만든다).
+ * 위협 계산에서는 빼지 않는다 — 안 때릴 뿐 무서운 건 그대로다(안 그러면 자군이 사거리 안으로 걸어간다).
+ */
+export function openingAvoid(opening, turn) {
+  return new Set(opening?.turns?.find((t) => t.turn === turn)?.avoid ?? []);
+}
+
 /** 사람이 읽을 유닛 표기 — 사유 문자열용(pid는 길고 좌표가 있어야 판이 보인다). */
 const label = (u) => `${u.pid ?? u.id}(${u.x},${u.y})`;
 
@@ -53,9 +71,11 @@ export function resolveUnit(game, spec, self) {
   const live = game.units.filter((u) => !u.dead);
   let cands = live.filter((u) => u.pid === spec.pid);
   if (cands.length === 0) throw new OpeningError(`대상 없음 — ${spec.pid}(생존 유닛에 그 pid가 없다)`);
-  if (cands.length === 1) return cands[0];
 
   const pick = spec.pick;
+  // ☠pick은 후보가 하나여도 **거른다** — 안 그러면 "at으로 못박은 칸"과 다른 유닛이 조용히 통과한다
+  //   (m002 실사례: 1회전 뤼미에르가 죽고 2회전 뤼미에르만 남았는데 at(10,3) 지정이 그대로 먹혔다).
+  if (cands.length === 1 && pick === undefined) return cands[0];
   if (pick === undefined) {
     throw new OpeningError(
       `대상 모호 — ${spec.pid}가 ${cands.length}명이다(${cands.map(label).join(" ")}). pick으로 가려라`,
@@ -78,7 +98,7 @@ export function resolveUnit(game, spec, self) {
   if (ref === undefined) throw new OpeningError(`기준 유닛 없음 — ${refPid ?? "(행동 주체)"}`);
   if (pick.dir !== undefined) {
     const d = DIRS[pick.dir];
-    if (d === undefined) throw new OpeningError(`방향 어휘가 아니다 — ${pick.dir}(up/down/left/right)`);
+    if (d === undefined) throw new OpeningError(`방향 어휘가 아니다 — ${pick.dir}(${DIR_NAMES})`);
     const along = (u) => (u.x - ref.x) * d.x + (u.y - ref.y) * d.y;
     const side = cands.filter((u) => along(u) > 0);
     if (side.length === 0) {
@@ -143,7 +163,7 @@ export function resolveTile(engine, game, spec, self, opts) {
   if (anchorPid !== undefined) {
     const ref = resolveUnit(game, { pid: anchorPid, pick: spec.pick }, self);
     const d = DIRS[spec.dir ?? "up"];
-    if (d === undefined) throw new OpeningError(`방향 어휘가 아니다 — ${spec.dir}(up/down/left/right)`);
+    if (d === undefined) throw new OpeningError(`방향 어휘가 아니다 — ${spec.dir}(${DIR_NAMES})`);
     const n = spec.steps ?? 1;
     const at = { x: ref.x + d.x * n, y: ref.y + d.y * n };
     if (!inBounds(game, at.x, at.y)) throw new OpeningError(`맵 밖 좌표 — ${label(ref)} ${spec.dir} ${n}칸`);
@@ -228,6 +248,14 @@ export function resolveStep(engine, game, step) {
   if (self.acted === true) throw new OpeningError(`이미 행동을 마쳤다 — ${label(self)}`);
 
   if (step.engage === true) {
+    // 발동 조건을 여기서 먼저 읽는다 — 엔진 거부는 사유를 안 준다(검수 도구는 "왜 안 되는지"가 본체다).
+    const g = self.engage;
+    if (g === undefined) throw new OpeningError(`엠블렘이 없다 — ${label(self)}`);
+    if (g.engaging === true) throw new OpeningError(`이미 인게이지 중이다 — ${label(self)}`);
+    if (g.limit < 1 || g.count < g.limit) {
+      throw new OpeningError(`기공 미충전 — ${label(self)} ${g.count}/${g.limit}`);
+    }
+    if (self.traded === true) throw new OpeningError(`교환 후에는 발동 불가 — ${label(self)}`);
     return { self, actions: [{ type: "engage", unit: self.id }], terminal: false, note: "인게이지 발동" };
   }
   if (step.wait === true) {
@@ -358,6 +386,12 @@ export function runOpeningTurn({ engine, dispatch, state, opening, cid, log, ver
     try {
       plan = resolveStep(engine, before, step);
     } catch (e) {
+      // ★`optional` = "제거 실패시 추가공격"류 — **대상이 이미 없을 때만** 조용히 건너뛴다.
+      //   ☠그 밖의 실패(사거리·도달·기공)는 여전히 던진다: 수순이 안 선 것을 넘기면 안 된다.
+      if (step.optional === true && /대상 없음/.test(e.message)) {
+        if (verbose === true) log?.(`  ${where}: 생략(대상 없음 — optional)`);
+        continue;
+      }
       throw new OpeningError(`${where}: ${e.message}`);
     }
     if (verbose === true) log?.(`  ${where}: ${label(plan.self)} ${plan.note}`);

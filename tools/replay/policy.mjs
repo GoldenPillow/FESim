@@ -14,7 +14,7 @@
  * ★앞 몇 턴은 **오프닝 스크립트**가 소유할 수 있다(opening.mjs) — 사람이 적은 수순이 먼저 놓이고
  * 그 턴의 나머지 유닛만 이 휴리스틱이 둔다.
  */
-import { runOpeningTurn } from "./opening.mjs";
+import { openingAvoid, runOpeningTurn } from "./opening.mjs";
 
 /** 이 HP 비율 밑으로 떨어질 각오까지만 한다(그 이하 = 위험수로 보고 회피). */
 const RISK_FLOOR = 0.45;
@@ -302,6 +302,9 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     const mine = game.units.filter((u) => u.force === 0 && !u.dead);
     const foes = game.units.filter((u) => u.force !== 0 && !u.dead && game.map.alliance?.[u.force] !== game.map.alliance?.[0]);
     const enemies = foes.length > 0 ? foes : game.units.filter((u) => u.force === 1 && !u.dead);
+    // 오프닝이 이번 턴에 "건드리지 말라"고 한 유닛 — 표적에서만 뺀다(위협 계산에는 그대로 든다).
+    const avoid = openingAvoid(opening, game.turn);
+    const targets = avoid.size === 0 ? enemies : enemies.filter((f) => !avoid.has(f.pid));
     const actor = mine.find((u) => !u.acted && !owned.has(u.id));
     if (actor === undefined) {
       dispatch({ type: "endPhase" });
@@ -324,7 +327,7 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
     const visit = bestVisit(engine, cur, self);
     const heal = bestHeal(engine, cur, self, mine);
-    const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
+    const atk = bestAttack(engine, calculator, cur, self, targets, zones);
     // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
     const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
