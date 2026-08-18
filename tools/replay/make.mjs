@@ -23,10 +23,23 @@ const { createServer } = await import(
   pathToFileURL(createRequire(resolve(ROOT, "package.json")).resolve("vite")).href
 );
 
+/** mulberry32 — 시드 하나로 재현되는 32비트 PRNG(암호용 아님, 판 재현용). */
+const mulberry32 = (seed) => {
+  let a = seed >>> 0;
+  return {
+    next: (bound) => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * bound);
+    },
+  };
+};
+
 const args = process.argv.slice(2);
 const cid = args.find((a) => !a.startsWith("--"));
 if (cid === undefined) {
-  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--out <path>]");
+  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>]");
   process.exit(2);
 }
 const flag = (name, fallback) => {
@@ -37,8 +50,16 @@ const difficulty = flag("difficulty", "l");
 // 챕터 인계(MP5) — 앞 챕터 기보의 종료 국면에서 자군 로스터를 뽑아 이 판의 setup으로 넣는다.
 const carryPath = flag("carry", undefined);
 const locale = flag("locale", "ko");
+// ☠재현 가능한 판 = 시드 필수. 생략하면 Math.random(매 실행 다른 판)이라 **회귀 판정이 못 선다** —
+// 재생은 기록된 rolls로 결정론이지만 생성은 아니다(2026-08-18 m003 오진: 코드 회귀로 보인 것이 표본 1개였다).
+// 자군(스토어)·적군(AI)이 같은 스트림을 쓰면 한쪽 행동 수가 바뀔 때 반대편까지 어긋나므로 스트림을 나눈다.
+const seedArg = flag("seed", undefined);
 const maxTurns = Number(flag("max-turns", "40"));
 const outPath = resolve(ROOT, flag("out", `data/fe17/replays/${cid}.eph.json`));
+const liveRng = { next: (bound) => Math.floor(Math.random() * bound) };
+const seed = seedArg === undefined ? undefined : Number(seedArg);
+const playerRng = seed === undefined ? liveRng : mulberry32(seed);
+const enemyRng = seed === undefined ? liveRng : mulberry32(seed ^ 0x9e3779b9);
 
 const server = await createServer({
   root: WEB,
@@ -97,7 +118,7 @@ try {
   );
   const wiring = eventWiringFor(props, eventsMod, commons);
   const setup = await carrySetup();
-  const store = createBoardStore(props, undefined, setup, wiring);
+  const store = createBoardStore(props, undefined, setup, wiring, playerRng);
   store.getState().setDifficulty(difficulty);
 
   const dispatch = (action) => store.getState().dispatch(action);
@@ -106,13 +127,16 @@ try {
   const ai = engine.createAi(calculator);
   let memory = engine.emptyAiMemory();
   const deficits = [];
+  // ★자동화율의 분모 — 결손 건수만으로는 "많이 틀렸다"와 "판이 컸다"를 구분 못 한다(MP7 B4).
+  let aiCalls = 0;
 
   /** 적 페이즈 — BoardIsland.runEnemyAuto와 같은 루프(진행 감시 포함). */
   const enemyPhase = () => {
     for (let guard = 0; guard < 1000; guard++) {
       const before = state();
       if (before.outcome !== undefined || before.phase === 0) return;
-      const decision = ai.next(before, { next: (bound) => Math.floor(Math.random() * bound) }, memory);
+      const decision = ai.next(before, enemyRng, memory);
+      aiCalls += 1;
       memory = decision.memory;
       if (decision.actions.length === 0) {
         for (const d of decision.deficits) deficits.push(d);
@@ -172,7 +196,19 @@ try {
     // ☠자군 전사는 모범답안지의 실격 사유다 — 숫자로 숨기지 말고 이름으로 남긴다.
     playerLost: final.units.filter((u) => u.force === 0 && u.dead).map(nameOf),
     enemyAlive: final.units.filter((u) => u.force === 1 && !u.dead).length,
+    // ★결손은 비율로 읽어야 한다 — 분모(비자군 유닛 수·AI 호출 수)를 함께 낸다(MP7 B4 재측정).
+    aiUnits: final.units.filter((u) => u.force !== 0).length,
+    aiCalls,
     deficits: deficits.length,
+    deficitUnits: new Set(deficits.map((d) => d.unit)).size,
+    deficitKinds: Object.fromEntries(
+      Object.entries(deficits.reduce((acc, d) => ({ ...acc, [d.kind]: (acc[d.kind] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]),
+    ),
+    deficitReasons: Object.fromEntries(
+      Object.entries(deficits.reduce((acc, d) => ({ ...acc, [d.reason]: (acc[d.reason] ?? 0) + 1 }), {}))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8),
+    ),
     out: outPath,
   };
   console.log(JSON.stringify(report, null, 2));

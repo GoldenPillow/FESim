@@ -166,6 +166,14 @@ export interface DisposUnit {
      */
     flag?: number;
   };
+  /**
+   * dispos `Flag`(b16) 원값 — ★하위 3비트가 **난이도 마스크**다(Normal=1 / Hard=2 / Lunatic=4).
+   * 배치 게이트 = `DisposData.CanDispos`(0x1CFB490) → `IsDifficulty`(0x1CFB5B0)이며
+   * 초기 배치(`CreateDisposTeam` → `ActualDataList..ctor` → `Filter`)와 증원 스폰(`ActualData.Calc`)이
+   * 같은 게이트를 쓴다. 비트가 없으면 그 난이도에는 **존재하지 않는 유닛**이다.
+   * 원본이 0이면 파이프라인이 생략하며(자군 로스터 행), 자군은 `CreatePlayerTeam` 별도 경로라 게이트 밖이다.
+   * 상위 비트(Warp=8 등)는 `MapDispos.Flag` enum — 미배선(장부 units.dispos-flag).
+   */
   flag?: number;
 }
 

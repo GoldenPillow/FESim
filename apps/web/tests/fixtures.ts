@@ -33,7 +33,8 @@ const stats = (over: Partial<StatBlock> = {}): StatBlock => ({
 });
 
 const unit = (over: Partial<BoardUnitProp> & Pick<BoardUnitProp, "x" | "y" | "force">): BoardUnitProp => ({
-  group: "Test",
+  // 초기 배치 그룹은 CreateFirst가 부르는 것뿐 — 임의 이름을 쓰면 유닛이 판에 서지 않는다(boardStore INITIAL_GROUPS).
+  group: over.force === 0 ? "Player" : "Enemy",
   pid: `PID_${over.x},${over.y}`,
   jid: "JID_test",
   abbr: "U",

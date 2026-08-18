@@ -118,10 +118,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4()
 
 	if _u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb() then
-		return ( MapGetTurn() % 4 == 0 )
+		do return ( MapGetTurn() % 4 == 0 ) end
 
 	else
-		return ( MapGetTurn() % 3 == 0 )
+		do return ( MapGetTurn() % 3 == 0 ) end
 
 	end
 
@@ -242,17 +242,17 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4___4e0a_65b9_9032_5165_76f4_5f8c()
 
 	if ( VariableGet( g_key_reinforcement_upwardArea ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_enter_upward_area ) == 0 ) then
-		return false
+		do return false end
 	end
 
 	if _u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb() or _u30e2_30fc_30c9_306f_30cf_30fc_30c9() then
-		return ( MapGetTurn() % 2 == 0 )
+		do return ( MapGetTurn() % 2 == 0 ) end
 	else
-		return true
+		do return true end
 	end
 
 end
@@ -273,7 +273,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30de_30c3_30d7_4e2d_592e_9032_5165()
 
-	return VariableGet( g_key_enter_center_area ) == 0
+	do return VariableGet( g_key_enter_center_area ) == 0 end
 
 end
 
@@ -287,7 +287,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30de_30c3_30d7_4e0a_65b9_9032_5165()
 
-	return VariableGet( g_key_enter_upward_area ) == 0
+	do return VariableGet( g_key_enter_upward_area ) == 0 end
 
 end
 
@@ -315,7 +315,7 @@ function _uz_4ee5_4e0a_306e_30a8_30ea_30a2_306b_n_4eba_4ee5_4e0a_9032_5165( z, n
 		index = ForceUnitGetNext( index )
 	end
 
-	return ( ( counter >= n ) or ( counter >= playerNum ) )
+	do return ( ( counter >= n ) or ( counter >= playerNum ) ) end
 
 end
 
@@ -332,7 +332,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ab_30e0_30a4_3068_6226_95d8()
 
 	if VariableGet( g_key_battleTalk_camilla_kamui ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -342,7 +342,7 @@ function _uc_o_n_d_i_t_i_o_n___30ab_30e0_30a4_3068_6226_95d8()
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
 
-	return ( god == "GID_カムイ" )
+	do return ( god == "GID_カムイ" ) end
 
 end
 
@@ -357,15 +357,15 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ab_30df_30e9_304c_9060_8ddd_96e2_653b_6483_3055_308c_305f()
 
 	if VariableGet( g_key_camillaAttackedFar ) == 1 then
-		return false
+		do return false end
 	end
 
 	if _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() == false then
-		return false
+		do return false end
 	end
 
 	if AiGetActive( g_pid_boss ) == true then
-		return false
+		do return false end
 	end
 
 	local unit = MindGetUnit()
@@ -374,7 +374,7 @@ function _uc_o_n_d_i_t_i_o_n___30ab_30df_30e9_304c_9060_8ddd_96e2_653b_6483_3055
 	local camillaX = UnitGetX( g_pid_boss )
 	local camillaZ = UnitGetZ( g_pid_boss )
 
-	return ( _u4e8c_70b9_9593_8ddd_96e2( x, z, camillaX, camillaZ ) > 8 )
+	do return ( _u4e8c_70b9_9593_8ddd_96e2( x, z, camillaX, camillaZ ) > 8 ) end
 
 end
 
@@ -383,14 +383,14 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4___30ab_30df_30e9_975e_9060_8ddd_96e2_65
 	if VariableGet( g_key_reinforcementCamillaAttackedFar ) == 0 then
 
 		if _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() == false then
-			return false
+			do return false end
 		end
 
-		return ( VariableGet( g_key_camillaAttackedFar ) == 1 )
+		do return ( VariableGet( g_key_camillaAttackedFar ) == 1 ) end
 
 	elseif VariableGet( g_key_reinforcementCamillaAttackedFar ) == 1 then
 
-		return ( VariableGet( g_key_camillaActiveRun ) == 0 )
+		do return ( VariableGet( g_key_camillaActiveRun ) == 0 ) end
 
 	end
 end

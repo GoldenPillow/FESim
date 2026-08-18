@@ -194,10 +194,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6751_4eba_6b7b_4ea1()
 	if VariableGet( g_key_villager_dead ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u6751_4eba_6b7b_4ea1()

@@ -128,20 +128,21 @@ end
 function _u30dc_30b9_306e_P_I_D_3092_53d6_5f97()
 
 	if UnitExistOnMap( g_pid_boss ) then
-		return g_pid_boss
+		do return g_pid_boss end
+		end
 
 	if UnitExistOnMap( g_pid_boss_doragon ) then
-		return g_pid_boss_doragon
+		do return g_pid_boss_doragon end
 
 	elseif UnitExistOnMap( g_pid_bossB ) then
-		return g_pid_bossB
+		do return g_pid_bossB end
 
 	elseif UnitExistOnMap( g_pid_bossB_doragon ) then
-		return g_pid_bossB_doragon
+		do return g_pid_bossB_doragon end
 
 	end
 
-	return ""
+	do return "" end
 
 end
 
@@ -467,10 +468,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a2_30a4_30c6_30e0_5165_624b()
 
 	if MapIsRecollection() then
-		return false
+		do return false end
 	end
 
-	return ( VariableGet( "G_所持_IID_シルバーカード" ) == 0 )
+	do return ( VariableGet( "G_所持_IID_シルバーカード" ) == 0 ) end
 
 end
 
@@ -495,7 +496,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30de_30eb_30b9_3068_6226_95d8()
 
 	if VariableGet( "戦闘前会話_チキ_マルス_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -505,7 +506,7 @@ function _uc_o_n_d_i_t_i_o_n___30de_30eb_30b9_3068_6226_95d8()
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
 
-	return ( god == "GID_マルス" )
+	do return ( god == "GID_マルス" ) end
 
 end
 

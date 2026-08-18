@@ -1116,9 +1116,16 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "events.dispos",
     label: { en: "Event spawn (Dispos) & initial placement", ko: "이벤트 스폰(Dispos)·초기 배치" },
-    status: "assumed",
+    status: "anchored",
     evidence:
-      "배선(2026-08-18) — 스폰 = 호스트(데이터층) 사영 + spawn 이벤트(유닛 전체 스냅숏 = 절대 재생) · 초기 배치 규칙 = 스크립트가 Dispos하지 않는 그룹만 자동 배치(m002 Player·Enemy / m003 Enemy — 실측 정합) · UnitTransfer/UnitJoin이 force를 동적 변경(m002 루미엘 우군→적·m003 필렌 가세 실측) · ⚠편차 = 같은 그룹 재스폰 미재현(원기는 중복 허용 — id·visuals 계약, 현행 스크립트 무발현) · 난이도 필터·레벨은 스냅숏(데이터층) 소관",
+      "★IL2CPP 코드 확정(2026-08-18, MP3 3-7) — 초기 배치 그룹은 `MapDispos.CreateFirst`(0x29C41B0)가 부르는 것 전부다: `CreatePlayerTeam(\"Player\")` → `CreateDisposTeam`(\"Enemy\" → \"Ally\" → \"Other\", 각각 그룹 조회 0x1EC080이 null이면 건너뜀) → `TryCreateTerrain(\"Terrain\")`. 그 외 **모든 그룹은 Lua `Dispos` 트리거로만** 나온다(등장 턴은 스크립트 소유). DLC 신룡의 장은 `CreateFirstDlcGod`(0x29C5900)이나 **그룹 이름 집합은 동일**하고 차이는 레벨 스케일링뿐. 게임 변수 `禁止_初期配置`가 0이 아니면 초기 배치 전체 생략(현행 스크립트 사용 0건). ☠**종전 규칙 반증** = '스크립트가 Dispos하는 그룹만 제외'라는 정규식 근사는 래퍼 호출(g004.lua:301)·이름 문자열 연결(g006.lua:512 `\"Reinforcement_turn\" .. turn`)을 못 잡아 e006 161·g004 556·g006 656유닛을 개시부터 놓았다. 배선 = boardStore INITIAL_GROUPS(테스트 2건). 난이도 게이트는 units.dispos-difficulty-flag가 소유 · ⚠잔여 편차 = 같은 그룹 재스폰 미재현(원기는 중복 허용 — id·visuals 계약, 현행 스크립트 무발현)",
+  },
+  {
+    id: "units.dispos-difficulty-flag",
+    label: { en: "Dispos difficulty mask (Flag bits N/H/L)", ko: "dispos 난이도 마스크(Flag N/H/L 비트)" },
+    status: "anchored",
+    evidence:
+      "★IL2CPP 코드 확정(2026-08-18, MP3 3-7) — dispos `Flag` 하위 3비트가 배치 게이트다(Normal=1 / Hard=2 / Lunatic=4). 초기 배치 = `CreateDisposTeam` → `ActualDataList..ctor`(0x24C0E30) → `Filter`(0x24C0C90) → `DisposData.CanDispos`(0x1CFB490) → `IsDifficulty`(0x1CFB5B0) · 증원 스폰도 `ActualData.Calc` 경유로 **같은 게이트** · 독립 확증 = `DisposGetUnitX`(0x1ECE360)의 마스크 테이블 @0x4D6BF70 = {1,2,4}. ☠**종전 미배선** = 파이프라인이 flag를 싣고도 사영이 통째로 빠져 루나틱 기준 비자군 1,624유닛이 48챕터에서 유령 배치됐다(m023 28·m026 60·g006 281). 그 위에서 잰 AI 자동화율·기보가 오염된다. 배선 = `BoardUnitProp.flag` → `projectUnit` 게이트(초기 배치·spawnGroup 공용). **자군은 게이트 밖** = `CreatePlayerTeam` 별도 경로이고 실측상 자군 flag 정의행 중 루나틱 비트 결손 0건(원값 0 = 파이프라인 생략 441행이 출격 로스터 행) · ⚠미배선 = CanDispos의 나머지 두 게이트 `IsValid`·레벨범위(`LevelMin ≤ person.Level + AverageLevel - 1 ≤ LevelMax`) — 선행 = LevelMin/LevelMax 파이프라인 사영 + AverageLevel(캠페인층 MP5) · 상위 비트(Warp=8·Forced=4 등 `MapDispos.Flag`)도 미배선",
   },
   {
     id: "events.variables",

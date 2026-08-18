@@ -208,7 +208,7 @@ end
 
 function _u30e6_30cb_30c3_30c8_304c_3044_308b( x, z )
 	local unit = UnitGetByPos( x, z )
-	return unit ~= nil
+	do return unit ~= nil end
 end
 
 function _u96e2_8131_30de_30b9_70b9_706f()
@@ -233,10 +233,10 @@ end
 function _u95c7_30b7_30f3_30af_30ed___5ea7_6a19(x, z, gid, cameraAct)
 	local unit = UnitGetByPos(x, z)
 	if unit == nil then
-		return
+		do return end
 	end
 	if not ( UnitGetForce( unit ) == FORCE_ENEMY ) then
-		return
+		do return end
 	end
 
 	_u95c7_30b7_30f3_30af_30ed(unit, gid, cameraAct)
@@ -334,11 +334,11 @@ function _uc_o_n_i_d_t_i_o_n___6226_95d8_524d_4f1a_8a71___7d0b_7ae0_58eb()
 		and	( VariableGet(g_BattleTalk .. "敵ミカヤ"		.. "_済") == 1 )
 		and	( VariableGet(g_BattleTalk .. "敵ロイ"		.. "_済") == 1 )
 		and	( VariableGet(g_BattleTalk .. "敵リーフ"		.. "_済") == 1 ) then
-			return false
+			do return false end
 	end
 
 	if ( UnitGetPID(MindGetUnit()) ~= g_pid_lueur ) and ( UnitGetPID(MindGetTargetUnit()) ~= g_pid_lueur ) then
-		return false
+		do return false end
 	end
 
 	local unit = nil
@@ -350,16 +350,16 @@ function _uc_o_n_i_d_t_i_o_n___6226_95d8_524d_4f1a_8a71___7d0b_7ae0_58eb()
 
 	local gid = UnitGetGodUnit( unit )
 	if gid == nil then
-		return false
+		do return false end
 	end
 
 	local god = SubPrefix( gid )
 	god = SubPrefix( god )
 	if VariableGet(g_BattleTalk .. god .. "_済") == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -373,7 +373,7 @@ function _u6226_95d8_524d_4f1a_8a71___7d0b_7ae0_58eb()
 
 	local gid = UnitGetGodUnit( unit )
 	if gid == nil then
-		return false
+		do return false end
 	end
 
 	local god = SubPrefix( gid )
@@ -416,15 +416,15 @@ function _uc_o_n_d_i_t_i_o_n___6307_8f2a_6301_3061()
 
 	local unit = MindGetEventUnit()
 	if unit == nil then
-		return false
+		do return false end
 	end
 
 	local gid = UnitGetGodUnit( unit )
 	if gid == nil then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -451,7 +451,7 @@ function _u6307_8f2a_5f85_6a5f_30ab_30a6_30f3_30c8( gid, gid_current )
 
 	if ( gid == gid_current ) then
 		VariableSet( g_Waiting4Engage .. gid, 1 )
-		return
+		do return end
 	end
 
 	local value = VariableGet( g_Waiting4Engage .. gid )
@@ -467,11 +467,11 @@ function _uc_o_n_d_i_t_i_o_n___6307_8f2a_6301_3061_306e_6575_3092_521d_6483_7834
 		and not ( VariableGet( g_key_defeat_engage_enemy_x ) == -1 )
 		and not ( VariableGet( g_key_defeat_engage_enemy_z ) == -1 ) then
 
-			return true
+			do return true end
 
 	end
 
-	return false
+	do return false end
 end
 
 function _u6307_8f2a_6301_3061_306e_6575_3092_521d_6483_7834()
@@ -496,10 +496,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___96e2_8131_5730_70b9_304c_7a7a_3044_305f()
 
 	if VariableGet( g_key_4docs_Ivy ) == 1 then
-		return false
+		do return false end
 	end
 
-	return _u6307_5b9a_5ea7_6a19_4e0a_306b_6575_304c_3044_306a_3044(7, 1) or _u6307_5b9a_5ea7_6a19_4e0a_306b_6575_304c_3044_306a_3044(8, 1)
+	do return _u6307_5b9a_5ea7_6a19_4e0a_306b_6575_304c_3044_306a_3044(7, 1) or _u6307_5b9a_5ea7_6a19_4e0a_306b_6575_304c_3044_306a_3044(8, 1) end
 
 end
 
@@ -507,10 +507,10 @@ function _u6307_5b9a_5ea7_6a19_4e0a_306b_6575_304c_3044_306a_3044( x, z )
 
 	local unit = UnitGetByPos(x, z)
 	if ( unit == nil ) then
-		return true
+		do return true end
 	end
 
-	return UnitGetForce( unit ) ~= FORCE_ENEMY
+	do return UnitGetForce( unit ) ~= FORCE_ENEMY end
 
 end
 
@@ -525,18 +525,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___9752_8ecd_30bf_30fc_30f3_76f4_524d_30a4_30d9_30f3_30c8()
 
 	if ( VariableGet( g_key_area ) == 1 ) and ( VariableGet( g_key_4docs_Ivy ) == 0 ) then
-		return true
+		do return true end
 	end
 
 	if ( VariableGet( g_key_escapePointEmpty ) == 1 ) and ( VariableGet( g_key_4docs_Ivy ) == 0 ) then
-		return true
+		do return true end
 	end
 
 	if _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_5728_5eab_3042_308a() then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -611,7 +611,7 @@ function _u5f85_6a5f_9806_306b_7d0b_7ae0_58eb_3092_30ea_30b9_30c8_5316()
 
 	table.sort( list,
 		function( a, b )
-			return ( a.WAIT > b.WAIT )
+			do return ( a.WAIT > b.WAIT ) end
 		end
 	)
 
@@ -622,7 +622,7 @@ function _u5f85_6a5f_9806_306b_7d0b_7ae0_58eb_3092_30ea_30b9_30c8_5316()
 		end
 	end
 
-	return list
+	do return list end
 
 end
 
@@ -633,7 +633,7 @@ function _u7d0b_7ae0_58eb_3092_5f85_6a5f_30ea_30b9_30c8_306b_8ffd_52a0( list, go
 		list[ #list + 1 ] = { GOD=god, WAIT=value }
 	end
 
-	return list
+	do return list end
 
 end
 
@@ -668,7 +668,7 @@ function _u7d0b_7ae0_58eb_3092_5f85_6a5f_30ea_30b9_30c8_306b_8ffd_52a0___30b7_30
 
 	end
 
-	return list
+	do return list end
 
 end
 
@@ -681,11 +681,11 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_5728_5eab_3042_308a()
 		or	( VariableGet( g_Waiting4Engage .. g_GidPrefix .. "ロイ" )		== 1 )
 		or	( VariableGet( g_Waiting4Engage .. g_GidPrefix .. "リーフ" )	== 1 ) then
 
-		return true
+		do return true end
 
 	end
 
-	return false
+	do return false end
 end
 
 function _u521d_56de_30b7_30f3_30af_30ed_6642_30a4_30d9_30f3_30c8()
@@ -706,18 +706,18 @@ function _u6307_8f2a_4ed8_3051_66ff_3048___6756_4f7f_3044_306b_30df_30ab_30e4_30
 	local gid = g_GidPrefix .. god
 	local key = g_Waiting4Engage .. gid
 	if ( VariableGet( key ) == 0 ) then
-		return false
+		do return false end
 	end
 
 	local unit = _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6756_4f7f_3044()
 	if unit == nil then
-		return false
+		do return false end
 	end
 
 	_u521d_56de_30b7_30f3_30af_30ed_6642_30a4_30d9_30f3_30c8()
 	_u95c7_30b7_30f3_30af_30ed( unit, gid )
 
-	return true
+	do return true end
 
 end
 
@@ -726,18 +726,18 @@ function _u6307_8f2a_4ed8_3051_66ff_3048___6700_5317_306e_4eba_306b( god )
 	local gid = g_GidPrefix .. god
 	local key = g_Waiting4Engage .. gid
 	if ( VariableGet( key ) == 0 ) then
-		return false
+		do return false end
 	end
 
 	local unit = _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6700_5317_306e_4eba( god == "セリカ" )
 	if unit == nil then
-		return false
+		do return false end
 	end
 
 	_u521d_56de_30b7_30f3_30af_30ed_6642_30a4_30d9_30f3_30c8()
 	_u95c7_30b7_30f3_30af_30ed( unit, gid )
 
-	return true
+	do return true end
 
 end
 
@@ -746,7 +746,7 @@ function _u6307_8f2a_4ed8_3051_66ff_3048( god, list )
 	local gid = g_GidPrefix .. god
 	local key = g_Waiting4Engage .. gid
 	if ( VariableGet( key ) == 0 ) then
-		return true
+		do return true end
 	end
 
 	local unit = nil
@@ -758,20 +758,20 @@ function _u6307_8f2a_4ed8_3051_66ff_3048( god, list )
 	end
 
 	if unit == nil then
-		return false
+		do return false end
 	end
 
 	_u521d_56de_30b7_30f3_30af_30ed_6642_30a4_30d9_30f3_30c8()
 	_u95c7_30b7_30f3_30af_30ed( unit, gid )
 
-	return true
+	do return true end
 
 end
 
 function _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6756_4f7f_3044()
 
 	if not _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_88c5_5099_53ef_80fd_306a_6575_304c_3044_308b() then
-		return nil
+		do return nil end
 	end
 
 	local list_candidate = {}
@@ -789,12 +789,12 @@ function _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6756_4f7f_3044()
 	end
 
 	if #list_candidate == 0 then
-		return nil
+		do return nil end
 	elseif #list_candidate == 1 then
-		return list_candidate[1]
+		do return list_candidate[1] end
 	else
 
-		return list_candidate[1]
+		do return list_candidate[1] end
 
 	end
 
@@ -803,7 +803,7 @@ end
 function _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6700_5317_306e_4eba( isCelica )
 
 	if not _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_88c5_5099_53ef_80fd_306a_6575_304c_3044_308b() then
-		return nil
+		do return nil end
 	end
 
 	local z = g_map_height - 1
@@ -842,15 +842,15 @@ function _u30b7_30f3_30af_30ed_76f8_624b_3092_63a2_3059___6700_5317_306e_4eba( i
 		z = z - 1
 
 		if #list_candidate == 1 then
-			return list_candidate[1]
+			do return list_candidate[1] end
 		elseif #list_candidate > 1 then
 
-			return list_candidate[1]
+			do return list_candidate[1] end
 		end
 
 	end
 
-	return nil
+	do return nil end
 
 end
 
@@ -864,7 +864,7 @@ function _u8ddd_96e2_512a_5148_5ea6_9806_306e_30ea_30b9_30c8_4f5c_6210()
 	VariableSet( g_center_z, center_z )
 
 	local list = _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( 10, 15 )
-	return list
+	do return list end
 
 end
 
@@ -873,12 +873,12 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_88c5_5099_53ef_80fd_306a_6575_304c
 	local index = ForceUnitGetFirst(FORCE_ENEMY)
 	while index ~= nil do
 		if ( not _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_88c5_5099_4e0d_53ef_306e_6575_304b(index) ) and ( UnitGetGodUnit(index) == nil ) then
-			return true
+			do return true end
 		end
 		index = ForceUnitGetNext(index)
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -886,15 +886,15 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_88c5_5099_4e0d_53ef_306e_6575_304b
 	local pid = UnitGetPID(index)
 
 	if ( pid == "PID_M011_ヴェイル" ) then
-		return true
+		do return true end
 	end
 
 	if	( pid == "PID_M011_異形兵_アクスファイター_トマホーク" ) or
 		( pid == "PID_M011_異形竜" ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___96e2_8131_30dd_30a4_30f3_30c8_306e_6575_304b( index )
@@ -902,10 +902,10 @@ function _uc_o_n_d_i_t_i_o_n___96e2_8131_30dd_30a4_30f3_30c8_306e_6575_304b( ind
 
 	if	( pid == "PID_M011_異形兵_ランスナイト_離脱" ) or
 		( pid == "PID_M011_異形兵_アーチャー_離脱" ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
@@ -916,7 +916,7 @@ function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
 	local center_z = VariableGet( g_center_z )
 
 	if ( center_x == -1 ) or ( center_z == -1 ) then
-		return list
+		do return list end
 	end
 
 	local temp_list1 = {}
@@ -948,7 +948,7 @@ function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
 	if ( #temp_list2 > 1 ) then
 		table.sort( temp_list2,
 			function( a, b )
-				return ( a.DISTANCE < b.DISTANCE )
+				do return ( a.DISTANCE < b.DISTANCE ) end
 			end
 		)
 	end
@@ -960,7 +960,7 @@ function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
 	if ( #temp_list1 > 1 ) then
 		table.sort( temp_list1,
 			function( a, b )
-				return ( a.DISTANCE > b.DISTANCE )
+				do return ( a.DISTANCE > b.DISTANCE ) end
 			end
 		)
 	end
@@ -972,7 +972,7 @@ function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
 	if ( #temp_list3 > 1 ) then
 		table.sort( temp_list3,
 			function( a, b )
-				return ( a.DISTANCE < b.DISTANCE )
+				do return ( a.DISTANCE < b.DISTANCE ) end
 			end
 		)
 	end
@@ -981,7 +981,7 @@ function _u7bc4_56f2_5185_306e_30ad_30e3_30e9_3092_53d6_5f97( min, max )
 		list[ #list + 1 ] = value.UNIT
 	end
 
-	return list
+	do return list end
 
 end
 
@@ -990,7 +990,7 @@ function _u4e8c_4eba_306e_8ddd_96e2(x1, z1, unit2)
 	local x2 = UnitGetX( unit2 )
 	local z2 = UnitGetZ( unit2 )
 	local _distance = _u4e8c_70b9_9593_8ddd_96e2( x1, z1, x2, z2 )
-	return _distance
+	do return _distance end
 
 end
 
@@ -1159,7 +1159,7 @@ end
 function _u96e2_8131_30a4_30d9_30f3_30c8()
 	local unit = MindGetUnit()
 	if not UnitExistOnMap( unit ) then
-		return
+		do return end
 	end
 
 	UnitRotation( g_pid_lueur, ROTATE_UP)

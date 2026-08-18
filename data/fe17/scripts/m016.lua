@@ -161,10 +161,10 @@ function _uc_o_n_d_i_t_i_o_n___6f6e_306e_6e80_3061_5f15_304d()
 
 	if turn == 1 then
 		VariableSet( g_key_highTide_turn, 0 )
-		return true
+		do return true end
 	else
 		VariableSet( g_key_highTide_turn, turn + 1 )
-		return false
+		do return false end
 	end
 
 end
@@ -204,28 +204,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___86ee_65cf_767b_5834()
 
 	if VariableGet( g_key_bandit ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___86ee_65cf_767b_5834___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_bandit ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

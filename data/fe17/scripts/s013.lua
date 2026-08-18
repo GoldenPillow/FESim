@@ -198,9 +198,9 @@ end
 
 function _u7adc_30ef_30fc_30d7_5834_6240_30c1_30a7_30c3_30af(x,y)
 	if ( UnitGetByPos(x, y) == nil ) and ( UnitGetByPos(x+1, y) == nil ) and ( UnitGetByPos(x, y+1) == nil ) and ( UnitGetByPos(x+1, y+1) == nil ) then
-		return true
+		do return true end
 	end
-	return false
+	do return false end
 end
 
 function _u5e7b_5f71_7adc_30ef_30fc_30d7_ff11()

@@ -208,10 +208,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ce_30fc_30de_30eb_4ee5_4e0a_304b()
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u9752_30bf_30fc_30f3_76f4_524d___5897_63f4_ff15()
@@ -233,10 +233,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___9ed2_30ea_30e5_30fc_30eb_6483_7834_5f8c()
 
 	if VariableGet( "撃破セリフ_黒リュール_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u9ed2_30ea_30e5_30fc_30eb_6483_7834_5f8c()
@@ -289,7 +289,7 @@ function _u4e2d_5fc3_70b9_3092_7b97_51fa( table_unit )
 			center_z = math.floor(z/count + 0.5)
 	end
 
-	return center_x, center_z
+	do return center_x, center_z end
 
 end
 
@@ -313,14 +313,14 @@ function _u30e6_30cb_30c3_30c8_30c6_30fc_30d6_30eb_306e_4f5c_6210()
 
 	end
 
-	return table_unit
+	do return table_unit end
 end
 
 function _u98db_884c_30e6_30cb_30c3_30c8_304b(pid)
 	if ( UnitGetMoveCost( pid ) == "COST_飛行" ) then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 end
 
@@ -346,7 +346,7 @@ function _u96ea_5d29_767a_751f()
 		if ( #table_unit > 1 ) then
 			table.sort( table_unit,
 						function( a, b )
-							return ( a.X < b.X )
+							do return ( a.X < b.X ) end
 						end
 						)
 		end
@@ -432,7 +432,7 @@ function _u96ea_5d29_30ec_30fc_30f3_53d6_5f97()
 	local laneIndex = VariableGet( g_key_avalanche_index )
 	local lane = g_avalanche_lanelist[ laneIndex + 1 ]
 
-	return lane
+	do return lane end
 
 end
 

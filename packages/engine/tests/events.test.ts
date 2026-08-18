@@ -502,19 +502,18 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
    * 결손 사유는 세 갈래뿐이다 — (1) 아이템 iid 사영 부재 (2) 미모델 유닛 속성 (3) 원문 스크립트 문법 오류.
    */
   const HONEST_GAPS: Record<string, string[]> = {
-    // (1) 대상 아이템이 국면 어디에도 없다 — iid 사영은 끝났지만(weapons·engageWeapons 전부 iid 보유)
-    //     이 둘은 스크립트가 **미소지 아이템**을 물리거나 뺏는다. 원기가 어떻게 조달하는지 미판독.
-    //     e005·e006 = リュール의 IID_銀の剣·IID_リベラシオン(dispos 소지품에 없음 — 진행 인벤토리는 시뮬 모델 밖).
-    //     m014 = IID_ベレト_ルーン(dispos = IID_コラプス_M014 · GID_M014_敵ベレト 絆1 = IID_ベレト_ルーン_M010).
-    e005: ["UnitPutOffItem"],
-    e006: ["UnitPutOffItem"],
-    m014: ["UnitSetItemEquip"],
+    // ★2026-08-18 전건 해소 — 남은 결손 0. 아래는 무엇이 왜 닫혔는지의 기록이다(되돌아오면 여기 다시 적는다).
+    // (1) 미소지 아이템 회수·장비(e005·e006·m014) = 결손이 아니라 **우리 구현이 틀린 것**이었다.
+    //     `ScriptUnit.UnitPutOffItem`(0x219B290)은 슬롯 0..7을 훑다 못 찾으면 그대로 ret하고,
+    //     `Unit.ItemEquip`(0x1A21530)은 0을 반환할 뿐 예외가 없다 — 원기가 조용히 무시한다.
     // (2) [해소 2026-08-18] m022 UnitGetMPID — person.xml Name 사영을 호스트 mpid 훅으로 배선.
-    // (3) ☠원문 Lua 문법 오류(추출 산물 아님 — 게임의 실행 형태 미확인). g001.txt:157이 `if A then
-    //     return a` 뒤에 end 없이 다음 if를 연다(elseif 오타 — 메인 실검 확정). fengari는 로드를 거부한다.
-    //     ☠손대지 않는다: data/는 파이프라인 산출물이라 손수정이 곧 표류다.
-    g001: ["Lua 문법"],
-    g004: ["Lua 문법"],
+    // (3) 원문 Lua 문법(g001·g004) = MoonSharp 확장 3번째였다. `return`이 블록의 마지막 문장이 아니어도
+    //     되고 그 자리에서 블록이 닫힌다(원문이 실제로 end 하나 부족 — g001 토큰 실측 열림 60 · end 59).
+    //     파이프라인이 `do return x end` + 블록 닫기로 정규화한다(transform.py `_normalize_returns`).
+    // ★남은 결손 1건 = e005. 위 셋을 뚫고 더 들어가자 **다른 사유**가 드러났다(종전 사유는 UnitPutOffItem).
+    //     `MapOverlapSet`은 의도적 미등록이다 — 런타임 오버레이 생성이 미모델이라 no-op이 오재현이다
+    //     (瘴気는 피해가 본질 — 장부 turn.map-gimmicks). 선행 = 오버레이 생성 모델.
+    e005: ["MapOverlapSet"],
   };
 
   // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
@@ -919,8 +918,16 @@ describe("이벤트 장비 전환·소지품 회수", () => {
       .toContainEqual({ type: "equip", unit: "p", index: 2 });
   });
 
-  it("☠목록에 없는 iid는 조용히 넘기지 않고 거부한다(장비가 틀린 채 진행 금지)", () => {
-    expect(() => run(`UnitSetItemEquip("PID_p", "IID_ロイ_封印の剣")`, armed())).toThrow(/IID_ロイ_封印の剣/);
+  it("목록에 없는 iid는 조용히 무시한다 — 원기가 그렇게 한다(거부는 우리 오해였다)", () => {
+    // 왜 위험한가: 종전엔 거부라 e005·e006·m014가 **개시조차 못 했다**(2026-08-18 MP7 B4에서 발현).
+    // 정본 = `Unit.ItemEquip`(0x1A21530)이 소지 목록에서 못 찾으면 0을 반환하고,
+    // `ScriptUnit.UnitSetItemEquip`(0x219B100)은 그 값을 담기만 한다 — 예외 경로가 없다.
+    // `UnitPutOffItem`(0x219B290)도 슬롯 0..7을 훑다 못 찾으면 그대로 ret한다.
+    const r = run(`UnitSetItemEquip("PID_p", "IID_ロイ_封印の剣")`, armed());
+    expect(r.events.filter((e) => e.type === "equip")).toEqual([]);
+    expect(r.state.units[0].weapon?.iid).toBe("IID_鉄の剣");
+    const off = run(`UnitPutOffItem("PID_p", "IID_ロイ_封印の剣")`, armed());
+    expect(off.events.filter((e) => e.type === "putOff")).toEqual([]);
   });
 
   it("UnitPutOffItem = 소지품에서 제거(장비 중이면 해제까지) — e006의 회수→ItemGain 교체 패턴", () => {

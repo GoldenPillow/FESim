@@ -272,18 +272,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___30aa_30eb_30c6_30f3_30b7_30a2_884c_52d5_5909_5316()
 
 	if not UnitExistOnMap( g_pid_holtensia ) then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_flag_HoltensiaSwitchAct ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_flag_battle_holtencia ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -315,14 +315,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30ea_30f3_30a8_30f3_30b2_6280_30a4_30d9_30f3_30c8()
 	if VariableGet( g_flag_battleTalk_hyacinse ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_flag_EngageAttack ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u30ea_30f3_30a8_30f3_30b2_6280_30a4_30d9_30f3_30c8()
@@ -334,7 +334,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4()
 	if VariableGet( g_flag_Reinforcement ) == 1 then
-		return false
+		do return false end
 	end
 
 	if 		( VariableGet( g_flag_MorionDie ) == 1 )
@@ -344,10 +344,10 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4()
 		or	( VariableGet( g_flag_battleTalk_morion_staluke ) == 1 )
 		or	( VariableGet( g_flag_battleTalk_morion ) == 1 ) then
 
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4()
@@ -365,21 +365,21 @@ end
 function _uc_o_n_d_i_t_i_o_n___30cf_30a4_30a2_30b7_30f3_30b9_5468_8fba_30a2_30af_30c6_30a3_30d6()
 
 	if VariableGet( g_flag_HyacinthActive ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_flag_Reinforcement ) == 0 then
-		return false
+		do return false end
 	end
 
 	local counter = VariableGet( g_flag_HyacinthActiveCounter )
 	counter = counter - 1
 	VariableSet( g_flag_HyacinthActiveCounter, counter )
 	if counter == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -394,20 +394,20 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6b8b_50cf_30a4_30d9_30f3_30c8()
 	if VariableGet( g_flag_Afterimage ) == 1 then
-		return false
+		do return false end
 	end
 
 	local index = ForceUnitGetFirst( FORCE_ENEMY )
 	while index ~= nil do
 
 		if UnitGetPID( index ) == "PID_残像" then
-			return true
+			do return true end
 		end
 
 		index = ForceUnitGetNext(index)
 	end
 
-	return false
+	do return false end
 
 end
 

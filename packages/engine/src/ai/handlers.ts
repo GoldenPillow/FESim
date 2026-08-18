@@ -33,7 +33,7 @@ import {
 } from "./attack.js";
 import { movePowerOf, parsePos } from "./cause.js";
 import { NONE, type ActionResult } from "./interpreter.js";
-import { enumerateRing, healRodPositionScore, terrainScoreAt } from "./position.js";
+import { enumerateRing, healRodPositionScore, sidePosition, terrainScoreAt } from "./position.js";
 import { ACT, AI_FLAG, AI_THINK, AI_VALUE, ATTACK_FLAG } from "./types.js";
 import { aiHealCondition, moveLimitAllows, parseMoveLimit } from "./unit.js";
 
@@ -887,13 +887,69 @@ export function mindTorch(): ActionResult {
 }
 
 /**
- * `AIThink$$GuardTo`(0x194CF60) — ☠"제자리 방어"가 아니라 **체인가드로 아군을 감싸는 행동**이다.
- * 전제 게이트(만HP·HP 2 이상·체인가드 스킬)를 못 넘으면 None → 루틴의 다음 후보로 넘어간다.
- * ☠게이트를 넘는 유닛의 가드 **위치** 규칙(`GetSidePosition` 0x195FC80)은 미판독이라 결손으로 올린다.
+ * `AIThink$$GuardTo`(0x194CF60) + 람다 `<GuardTo>b__0`(0x294E410) — ☠"제자리 방어"가 아니라
+ * **체인가드로 아군을 감싸는 행동**이다. 전제 게이트(만HP·HP 2 이상·체인가드 스킬)를 못 넘으면 None.
+ *
+ * ★위치 규칙 판독 완료(2026-08-18) — 종전엔 결손이었고 그 하나가 전 54챕터 결손의 **78%**였다.
+ * 본문 = `MapFor.EachSelfForceUnit(b__0)`으로 **같은 진영 유닛을 전수** 훑으며, 후보마다
+ * `GetSidePosition(actor, ally.X, ally.Z)`으로 그 아군의 인접 1칸을 고르고 **같은 식**으로 점수를 낸다:
+ * `((100 - 이동코스트) << 4) + GetTerrainScore` · 동점은 `AI.IsRandom()` 코인플립.
+ * 결과는 `MapMind.X/Z`(= 이동 목적지)로 확정된다.
+ *
+ * 후보 아군 게이트(코드 확정분) = 생존(`m_Hp > 0`, 단 HP 스톡 보유면 통과) · 맵 영역 안 ·
+ * 대상 칸 지형이 `TerrainData.IsNotTarget`이 아님. ⚠미해석 = `unit[0xF0][0x38] & 0x4D0` 상태 마스크
+ * (비트 4·6·7·10 — 우리 국면에 대응 필드가 없어 통과로 둔다, 장부 `ai.guard-target-status`).
  */
 export function guardTo(ctx: HandlerContext): ActionResult {
-  if (!canChainGuard(ctx.unit)) return NONE; // 코드 확정: 게이트 실패 = None(0)
-  return { kind: "deficit", reason: "가드 위치 규칙 미판독: GetSidePosition(0x195FC80)" };
+  const actor = ctx.unit;
+  if (!canChainGuard(actor)) return NONE; // 코드 확정: 게이트 실패 = None(0)
+  const state = ctx.state;
+  const image = moveImageOf(state, actor);
+  if (image.size === 0) return NONE;
+  const occupied = new Set(
+    state.units.filter((u) => !u.dead && u.id !== actor.id).map((u) => key(state, u.x, u.y)),
+  );
+  const terrainScore = (x: number, y: number): number =>
+    terrainScoreAt(state.map, actor, x, y, state.terrainPatches);
+  const isRandom = (): boolean => aiIsRandom(ctx.rng);
+
+  let best = 0;
+  let pick: { x: number; y: number } | undefined;
+  // 열거 순서 = `MapFor.EachSelfForceUnit` = 배치 순(units 배열 순). 동점 코인플립이 순서에 의존한다.
+  for (const ally of state.units) {
+    if (ally.force !== actor.force || ally.id === actor.id) continue;
+    // 생존 게이트 — HP 0이어도 HP 스톡이 남았으면 후보다(0x294E5AC: hpStock + extraHpStock != 0이면 HP 검사 생략).
+    if (ally.dead && (ally.hpStock ?? 0) === 0) continue;
+    if (!ally.dead && ally.hp <= 0 && (ally.hpStock ?? 0) === 0) continue;
+    const spot = sidePosition(ally.x, ally.y, {
+      width: state.map.width,
+      height: state.map.height,
+      image,
+      occupied,
+      terrainScore,
+      isRandom,
+    });
+    if (spot === undefined) continue;
+    const cost = image.get(key(state, spot.x, spot.y));
+    if (cost === undefined) continue;
+    const score = ((100 - cost) << 4) + terrainScore(spot.x, spot.y);
+    if (pick !== undefined) {
+      if (score < best) continue;
+      if (score === best && isRandom()) continue;
+    }
+    best = score;
+    pick = spot;
+  }
+  if (pick === undefined) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      ...(pick.x === actor.x && pick.y === actor.y
+        ? []
+        : [{ type: "move", unit: actor.id, x: pick.x, y: pick.y } as const]),
+      { type: "guard", unit: actor.id },
+    ],
+  };
 }
 
 /**

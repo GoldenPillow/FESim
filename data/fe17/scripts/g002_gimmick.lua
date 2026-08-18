@@ -221,7 +221,7 @@ function _u5674_51fa_53e3_3092_53d6_5f97_3059_308b()
 	g_SearchX = nearestX
 	g_SearchZ = nearestZ
 
-	return nearestPointer
+	do return nearestPointer end
 end
 
 function _u6bd2_30ac_30b9_306e_5674_51fa_30a8_30d5_30a7_30af_30c8_3092_518d_751f_3059_308b( x, z, length, deg )
@@ -246,22 +246,22 @@ end
 function _u6bd2_30ac_30b9_306e_5674_51fa_65b9_5411_3092_53d6_5f97_3059_308b( dir )
 
 	if dir == "右" then
-		return 0
+		do return 0 end
 	end
 
 	if dir == "下" then
-		return 90
+		do return 90 end
 	end
 
 	if dir == "左" then
-		return 180
+		do return 180 end
 	end
 
 	if dir == "上" then
-		return 270
+		do return 270 end
 	end
 
-	return 0
+	do return 0 end
 end
 
 function _u6307_5b9a_306e_5674_51fa_53e3_304b_3089_5674_304d_51fa_308b_6bd2_30ac_30b9_306e_7bc4_56f2_5185_306b_30e6_30cb_30c3_30c8_304c_3044_308b_304b_8abf_67fb_3059_308b( pointer, isList )
@@ -312,7 +312,7 @@ function _u6307_5b9a_306e_5674_51fa_53e3_304b_3089_5674_304d_51fa_308b_6bd2_30ac
 		end
 	end
 
-	return isFind
+	do return isFind end
 end
 
 function _u6bd2_30ac_30b9_306b_3088_308b_72b6_614b_7570_5e38_3092_4ed8_4e0e_3059_308b( unit )

@@ -9,6 +9,7 @@ import {
   type BattleAction,
   type GameState,
   type MoveType,
+  type RandomSource,
   type Reduce,
   type Timeline,
   type UnitState,
@@ -40,7 +41,20 @@ export interface EventWiring {
 
 /** 공유 열람(/s/)의 서버 렌더가 같은 재생기를 쓴다 — 스냅숏 계산이 서버·클라에서 갈라지면 안 된다. */
 export const replayer = createReplayer(reduce);
-const liveRng = { next: (bound: number) => Math.floor(Math.random() * bound) };
+const liveRng: RandomSource = { next: (bound: number) => Math.floor(Math.random() * bound) };
+
+/** dispos Flag 하위 3비트 = 난이도 마스크(IsDifficulty 0x1CFB5B0의 테이블 @0x4D6BF70 = {1,2,4}). */
+const DIFFICULTY_BIT: Record<Difficulty, number> = { n: 1, h: 2, l: 4 };
+
+/**
+ * 개시 국면에 놓이는 dispos 그룹 — ★`MapDispos.CreateFirst`(0x29C41B0)가 부르는 것 전부다:
+ * `CreatePlayerTeam("Player")` · `CreateDisposTeam`("Enemy" → "Ally" → "Other") · `TryCreateTerrain("Terrain")`
+ * (Terrain은 유닛이 아니라 맵 오브젝트라 이 표 밖이다). 그 외 **모든 그룹은 Lua `Dispos` 트리거로만** 나온다
+ * — 증원이 개시부터 서 있으면 안 되고, 등장 턴은 스크립트가 소유한다.
+ * ☠종전엔 "스크립트가 Dispos하는 그룹만 제외"라는 정규식 근사를 썼는데, 래퍼 호출·이름 문자열 연결을
+ * 못 잡아 g006이 1턴부터 656유닛을 놓았다(진영 상한 64의 10배).
+ */
+const INITIAL_GROUPS = new Set(["Player", "Enemy", "Ally", "Other"]);
 
 export interface UnitVisual {
   icon?: string;
@@ -102,6 +116,9 @@ export function projectUnit(
   // 순번 키가 이긴다: 편집기 의도가 인계를 덮는 쪽이 사용자 조작과 맞다.
   const su = setup?.units?.[id] ?? (u?.force === 0 ? setup?.units?.[u.pid] : undefined);
   if (u === undefined || su?.removed === true) return undefined;
+  // 난이도 마스크 — 그 난이도에 존재하지 않는 dispos 행은 배치도 소환도 되지 않는다
+  // (CanDispos → IsDifficulty. 초기 배치·증원이 같은 게이트). 원값 0은 파이프라인이 생략하며 자군 로스터 행이다.
+  if (u.flag !== undefined && (u.flag & DIFFICULTY_BIT[difficulty]) === 0) return undefined;
   const stats = su?.stats ?? u.stats?.[difficulty];
   if (stats === undefined) return undefined;
   return {
@@ -157,13 +174,11 @@ export function initGame(
   void scenario; // 국면 프리셋 폐지(MP2) — .eph 스키마 호환용으로만 남는다
   const visuals = new Map<string, UnitVisual>();
   const units: UnitState[] = [];
-  // 초기 배치 = 스크립트가 Dispos하지 않는 그룹만(이벤트가 소환) · 스크립트 없으면 전 그룹.
-  const disposed = new Set(props.script?.disposGroups ?? []);
   props.units.forEach((u, i) => {
     const id = `u${i}`;
     // visuals는 전 유닛 등록 — 이벤트 스폰 유닛도 같은 id(u{i})로 조회된다.
     visuals.set(id, { icon: u.icon, abbr: u.abbr, name: u.name, job: u.job, ring: u.ring, chip: u.chip });
-    if (disposed.has(u.group)) return;
+    if (!INITIAL_GROUPS.has(u.group)) return;
     const unit = projectUnit(props, i, difficulty, setup);
     if (unit !== undefined) units.push(unit);
   });
@@ -292,6 +307,12 @@ export function createBoardStore(
   replayInit?: ReplayInit,
   setup?: EphemerisSetup,
   events?: EventWiring,
+  /**
+   * 실굴림 난수원 — 생략 = `Math.random`(브라우저 플레이). ☠기보 **생성**은 이것을 주입해야 재현된다:
+   * 재생은 기록된 rolls를 그대로 먹어 결정론이지만, 생성은 매 실행 다른 판이 나와 회귀 판정이 못 선다
+   * (`./dev replay --seed`). 엔진 계약(난수는 항상 주입)의 웹측 주입구다.
+   */
+  rng: RandomSource = liveRng,
 ): BoardStore {
   const evented = events !== undefined && props.script !== undefined;
 
@@ -312,10 +333,10 @@ export function createBoardStore(
     const raw = initGame(props, difficulty, scenario, bootSetup);
     if (!evented) return { ...raw, log: [] };
     const live = events!.create(difficulty);
-    const rng = recordingSource(liveRng);
-    const game = live(raw.game, { type: "setup" }, rng);
+    const rec = recordingSource(rng);
+    const game = live(raw.game, { type: "setup" }, rec);
     const step: EphemerisStep = { action: { type: "setup" } };
-    const rolls = rng.drain();
+    const rolls = rec.drain();
     if (rolls.length > 0) step.rolls = rolls;
     if (game.events.length > 0) step.events = [...game.events];
     return { game, visuals: raw.visuals, live, log: [step] };
@@ -420,10 +441,10 @@ export function createBoardStore(
       dispatch(action) {
         const { game, mode, recording } = get();
         if (mode === "replay") return game;
-        const rng = recordingSource(liveRng);
+        const rec = recordingSource(rng);
         let next: GameState;
         try {
-          next = (live ?? reduce)(game, action, rng);
+          next = (live ?? reduce)(game, action, rec);
         } catch (e) {
           // 불법 행동 = 무시 (엔진이 심판). ☠단 **조용히** 삼키면 안 된다 —
           // m001에서 미등록 네이티브 하나가 endPhase를 영구 거부했는데 화면·콘솔이 전부 침묵해
@@ -431,7 +452,7 @@ export function createBoardStore(
           console.warn("[FESim] 거부된 행동", action, e);
           return game;
         }
-        const rolls = rng.drain();
+        const rolls = rec.drain();
         const step: EphemerisStep = { action };
         if (rolls.length > 0) step.rolls = rolls;
         if (next.events.length > 0) step.events = [...next.events];

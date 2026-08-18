@@ -206,18 +206,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___8e0a_308a()
 
 	if ( UnitGetPID( MindGetUnit()) == "PID_セアダス" ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_tutorial_dance ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_talk_seadas ) == 1 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -236,14 +236,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___30ab_30e0_30a4()
 
 	if ( VariableGet( g_key_tutorial_kamui ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_talk_seadas ) == 1 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -285,10 +285,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___96e2_8131_30a4_30d9_30f3_30c8_ff11()
 	if VariableGet( g_key_talk_seadas ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u96e2_8131_30a4_30d9_30f3_30c8_ff11()
@@ -297,10 +297,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___96e2_8131_30a4_30d9_30f3_30c8_ff12()
 	if VariableGet( g_key_talk_seadas ) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -312,18 +312,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_4fb5_5165_0()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "増援_エリア侵入0_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリアイベント0_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -357,15 +357,15 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_4fb5_5165_1()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "増援_エリア侵入1_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリアイベント0_済" ) == 0 then
-		return false
+		do return false end
 	end
 
 	local counter = VariableGet( g_key_reinforcement2_count )
@@ -373,10 +373,10 @@ function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_4fb5_5165_1()
 	VariableSet( g_key_reinforcement2_count, counter )
 
 	if counter == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -399,18 +399,18 @@ function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_5897_63f4___L_u_n_a_t_i_c()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return false
+			do return false end
 	end
 
 	if VariableGet( "増援_戦闘後増援_Lunatic_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "戦闘後イベント_Lunatic_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

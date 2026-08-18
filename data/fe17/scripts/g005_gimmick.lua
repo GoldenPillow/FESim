@@ -89,10 +89,10 @@ g_obstaclePointAtOnce = {
 function _uc_o_n_d_i_t_i_o_n___7adc_8108___30cf_30fc_30c9_4ee5_4e0b()
 
 	if DifficultyGet() >= DIFFICULTY_LUNATIC then
-		return false
+		do return false end
 	end
 
-	return not AiGetActive( g_pid_boss )
+	do return not AiGetActive( g_pid_boss ) end
 
 end
 
@@ -101,20 +101,20 @@ function _u7adc_8108___30cf_30fc_30c9_4ee5_4e0b()
 	if ( VariableGet( g_key_enter_center_area ) == 1 ) and ( RandomGet( 100 ) < g_obstacleBreakTwice ) then
 
 		if _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( g_obstaclePointTwice ) then
-			return
+			do return end
 		end
 
 	end
 
 	local pointList = _u30e6_30cb_30c3_30c8_304c_96c6_307e_3063_3066_3044_308b_30dd_30a4_30f3_30c8_3092_7b97_51fa()
 	if pointList == nil then
-		return
+		do return end
 	end
 
 	for i = 1, #pointList do
 
 		if _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( g_obstaclePoint, pointList[i], false ) then
-			return
+			do return end
 		end
 
 	end
@@ -122,7 +122,7 @@ function _u7adc_8108___30cf_30fc_30c9_4ee5_4e0b()
 	if ( VariableGet( g_key_enter_center_area ) == 1 ) then
 
 		if _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( g_obstaclePointTwice ) then
-			return
+			do return end
 		end
 
 	end
@@ -130,7 +130,7 @@ function _u7adc_8108___30cf_30fc_30c9_4ee5_4e0b()
 	for i = 1, #pointList do
 
 		if _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( g_obstaclePointSub, pointList[i], false ) then
-			return
+			do return end
 		end
 
 	end
@@ -139,7 +139,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___7adc_8108___30eb_30ca_30c6_30a3_30c3_30af()
 
-	return _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() and ( not AiGetActive( g_pid_boss ) )
+	do return _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() and ( not AiGetActive( g_pid_boss ) ) end
 
 end
 
@@ -148,14 +148,14 @@ function _u7adc_8108___30eb_30ca_30c6_30a3_30c3_30af()
 	if ( VariableGet( g_key_enter_center_area ) == 1 ) and ( RandomGet( 100 ) < g_obstacleBreakTwice ) then
 
 		if _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( g_obstaclePointTwice ) then
-			return
+			do return end
 		end
 
 	end
 
 	local pointList = _u30e6_30cb_30c3_30c8_304c_96c6_307e_3063_3066_3044_308b_30dd_30a4_30f3_30c8_3092_7b97_51fa()
 	if pointList == nil then
-		return
+		do return end
 	end
 
 	local atOnce = ( RandomGet( 100 ) < g_obstacleBreakAtOnce )
@@ -163,7 +163,7 @@ function _u7adc_8108___30eb_30ca_30c6_30a3_30c3_30af()
 	for i = 1, #pointList do
 
 		if _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( g_obstaclePoint, pointList[i], atOnce ) then
-			return
+			do return end
 		end
 
 	end
@@ -171,7 +171,7 @@ function _u7adc_8108___30eb_30ca_30c6_30a3_30c3_30af()
 	if ( VariableGet( g_key_enter_center_area ) == 1 ) then
 
 		if _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( g_obstaclePointTwice ) then
-			return
+			do return end
 		end
 
 	end
@@ -179,7 +179,7 @@ function _u7adc_8108___30eb_30ca_30c6_30a3_30c3_30af()
 	for i = 1, #pointList do
 
 		if _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( g_obstaclePointSub, pointList[i], false ) then
-			return
+			do return end
 		end
 
 	end
@@ -191,7 +191,7 @@ function _u30e6_30cb_30c3_30c8_304c_96c6_307e_3063_3066_3044_308b_30dd_30a4_30f3
 	local hazard_map = _u30cf_30b6_30fc_30c9_30de_30c3_30d7_4f5c_6210( 1 )
 
 	if hazard_map == nil then
-		return nil
+		do return nil end
 	end
 
 	local result = {}
@@ -225,7 +225,7 @@ function _u30e6_30cb_30c3_30c8_304c_96c6_307e_3063_3066_3044_308b_30dd_30a4_30f3
 
 				table.sort( removeList,
 							function( a, b )
-								return ( a > b )
+								do return ( a > b ) end
 							end
 							)
 
@@ -238,7 +238,7 @@ function _u30e6_30cb_30c3_30c8_304c_96c6_307e_3063_3066_3044_308b_30dd_30a4_30f3
 
 	end
 
-	return result
+	do return result end
 
 end
 
@@ -264,7 +264,7 @@ function _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( l
 	if ( #temp_list_near > 0 ) then
 		table.sort( temp_list_near,
 					function( a, b )
-						return ( a.DIST < b.DIST )
+						do return ( a.DIST < b.DIST ) end
 					end
 					)
 
@@ -273,11 +273,11 @@ function _u7adc_8108___4e00_756a_8fd1_304f_306e_969c_5bb3_7269_3092_7834_58ca( l
 		atOnce = _u4e00_5ea6_3067_7834_58ca_3059_308b_304b( p, atOnce )
 
 		_u7adc_8108_767a_52d5( p.X, p.Z, p.EX, p.EZ, atOnce )
-		return true
+		do return true end
 
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -289,14 +289,14 @@ function _u4e00_5ea6_3067_7834_58ca_3059_308b_304b( point, atOnce )
 
 			local _p = g_obstaclePointAtOnce[i]
 			if ( _p[1] == point.X ) and ( _p[2] == point.Z ) then
-				return true
+				do return true end
 			end
 
 		end
 
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -304,7 +304,7 @@ function _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( list )
 
 	table.sort( list,
 				function( a, b )
-					return ( a[4] < b[4] )
+					do return ( a[4] < b[4] ) end
 				end
 				)
 
@@ -317,19 +317,19 @@ function _u7adc_8108___4e0b_65b9_306e_74e6_792b_3092_7834_58ca( list )
 		if TerrainGet( x, z ) == "TID_瓦礫" then
 
 			_u7adc_8108_767a_52d5( x, z, ex, ez, false )
-			return true
+			do return true end
 
 		end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _u7adc_8108_767a_52d5( x, z, ex, ez, atOnce )
 
 	if not ( ( TerrainGet( x, z ) == "TID_建造物" ) or ( TerrainGet( x, z ) == "TID_瓦礫" ) ) then
-		return
+		do return end
 	end
 
 	CursorSetPos_FromPid( g_pid_boss )
@@ -416,7 +416,7 @@ function _u969c_5bb3_7269_7834_58ca( x, z, map, terrain )
 
 	end
 
-	return map
+	do return map end
 
 end
 
@@ -489,15 +489,15 @@ function _u30cf_30b6_30fc_30c9_30de_30c3_30d7_4f5c_6210( range )
 	end
 
 	if #map == 0 then
-		return nil
+		do return nil end
 	end
 
 	table.sort( map,
 				function( a, b )
-					return ( a.VAL > b.VAL )
+					do return ( a.VAL > b.VAL ) end
 				end
 				)
 
-	return map
+	do return map end
 
 end

@@ -116,38 +116,38 @@ end
 function _uc_o_n_d_i_t_i_o_n___975e_30a2_30af_30c6_30a3_30d6_30d8_30af_30c8_30eb_304c_653b_6483_3055_308c_305f()
 
 	if VariableGet( g_key_hectorAttacked ) == 1 then
-		return false
+		do return false end
 	end
 
 	if AiGetActive( g_pid_boss ) then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___5f37_529b_306a_5897_63f4()
 
 	if VariableGet( g_key_StrongEnemy ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_hectorAttacked ) == 0 then
-		return false
+		do return false end
 	end
 
 	local unit = ForceUnitGetFirst( FORCE_PLAYER )
 	while unit ~= nil do
 
 		if UnitGetX( unit ) <= 9 then
-			return false
+			do return false end
 		end
 
 		unit = ForceUnitGetNext( unit )
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -293,7 +293,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ea_30f3_3068_6226_95d8()
 
 	if VariableGet( "戦闘前会話_ヘクトル_リン_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -304,9 +304,9 @@ function _uc_o_n_d_i_t_i_o_n___30ea_30f3_3068_6226_95d8()
 	end
 
 	if ( god == "GID_リン" ) then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 
 end

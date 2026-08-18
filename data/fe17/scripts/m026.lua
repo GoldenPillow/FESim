@@ -449,7 +449,7 @@ function _u7d0b_7ae0_58eb_3092_5916_3059()
 		unit = ForceUnitGetNext( unit )
 	end
 
-	return list
+	do return list end
 end
 
 function _u7d0b_7ae0_58eb_3092_4ed8_3051_306a_304a_3059( list )
@@ -463,7 +463,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___5f37_5236_6575_30d5_30a7_30a4_30ba_7d42_4e86()
 
 	if VariableGet( g_key_sombre1_defeat ) == 1 then
-		return true
+		do return true end
 	end
 
 end
@@ -475,14 +475,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___524d_534a_6226_7d42_4e86()
 	if VariableGet( g_key_end_battle1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_sombre1_defeat ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u524d_534a_6226_7d42_4e86()
@@ -733,14 +733,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_958b_59cb()
 	if VariableGet( g_key_start_battle2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_end_battle1 ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5f8c_534a_6226_958b_59cb()
@@ -757,14 +757,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_30ab_30a6_30f3_30bf_30fc()
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_battle2_counter ) > 10 ) then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u5f8c_534a_6226_30ab_30a6_30f3_30bf_30fc()
@@ -788,18 +788,18 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___30ce_30fc_30de_30eb()
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if ( DifficultyGet() > DIFFICULTY_NORMAL ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_battle2_counter ) < g_reinforcement_start_normal ) then
-		return false
+		do return false end
 	end
 
-	return _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___6575_6570_30c1_30a7_30c3_30af()
+	do return _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___6575_6570_30c1_30a7_30c3_30af() end
 end
 
 function _u5f8c_534a_6226_5897_63f4___30ce_30fc_30de_30eb()
@@ -823,18 +823,18 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___30cf_30fc_30c9_4ee5_4e0a()
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if ( DifficultyGet() < DIFFICULTY_HARD ) then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_battle2_counter ) < g_reinforcement_start_hard then
-		return false
+		do return false end
 	end
 
-	return _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___6575_6570_30c1_30a7_30c3_30af()
+	do return _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___6575_6570_30c1_30a7_30c3_30af() end
 end
 
 function _u5f8c_534a_6226_5897_63f4___30cf_30fc_30c9_4ee5_4e0a()
@@ -868,9 +868,9 @@ function _uc_o_n_d_i_t_i_o_n___5f8c_534a_6226_5897_63f4___6575_6570_30c1_30a7_30
 	end
 
 	if ( count <= max ) then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 
 end
@@ -932,7 +932,7 @@ function _u7a7a_304d_30b9_30da_30fc_30b9_306b_5897_63f4()
 	local table = _u751f_304d_3066_3044_308b_95c7_7d0b_7ae0_58eb_306e_30ea_30b9_30c8_53d6_5f97()
 
 	if ( #table <= 0 ) or ( 4 <= #table ) then
-		return
+		do return end
 	end
 
     local pos_smty = _u5bfe_79f0_306e_30dd_30a4_30f3_30c8_3092_53d6_5f97( table[1] )
@@ -1022,7 +1022,7 @@ function _u751f_304d_3066_3044_308b_95c7_7d0b_7ae0_58eb_306e_30ea_30b9_30c8_53d6
 		index = ForceUnitGetNext(index)
 	end
 
-	return table
+	do return table end
 
 end
 
@@ -1038,12 +1038,12 @@ function _u5bfe_79f0_306e_30dd_30a4_30f3_30c8_3092_53d6_5f97( pos )
 			pos_smty = bit32.band( pos_smty, 3 )
 		end
 
-		return pos_smty
+		do return pos_smty end
 
 	else
 
 		pos_smty = bit32.band( pos_smty, 15 )
-		return pos_smty
+		do return pos_smty end
 
 	end
 
@@ -1114,10 +1114,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___30d0_30ea_30a2_7834_58ca()
 
 	if VariableGet( g_key_break_barrier ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -1245,7 +1245,7 @@ function _u672a_884c_52d5_30e6_30cb_30c3_30c8_6570()
 		index = ForceUnitGetNext(index)
 	end
 
-	return noAct
+	do return noAct end
 
 end
 
@@ -1253,18 +1253,18 @@ function _uc_o_n_d_i_t_i_o_n___30d0_30ea_30a2_5fa9_6d3b()
 
 	local counter = VariableGet( g_key_re_barrier )
 	if counter == 0 then
-		return false
+		do return false end
 	end
 
 	local stage = VariableGet( g_key_re_barrier_counter )
 	if not ( ( stage == 1 ) or ( stage == 2 ) ) then
-		return false
+		do return false end
 	end
 
 	counter = counter - 1
 	VariableSet( g_key_re_barrier, counter )
 
-	return ( counter == 0 )
+	do return ( counter == 0 ) end
 
 end
 
@@ -1315,7 +1315,7 @@ function _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58
 	else
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
-	return god
+	do return god end
 
 end
 
@@ -1327,180 +1327,180 @@ end
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30e1_30c7_30a3_30a6_30b9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30e1_30c7_30a3_30a6_30b9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_マルス" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30ed_30d7_30c8_30a6_30b9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30ed_30d7_30c8_30a6_30b9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_シグルド" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30c9_30fc_30de()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30c9_30fc_30de ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_セリカ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30a2_30b9_30bf_30eb_30c6()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30a2_30b9_30bf_30eb_30c6 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_ミカヤ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30a4_30c9_30a5_30f3()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30a4_30c9_30a5_30f3 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_ロイ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30d9_30eb_30c9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30d9_30eb_30c9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_リーフ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30ae_30e0_30ec_30fc()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30ae_30e0_30ec_30fc ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_ルキナ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30cd_30eb_30ac_30eb()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30cd_30eb_30ac_30eb ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_リン" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30a2_30b7_30e5_30ca_30fc_30c9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30a2_30b7_30e5_30ca_30fc_30c9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_アイク" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30cd_30e1_30b7_30b9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30cd_30e1_30b7_30b9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_ベレト" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30cf_30a4_30c9_30e9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30cf_30a4_30c9_30e9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_カムイ" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71_30d5_30a9_30c7_30b9()
 
 	if VariableGet( _ug___k_e_y___6226_95d8_524d_30d5_30a9_30c7_30b9 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = _u95c7_7d0b_7ae0_58eb_6226_95d8_524d_4f1a_8a71___5473_65b9_7d0b_7ae0_58eb_53d6_5f97()
 	if god == "GID_エイリーク" then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -1512,10 +1512,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___90aa_7adc_30bd_30f3_30d6_30eb_306e_653b_6483()
 
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -1535,7 +1535,7 @@ function _u90aa_7adc_30bd_30f3_30d6_30eb_306e_653b_6483()
 		_u56de_8ee2_30a2_30bf_30c3_30af()
 
 	else
-		return
+		do return end
 
 	end
 
@@ -1547,10 +1547,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___90aa_7adc_30bd_30f3_30d6_30eb_306e_653b_6483_4e88_544a()
 
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -1602,7 +1602,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30a8_30f3_30b2_30fc_30b8_30d6_30ec_30a4_30af_53ef_80fd()
 	if VariableGet( g_key_EngageBreak ) > 0 then
-		return false
+		do return false end
 	end
 
 	local count_all = 0
@@ -1620,10 +1620,10 @@ function _uc_o_n_d_i_t_i_o_n___30a8_30f3_30b2_30fc_30b8_30d6_30ec_30a4_30af_53ef
 	end
 
 	if ( count_all <= g_EngageBreak_unitBorder * 2 ) then
-		return ( count_engage >= 1 )
+		do return ( count_engage >= 1 ) end
 
 	else
-		return ( count_engage >= g_EngageBreak_unitBorder )
+		do return ( count_engage >= g_EngageBreak_unitBorder ) end
 
 	end
 end
@@ -1695,7 +1695,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30d3_30fc_30e0_767a_5c04_53ef_80fd()
 	if VariableGet( g_key_Beam ) > 0 then
-		return false
+		do return false end
 	end
 
 	local count = {
@@ -1741,12 +1741,12 @@ function _uc_o_n_d_i_t_i_o_n___30d3_30fc_30e0_767a_5c04_53ef_80fd()
 
 	table.sort( count,
 				function( a, b )
-					return ( a.POINT > b.POINT )
+					do return ( a.POINT > b.POINT ) end
 				end
 				)
 
 	if ( count[1].POINT < g_Beam_unitBorder ) then
-		return false
+		do return false end
 	end
 
 	local max_danger_num = 0
@@ -1759,7 +1759,7 @@ function _uc_o_n_d_i_t_i_o_n___30d3_30fc_30e0_767a_5c04_53ef_80fd()
 	local beamDir = count[RandomGet( max_danger_num ) + 1].DIR
 	VariableSet( g_key_Beam_Direction, beamDir )
 
-	return true
+	do return true end
 end
 
 function _u30d3_30fc_30e0_4e88_544a()
@@ -1937,11 +1937,11 @@ function _u30d3_30fc_30e0___30ab_30e1_30e9_5236_5fa1___5ea7_6a19_8a08_7b97( dir 
 
 		end
 
-		return x, z
+		do return x, z end
 
 	end
 
-	return 15, 15
+	do return 15, 15 end
 
 end
 
@@ -1983,7 +1983,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___56de_8ee2_30a2_30bf_30c3_30af_53ef_80fd()
 	if VariableGet( g_key_SpinAttack ) > 0 then
-		return false
+		do return false end
 	end
 
 	local count = 0
@@ -2008,7 +2008,7 @@ function _uc_o_n_d_i_t_i_o_n___56de_8ee2_30a2_30bf_30c3_30af_53ef_80fd()
 		end
 	end
 
-	return ( count >= g_SpinAttack_unitBorder )
+	do return ( count >= g_SpinAttack_unitBorder ) end
 end
 
 function _u56de_8ee2_30a2_30bf_30c3_30af()
@@ -2057,7 +2057,7 @@ end
 function _u56de_8ee2_30a2_30bf_30c3_30af___30b9_30de_30c3_30b7_30e5( unit, dir )
 
 	if ( dir == G_DIR_DIAGONAL ) then
-		return
+		do return end
 	end
 
 	local x = UnitGetX( unit )
@@ -2084,6 +2084,6 @@ function _u56de_8ee2_30a2_30bf_30c3_30af___30a4_30f3_30c7_30c3_30af_30b9_66f4_65
 		z = z - 1
 	end
 
-	return x, z
+	do return x, z end
 
 end

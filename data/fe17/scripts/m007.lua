@@ -75,14 +75,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_4f1a_8a71___30aa_30eb_30c6_30f3_30b7_30a2___30ea_30e5_30fc_30eb()
 	if VariableGet( g_key_battle_holtencia ) == 1 then
-		return false
+		do return false end
 	end
 
 	if ( MapGetTurn() > 1 ) or ( MapGetPhase() == FORCE_ENEMY ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6226_95d8_524d_4f1a_8a71___30aa_30eb_30c6_30f3_30b7_30a2___30ea_30e5_30fc_30eb()
@@ -137,14 +137,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___30b9_30de_30c3_30b7_30e5_ff11()
 
 	if VariableGet( g_key_tutorial_smash1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if UnitExistOnMap( "PID_ラピス" ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -161,7 +161,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30e9_30d4_30b9_304c_8ab0_304b_306b_653b_6483()
 
 	if VariableGet( g_key_tutorial_smash2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if UnitHasWholeSkill( "PID_ラピス", "SID_スマッシュ" ) then
@@ -175,7 +175,7 @@ function _uc_o_n_d_i_t_i_o_n___30e9_30d4_30b9_304c_8ab0_304b_306b_653b_6483()
 
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -185,7 +185,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30e9_30d4_30b9_304c_8ab0_304b_3092_30d6_30ec_30a4_30af()
 
 	if VariableGet( g_key_tutorial_smash2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local unit = VariableGet( g_key_smash_target_unit )
@@ -197,18 +197,18 @@ function _uc_o_n_d_i_t_i_o_n___30e9_30d4_30b9_304c_8ab0_304b_3092_30d6_30ec_30a4
 	VariableSet( g_key_smash_target_unit_z, -1 )
 
 	if unit == -1 then
-		return false
+		do return false end
 	end
 
 	if not UnitExistOnMap( unit ) then
-		return false
+		do return false end
 	end
 
 	if ( x == UnitGetX( unit ) ) and ( z == UnitGetZ( unit ) ) then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -222,10 +222,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30eb_30ad_30ca_95c7_30b7_30f3_30af_30ed_30a4_30d9_30f3_30c8()
 	if UnitGetGodUnit( "PID_M007_オルテンシア" ) == nil then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30eb_30ad_30ca_95c7_30b7_30f3_30af_30ed_30a4_30d9_30f3_30c8()
@@ -246,7 +246,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30aa_30eb_30c6_30f3_30b7_30a2_968a_A_I_30a2_30af_30c6_30a3_30d6()
 	if VariableGet( g_key_holtensia_act ) == 1 then
-		return false
+		do return false end
 	end
 
 	local Hol_x = UnitGetX( "PID_M007_オルテンシア" )
@@ -259,14 +259,14 @@ function _uc_o_n_d_i_t_i_o_n___30aa_30eb_30c6_30f3_30b7_30a2_968a_A_I_30a2_30af_
 		local z = UnitGetZ( index )
 
 		if ( _u4e8c_70b9_9593_8ddd_96e2( Hol_x, Hol_z, x, z ) <= 6 ) then
-			return true
+			do return true end
 		end
 
 		index = ForceUnitGetNext(index)
 
 	end
 
-	return false
+	do return false end
 
 end
 

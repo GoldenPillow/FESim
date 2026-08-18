@@ -204,9 +204,9 @@ end
 
 function Min(value, min)
 	if value > min then
-		return min
+		do return min end
 	else
-		return value
+		do return value end
 	end
 end
 
@@ -216,31 +216,31 @@ end
 
 function Max(value, max)
 	if value < max then
-		return max
+		do return max end
 	else
-		return value
+		do return value end
 	end
 end
 
 function Clamp(value, min, max)
 	value = Min(value, max)
 	value = Max(value, min)
-	return value
+	do return value end
 end
 
 function VariableAdd(key, value, min, max)
 	value = VariableGet(key) + value
 	value = Clamp(value, min, max)
 	VariableSet(key, value)
-	return value
+	do return value end
 end
 
 function VariableInc(key, min, max)
-	return VariableAdd(key, 1, min, max)
+	do return VariableAdd(key, 1, min, max) end
 end
 
 function VariableDec(key, min, max)
-	return VariableAdd(key, -1, min, max)
+	do return VariableAdd(key, -1, min, max) end
 end
 
 function ForceUnitGetCount(force)
@@ -250,7 +250,7 @@ function ForceUnitGetCount(force)
 		index = ForceUnitGetNext(index)
 		count = count + 1
 	end
-	return count
+	do return count end
 end
 
 function EffectWait()
@@ -283,13 +283,13 @@ function _u5c04_7a0b_5224_5b9a(unit, target)
 			local rangeO = UnitGetItemRangeO(unit, i)
 
 			if rangeI <= distance and distance <= rangeO then
-				return true
+				do return true end
 			end
 		end
 
 	end
 
-	return false
+	do return false end
 end
 
 function MenuAddCall(menu, mid, func, condition, args)
@@ -297,41 +297,41 @@ function MenuAddCall(menu, mid, func, condition, args)
 	MenuItemSetMid(item, mid)
 	MenuItemSetFunc(item, func, args)
 	MenuItemSetCondition(item, condition)
-	return item
+	do return item end
 end
 
 function MenuAddJump(menu, mid, func, condition)
-	return MenuAddCall(menu, mid, Jump, condition, func)
+	do return MenuAddCall(menu, mid, Jump, condition, func) end
 end
 
 function MenuAddTalk(menu, mid, talkId, condition)
 	local item = MenuAddCall(menu, mid, Talk, condition, talkId)
-	return item
+	do return item end
 end
 
 function MenuAddBack(menu, mid, func, condition)
 	MenuCancelJump(menu, func, condtion)
-	return MenuAddJump(menu, mid, func, condtion)
+	do return MenuAddJump(menu, mid, func, condtion) end
 end
 
 function MenuAddCallWithObjectFlash(menu, mid, func, condition, objName)
 	local item = MenuAddCall(menu, mid, func, condition)
 	MenuItemSetSelectFunc(item, ObjectFlash, objName)
-	return item
+	do return item end
 end
 
 function MenuItemExist(mid)
 
 	if MessIsExist(mid) == false then
-			return false;
+			do return false; end
 	end
 
 	if VariableIsExist(mid) then
 		if VariableGet(mid) == MENU_ITEM_HIDE then
-			return false;
+			do return false; end
 		end
 	end
-	return true;
+	do return true; end
 end
 
 function TryMenuAddLabel(menu, label)
@@ -357,7 +357,7 @@ function MenuTalkSelect(mid)
 	TryMenuAddTalk(menu, mid.."_SELECT_F", mid.."_TALK_F", true)
 	TryMenuAddTalk(menu, mid.."_SELECT_G", mid.."_TALK_G", true)
 	MenuShow(menu)
-	return MenuGetResult()
+	do return MenuGetResult() end
 end
 
 function Callback(func, ...)
@@ -487,11 +487,11 @@ function UnitExistOnMap(pid)
 	if UnitIsExist(pid) == true then
 		force = UnitGetForce(pid);
 		if ( force == FORCE_PLAYER ) or ( force == FORCE_ALLY ) or ( force == FORCE_ENEMY ) then
-			return true;
+			do return true; end
 		end
 	end
 
-	return false;
+	do return false; end
 
 end
 
@@ -606,12 +606,12 @@ function _u30d7_30ec_30a4_30e4_30fc_8ecd_306e_4e2d_5fc3_70b9_3092_7b97_51fa()
 	local center_x = math.floor(x/count + 0.5);
 	local center_z = math.floor(z/count + 0.5);
 
-	return center_x, center_z
+	do return center_x, center_z end
 end
 
 function _u4e8c_70b9_9593_8ddd_96e2(x1, z1, x2, z2)
 	local _distance = math.abs( x1 - x2 ) + math.abs( z1 - z2 );
-	return _distance
+	do return _distance end
 end
 
 function _u30b9_30ad_30eb_88c5_5099( pid, ... )
@@ -711,24 +711,24 @@ end
 
 function ExistRareEnemy()
 
-	return (VariableGet("G_遭遇戦_レア敵お金") + VariableGet("G_遭遇戦_レア敵経験値")) > 0
+	do return (VariableGet("G_遭遇戦_レア敵お金") + VariableGet("G_遭遇戦_レア敵経験値")) > 0 end
 
 end
 
 function condition_true()
-	return true
+	do return true end
 end
 
 function _u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb()
-	return DifficultyGet() == DIFFICULTY_NORMAL
+	do return DifficultyGet() == DIFFICULTY_NORMAL end
 end
 
 function _u30e2_30fc_30c9_306f_30cf_30fc_30c9()
-	return DifficultyGet() == DIFFICULTY_HARD
+	do return DifficultyGet() == DIFFICULTY_HARD end
 end
 
 function _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af()
-	return DifficultyGet() == DIFFICULTY_LUNATIC
+	do return DifficultyGet() == DIFFICULTY_LUNATIC end
 end
 
 function _u6c11_5bb6_7834_58ca(x1, z1, x2, z2)

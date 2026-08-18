@@ -78,7 +78,7 @@ function _u30ed_30a4___6226_95d8_958b_59cb()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return true
+			do return true end
 	end
 
 	AiSetSequence("PID_S012_幻影兵_ジェネラル_ロイ周辺", AI_ORDER_ATTACK, "AI_AT_Attack")
@@ -118,28 +118,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_5897_63f4_1()
 
 	if VariableGet( "増援_戦闘後増援1_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "戦闘後イベント1_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_5897_63f4_2()
 
 	if VariableGet( "増援_戦闘後増援2_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "戦闘後イベント2_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -158,7 +158,7 @@ function _u9752_8ecd_30bf_30fc_30f3_958b_59cb_76f4_524d_1()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return false
+			do return false end
 	end
 
 	Dispos("Reinforcement0_Lunatic", DISPOS_FLAG_FOCUS)
@@ -189,7 +189,7 @@ function _u9752_8ecd_30bf_30fc_30f3_958b_59cb_76f4_524d_2()
 	VariableSet( "増援_戦闘後増援2_済", 1 )
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-			return false
+			do return false end
 	end
 
 	Dispos("Reinforcement1_0", DISPOS_FLAG_FOCUS)

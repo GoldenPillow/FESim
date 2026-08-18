@@ -216,14 +216,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_1_4fb5_5165()
 
 	if VariableGet( "エリア1侵入カウント" ) == 2 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリア1_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30a8_30ea_30a2_1_5897_63f4_7ba1_7406()
@@ -247,14 +247,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_2_4fb5_5165()
 
 	if VariableGet( "エリア2侵入カウント" ) == 2 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリア2_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30a8_30ea_30a2_2_5897_63f4_7ba1_7406()
@@ -278,14 +278,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_3_4fb5_5165()
 
 	if VariableGet( "エリア3侵入カウント" ) == 2 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリア3_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30a8_30ea_30a2_3_5897_63f4_7ba1_7406()

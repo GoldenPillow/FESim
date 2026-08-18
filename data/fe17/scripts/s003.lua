@@ -75,14 +75,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff11()
 
 	if VariableGet( g_key_reinforcement1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_lucina_act ) == 1 then
-		return true
+		do return true end
 	end
 
-	return 	false
+	do return false end
 
 end
 
@@ -111,11 +111,11 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12()
 
 	if VariableGet( g_key_reinforcement2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_reinforcement1 ) == 0 then
-		return false
+		do return false end
 	end
 
 	local counter = VariableGet( g_key_reinforcement2_count )
@@ -123,10 +123,10 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12()
 	VariableSet( g_key_reinforcement2_count, counter )
 
 	if counter == 0 then
-		return true
+		do return true end
 	end
 
-	return 	false
+	do return false end
 
 end
 

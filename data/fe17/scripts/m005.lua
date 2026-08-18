@@ -70,26 +70,26 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___ff28_ff30_30b9_30c8_30c3_30af___518d_751f_8a31_53ef()
 	if VariableGet( g_key_tutorial_hpstock ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_tutorial_hpstock_permission ) == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___ff28_ff30_30b9_30c8_30c3_30af()
 	if VariableGet( g_key_tutorial_hpstock ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_tutorial_hpstock_permission ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30c1_30e5_30fc_30c8_30ea_30a2_30eb___ff28_ff30_30b9_30c8_30c3_30af()
@@ -191,27 +191,27 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ce_30fc_30de_30eb_304b()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___30ce_30fc_30de_30eb_4ee5_4e0a_304b()
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _u76d7_8cca___884c_52d5_958b_59cb()
 
 	if not UnitExistOnMap( "PID_M005_シーフ" ) then
-		return
+		do return end
 	end
 
 	CursorSetPos(3, 23)
@@ -346,11 +346,11 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4_51fa_73fe()
 
 	local value = VariableGet( g_key_reinforcement_appear )
 	if value == 1 then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_pltn4_action ) == 0 ) and ( VariableGet( g_key_destroyWall ) == 0 ) then
-		return false
+		do return false end
 	end
 
 	value = VariableGet( g_key_reinforcementCounter )
@@ -358,9 +358,9 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4_51fa_73fe()
 	VariableSet( g_key_reinforcementCounter, value )
 
 	if value == 0 then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 
 end
@@ -385,24 +385,24 @@ end
 function _uc_o_n_d_i_t_i_o_n___30dc_30b9_884c_52d5_958b_59cb()
 
 	if not _u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_Key_bossActive_Lunatic ) == 1 then
-		return false
+		do return false end
 	end
 
 	local unit = ForceUnitGetFirst(FORCE_ENEMY)
 	while unit ~= nil do
 
 		if ( AiGetBandNo( unit ) == 1 ) and AiGetActive( unit ) then
-			return true
+			do return true end
 		end
 
 		unit = ForceUnitGetNext(unit)
 	end
 
-	return false
+	do return false end
 
 end
 

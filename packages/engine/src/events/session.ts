@@ -566,14 +566,16 @@ export function createEventSession(opts: {
   });
 
   register("UnitSetItemEquip", () => {
-    // 장비 전환 — 인덱스 공간 = effectiveWeapons(attack.weapon과 동일 계약). ☠못 찾으면 정직 거부다:
-    // 조용히 넘기면 보스가 틀린 무기로 싸운다(위력·상성·사거리가 통째로 어긋난다).
+    // 장비 전환 — 인덱스 공간 = effectiveWeapons(attack.weapon과 동일 계약).
+    // ☠못 찾으면 **조용히 무시**한다(2026-08-18 정정): `Unit.ItemEquip`(0x1A21530)이 소지 목록에서
+    // 못 찾으면 0을 반환하고 `ScriptUnit.UnitSetItemEquip`(0x219B100)은 그 값을 담기만 한다 — 예외가 없다.
+    // 종전엔 거부라 m014가 개시조차 못 했다(IID_ベレト_ルーン — 자군 소지품이 dispos 근사라 물건이 없다).
     const u = unitAt(1);
     const iid = str(2);
     if (u === undefined) return 0;
     const list = equipCandidates(u);
     const idx = list.findIndex((w) => w.iid === iid);
-    if (idx < 0) return lauxlib.luaL_error(A, to_luastring(`UnitSetItemEquip: 소지 무기 아님 ${iid}`));
+    if (idx < 0) return 0;
     u.weapon = list[idx];
     emit({ type: "equip", unit: u.id, index: idx });
     return 0;
@@ -599,9 +601,14 @@ export function createEventSession(opts: {
       emit({ type: "putOff", unit: u.id, kind, index: idx });
       return 0;
     }
-    return lauxlib.luaL_error(A, to_luastring(`UnitPutOffItem: 소지품 아님 ${iid}`));
+    // ☠못 찾으면 **조용히 무시**한다(2026-08-18 정정): `ScriptUnit.UnitPutOffItem`(0x219B290)은
+    // 슬롯 0..7을 훑다 못 찾으면 그대로 `ret`한다(0x219B454) — 예외가 없다. 종전 거부는 e005·e006을 막았다.
+    return 0;
   });
 
+  // ☠`MapOverlapSet`(0x1ECDA50)은 **등록하지 않는다** — 같은 `MapOverlapSetImpl`을 쓰지만(플래그 1,
+  // SetOne은 0 — 플래그 의미 미판독) 런타임 오버레이 생성이 미모델이라 no-op이 곧 오재현이다
+  // (瘴気는 피해가 본질 — 장부 turn.map-gimmicks). 정직 거부가 e005 부트를 막는 것은 의도된 신호다.
   register("MapOverlapSetOne", () => {
     const d = draft();
     const x = lua.lua_tointeger(A, 1);

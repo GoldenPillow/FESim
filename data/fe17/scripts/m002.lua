@@ -173,24 +173,24 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___30d6_30ec_30a4_30af()
 
 	if VariableGet( g_key_tutorial_break ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_start_battle2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	local pid = UnitGetPID(MindGetUnit())
 	if not ( ( pid == g_pid_lueur ) or ( pid == "PID_ヴァンドレ" ) ) then
-		return false
+		do return false end
 	end
 
 	pid = "PID_M002_幻影兵_アクスファイター_イベント"
 	if UnitExistOnMap( pid ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30c1_30e5_30fc_30c8_30ea_30a2_30eb___30d6_30ec_30a4_30af()
@@ -238,14 +238,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___5371_967a_7bc4_56f2()
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_tutorial_attackRange ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u30c1_30e5_30fc_30c8_30ea_30a2_30eb___5371_967a_7bc4_56f2()
@@ -264,22 +264,22 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30a2_30af_30b9_30d5_30a1_30a4_30bf_30fc_6226_95d8_5f8c()
 	if ( VariableGet( g_key_battled_axefighter ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_die_axefighter ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	local unit = ForceUnitGetFirst(FORCE_PLAYER)
 	while unit ~= nil do
 		if ( not ( UnitGetPID( unit ) == g_pid_lueur ) ) and ( not UnitIsStatus( unit, UNIT_STATUS_FIXED ) ) then
-			return true
+			do return true end
 		end
 		unit = ForceUnitGetNext( unit )
 	end
 
-	return false
+	do return false end
 end
 
 function _u30a2_30af_30b9_30d5_30a1_30a4_30bf_30fc_6226_95d8_5f8c()
@@ -295,7 +295,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_884c_52d5_958b_59cb()
 	if VariableGet( g_key_rumiere_run ) == 1 then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_battleTalk_lueur1 ) == 1 )
@@ -303,11 +303,11 @@ function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_884c_52d5_958b_59cb()
 		or ( VariableGet( g_key_battleTalk_clan ) == 1 )
 		or ( VariableGet( g_key_battleTalk_fran ) == 1 ) then
 
-		return false
+		do return false end
 
 	end
 
-	return true
+	do return true end
 end
 
 function _u30eb_30df_30a8_30eb_884c_52d5_958b_59cb()
@@ -318,14 +318,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_30a4_30d9_30f3_30c8___30ea_30e5_30fc_30eb()
 	if ( VariableGet( g_key_start_battle2 ) == 0 ) and ( VariableGet( g_key_battleTalk_lueur1 ) == 0 )  then
-		return true
+		do return true end
 	end
 
 	if ( VariableGet( g_key_start_battle2 ) == 1 ) and ( VariableGet( g_key_battleTalk_lueur2 ) == 0 )  then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6226_95d8_524d_30a4_30d9_30f3_30c8___30ea_30e5_30fc_30eb()
@@ -341,16 +341,16 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_524d_30a4_30d9_30f3_30c8___30f4_30a1_30f3_30c9_30ec()
 	if ( VariableGet( g_key_battleTalk_vandre ) == 0 ) then
-		return true
+		do return true end
 	end
 
 	if ( VariableGet( g_key_start_battle2 ) == 1 )
 			and ( VariableGet( g_key_battled_vandre2 ) == 0 )
 			and ( UnitGetPID( MindGetUnit() ) == g_pid_rumiere ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6226_95d8_524d_30a4_30d9_30f3_30c8___30f4_30a1_30f3_30c9_30ec()
@@ -384,26 +384,26 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_6483_7834_4e00_56de_76ee()
 	if VariableGet( g_key_rumiere_Defeat1st ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_304b_3089_653b_6483_5f8c_6b7b_4ea1()
 	if VariableGet( g_key_battleAfter_rumiere ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_end_battle1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_rumiere_Defeat1st ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30eb_30df_30a8_30eb_304b_3089_653b_6483_5f8c_6b7b_4ea1()
@@ -413,14 +413,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6b8b_3063_305f_6575_306e_524a_9664_3068_30eb_30df_30a8_30eb_306e_30b3_30e1_30f3_30c8()
 	if VariableGet( g_key_enemyDelete ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_battleAfter_rumiere ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6b8b_3063_305f_6575_306e_524a_9664_3068_30eb_30df_30a8_30eb_306e_30b3_30e1_30f3_30c8()
@@ -462,14 +462,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___4e00_56de_6226_7d42_4e86()
 	if VariableGet( g_key_end_battle1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_rumiere_Defeat1st ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u4e00_56de_6226_7d42_4e86()
@@ -511,14 +511,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___4e8c_56de_6226_958b_59cb()
 	if VariableGet( g_key_start_battle2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_end_battle1 ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u4e8c_56de_6226_958b_59cb()
@@ -572,14 +572,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___7d0b_7ae0_6c23_30de_30b9()
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_tutorial_emblemPowerSpot ) == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30c1_30e5_30fc_30c8_30ea_30a2_30eb___7d0b_7ae0_6c23_30de_30b9()
@@ -596,11 +596,11 @@ end
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_51fa_6483_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_rumiere_runned ) == 1 then
-		return false
+		do return false end
 	end
 
 	local index = ForceUnitGetFirst(FORCE_PLAYER)
@@ -610,18 +610,18 @@ function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_51fa_6483_30a4_30d9_30f3_30c8
 		local z = UnitGetZ(index)
 
 		if ( x >= 1 ) and ( z >= 8 ) and ( x <= 11 ) and ( z <= 14 ) then
-			return true
+			do return true end
 		elseif ( x >= 2 ) and ( x <= 10 ) and ( z == 7 ) then
-			return true
+			do return true end
 		elseif ( x >= 3 ) and ( x <= 9 ) and ( z == 6 ) then
-			return true
+			do return true end
 		end
 
 		index = ForceUnitGetNext(index)
 
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -639,14 +639,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_5f85_6a5f_5f8c_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_rumiere_fixed ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -659,14 +659,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30eb_30df_30a8_30eb_6483_7834_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_rumiere_defeat ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_start_battle2 ) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 

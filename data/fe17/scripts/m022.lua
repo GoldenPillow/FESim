@@ -255,20 +255,20 @@ end
 
 function _u6307_8f2a_62fe_3046_30d5_30e9_30b0_751f_6210( unit )
 	local key = g_key_pickup_pre .. UnitGetMPID( unit )
-	return key
+	do return key end
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff11___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_reinforcement1 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -284,21 +284,21 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
 
-	return ( VariableGet( g_key_ring_complete ) == 0 )
+	do return ( VariableGet( g_key_ring_complete ) == 0 ) end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff11()
 
 	if VariableGet( g_key_reinforcement1 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 end
 
 function _u9752_30bf_30fc_30f3_958b_59cb_76f4_524d___5897_63f4_ff11()
@@ -322,28 +322,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_reinforcement2 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12()
 
 	if VariableGet( g_key_reinforcement2 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 end
 
 function _u9752_30bf_30fc_30f3_958b_59cb_76f4_524d___5897_63f4_ff12()
@@ -371,28 +371,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff13___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_reinforcement3 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff13()
 
 	if VariableGet( g_key_reinforcement3 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834()
+		do return _uc_o_n_d_i_t_i_o_n___5897_63f4_767b_5834() end
 	end
 
-	return false
+	do return false end
 end
 
 function _u9752_30bf_30fc_30f3_958b_59cb_76f4_524d___5897_63f4_ff13()
@@ -424,15 +424,15 @@ end
 function _uc_o_n_d_i_t_i_o_n___7121_9650_5897_63f4()
 
 	if VariableGet( g_key_ring_complete ) == 1 then
-		return false
+		do return false end
 	end
 
 	local turn = MapGetTurn()
 	if ( ( ( turn - 13 ) % 3 ) == 0 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -457,7 +457,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30d9_30ec_30c8___30eb_30ad_30ca___30ea_30f3()
 
 	if ( VariableGet( g_key_emblem1 ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	local lueur_x = UnitGetX( g_pid_lueur )
@@ -468,10 +468,10 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30d9_30ec_30c8___30eb_
 	local distance3	= _u4e8c_70b9_9593_8ddd_96e2( lueur_x, lueur_z, g_emblem_position[_uE_M_B_L_E_M___30ea_30f3].X, g_emblem_position[_uE_M_B_L_E_M___30ea_30f3].Z )
 
 	if ( distance1 <= 3 ) or ( distance2 <= 3 ) or ( distance3 <= 3 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -506,7 +506,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30df_30ab_30e4___30bb_30ea_30ab()
 
 	if ( VariableGet( g_key_emblem2 ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	local lueur_x = UnitGetX( g_pid_lueur )
@@ -516,10 +516,10 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30df_30ab_30e4___30bb_
 	local distance2	= _u4e8c_70b9_9593_8ddd_96e2( lueur_x, lueur_z, g_emblem_position[_uE_M_B_L_E_M___30bb_30ea_30ab].X, g_emblem_position[_uE_M_B_L_E_M___30bb_30ea_30ab].Z )
 
 	if ( distance1 <= 3 ) or ( distance2 <= 3 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -552,7 +552,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30a2_30a4_30af___30b7_30b0_30eb_30c9___30a8_30a4_30ea_30fc_30af()
 
 	if ( VariableGet( g_key_emblem3 ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	local lueur_x = UnitGetX( g_pid_lueur )
@@ -563,10 +563,10 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30a2_30a4_30af___30b7_
 	local distance3	= _u4e8c_70b9_9593_8ddd_96e2( lueur_x, lueur_z, g_emblem_position[_uE_M_B_L_E_M___30a8_30a4_30ea_30fc_30af].X, g_emblem_position[_uE_M_B_L_E_M___30a8_30a4_30ea_30fc_30af].Z )
 
 	if ( distance1 <= 3 ) or ( distance2 <= 3 ) or ( distance3 <= 3 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -601,7 +601,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30ed_30a4___30ea_30fc_30d5___30ab_30e0_30a4()
 
 	if ( VariableGet( g_key_emblem4 ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	local lueur_x = UnitGetX( g_pid_lueur )
@@ -612,10 +612,10 @@ function _uc_o_n_d_i_t_i_o_n___7d0b_7ae0_58eb_9855_73fe___30ed_30a4___30ea_30fc_
 	local distance3	= _u4e8c_70b9_9593_8ddd_96e2( lueur_x, lueur_z, g_emblem_position[_uE_M_B_L_E_M___30ab_30e0_30a4].X, g_emblem_position[_uE_M_B_L_E_M___30ab_30e0_30a4].Z )
 
 	if ( distance1 <= 3 ) or ( distance2 <= 3 ) or ( distance3 <= 3 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -705,14 +705,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___6307_8f2a_5168_90e8_96c6_3081_305f()
 
 	if VariableGet( g_key_ring_complete ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_emblem_count ) >= 11 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -802,7 +802,7 @@ function _u4e2d_9593_70b9_3092_8fd4_3059( emblem_num, ... )
 
 	end
 
-	return math.floor( x / emblem_num ), math.floor( z / emblem_num )
+	do return math.floor( x / emblem_num ), math.floor( z / emblem_num ) end
 
 end
 
@@ -1129,6 +1129,6 @@ function _u7d0b_7ae0_58eb_I_D_53d6_5f97(pid)
 
 	end
 
-	return gid
+	do return gid end
 
 end

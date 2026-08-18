@@ -218,7 +218,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___8a2a_554f()
 
 	if VariableGet( g_key_tutorial_visit ) == 1 then
-		return false
+		do return false end
 	end
 
 	local unit = MindGetUnit()
@@ -226,18 +226,18 @@ function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___8a2a_554f()
 	if ( pid == "PID_セリーヌ" )
 		or ( pid == "PID_ルイ" )
 		or ( pid == "PID_クロエ" ) then
-			return false
+			do return false end
 	end
 
 	if not ( UnitGetForce( unit ) == FORCE_PLAYER ) then
-		return false
+		do return false end
 	end
 
 	if VariableGet("訪問_7_4") == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -256,14 +256,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30d4_30c3_30af_30a2_30c3_30d7___30bb_30ea_30fc_30cc()
 
 	if VariableGet( g_key_pickupCeline ) == 0 then
-		return true
+		do return true end
 	end
 
 	if VariableGet( g_key_tutorial_warp ) == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -294,14 +294,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___30ef_30fc_30d7_30e9_30a4_30ca()
 
 	if VariableGet( g_key_tutorial_warp ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if _uc_o_n_d_i_t_i_o_n___6551_52a9_53ef_80fd() then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -309,7 +309,7 @@ function _uc_o_n_d_i_t_i_o_n___6551_52a9_53ef_80fd()
 
 	if		VariableGet( g_key_talk_chloe ) ~= 0
 		and	VariableGet( g_key_talk_louis ) ~= 0 then
-			return false
+			do return false end
 	end
 
 	local x_celine = VariableGet( g_key_celineX )
@@ -328,7 +328,7 @@ function _uc_o_n_d_i_t_i_o_n___6551_52a9_53ef_80fd()
 				or	( UnitExistOnMap("PID_クロエ")	and	( VariableGet( g_key_talk_chloe ) == 0 ) and _uc_o_n_d_i_t_i_o_n___6551_52a9_8ddd_96e2( x_celine, z_celine, x_enemy, z_enemy, "PID_クロエ" ) ) then
 
 				if _uc_o_n_d_i_t_i_o_n___30ef_30fc_30d7_653b_6483_53ef_80fd( x_celine, z_celine, x_enemy, z_enemy ) then
-					return true
+					do return true end
 				end
 
 			end
@@ -338,7 +338,7 @@ function _uc_o_n_d_i_t_i_o_n___6551_52a9_53ef_80fd()
 		enemy = ForceUnitGetNext( enemy )
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -351,10 +351,10 @@ function _uc_o_n_d_i_t_i_o_n___6551_52a9_8ddd_96e2( x_celine, z_celine, x_enemy,
 	local dist_U_E = _u4e8c_70b9_9593_8ddd_96e2(x_unit,		z_unit,		x_enemy,	z_enemy)
 
 	if ( dist_U_E <= 5 ) and ( dist_U_E < dist_C_U ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -378,7 +378,7 @@ function _uc_o_n_d_i_t_i_o_n___30ef_30fc_30d7_653b_6483_53ef_80fd( x_celine, z_c
 							local cost = TerrainGetMoveCost( _x, _z )
 							if ( cost == "COST_平地" ) or ( cost == "COST_林" ) or ( cost == "COST_浅瀬" ) then
 
-								return true
+								do return true end
 
 							end
 
@@ -393,7 +393,7 @@ function _uc_o_n_d_i_t_i_o_n___30ef_30fc_30d7_653b_6483_53ef_80fd( x_celine, z_c
 		end
 	end
 
-	return false
+	do return false end
 
 end
 

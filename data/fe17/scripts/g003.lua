@@ -145,14 +145,14 @@ end
 function _u30dc_30b9_306e_P_I_D_3092_53d6_5f97()
 
 	if UnitExistOnMap( g_pid_boss ) then
-		return g_pid_boss
+		do return g_pid_boss end
 
 	elseif UnitExistOnMap( g_pid_bossN ) then
-		return g_pid_bossN
+		do return g_pid_bossN end
 
 	end
 
-	return ""
+	do return "" end
 
 end
 
@@ -235,12 +235,12 @@ function _uc_o_n_d_i_t_i_o_n___5168_3066_306e_30b9_30a4_30c3_30c1_3092_62bc_4e0b
 		end
 
 		if isLeftSwitch and isRightSwitch then
-			return true
+			do return true end
 
 		end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5de6_53f3_306e_98db_7a7a_57ce___79fb_52d5()
@@ -572,12 +572,12 @@ function Contains( list, element )
 
 	for pointer = 1, #list do
 		if list[pointer] == element then
-			return true
+			do return true end
 
 		end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6226_95d8_958b_59cb_76f4_5f8c()
@@ -643,17 +643,17 @@ end
 function _uc_o_n_d_i_t_i_o_n___30f4_30a7_30ed_30cb_30ab_53ec_559a_1()
 
 	if VariableGet( "ヴェロニカ召喚1_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_Key_SkyCastle_Moved ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリア1進入_済" ) == 1 then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 
 end
@@ -675,17 +675,17 @@ end
 function _uc_o_n_d_i_t_i_o_n___30f4_30a7_30ed_30cb_30ab_53ec_559a_2()
 
 	if VariableGet( "ヴェロニカ召喚2_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_Key_SkyCastle_Moved ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリア2進入_済" ) == 1 then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 
 end
@@ -707,10 +707,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___5cf6_79fb_52d5_5f8c_5897_63f4()
 
 	if VariableGet( "島移動後増援_済" ) == 1 then
-		return false
+		do return false end
 	end
 
-	return VariableGet( g_Key_SkyCastle_Moved )
+	do return VariableGet( g_Key_SkyCastle_Moved ) end
 
 end
 
