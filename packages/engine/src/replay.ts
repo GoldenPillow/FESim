@@ -426,6 +426,26 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
    * 문법. ⚠훅이 전이 '이전'에 발화한 기록을 '이후'에 얹으므로 이론상 표류 여지가 있다 — verify(재계산)가
    * 정본 대조를 소유한다(절대값 이벤트라 관측 케이스에선 수렴).
    */
+  /**
+   * 페이즈를 닫는다 — 기록된 절대 `phase`가 정본이다.
+   * ☠훅이 진영 구성을 바꾸면 평범한 전이가 라이브와 다른 진영을 고른다(m001은 전이 앞, m022는 뒤 — 둘 다 실측).
+   * 순서를 추측하지 않고, 어긋날 때만 존재·소속 이벤트를 먼저 얹은 경로를 시도해 **기록과 맞는 쪽**을 채택한다.
+   */
+  function closePhase(state: GameState, events: readonly BattleEvent[], from: number): GameState {
+    const recorded = events.slice(from).find((e) => e.type === "phase");
+    let next = baseReduce(state, { type: "endPhase" }, sequenceSource([]));
+    if (recorded !== undefined && next.phase !== recorded.phase) {
+      const structural = events.filter(
+        (e) => e.type === "spawn" || e.type === "despawn" || e.type === "transfer",
+      );
+      if (structural.length > 0) {
+        const alt = baseReduce(applyEventList(state, structural), { type: "endPhase" }, sequenceSource([]));
+        if (alt.phase === recorded.phase) next = alt;
+      }
+    }
+    return next;
+  }
+
   function applyStep(state: GameState, step: EphemerisStep): GameState {
     if (
       (step.action.type === "attack" ||
@@ -435,7 +455,16 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
         step.action.type === "dance") &&
       step.events !== undefined
     ) {
-      return applyEvents(state, step.action, step.events);
+      // ★스크립트가 **이 행동으로 페이즈를 닫은** 경우(m002 `行動後フェイズ終了`, events/index.ts):
+      //   라이브는 여기서 진짜 endPhase를 이어 돌린다. 재생이 `phase` 필드만 옮기면
+      //   활성화 리셋(acted·moved·broken·인게이지 턴·지형회복·상태 에이징)이 통째로 빠져
+      //   **전 유닛의 acted가 남고 다음 자군 행동이 거부된다** — 생성한 기보가 재생되지 않는다.
+      //   ⇒ endPhase 스텝과 같은 계약으로 처리한다: 행동을 먼저 끝내고(acted), 그 자리에서
+      //     baseReduce로 페이즈를 닫고, 기록 이벤트를 절대값으로 덮는다(라이브 순서 그대로).
+      const cut = step.events.findIndex((e) => e.type === "phase");
+      if (cut < 0) return applyEvents(state, step.action, step.events);
+      const acted = applyEvents(state, step.action, step.events.slice(0, cut));
+      return applyEventList(closePhase(acted, step.events, cut), step.events.slice(cut));
     }
     if (step.action.type === "setup" && step.events !== undefined) {
       // 챕터 초기화 스텝 — 기록 이벤트(스폰·변수·규칙) 절대 적용만으로 초기 국면이 완성된다.
