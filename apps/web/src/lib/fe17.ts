@@ -832,6 +832,8 @@ export interface BoardUnitProp {
   hpStock?: number;
   /** 장착 엠블렘(GID) — 문장사 배지의 주소. 얼굴 경로는 보드 단위 `godFaces`가 소유(유닛마다 반복 금지). */
   gid?: string;
+  /** dispos Flag 원값 — 하위 3비트 = 난이도 마스크(N1/H2/L4). 배치 게이트는 `projectUnit`이 건다. */
+  flag?: number;
   /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
   engage?: EngageState;
   /** 인게이지 중 스킬 세트(EngagedSkills 교체본) — engaging일 때 skills 대신 이 목록이 유효. */
@@ -896,8 +898,6 @@ export interface BoardProps {
     sources: Record<string, string>;
     /** 공용 소스(common*) 이름 목록 — 본문은 /fe17/scripts/{name}.lua 정적 fetch로 병합(용량 정책 3-6). */
     commons?: string[];
-    /** 스크립트가 정적으로 Dispos하는 그룹 — 초기 배치에서 제외(이벤트가 소환). */
-    disposGroups: string[];
     /** 스크립트가 부르는 SID 행 사영(UnitSetPrivateSkill용). */
     skills: Record<string, SkillRow>;
     /** 스크립트가 부르는 GID 사영(UnitSetGodUnit 패치 — 기술(art)은 미배선·발현 시 흡수). */
@@ -1199,6 +1199,7 @@ export function boardProps(
       y: v.unit.y,
       force: v.unit.force,
       group: v.group,
+      ...(v.unit.flag !== undefined ? { flag: v.unit.flag } : {}),
       pid: v.unit.pid,
       jid: v.unit.jid,
       ...(person?.["Name"] !== undefined ? { mpid: String(person["Name"]) } : {}),
@@ -1384,7 +1385,6 @@ export function boardProps(
       // 이름만 싣고 클라이언트가 /fe17/scripts/에서 병렬 fetch 후 sources에 병합한다(fengari 실행은 동기 유지).
       const sources: Record<string, string> = { [mapId]: src };
       const commons = Object.keys(scriptFiles).filter((name) => name.startsWith("common")).sort();
-      const disposGroups = [...new Set([...src.matchAll(/Dispos\(\s*"([^"]+)"/g)].map((m) => m[1]))];
       const sidRows: Record<string, SkillRow> = {};
       for (const m of src.matchAll(/"(SID_[^"]+)"/g)) {
         const row = slimSkill(m[1]);
@@ -1433,7 +1433,7 @@ export function boardProps(
           };
         }
       }
-      return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods, terrains, items: itemPack } };
+      return { script: { chapter: mapId, sources, commons, skills: sidRows, gods, terrains, items: itemPack } };
     })(),
     // ★엠블렘 초상은 **보드에 한 번만** 싣는다(유닛 사영은 gid 문자열만) — 같은 경로를 유닛마다
     //   반복하면 챕터 JSON 예산(§11)을 갉아먹는다. ☠스크립트 gods 뒤에 와야 한다(gidsUsed가 그때 완성된다).

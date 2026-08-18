@@ -19,6 +19,38 @@ describe("성장 안전장치 사영 (MP5 5-0)", () => {
   });
 });
 
+describe("dispos 배치 게이트 (MP3 3-7)", () => {
+  it("난이도 마스크가 없는 dispos 행은 그 난이도에 서지 않는다", () => {
+    // 왜 위험한가: Flag 하위 3비트(N1/H2/L4)가 배치 게이트인데(CanDispos → IsDifficulty) 사영이 통째로
+    // 빠져 있었다. 루나틱 기준 비자군 1,624유닛이 48챕터에서 유령으로 서 있었고, 그 위에서 잰
+    // AI 자동화율·기보가 전부 오염된다. 자군은 CreatePlayerTeam 별도 경로라 flag 부재 = 게이트 밖이다.
+    const withFlags = {
+      ...props,
+      units: [
+        { ...props.units[0]!, flag: 7 },
+        { ...props.units[1]!, flag: 3 },
+      ],
+    };
+    const lunatic = createBoardStore(withFlags).getState().game.units;
+    expect(lunatic.map((u) => u.id)).toEqual(["u0"]);
+
+    const store = createBoardStore(withFlags);
+    store.getState().setDifficulty("h");
+    expect(store.getState().game.units.map((u) => u.id)).toEqual(["u0", "u1"]);
+  });
+
+  it("초기 배치는 CreateFirst가 부르는 그룹뿐 — 증원은 스크립트 트리거를 기다린다", () => {
+    // 왜 위험한가: 종전 규칙은 "스크립트가 Dispos하는 그룹만 제외"라는 정규식이라 래퍼 호출·이름
+    // 문자열 연결을 못 잡았다. g006이 1턴부터 656유닛(진영 상한 64의 10배)을 놓았다.
+    const withReinforcement = {
+      ...props,
+      units: [...props.units, { ...props.units[1]!, x: 4, y: 4, group: "Reinforcement1_1" }],
+    };
+    const placed = createBoardStore(withReinforcement).getState().game.units;
+    expect(placed.map((u) => u.id)).toEqual(["u0", "u1"]);
+  });
+});
+
 describe("엠블렘·장비 사영", () => {
   it("gid가 국면까지 간다 — 보드 배지가 읽는 유일한 얼굴 주소다", () => {
     // 왜 위험한가: 보드 프롭에만 gid가 실리고 국면에서 빠지면 배지는 초기 렌더에만 뜨고

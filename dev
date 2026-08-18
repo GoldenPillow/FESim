@@ -114,7 +114,7 @@ case "$cmd" in
   replay)   shift
             # 챕터 기보 생성 — 헤드리스 완주 후 data/fe17/replays/<cid>.eph.json (= 맵의 기본 기보).
             # ☠승리·자군 무손실·검증 통과가 아니면 실패로 끝난다(리포트의 verified/playerLost 확인).
-            [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--out <path>]"; exit 2; }
+            [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>]"; exit 2; }
             node tools/replay/make.mjs "$@" ;;
   link:put) shift
             # 공유 링크 수동 등재(발급 API는 M4). 키 = id 그대로 · 값 = .eph 원문(@fesim/api 계약).
