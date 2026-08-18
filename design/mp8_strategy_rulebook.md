@@ -67,6 +67,40 @@ target: packages/engine/src/strategy/ + tools/rulebook/ + apps/web (예지선·�
   - ☠이미 있는 것을 다시 만들지 않는다 — 상점 구간 품목은 `ma_chapter_facts.md` §5 + `chapternotes.json`에
     **이미 있다**. 할 일은 (a) 전수인지 검증 (b) 빠진 입수 경로 보충 (c) 기계 소비 형태로 정돈이다.
   - 소비처 = B 룰북(§2-2 목차에 **아이템·상점·경제 절 추가**)과 C 전략 엔진(§4-7 자원 예약·§4-8 임계 돌파).
+  - ☠☠**최대 수확 = 장부가 거짓말을 하고 있었다**(SILENT_FIELDS 2026-08-19). `data/fe17/tables` 12개 테이블
+    필드 **570 중 282(49.5%)가 미소비**인데, 그중 둘은 **장부에 `anchored`로 게시**돼 있었다 —
+    장부는 `/[locale]/fe17/fidelity` 페이지로 **사용자에게 공개**되므로 사용자 대상 거짓말이었다.
+    - `combat.support-bonus` — 근거문에 *"배선 완료"*라고 적혀 있었으나 **엔진 층만** 배선이고
+      앱이 입력을 하나도 안 준다: `supports.json` 런타임 소비처 **0곳**(파이프라인 생성 + 테스트뿐) ·
+      `boardStore.ts`가 `createReducer(calculator)`로 supportEffects 미전달 · `fe17.ts`에 support 언급 **0건** ·
+      챕터별 絆 레벨 기본값 부재. ⇒ `absent`로 정정하고 게이트 3개를 근거문에 박았다.
+    - `weapons.cannon-hit-model` — `terrain.CannonSkill`·`CannonShells{N,H,L}`을 읽는 코드가 없어
+      포대 지형 9종이 스킬·탄수를 안 준다. ⇒ `absent`로 정정.
+    ★**이것이 "층별 테스트가 다 통과해도 사이가 끊기면 기능은 죽는다"의 실물 사례다** — 엔진 테스트는
+    supportEffects를 직접 주입하므로 영원히 그린이고, 앱은 영원히 0을 쓴다. 어느 층도 틀리지 않았다.
+  - ☠**남은 구조적 물음(사용자 결정 필요)** = 장부 `FidelityStatus`에 **"끝까지 배선됐는가" 축이 없다**.
+    현행 5값(anchored/implemented/assumed/absent/deferred)은 **근거의 강도**만 말하고 **경로의 연결**은 못 말한다.
+    그래서 층 하나만 끝난 것이 `anchored`로 게시될 수 있었다. `anchored` 49건 전건 재감사가 필요한지,
+    축을 하나 늘릴지가 미결이다.
+  - 위험 상위(전문 = `_mp8/SILENT_FIELDS.md`): supports 전량 · items `Enhance/UseType/AddSids` ·
+    `chapternotes.drops.n/.h`(노멀 플레이어에게 **루나틱 드랍**을 사실로 표시) · persons 난이도별 스킬 ·
+    gods `SynchroEnhance`(적 보스 스탯 저평가) · terrain `Life`(안개·화염 영구 잔존)·`ChangeTid`·포대 ·
+    skills `SyncConditions`/`Cycle`/`BadIgnore` · jobs 병과 스킬(춤·자물쇠 해제가 데이터로 안 산다).
+  - ★**1차 결론(ITEM_ACQUIRE 완료 2026-08-19)** — `_mp8/ITEM_ACQUIRE.md`:
+    - 상점 구간은 **누적**이 확정(치환 아님, `SetupContentListImpl` 0x31FD684). M023 빈 구간 = no-op.
+      조건의 콤마는 **AND**. ⇒ `ma_chapter_facts.md` §5의 [미확인]이 닫혔다.
+    - ☠**상점은 M004를 클리어해야 열린다.** ⇒ **m000~m004 전투 중 가용품 = 지참·드랍·민가뿐**이고
+      능력치 약 8종은 M004 도구점에 각 1개(150G)로 **처음** 등장한다.
+      ★**따라서 A5 도핑 배선은 선행 목표(본편 4장까지)에서 발현하지 않는다** — 미룬다.
+      **발현 조건 = m005 이후 챕터를 다루기 시작할 때**(그때 UseType 22 배선이 필요해진다).
+    - 판매가 = `trunc(0.5 x 잔여내구/최대내구 x Price x (1 + 0.2 x 연성레벨))`(`UnitItem.GetSelling` 0x1FAE960).
+      ☠실버카드(구입 70%)는 **DLC 전용**이라 무DLC에서는 영구 미적용.
+    - `chapternotes.json` 검증 = **오독 0건**, 누락 3종(액세서리점 시트 전량 31건 · 벼룩시장 랜덤 슬롯 ·
+      `Attribute` 필드). ☠액세서리는 전부 코스메틱이라 **완전성 결손이지 정확도 결손이 아니다**.
+    - 상점 밖 입수 경로 21개 중 **15개 미수집**. 전투 직결 1순위 = **아군·우군 지참품**(dispos Force0/2 `Item*.Iid`) —
+      ☠단 이것은 **엔진에는 이미 사영돼 있다**(유닛이 무기를 든다). 빠진 곳은 `chapternotes` 쪽 사실층이다.
+    - 산출 권장 = 새 파일은 `params.json` 하나(params.xml을 파이프라인이 **아예 안 읽는다**),
+      나머지는 `chapternotes.json` 확장. ☠**누적본은 파일로 굽지 않는다**(engine 순수 함수가 소유).
 - [x] **E. 결정 종결** (§8) — 8건 전부 사용자 확정(2026-08-19) + ★**추가 결정(2026-08-19)**:
   **되돌리기는 난수 스트림을 전부 되돌린다**(Game·System 모두). 정본은 Game만 되돌리지만(A6 §5-8),
   우리 무한 되돌리기는 인게임(시간의 수정, 횟수 제한)과 성격이 달라 **의도적으로 이탈**한다 —

@@ -484,8 +484,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "combat.support-bonus",
     label: { en: "Support (bond) bonuses (adjacent only)", ko: "지원(인연) 보정 — 인접 1타일" },
-    status: "anchored",
-    evidence: "배선 완료(battle.test.ts 5건) · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · ★IL2CPP 코드로 가정 3건 전부 종결(2026-08-17, il2cpp/SUPPORT.md): 거리 = 맨해튼 1(SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트 — **대각 미발동 확정**) · archetype = **파트너**의 SupportCategory(UnitReliance.TryGetSupportData 0x1C5B150이 unitB의 PersonData+0x80만 인덱싱 — 수혜자설 기각, 현행 엔진 정합) · 복수 파트너 = 단순 합산·상한 없음(MaxShowUnits=4는 UI 표시 슬롯 전용) · 파트너 자격 = 엄격 동일 Force.Type(동맹 세력 제외 — IsAllide를 쓰지 않는다) · 평가 = 전투 정보 산출 시 양측 1회 고정(매 타격 재계산 아님), 좌표는 이동 후 전투 지점 · ☠Level 4 = **A+**이지 S가 아니다(RelianceData.Level None0/C1/B2/A3/APlus4 — 경험 승급은 A까지, A+는 엠블럼 링크 경로) · 회귀 방지 테스트 2건(archetype 소유자·타 세력 배제) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
+    status: "absent",
+    evidence: "☠☠**런타임 미배선 — 화면 수치에 지원 보정이 들어가지 않는다**(2026-08-19 전수 확인, MP8 A8). 종전 이 항목은 `anchored` + '배선 완료'였는데 **그것이 거짓이었다**: 배선된 것은 엔진 층뿐이고 앱은 입력을 하나도 안 준다. `supportOf`(battle.ts)의 입력 3개가 전부 부재 — (1) `supports.json`의 런타임 소비처가 **0곳**(소비처 = 파이프라인 생성 + 테스트 2곳뿐), `boardStore.ts`가 `createReducer(calculator)`로 supportEffects를 안 넘긴다 (2) `fe17.ts`가 `supportCategory`를 사영하지 않는다(파일 내 support 언급 0건) (3) 유닛별 絆 레벨(`u.supports`)의 챕터 기본값이 없다(선행 = 챕터별 絆 레벨 배선, gaps/O §10). ⇒ 세 게이트가 전부 열려야 값이 산다. ★엔진 층 자체는 구현·검증돼 있다(아래 판독은 유효) — 되살릴 때 다시 판독할 필요 없다. 이 항목이 `anchored`로 게시돼 있던 것이 **층별 테스트가 다 통과해도 사이가 끊기면 기능은 죽는다**의 실물 사례다. 이하 = 엔진 층 근거: battle.test.ts 5건 · 발동 거리 = 인접 1타일(사용자 실측 2026-08-17) · 수치 = supports.json(支援効果 6×4 — D §1-1 전사 오류 정정, FIX_NOTES_3 §2) · ★IL2CPP 코드로 가정 3건 전부 종결(2026-08-17, il2cpp/SUPPORT.md): 거리 = 맨해튼 1(SupportCalculator.Range=1 + MapFor.EachRange(near=1,far=1)의 |dx|+|dz| 게이트 — **대각 미발동 확정**) · archetype = **파트너**의 SupportCategory(UnitReliance.TryGetSupportData 0x1C5B150이 unitB의 PersonData+0x80만 인덱싱 — 수혜자설 기각, 현행 엔진 정합) · 복수 파트너 = 단순 합산·상한 없음(MaxShowUnits=4는 UI 표시 슬롯 전용) · 파트너 자격 = 엄격 동일 Force.Type(동맹 세력 제외 — IsAllide를 쓰지 않는다) · 평가 = 전투 정보 산출 시 양측 1회 고정(매 타격 재계산 아님), 좌표는 이동 후 전투 지점 · ☠Level 4 = **A+**이지 S가 아니다(RelianceData.Level None0/C1/B2/A3/APlus4 — 경험 승급은 A까지, A+는 엠블럼 링크 경로) · 회귀 방지 테스트 2건(archetype 소유자·타 세력 배제) · 예보 패널 표시는 §0 미룸 · 3회차 재확인: 표준 命中値計算·回避値計算에 支援命中·支援回避 항이 실재함을 포탄식(SID_弾丸命中) 대조로 재확인 — 발동 거리 조건은 여전히 텍스트·계산식 어디에도 부재(gaps/N §4-2)",
   },
   {
     id: "combat.status-effects",
@@ -928,8 +928,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "weapons.cannon-hit-model",
     label: { en: "Cannon (bullet) weapons: dedicated hit formula and range falloff", ko: "포탄 무기 전용 명중식과 거리 감쇠" },
-    status: "anchored",
-    evidence: "skill.xml SID_弾丸命中 = max(技+力+体格+int(幸運/2)+武器命中+支援命中 − cond(거리>=4,(거리-3)*10,0), 0) — 표준 命中値計算(技*2+...)을 대체 · SID_弾丸攻撃力 = ユニット攻撃力(技) 대체 · 텍스트 유도 = patch1~3 MIID_H_Bullet_*(상대가 멀수록 명중 감소, gaps/N §3-2) · A축 calculator 52식 전수에는 없던 skill.xml 전용 항",
+    status: "absent",
+    evidence: "☠**런타임 미배선**(2026-08-19 전수 확인, MP8 A8) — 종전 `anchored`였으나 포대 지형의 `terrain.CannonSkill`·`CannonShells{N,H,L}`을 **읽는 코드가 없다**(엔진·앱 grep 0건). 포대 지형 9종이 스킬도 탄수도 주지 않으므로 이 명중식은 어떤 전투에도 적용되지 않는다. 선행 = 지형 스킬 부여층 + 포탄 무기 시뮬 수요(§0 미룸). 이하 = 판독 근거(유효): skill.xml SID_弾丸命中 = max(技+力+体格+int(幸運/2)+武器命中+支援命中 − cond(거리>=4,(거리-3)*10,0), 0) — 표준 命中値計算(技*2+...)을 대체 · SID_弾丸攻撃力 = ユニット攻撃力(技) 대체 · 텍스트 유도 = patch1~3 MIID_H_Bullet_*(상대가 멀수록 명중 감소, gaps/N §3-2) · A축 calculator 52식 전수에는 없던 skill.xml 전용 항",
   },
   {
     id: "weapons.equip-sids",
