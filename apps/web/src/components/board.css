@@ -1034,8 +1034,10 @@
 }
 
 /*
-  전투 타격 요약 — 전투에 낀 유닛 옆 작은 표. ★수명이 연출과 다르다(다음 행동까지, 사용자 확정)라
-  fx 타이머가 아니라 별도 상태가 소유한다. miss 화이트 · crit 노랑 · 대미지 레드(사용자 지정).
+  전투 타격 요약 — ★**맞은 유닛** 옆 작은 표(2026-08-18 사용자 지정: 때린 쪽엔 안 세운다).
+  자군 왼편 · 적/우군 오른편 · 무기 = 자군의 손이면 파랑, 상대의 손이면 빨강 · 대미지는 언제나 빨강 ·
+  필살은 노란 CRIT 카드 · 빗나감은 흰 MISS. ★수명이 연출과 다르다(다음 행동까지, 사용자 확정)라
+  fx 타이머가 아니라 별도 상태가 소유한다.
 */
 .board .layer.strikes {
   z-index: 7;
@@ -1082,7 +1084,35 @@
 }
 .board .strike .sw {
   font-style: normal;
-  color: rgb(255 255 255 / 0.62);
+}
+/* 무기 색 = 누구의 손인가(자군 파랑 · 상대 빨강) — 자리(좌/우)는 누가 맞았나를 이미 말한다. */
+.board .strike .sw.ours {
+  color: #6fb6ff;
+}
+.board .strike .sw.foe {
+  color: #e2635c;
+}
+/* 예보 대미지 방향 — 주는 쪽 › 파랑 · 받는 쪽 ‹ 빨강(사용자 지정: 화살표 + 색 이중 표기). */
+.forecast .fc-dmg.out {
+  color: #6fb6ff;
+}
+.forecast .fc-dmg.in {
+  color: #e2635c;
+}
+.forecast .fc-dir {
+  font-style: normal;
+  font-weight: 700;
+  margin-right: 2px;
+}
+.board .strike .scrit {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: #201a00;
+  background: #ffd23e;
 }
 .board .strike .sk {
   font-style: normal;
