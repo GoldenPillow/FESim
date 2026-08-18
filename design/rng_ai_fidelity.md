@@ -72,11 +72,24 @@ RandomSeed.Initialize(seed)         ; 0x2375000  — MT19937 초기화와 같은
 `Random.Serialize`/`Deserialize`(0x2375660/0x2375A90)와 `Random.IsSave`(0x2374C60)가 있다.
 ⇒ 인게임 되감기는 **난수 상태를 되돌린다**. 우리 `.eph`의 롤 기록과 어떻게 맞물리는지가 §3의 과제.
 
-### 0-4. 예보는 난수를 소비하면 안 된다
+### 0-4. 예보 격리 = **시드 스택 + 시뮬레이션 모드** (판독 완료)
 
-`BattleMath.PushRandomSeed`(0x1E7E400) / `PopRandomSeed`(0x1E7EFF0)가 `Random.Game`을 잡는다.
-⇒ 인게임은 **시드를 저장하고 계산한 뒤 되돌린다**. 전투 예보·AI 평가가 실굴림을 축내지 않는 장치다.
-현행 엔진의 예보(`forecastSide`)가 실굴림을 소비하지 않는지는 **미검증**(§1-4).
+`BattleInfo.CalcParam`의 `Random.Game` 접촉 2곳(+0xE0·+0x218)은 **굴림이 아니라 상태 저장/복원**이었다.
+
+```
+CalcParam (예보 경로):
+    Stack<RandomSeed>.Push(Random.Game 상태)     ; 0x1E78B00 → 0x35EF690
+    BattleMath.PushSimulation()                   ; 0x1E7E490 — 전역 플래그 [0x6316143] = 1
+    CalcFlags → CalcRange → CalcChain → ComplementConditions → CalcDetail → CalcActiveSkill
+    ... (+0x218에서 Pop으로 상태 복원)
+```
+
+`PushSimulation`이 세우는 플래그가 HIT_RANDOM §1-2의 그 스위치다 —
+`s_CurrentProbabilityHit` → `_IsProbabilityTrue`, `s_CurrentProbability100` → `_IsProbabilityFalse`.
+⇒ **예보 중에는 명중이 항상 성공·확률 발동이 항상 실패로 고정**되고, 난수 상태는 스택으로 원복된다.
+
+현행 엔진은 `forecastSide`가 **난수소스를 인자로 받지 않는** 순수 함수라 굴림을 축내지 않는다(요구 (a) 충족).
+요구 (b)(예보의 명중·발동 고정)는 표시 계약과 대조가 필요하다 — A4의 실제 과제는 (b) 쪽이다.
 
 ### 0-4A. ★유닛별 난수 시드가 따로 있다 — `m_GrowSeed` / `m_DropSeed`
 

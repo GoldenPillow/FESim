@@ -437,16 +437,23 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
       return applyEventList(state, step.events);
     }
     if (step.action.type === "endPhase" && step.events !== undefined) {
-      // ☠**전이 계산 전에 진영 구성을 먼저 맞춘다**(2026-08-18). endPhase는 다음 진영을 `forces`에서
-      // 고르고 그 진영만 활성화 리셋(acted·moved·인게이지·지형회복)을 받는데, 훅이 그 페이즈의 유일한
-      // 진영을 퇴장시켰다면 라이브와 재생이 **다른 진영**을 고른다. m001 관측 = 재생이 이미 없는 force 2로
-      // 넘어가 다음 자군 행동을 거부했고, phase만 절대 대입하면 이번엔 리셋이 엉뚱한 진영에 갔다.
-      // ⇒ 존재·소속을 바꾸는 이벤트만 먼저 얹고(멱등) 그다음 전이를 재계산한 뒤 전체를 오버레이한다.
-      const structural = step.events.filter(
-        (e) => e.type === "spawn" || e.type === "despawn" || e.type === "transfer",
-      );
-      const pre = structural.length > 0 ? applyEventList(state, structural) : state;
-      const next = baseReduce(pre, step.action, sequenceSource(step.rolls ?? []));
+      // ☠**다음 진영은 기록이 정본이다**(2026-08-18). endPhase는 `forces`에서 다음 진영을 고르고
+      // 그 진영만 활성화 리셋(acted·moved·인게이지·지형회복)을 받는데, 훅이 진영 구성을 바꾸면
+      // 훅이 전이 **앞**에서 났는지 **뒤**에서 났는지에 따라 라이브와 재생이 다른 진영을 고른다
+      // — m001은 앞, m022는 뒤라 어느 한쪽 순서로 고정하면 반대쪽이 깨졌다(둘 다 실측).
+      // ⇒ 순서를 추측하지 않는다. 평범하게 전이해 보고, 기록된 절대 phase와 어긋날 때만
+      //   존재·소속 이벤트를 먼저 얹은 경로를 시도해 **기록과 맞는 쪽**을 채택한다.
+      const recorded = step.events.find((e) => e.type === "phase");
+      let next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
+      if (recorded !== undefined && next.phase !== recorded.phase) {
+        const structural = step.events.filter(
+          (e) => e.type === "spawn" || e.type === "despawn" || e.type === "transfer",
+        );
+        if (structural.length > 0) {
+          const alt = baseReduce(applyEventList(state, structural), step.action, sequenceSource(step.rolls ?? []));
+          if (alt.phase === recorded.phase) next = alt;
+        }
+      }
       return applyEventList(next, step.events);
     }
     if (step.events !== undefined) {
