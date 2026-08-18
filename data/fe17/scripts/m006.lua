@@ -175,15 +175,15 @@ function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___7d22_6575___
 
 	local value = VariableGet( g_key_engage_michaiah )
 	if value == 1 then
-		return false
+		do return false end
 	end
 
 	value = VariableGet( g_key_tutorial_search )
 	if value == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -201,14 +201,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_4f1a_8a71___30df_30ab_30e4_30a8_30f3_30b2_30fc_30b8()
 
 	if VariableGet( g_key_ringBandit_Die ) == 0 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_engage_michaiah ) == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u6226_95d8_5f8c_4f1a_8a71___30df_30ab_30e4_30a8_30f3_30b2_30fc_30b8()
@@ -233,15 +233,15 @@ function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___30df_30ab_30
 
 	local value = VariableGet( g_key_engage_michaiah )
 	if value == 0 then
-		return false
+		do return false end
 	end
 
 	value = VariableGet( g_key_tutorial_michaiah )
 	if value == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -280,18 +280,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___5f85_6a5f_5f8c___30dc_30b9()
 
 	if DifficultyGet() < DIFFICULTY_LUNATIC then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_fixed_boss ) == 1 then
-		return false
+		do return false end
 	end
 
 	x = UnitGetX(g_pid_boss)
 	z = UnitGetZ(g_pid_boss)
 
 	if ( x == 1 ) and ( z == 11 ) then
-		return true
+		do return true end
 	end
 
 end

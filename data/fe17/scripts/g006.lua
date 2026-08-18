@@ -171,22 +171,22 @@ end
 function _u30af_30ed_30e0_306e_P_I_D_53d6_5f97()
 
 	if UnitExistOnMap( g_pid_bossA2 ) then
-		return g_pid_bossA2
+		do return g_pid_bossA2 end
 
 	end
 
-	return g_pid_bossA
+	do return g_pid_bossA end
 
 end
 
 function _u30eb_30d5_30ec_306e_P_I_D_53d6_5f97()
 
 	if UnitExistOnMap( g_pid_bossB2 ) then
-		return g_pid_bossB2
+		do return g_pid_bossB2 end
 
 	end
 
-	return g_pid_bossB
+	do return g_pid_bossB end
 
 end
 
@@ -329,13 +329,13 @@ end
 
 function _u6c34_6676_306e_6700_5927_H_P()
 	if		_u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb() then
-		return 30
+		do return 30 end
 
 	elseif	_u30e2_30fc_30c9_306f_30cf_30fc_30c9() then
-		return 40
+		do return 40 end
 
 	elseif	_u30e2_30fc_30c9_306f_30eb_30ca_30c6_30a3_30c3_30af() then
-		return 50
+		do return 50 end
 
 	end
 end
@@ -343,21 +343,21 @@ end
 function _uc_o_n_d_i_t_i_o_n___6c34_6676___30ea_30bb_30c3_30c8()
 
 	if VariableGet( g_key_BrokenBarrier ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_SortieNum ) < 3 then
-		return false
+		do return false end
 	end
 
 	if		( VariableGet( "破壊_" .. tostring( g_CrystalPos[1][1] ) .. "_" .. tostring( g_CrystalPos[1][2] ) ) == 1 )
 		or	( VariableGet( "破壊_" .. tostring( g_CrystalPos[2][1] ) .. "_" .. tostring( g_CrystalPos[2][2] ) ) == 1 )
 		or	( VariableGet( "破壊_" .. tostring( g_CrystalPos[3][1] ) .. "_" .. tostring( g_CrystalPos[3][2] ) ) == 1 ) then
 
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -401,7 +401,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30d7_30ec_30a4_30e4_30fc_8ecd_3070_3089_3064_304d_30c1_30a7_30c3_30af()
 
 	if VariableGet( g_key_puddleOn ) == 1 then
-		return false
+		do return false end
 	end
 
 	local center_x, center_z = _u30d7_30ec_30a4_30e4_30fc_8ecd_306e_4e2d_5fc3_70b9_3092_7b97_51fa()
@@ -430,7 +430,7 @@ function _uc_o_n_d_i_t_i_o_n___30d7_30ec_30a4_30e4_30fc_8ecd_3070_3089_3064_304d
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff14_30bf_30fc_30f3_3081()
-	return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 )
+	do return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 ) end
 end
 
 function _u5897_63f4_ff14_30bf_30fc_30f3_3081()
@@ -442,10 +442,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___6c34_6d78_3057_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_puddleOn ) == 1 then
-		return false
+		do return false end
 	end
 
-	return ( VariableGet( g_key_puddleOn_Judge ) == 1 )
+	do return ( VariableGet( g_key_puddleOn_Judge ) == 1 ) end
 
 end
 
@@ -489,7 +489,7 @@ function _u6c34_6d78_3057()
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff16_30bf_30fc_30f3_3081()
-	return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 ) and ( DifficultyGet() > DIFFICULTY_NORMAL )
+	do return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 ) and ( DifficultyGet() > DIFFICULTY_NORMAL ) end
 end
 
 function _u5897_63f4_ff16_30bf_30fc_30f3_3081()
@@ -502,7 +502,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4___30a8_30ea_30a2_5965()
 
-	return ( VariableGet( g_key_BrokenBarrier ) == 0 )
+	do return ( VariableGet( g_key_BrokenBarrier ) == 0 ) end
 
 end
 
@@ -518,7 +518,7 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___969c_58c1_7834_58ca_5f8c_5897_63f4()
 
-	return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 ) and ( VariableGet( g_key_BrokenBarrier ) == 1 )
+	do return ( VariableGet( g_key_ReinforcementBrokenBarrier ) == 0 ) and ( VariableGet( g_key_BrokenBarrier ) == 1 ) end
 
 end
 
@@ -569,7 +569,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30af_30ed_30e0___30eb_30ad_30ca_3068_6226_95d8()
 
 	if VariableGet( g_key_battleTalk_chrom_lucina ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -579,7 +579,7 @@ function _uc_o_n_d_i_t_i_o_n___30af_30ed_30e0___30eb_30ad_30ca_3068_6226_95d8()
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
 
-	return ( god == "GID_ルキナ" )
+	do return ( god == "GID_ルキナ" ) end
 
 end
 
@@ -604,7 +604,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30eb_30d5_30ec___30eb_30ad_30ca_3068_6226_95d8()
 
 	if VariableGet( g_key_battleTalk_reflet_lucina ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -614,7 +614,7 @@ function _uc_o_n_d_i_t_i_o_n___30eb_30d5_30ec___30eb_30ad_30ca_3068_6226_95d8()
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
 
-	return ( god == "GID_ルキナ" )
+	do return ( god == "GID_ルキナ" ) end
 
 end
 

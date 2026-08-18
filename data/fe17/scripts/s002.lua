@@ -266,14 +266,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4___L_u_n_a_t_i_c()
 
 	if VariableGet( g_key_reinforcement ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_Boss_act ) == 1 then
-		return true
+		do return true end
 	end
 
-	return 	false
+	do return false end
 
 end
 

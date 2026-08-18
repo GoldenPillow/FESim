@@ -145,23 +145,23 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_30cf_30fc_30c9_4ee5_4e0a()
 	if _u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb() then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_30eb_30ca_4ee5_4e0a()
 	if _u30e2_30fc_30c9_306f_30ce_30fc_30de_30eb() or _u30e2_30fc_30c9_306f_30cf_30fc_30c9() then
-		return false
+		do return false end
 	end
 
 	local turn = MapGetTurn()
 	if ( turn % 2 ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4()
@@ -221,17 +221,17 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___A_I_5909_66f4()
 	if VariableGet( g_key_changedAI ) == 1 then
-		return false
+		do return false end
 	end
 
 	if		( VariableGet( g_key_entryArea ) == 1 )
 		or	( VariableGet( g_key_battled ) == 1 )
 		or	( VariableGet( g_key_battleTalk_byleth_lueur ) == 1 )
 		or	( VariableGet( g_key_battleTalk_byleth_holtencia ) == 1 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uA_I_5909_66f4()
@@ -268,14 +268,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30d9_30ec_30c8_4e0d_52d5_8a2d_5b9a()
 	if	( VariableGet( g_key_byleth_on_inmovable ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_changedAI ) == 1 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30d9_30ec_30c8_4e0d_52d5_8a2d_5b9a()
@@ -285,14 +285,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30d9_30ec_30c8_4e0d_52d5_89e3_9664()
 	if ( VariableGet( g_key_byleth_off_inmovable ) == 1 ) then
-		return false
+		do return false end
 	end
 
 	if ( VariableGet( g_key_byleth_on_inmovable ) == 1 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30d9_30ec_30c8_4e0d_52d5_89e3_9664()
@@ -303,22 +303,22 @@ end
 function _uc_o_n_d_i_t_i_o_n___A_I_5909_66f4_2___8a31_53ef()
 	if ( VariableGet( g_key_changedAI2 ) == 0 )
 		and ( VariableGet( g_key_changedAI ) == 1 ) then
-			return true
+			do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___A_I_5909_66f4_2()
 	if VariableGet( g_key_changedAI2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_changedAI2_Permssn ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uA_I_5909_66f4_2()
@@ -351,20 +351,20 @@ function _uA_I_5909_66f4___5730_5f62_7834_58ca( unit )
 		AiSetSequence(unit, AI_ORDER_ATTACK,	"AI_AT_Null")
 		AiSetSequence(unit, AI_ORDER_MOVE,		"AI_MV_TerrainDestroy")
 		AiSetActive(unit, true)
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uA_I_5909_66f4___653b_6483( unit )
 	if UnitExistOnMap( unit ) then
 		AiSetSequence(unit, AI_ORDER_ATTACK,	"AI_AT_Attack")
 		AiSetSequence(unit, AI_ORDER_MOVE,		"AI_MV_NearestEnemy")
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function MapEnding()

@@ -166,7 +166,7 @@ end
 function _u5897_63f4_ff11()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement0", DISPOS_FLAG_FOCUS)
@@ -178,7 +178,7 @@ end
 function _u5897_63f4_ff12()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement1", DISPOS_FLAG_FOCUS)
@@ -196,7 +196,7 @@ end
 function _u5897_63f4_ff13()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement2", DISPOS_FLAG_FOCUS)
@@ -212,7 +212,7 @@ end
 function _u5897_63f4_ff14()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement3", DISPOS_FLAG_FOCUS)
@@ -224,7 +224,7 @@ end
 function _u5897_63f4_ff15()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement4", DISPOS_FLAG_FOCUS)
@@ -273,7 +273,7 @@ function _u5897_63f4___L_u_n_a_t_i_c___ff16()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return false
+			do return false end
 	end
 
 	Dispos("Enemy_Reinforcement６_Lunatic1", DISPOS_FLAG_FOCUS)
@@ -307,18 +307,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a2_30a4_30d3_30fc_52d5_3051_308b_304b_30c1_30a7_30c3_30af()
 
 	if VariableGet( "アイビー動くよイベント再生_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "臣下死亡" ) == 1 then
-		return true
+		do return true end
 	end
 
 	if MapGetTurn() >= 7 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

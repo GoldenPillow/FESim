@@ -1385,13 +1385,27 @@ export function boardProps(
       // 이름만 싣고 클라이언트가 /fe17/scripts/에서 병렬 fetch 후 sources에 병합한다(fengari 실행은 동기 유지).
       const sources: Record<string, string> = { [mapId]: src };
       const commons = Object.keys(scriptFiles).filter((name) => name.startsWith("common")).sort();
+      // ☠챕터 전용 Include(기믹 스크립트)를 실어야 한다 — common*은 클라이언트가 fetch하지만
+      //   `Include("G002_Gimmick")` 같은 챕터 전속 소스는 아무도 안 실어서 g002·g003·g005가
+      //   개시조차 못 했다(2026-08-18 MP7 B4). 키는 Include가 소문자로 찾으므로 파일명 그대로다.
+      const locals = [
+        ...new Set(
+          [...src.matchAll(/Include\(\s*"([^"]+)"/g)]
+            .map((m) => m[1].toLowerCase())
+            .filter((name) => name !== mapId && !name.startsWith("common") && scriptFiles[name] !== undefined),
+        ),
+      ].sort();
+      for (const name of locals) sources[name] = scriptFiles[name]!;
+      // 표 사영의 폐포 = 챕터 + 챕터 전용 Include(기믹이 자기 스킬·엠블렘·아이템·지형을 쓴다).
+      const own = [mapId, ...locals];
+      const ownSrc = own.map((name) => scriptFiles[name] ?? "").join("\n");
       const sidRows: Record<string, SkillRow> = {};
-      for (const m of src.matchAll(/"(SID_[^"]+)"/g)) {
+      for (const m of ownSrc.matchAll(/"(SID_[^"]+)"/g)) {
         const row = slimSkill(m[1]);
         if (row !== undefined) sidRows[m[1]] = row;
       }
       const gods: NonNullable<BoardProps["script"]>["gods"] = {};
-      for (const m of src.matchAll(/"(GID_[^"]+)"/g)) {
+      for (const m of ownSrc.matchAll(/"(GID_[^"]+)"/g)) {
         const engage = engageStateFor(m[1]);
         if (engage === undefined) continue;
         const engageWeapons = emblemEngageWeapons(m[1], locale);
@@ -1400,7 +1414,7 @@ export function boardProps(
       }
       // 아이템 사영 — 폐포 = 챕터 + common*(공용 헬퍼가 상자·민가 지급을 소유한다).
       const itemPack: NonNullable<BoardProps["script"]>["items"] = {};
-      for (const name of [mapId, ...commons]) {
+      for (const name of [...own, ...commons]) {
         for (const m of (scriptFiles[name] ?? "").matchAll(/"(IID_[^"]+)"/g)) {
           if (itemPack[m[1]] !== undefined) continue;
           const row = gainItemFor(m[1], locale);
@@ -1409,7 +1423,7 @@ export function boardProps(
       }
       // 지형 사영 — 폐포 = 챕터 + common*(공용 헬퍼도 TerrainSet을 부른다). 실사용 TID만 담긴다(종별 선형).
       const terrains: NonNullable<BoardProps["script"]>["terrains"] = {};
-      for (const name of [mapId, ...commons]) {
+      for (const name of [...own, ...commons]) {
         for (const m of (scriptFiles[name] ?? "").matchAll(/"(TID_[^"]+)"/g)) {
           const row = terrain[m[1]];
           if (row === undefined || terrains[m[1]] !== undefined) continue;

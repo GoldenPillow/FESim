@@ -226,7 +226,7 @@ function Copy( orig )
 
 	end
 
-	return copy
+	do return copy end
 
 end
 
@@ -234,7 +234,7 @@ function SortInAsc( list )
 
 	table.sort( list,
 				function( a, b )
-					return ( a.x > b.x )
+					do return ( a.x > b.x ) end
 				end
 				)
 end
@@ -243,7 +243,7 @@ function SortInDesc( list )
 
 	table.sort( list,
 				function( a, b )
-					return ( a.x < b.x )
+					do return ( a.x < b.x ) end
 				end
 				)
 end

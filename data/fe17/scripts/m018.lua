@@ -124,7 +124,7 @@ end
 function _u5897_63f4_ff16_30bf_30fc_30f3_76ee()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	Dispos("Enemy_Reinforcement0", DISPOS_FLAG_FOCUS);

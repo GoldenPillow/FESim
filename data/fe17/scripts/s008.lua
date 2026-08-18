@@ -105,27 +105,27 @@ function _uc_o_n_d_i_t_i_o_n___5897_63f4()
 				( DifficultyGet() == DIFFICULTY_NORMAL and re3 == g_reinfocement3_max_normal )
 			or	( DifficultyGet() > DIFFICULTY_NORMAL and re3 == g_reinfocement3_max )
 			) then
-			return false
+			do return false end
 	end
 
 	if re1 == 0 and VariableGet( g_key_area1 ) == 1 then
-		return true
+		do return true end
 	end
 
 	if re2 == 0 and VariableGet( g_key_area2 ) == 1 then
-		return true
+		do return true end
 	end
 
 	if AiGetActive( g_pid_eirik ) then
 
 		if		( ( DifficultyGet() == DIFFICULTY_NORMAL ) and ( re3 < g_reinfocement3_max_normal ) )
 			or	( ( DifficultyGet() > DIFFICULTY_NORMAL ) and ( re3 < g_reinfocement3_max ) )			then
-				return true
+				do return true end
 		end
 
 	end
 
-	return false
+	do return false end
 
 end
 

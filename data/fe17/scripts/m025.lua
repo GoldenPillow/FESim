@@ -186,42 +186,42 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_4fb5_5165()
 
 	if VariableGet( "増援_エリア侵入_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリアイベント_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___30a8_30ea_30a2_4fb5_5165_1()
 
 	if VariableGet( "増援_エリア侵入1_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "エリアイベント1_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_5897_63f4()
 
 	if VariableGet( "増援_戦闘後増援_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "戦闘後イベント_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -311,9 +311,9 @@ function _uc_o_n_d_i_t_i_o_n___9752_30bf_30fc_30f3_958b_59cb_76f4_524d___30a8_30
 	VariableSet( g_key_beam_turn, turn )
 
 	if turn == 1 or turn == 2 then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 end
 
@@ -421,7 +421,7 @@ function _u30a8_30d5_30a7_30af_30c8_306e_89d2_5ea6_3092_8a08_7b97()
 		deg = deg * (-1)
 	end
 
-	return deg
+	do return deg end
 end
 
 function _u5927_67f1_30d0_30ea_30a2_306e_30a8_30d5_30a7_30af_30c8_518d_751f()
@@ -543,16 +543,16 @@ function _u30bf_30fc_30b2_30c3_30c8_5ea7_6a19_306e_7b97_51fa()
 
 	local index = RandomGet( max_danger_num ) + 1
 	target = hazard_map[ index ]
-	return target
+	do return target end
 
 end
 
 function _u897f_5074( x, z )
-	return ( x <= math.floor(g_map_width/2) )
+	do return ( x <= math.floor(g_map_width/2) ) end
 end
 
 function _u6771_5074( x, z )
-	return ( x > math.floor(g_map_width/2) )
+	do return ( x > math.floor(g_map_width/2) ) end
 end
 
 function _u30d3_30fc_30e0_906e_853d( _start_x, _start_z, tid )
@@ -598,7 +598,7 @@ function _u30d9_30af_30c8_30eb_56de_8ee2( dir_x, dir_z, degree )
 		local cos = math.cos( math.rad( degree ) )
 		local sin = math.sin( math.rad( degree ) )
 
-		return ( cos * dir_x - sin * dir_z ), ( sin * dir_x + cos * dir_z )
+		do return ( cos * dir_x - sin * dir_z ), ( sin * dir_x + cos * dir_z ) end
 
 end
 
@@ -661,34 +661,34 @@ function _u7dda_3092_7b97_51fa( _start_x, _start_z, _dir_x, _dir_z )
 				end
 		end
 
-		return line
+		do return line end
 
 end
 
 function _u30e9_30a4_30f3_306e_4e2d_304b_3089_ff38_5024_304c_5408_3046_3082_306e_3092_53d6_5f97(line, index, _x)
 	for i = index, #line do
 		if ( line[i].X == _x ) then
-			return i
+			do return i end
 		end
 		if ( i == #line ) then
-			return #line + 1
+			do return #line + 1 end
 		end
 	end
 
-	return index
+	do return index end
 end
 
 function _u30e9_30a4_30f3_306e_4e2d_304b_3089_ff3a_5024_304c_5408_3046_3082_306e_3092_53d6_5f97(line, index, _z)
 	for i = index, #line do
 		if ( line[i].Z == _z ) then
-			return i
+			do return i end
 		end
 		if ( i == #line ) then
-			return #line + 1
+			do return #line + 1 end
 		end
 	end
 
-	return index
+	do return index end
 end
 
 function _u30de_30c3_30d7_5857_308a_3064_3076_3057( line, lineA, lineB, fill )
@@ -878,14 +878,14 @@ function _u30cf_30b6_30fc_30c9_30de_30c3_30d7_4f5c_6210( range, map_width, map_h
 
 	table.sort( map,
 				function( a, b )
-					return ( a.VAL > b.VAL )
+					do return ( a.VAL > b.VAL ) end
 				end
 				)
 
 	if #map == 0 then
-		return nil
+		do return nil end
 	else
-		return map
+		do return map end
 	end
 
 end

@@ -237,20 +237,21 @@ end
 function _u30dc_30b9_306e_P_I_D_3092_53d6_5f97()
 
 	if UnitExistOnMap( g_pid_boss ) then
-		return g_pid_boss
+		do return g_pid_boss end
+		end
 
 	if UnitExistOnMap( g_pid_boss_moveDown ) then
-		return g_pid_boss_moveDown
+		do return g_pid_boss_moveDown end
 
 	elseif UnitExistOnMap( g_pid_bossLuna ) then
-		return g_pid_bossLuna
+		do return g_pid_bossLuna end
 
 	elseif UnitExistOnMap( g_pid_bossLuna_moveDown ) then
-		return g_pid_bossLuna_moveDown
+		do return g_pid_bossLuna_moveDown end
 
 	end
 
-	return ""
+	do return "" end
 
 end
 
@@ -290,10 +291,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___5897_63f4()
 
 	if ( VariableGet( g_key_areaEntry ) == 0 ) and ( VariableGet( g_key_senerioActive ) == 0 ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -391,14 +392,14 @@ function _u706b_5c71_5f3e_30a8_30ea_30a2_9078_51fa( areaID )
 
 	end
 
-	return tempList
+	do return tempList end
 
 end
 
 function _u706b_5c71_5f3e_51e6_7406( areaID, selectedSpotList )
 
 	if #selectedSpotList == 0 then
-		return
+		do return end
 	end
 
 	_u706b_5c71_5f3e_5674_51fa_6f14_51fa( areaID )
@@ -527,7 +528,7 @@ function _u7159_30de_30c3_30d7_306e_53d6_5f97()
 		end
 	end
 
-	return map
+	do return map end
 
 end
 
@@ -560,7 +561,7 @@ function _u7159_914d_7f6e_5834_6240_306e_9078_5b9a( smokeMap )
 
 	end
 
-	return smokeMap
+	do return smokeMap end
 
 end
 
@@ -598,7 +599,7 @@ function _u7159_3092_9593_5f15_304f_51e6_7406( smokeMap )
 
 	end
 
-	return smokeMap
+	do return smokeMap end
 
 end
 
@@ -633,7 +634,7 @@ function _u7159_306e_914d_7f6e( areaID, smokeMap )
 
 		MapOverlapSetEnd()
 
-	return not none
+	do return not none end
 
 end
 
@@ -650,7 +651,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a2_30a4_30af_3068_6226_95d8()
 
 	if VariableGet( g_key_battleTalk_senerio_ike ) == 1 then
-		return false
+		do return false end
 	end
 
 	local god = nil
@@ -660,7 +661,7 @@ function _uc_o_n_d_i_t_i_o_n___30a2_30a4_30af_3068_6226_95d8()
 		god = UnitGetGodUnit( MindGetTargetUnit() )
 	end
 
-	return ( god == "GID_アイク" )
+	do return ( god == "GID_アイク" ) end
 
 end
 

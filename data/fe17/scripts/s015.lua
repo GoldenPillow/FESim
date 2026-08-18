@@ -94,7 +94,7 @@ end
 function _uc_o_n_d_i_t_i_o_n___5f37_5236_6575_30d5_30a7_30a4_30ba_7d42_4e86()
 
 	if VariableGet( g_key_banditRing_dead ) == 1 then
-		return true
+		do return true end
 	end
 
 end
@@ -102,14 +102,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___6307_8f2a_596a_9084()
 
 	if VariableGet( g_key_recapture ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_banditRing_dead ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -165,14 +165,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30d5_30a7_30a4_30ba_8abf_6574()
 
 	if VariableGet( g_key_phase ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_recapture ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -188,20 +188,20 @@ end
 function _uc_o_n_d_i_t_i_o_n___30dc_30b9_5468_8fba_884c_52d5_958b_59cb_30ab_30a6_30f3_30bf_30fc()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_active ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_phase ) == 0 then
-		return false
+		do return false end
 	end
 
 	local counter = VariableGet( g_key_activeCounter )
 	if counter <= 0 then
-		return true
+		do return true end
 	end
 
 	counter = counter - 1
@@ -211,10 +211,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___6307_8f2a_6301_3061_9003_3052()
 	if VariableGet( g_key_recapture ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u6307_8f2a_6301_3061_9003_3052()

@@ -218,7 +218,7 @@ function _u5473_65b9_6b7b_4ea1()
 end
 
 function condition_true()
-	return true
+	do return true end
 end
 
 function _u6b7b_4ea1_6570_30ab_30a6_30f3_30c8()

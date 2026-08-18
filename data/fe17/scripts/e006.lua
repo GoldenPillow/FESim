@@ -487,12 +487,12 @@ function _u6226_95d8_524d_4f1a_8a71_30a8_30eb()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___30a8_30eb()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_30a8_30eb ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u6226_95d8_524d_4f1a_8a71_30ea_30e5_30fc_30eb()
@@ -501,12 +501,12 @@ function _u6226_95d8_524d_4f1a_8a71_30ea_30e5_30fc_30eb()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___30ea_30e5_30fc_30eb()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_30ea_30e5_30fc_30eb ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u6226_95d8_524d_4f1a_8a71_30bb_30ec_30b9_30c6_30a3_30a2()
@@ -515,12 +515,12 @@ function _u6226_95d8_524d_4f1a_8a71_30bb_30ec_30b9_30c6_30a3_30a2()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___30bb_30ec_30b9_30c6_30a3_30a2()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_30bb_30ec_30b9_30c6_30a3_30a2 ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u6226_95d8_524d_4f1a_8a71_30b0_30ec_30b4_30ea_30fc()
@@ -529,12 +529,12 @@ function _u6226_95d8_524d_4f1a_8a71_30b0_30ec_30b4_30ea_30fc()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___30b0_30ec_30b4_30ea_30fc()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_30b0_30ec_30b4_30ea_30fc ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u6226_95d8_524d_4f1a_8a71_30de_30c7_30ea_30fc_30f3()
@@ -543,12 +543,12 @@ function _u6226_95d8_524d_4f1a_8a71_30de_30c7_30ea_30fc_30f3()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___30de_30c7_30ea_30fc_30f3()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_30de_30c7_30ea_30fc_30f3 ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u6226_95d8_524d_4f1a_8a71_6c4e_7528()
@@ -557,12 +557,12 @@ function _u6226_95d8_524d_4f1a_8a71_6c4e_7528()
 end
 function _uc_o_n_d_i_t_i_o_n___5168_4f53_653b_6483_78ba_8a8d___6c4e_7528()
 	if VariableGet( g_key_Bress_Talk ) == 1 then
-		return false
+		do return false end
 
 	elseif VariableGet( _ug___k_e_y___6226_95d8_524d_6c4e_7528 ) == 1 then
-		return false
+		do return false end
 	end
-	return true
+	do return true end
 end
 
 function _u5897_63f4_5de6_4e0b()
@@ -1523,7 +1523,7 @@ function _u4e00_62ec_6b7b_4ea1_540d_524d_4ed8(bx, bz,unitcount,unitScount,breakP
 
 		end
 	end
-	return unitcount,unitScount,pidS
+	do return unitcount,unitScount,pidS end
 end
 
 function _u30d7_30ec_30a4_30e4_30fc_8ecd_4e00_822c_5175_5224_5b9a(pid)
@@ -1535,7 +1535,7 @@ function _u30d7_30ec_30a4_30e4_30fc_8ecd_4e00_822c_5175_5224_5b9a(pid)
 		named = 0
 	end
 
-	return named
+	do return named end
 end
 
 function _u4e00_62ec_6b7b_4ea1_540d_7121_3057(bx, bz,unitcount,unitScount,breakP)
@@ -1577,7 +1577,7 @@ function _u4e00_62ec_6b7b_4ea1_540d_7121_3057(bx, bz,unitcount,unitScount,breakP
 			pidS = unit
 		end
 	end
-	return unitcount,unitScount,pidS
+	do return unitcount,unitScount,pidS end
 end
 
 function _u5cf6_5d29_6b7b_4ea1_51e6_7406(bx, bz,unitcount,unitScount,breakP)
@@ -1636,7 +1636,7 @@ function _u5cf6_5d29_6b7b_4ea1_51e6_7406(bx, bz,unitcount,unitScount,breakP)
 			end
 		end
 	end
-	return unitcount,unitScount
+	do return unitcount,unitScount end
 end
 
 function _u5438_53ce___56de_5fa9(unitcount,unitScount)
@@ -1779,7 +1779,7 @@ function _u914d_7f6e_7d0b_7ae0_6c23(pid,mcount)
 		VariableSet( "紋章氣_済", 2 )
 	end
 	mcount = mcount + 1
-	return mcount
+	do return mcount end
 end
 
 function _u7bc4_56f2_5438_53ce()
@@ -2745,7 +2745,7 @@ function _u5cf6_5d29_6b7b_4ea1_5168_4f53(bx, bz,unitcount,unitScount,bP)
 		end
 	end
 
-	return unitcount,unitScount
+	do return unitcount,unitScount end
 end
 
 function _u5486_54ee_5168_6ec5_79fb_52d5()

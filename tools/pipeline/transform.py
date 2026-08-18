@@ -489,7 +489,72 @@ def strip_lua_comments(source: str) -> str:
         if line == "" and (not cleaned or cleaned[-1] == ""):
             continue
         cleaned.append(line)
-    return "\n".join(cleaned).strip() + "\n"
+    return "\n".join(_normalize_returns(cleaned)).strip() + "\n"
+
+
+RETURN_RE = re.compile(r"^(\s*)return\b(.*)$")
+_TERMINATORS = ("end", "else", "elseif", "until")
+
+
+def _block_delta(line: str) -> list[str]:
+    """줄 하나가 여는 블록 종류를 순서대로 — 닫힘은 "-"로 표기(근사 스캔, 주석·문자열은 이미 제거됨)."""
+    ops: list[str] = []
+    for m in re.finditer(r"\b(function|if|for|while|do|end|repeat|until)\b", line):
+        tok = m.group(1)
+        if tok == "function":
+            ops.append("function")
+        elif tok == "if":
+            ops.append("if")
+        elif tok in ("for", "while"):
+            ops.append(tok)
+        elif tok == "do":
+            # for/while이 이미 열어 뒀으면 그 do는 같은 블록이다 — 중복으로 세지 않는다.
+            if ops and ops[-1] in ("for", "while"):
+                continue
+            ops.append("do")
+        elif tok == "repeat":
+            ops.append("repeat")
+        elif tok in ("end", "until"):
+            ops.append("-")
+    return ops
+
+
+def _normalize_returns(lines: list[str]) -> list[str]:
+    """MoonSharp 확장 — `return`이 블록의 마지막 문장이 아니어도 된다(표준 Lua는 문법 오류).
+
+    두 가지를 한다.
+    1. 모든 `return x` → `do return x end` — 어느 위치에서든 합법이면서 의미가 같다.
+    2. ★`return` 뒤에 문장이 **더 오는** 자리에서는 그 블록을 닫는 `end`를 보충한다.
+       근거 = 원문이 실제로 `end` 하나가 모자란다(g001 토큰 실측: 열림 60 · `end` 59). MoonSharp은
+       `return`을 만나면 그 블록을 닫으므로 원문이 성립하고, 표준 Lua는 `<eof>`에서 거부한다.
+       ☠**여는 블록이 `if`가 아니면 중단한다** — 함수 본문 한가운데의 return을 닫으면 뒤 함수들이
+       통째로 중첩돼 전역 정의가 사라진다. 추측으로 메우지 않는다(전 코퍼스 해당 2곳, 둘 다 `if`).
+    """
+    stack: list[str] = []
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        m = RETURN_RE.match(line)
+        if m is None:
+            for op in _block_delta(line):
+                if op == "-":
+                    if stack:
+                        stack.pop()
+                else:
+                    stack.append(op)
+            out.append(line)
+            continue
+        indent, rest = m.group(1), m.group(2).strip()
+        out.append(f"{indent}do return{' ' + rest if rest else ''} end")
+        nxt = next((lines[j].strip() for j in range(i + 1, len(lines)) if lines[j].strip()), "")
+        if nxt == "" or nxt.startswith(_TERMINATORS):
+            continue
+        if not stack or stack[-1] != "if":
+            raise ValueError(
+                f"return 뒤 문장이 있는데 여는 블록이 if가 아니다(줄 {i + 1}, 스택 {stack[-3:]}) — 수동 판독 필요"
+            )
+        stack.pop()
+        out.append(f"{indent}end")
+    return out
 
 
 INCLUDE_RE = re.compile(r'Include\(\s*"([^"]+)"\s*\)')

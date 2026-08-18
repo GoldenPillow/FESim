@@ -112,7 +112,7 @@ function _u30ab_30b2_30c4___6226_95d8_958b_59cb()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return false
+			do return false end
 	end
 
 	AiSetSequence("PID_M009_イルシオン兵_ランスアーマー隊", AI_ORDER_ATTACK, "AI_AT_Attack")
@@ -125,7 +125,7 @@ function _u30bc_30eb_30b3_30d0___6226_95d8_958b_59cb()
 
 	if DifficultyGet() == DIFFICULTY_NORMAL
 		or DifficultyGet() == DIFFICULTY_HARD then
-			return false
+			do return false end
 	end
 
 	AiSetSequence("PID_M009_イルシオン兵_アクスアーマー隊", AI_ORDER_ATTACK, "AI_AT_Attack")
@@ -140,14 +140,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a2_30a4_30d3_30fc_30a2_30af_30c6_30a3_30d6()
 
 	if VariableGet( "アイビーアクティブ_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "アクスナイト_交戦開始_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -223,14 +223,14 @@ function _u5224_5b9a___7826_5230_7740___30ab_30b2_30c4()
 	z = 16
 
 	if VariableGet( "砦到着_カゲツ_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if not UnitExistOnMap( pid ) then
-		return false
+		do return false end
 	end
 
-	return _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z)
+	do return _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z) end
 end
 
 function _u7826_5230_7740___30bc_30eb_30b3_30d0()
@@ -263,14 +263,14 @@ function _u5224_5b9a___7826_5230_7740___30bc_30eb_30b3_30d0()
 	z = 2
 
 	if VariableGet( "砦到着_ゼルコバ_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if not UnitExistOnMap( pid ) then
-		return false
+		do return false end
 	end
 
-	return _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z)
+	do return _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z) end
 end
 
 function _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z)
@@ -278,9 +278,9 @@ function _u6307_5b9a_5ea7_6a19_306b_3044_308b_304b_5224_5b9a(pid, x, z)
 	_z = UnitGetZ(pid)
 
 	if ( _x == x ) and ( _z == z ) then
-		return true
+		do return true end
 	else
-		return false
+		do return false end
 	end
 end
 

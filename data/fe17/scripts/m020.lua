@@ -118,28 +118,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___76d7_8cca_767b_5834___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_thief ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___76d7_8cca_767b_5834()
 
 	if VariableGet( g_key_thief ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -160,18 +160,18 @@ end
 function _uc_o_n_d_i_t_i_o_n___30b0_30ea___30e9_30a4_30ca_30ef_30fc_30d7_521d_56de_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_warp_first_event ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_warp_end_event ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_warp_end ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -185,14 +185,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30b0_30ea___30e9_30a4_30ca_30ef_30fc_30d7_7d42_4e86_30a4_30d9_30f3_30c8()
 
 	if VariableGet( g_key_warp_end_event ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_warp_end ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

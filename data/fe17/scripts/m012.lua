@@ -118,26 +118,26 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff11___30ce_30fc_30de_30eb()
 	if VariableGet( g_key_reinforcement1 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff11()
 	if VariableGet( g_key_reinforcement1 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4_ff11()
@@ -164,26 +164,26 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12___30ce_30fc_30de_30eb()
 	if VariableGet( g_key_reinforcement2 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff12()
 	if VariableGet( g_key_reinforcement2 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4_ff12()
@@ -200,26 +200,26 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff13___30ce_30fc_30de_30eb()
 	if VariableGet( g_key_reinforcement3 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _uc_o_n_d_i_t_i_o_n___5897_63f4_ff13()
 	if VariableGet( g_key_reinforcement3 ) ~= 0 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4_ff13()

@@ -87,14 +87,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_4f1a_8a71___3053_308c_3067_6a4b_304c_304b_304b_308b()
 
 	if VariableGet( g_key_zagam_Die ) == 0 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "罠発動_済" ) == 1 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u6226_95d8_5f8c_4f1a_8a71___3053_308c_3067_6a4b_304c_304b_304b_308b()

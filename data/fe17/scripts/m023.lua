@@ -154,10 +154,10 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___706b_5c71_5f3e_4e88_544a()
 	if VariableGet( g_key_bomb_turn ) == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u706b_5c71_5f3e_4e88_544a()
@@ -213,10 +213,10 @@ function _uc_o_n_d_i_t_i_o_n___706b_5c71_5f3e_843d_4e0b()
 	VariableSet( g_key_bomb_turn, _t )
 
 	if turn == 0 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u706b_5c71_5f3e_843d_4e0b()
@@ -247,7 +247,7 @@ end
 function _u706b_5c71_5f3e___843d_4e0b_4e88_544a(bomb_x, bomb_z)
 
 	if ( bomb_x == -1 ) or ( bomb_z == -1 ) then
-		return
+		do return end
 	end
 
 	CursorSetPos( bomb_x, bomb_z )
@@ -275,7 +275,7 @@ end
 function _u706b_5c71_5f3e___843d_4e0b(bomb_x, bomb_z)
 
 	if ( bomb_x == -1 ) or ( bomb_z == -1 ) then
-		return
+		do return end
 	end
 
 	CursorSetPos( bomb_x, bomb_z )
@@ -397,10 +397,10 @@ end
 function _uc_o_n_d_i_t_i_o_n___30ce_30fc_30de_30eb_4ee5_4e0a_304b()
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u5897_63f4_ff17()
@@ -502,7 +502,7 @@ function _u706b_5c71_5f3e___843d_4e0b_5730_70b9_6c7a_5b9a()
 				if ( #temp_list_near > 0 ) then
 					table.sort( temp_list_near,
 								function( a, b )
-									return ( a.DIST < b.DIST )
+									do return ( a.DIST < b.DIST ) end
 								end
 								)
 
@@ -590,7 +590,7 @@ function _u4ed6_306e_5ca9_3068_8fd1_3059_304e_306a_3044_4e14_30dc_30b9_306b_5f53
 	if ( #rockPoint > 0 ) then
 		for i = 1, #rockPoint do
 			if ( _uff38_8ddd_96e2_3068_ff3a_8ddd_96e2_306e_9060_3044_65b9(rock.X, rock.Z, rockPoint[i].X, rockPoint[i].Z) < 3 ) then
-				return false
+				do return false end
 			end
 		end
 	end
@@ -598,18 +598,18 @@ function _u4ed6_306e_5ca9_3068_8fd1_3059_304e_306a_3044_4e14_30dc_30b9_306b_5f53
 	local pid = "PID_M023_セピア"
 	if UnitExistOnMap( pid ) then
 		if ( _uff38_8ddd_96e2_3068_ff3a_8ddd_96e2_306e_9060_3044_65b9(rock.X, rock.Z, UnitGetX( pid ), UnitGetZ( pid )) < 2 ) then
-			return false
+			do return false end
 		end
 	end
 
 	pid = "PID_M023_グリ"
 	if UnitExistOnMap( pid ) then
 		if ( _uff38_8ddd_96e2_3068_ff3a_8ddd_96e2_306e_9060_3044_65b9(rock.X, rock.Z, UnitGetX( pid ), UnitGetZ( pid )) < 2 ) then
-			return false
+			do return false end
 		end
 	end
 
-	return true
+	do return true end
 
 end
 
@@ -617,7 +617,7 @@ function _uff38_8ddd_96e2_3068_ff3a_8ddd_96e2_306e_9060_3044_65b9( x1, z1, x2, z
 
 	local distanceX = math.abs( x1 - x2 )
 	local distanceZ = math.abs( z1 - z2 )
-	return math.max( distanceX, distanceZ )
+	do return math.max( distanceX, distanceZ ) end
 
 end
 
@@ -673,14 +673,14 @@ function _u30cf_30b6_30fc_30c9_30de_30c3_30d7_4f5c_6210( range, map_width, map_h
 
 	table.sort( map,
 				function( a, b )
-					return ( a.VAL > b.VAL )
+					do return ( a.VAL > b.VAL ) end
 				end
 				)
 
 	if #map == 0 then
-		return nil
+		do return nil end
 	else
-		return map
+		do return map end
 	end
 
 end

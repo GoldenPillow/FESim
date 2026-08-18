@@ -135,14 +135,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___6226_95d8_5f8c_5897_63f4()
 
 	if VariableGet( "増援_戦闘後増援_済" ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( "戦闘後イベント_済" ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

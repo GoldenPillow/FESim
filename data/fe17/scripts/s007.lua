@@ -86,28 +86,28 @@ end
 function _uc_o_n_d_i_t_i_o_n___7adc_8108()
 
 	if VariableGet( g_key_dragonPulse ) == 1 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() > DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
 function _uc_o_n_d_i_t_i_o_n___7adc_8108___30ce_30fc_30de_30eb()
 
 	if VariableGet( g_key_dragonPulse ) == 1 then
-		return false
+		do return false end
 	end
 
 	if DifficultyGet() == DIFFICULTY_NORMAL then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

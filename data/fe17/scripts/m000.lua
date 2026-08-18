@@ -121,19 +121,19 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___65e9_304f_6575_306b_8fd1_3065_3053_3046()
 	if VariableGet(g_key_go_closer) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet(g_key_attack) == 1 then
-		return false
+		do return false end
 	end
 
 	local distance = _u4e8c_70b9_9593_8ddd_96e2( UnitGetX( g_pid_lueur ), UnitGetZ( g_pid_lueur ), UnitGetX( "PID_M000_ソンブル" ), UnitGetZ( "PID_M000_ソンブル" ) )
 	if distance > 5 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u65e9_304f_6575_306b_8fd1_3065_3053_3046()
@@ -143,18 +143,18 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___653b_6483_3057_3088_3046()
 	if VariableGet(g_key_attack) == 1 then
-		return false
+		do return false end
 	end
 	if VariableGet(g_key_battle) == 1 then
-		return false
+		do return false end
 	end
 
 	local distance = _u4e8c_70b9_9593_8ddd_96e2( UnitGetX( g_pid_lueur ), UnitGetZ( g_pid_lueur ), UnitGetX( "PID_M000_ソンブル" ), UnitGetZ( "PID_M000_ソンブル" ) )
 	if distance <= 5 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u653b_6483_3057_3088_3046()
@@ -165,16 +165,16 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___65e9_304f_653b_6483_3057_3088_3046()
 	if VariableGet(g_key_go_attack) == 1 then
-		return false
+		do return false end
 	end
 	if VariableGet(g_key_battle) == 1 then
-		return false
+		do return false end
 	end
 	if VariableGet(g_key_attack) == 0 then
-		return false
+		do return false end
 	end
 
-	return true
+	do return true end
 end
 
 function _u65e9_304f_653b_6483_3057_3088_3046()
@@ -192,14 +192,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a8_30f3_30b2_30fc_30b8_3057_3088_3046()
 
 	if VariableGet(g_key_engage) == 1 then
-		return false
+		do return false end
 	end
 
 	if ( UnitGetEngageCount( g_pid_lueur ) == 7 ) and ( not UnitIsStatus( g_pid_lueur, UNIT_STATUS_ENGAGING ) ) then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 

@@ -126,6 +126,13 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
   };
 
   let outcome = state.outcome;
+  // ☠페이즈·턴은 **기록이 정본**이다(2026-08-18): endPhase는 baseReduce로 다음 진영을 먼저 고르고
+  // 그 뒤에 훅 이벤트를 얹으므로, 훅이 그 페이즈의 유일한 진영을 퇴장시키면 순서가 뒤집혀 갈라진다.
+  // m001에서 관측 = 재생이 force 2 유닛이 이미 없는데도 phase 2로 넘어가 다음 자군 행동을 거부했다
+  // (기존 주석의 "이론상 표류"가 실제로 났다). 절대값 phase 이벤트를 버리지 않고 그대로 대입한다.
+  // ☠단 **turn은 대입하지 않는다** — 이벤트의 `turn`은 전이 **직전** 값이라(battle.ts endPhase가
+  // 증가 전에 발화한다) 그대로 쓰면 턴이 되감긴다. 턴은 리듀서 재계산이 정본이다.
+  let phase = state.phase;
   let crests = state.crests;
   let structures = state.structures;
   let terrainPatches = state.terrainPatches;
@@ -235,6 +242,8 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         break;
       case "spawn": {
         const u = ev.unit as unknown as UnitState;
+        // 멱등 — 같은 목록을 두 번 얹어도 유닛이 겹치지 않는다(endPhase 사전 적용 + 오버레이).
+        if (byId.has(u.id)) break;
         units.push({ ...u });
         byId.set(u.id, units[units.length - 1]);
         break;
@@ -350,12 +359,14 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         break;
       }
       case "phase":
+        phase = ev.phase;
         break;
     }
   }
   return {
     ...state,
     units,
+    phase,
     ...(crests === undefined ? {} : { crests }),
     ...(structures === undefined ? {} : { structures }),
     ...(terrainPatches === undefined ? {} : { terrainPatches }),
@@ -426,9 +437,25 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
       return applyEventList(state, step.events);
     }
     if (step.action.type === "endPhase" && step.events !== undefined) {
-      const next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
+      // ☠**전이 계산 전에 진영 구성을 먼저 맞춘다**(2026-08-18). endPhase는 다음 진영을 `forces`에서
+      // 고르고 그 진영만 활성화 리셋(acted·moved·인게이지·지형회복)을 받는데, 훅이 그 페이즈의 유일한
+      // 진영을 퇴장시켰다면 라이브와 재생이 **다른 진영**을 고른다. m001 관측 = 재생이 이미 없는 force 2로
+      // 넘어가 다음 자군 행동을 거부했고, phase만 절대 대입하면 이번엔 리셋이 엉뚱한 진영에 갔다.
+      // ⇒ 존재·소속을 바꾸는 이벤트만 먼저 얹고(멱등) 그다음 전이를 재계산한 뒤 전체를 오버레이한다.
+      const structural = step.events.filter(
+        (e) => e.type === "spawn" || e.type === "despawn" || e.type === "transfer",
+      );
+      const pre = structural.length > 0 ? applyEventList(state, structural) : state;
+      const next = baseReduce(pre, step.action, sequenceSource(step.rolls ?? []));
+      return applyEventList(next, step.events);
+    }
+    if (step.events !== undefined) {
+      // ☠**행동 종류를 가리지 않는다** — 종전엔 endPhase만 오버레이해서, 이동·대기에 붙은 훅 이벤트가
+      // 타임라인 재생에서 통째로 버려졌다(2026-08-18). m001은 `UnitTransfer`(우군→자군)가 그렇게 사라져
+      // 그 유닛의 다음 행동이 "지금 군의 유닛이 아니다"로 거부됐다 — 기보는 정상인데 재생만 깨진 것이다.
       // 기록 이벤트 전체를 오버레이 — 전부 절대값(hpAfter·count·좌표) 또는 멱등이라 base 재계산분과
       // 겹쳐도 수렴한다. 부분집합 필터는 훅의 사망(UnitDie)류를 놓친다.
+      const next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
       return applyEventList(next, step.events);
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));

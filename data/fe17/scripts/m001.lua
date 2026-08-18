@@ -294,14 +294,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30a4_30d9_30f3_30c8_524d_306b_6575_3092_5168_6ec5()
 
 	if VariableGet( g_key_marthSynchro ) == 1 then
-		return false
+		do return false end
 	end
 
 	if ForceUnitGetCount( FORCE_ENEMY ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 end
 
 function _u30a4_30d9_30f3_30c8_524d_306b_6575_3092_5168_6ec5()
@@ -316,18 +316,18 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30a4_30d9_30f3_30c8___30de_30eb_30b9_3068_30b7_30f3_30af_30ed()
 	if VariableGet( g_key_marthSynchro ) == 1 then
-		return false
+		do return false end
 	end
 
 	if ForceUnitGetCount( FORCE_ENEMY ) == 0 then
-		return true
+		do return true end
 	end
 
 	if MapGetTurn() == 3 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -427,14 +427,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___30de_30eb_30b9_306e_80fd_529b_7d39_4ecb()
 
 	if VariableGet( g_key_tutorial_marth1 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if VariableGet( g_key_marthSynchro ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -447,14 +447,14 @@ end
 
 function _uc_o_n_d_i_t_i_o_n___30c1_30e5_30fc_30c8_30ea_30a2_30eb___7d0b_7ae0_58eb_30de_30eb_30b9()
 	if VariableGet( g_key_tutorial_marth2 ) == 1 then
-		return false
+		do return false end
 	end
 
 	if UnitGetGodUnit( g_pid_lueur ) ~= nil then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
@@ -466,14 +466,14 @@ end
 function _uc_o_n_d_i_t_i_o_n___52dd_5229_5224_5b9a()
 
 	if VariableGet( g_key_marthSynchro ) == 0 then
-		return false
+		do return false end
 	end
 
 	if ForceUnitGetCount( FORCE_ENEMY ) == 1 then
-		return true
+		do return true end
 	end
 
-	return false
+	do return false end
 
 end
 
