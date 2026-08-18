@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { parseEphemeris, serializeEphemeris } from "@fesim/shared";
-import { RULE_VERSION } from "@fesim/engine";
+import { carryover, RULE_VERSION } from "@fesim/engine";
 import { createBoardStore, displayState } from "../src/lib/boardStore";
 import { boardFixture, memoryStorage } from "./fixtures";
 
@@ -9,6 +9,69 @@ beforeEach(() => {
 });
 
 const props = boardFixture();
+
+describe("성장 안전장치 사영 (MP5 5-0)", () => {
+  it("projectUnit이 cap·maxLevel을 엔진 국면까지 나른다", () => {
+    // 왜 위험한가: 보드 프롭에만 실리고 국면 사영에서 빠지면 엔진 게이트는 여전히 항상 통과한다.
+    const u = createBoardStore(props).getState().game.units[0]!;
+    expect(u.cap).toEqual(props.units[0]!.cap);
+    expect(u.maxLevel).toBe(20);
+  });
+});
+
+describe("챕터 인계 그릇 (MP5 5-2)", () => {
+  const setupBy = (key: string) => ({
+    units: {
+      [key]: {
+        level: 7, exp: 40, internalLevel: 3, hp: 12,
+        growthAcc: { str: 80 },
+        stats: { hp: 30, str: 14, mag: 0, dex: 12, spd: 12, lck: 6, def: 8, res: 4, bld: 7 },
+      },
+    },
+  });
+
+  it("pid 키가 보드 슬롯으로 해석된다 — 챕터마다 u{순번}이 달라지므로 인계 키는 pid다", () => {
+    const store = createBoardStore(props, undefined, setupBy(props.units[0]!.pid));
+    const u = store.getState().game.units.find((x) => x.id === "u0")!;
+    expect(u.level).toBe(7);
+    expect(u.exp).toBe(40);
+    expect(u.internalLevel).toBe(3);
+    expect(u.hp).toBe(12);
+    expect(u.growthAcc).toEqual({ str: 80 });
+    expect(u.stats.str).toBe(14);
+  });
+
+  it("인덱스 키(u{순번})가 pid 키보다 우선한다 — 편집기 의도가 인계를 덮는다", () => {
+    const store = createBoardStore(props, undefined, {
+      units: { ...setupBy(props.units[0]!.pid).units, u0: { level: 2 } },
+    });
+    expect(store.getState().game.units.find((x) => x.id === "u0")!.level).toBe(2);
+  });
+
+  it("pid 키는 자군에만 적용된다 — 인계는 자군 로스터의 계약이다", () => {
+    const enemyPid = props.units[1]!.pid;
+    const store = createBoardStore(props, undefined, { units: { [enemyPid]: { level: 9 } } });
+    expect(store.getState().game.units.find((x) => x.id === "u1")!.level).not.toBe(9);
+  });
+});
+
+describe("인계 로스터 추출 — 커서 국면 (MP5 5-5)", () => {
+  it("리플레이의 인계는 displayState에서 뽑는다 — store.game은 초기 국면이다", () => {
+    // 왜 위험했나: 기보 생성기가 seek(끝) 뒤 store.game을 읽어 carryover를 돌렸고,
+    // 그 결과 경험치·레벨이 통째로 0인 로스터가 **조용히** 다음 챕터로 인계됐다.
+    // seek은 커서만 옮긴다 — 커서 국면의 소유자는 displayState다.
+    const play = createBoardStore(props);
+    play.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const file = play.getState().toFile();
+    const gained = carryover(play.getState().game)[props.units[0]!.pid]!.exp!;
+    expect(gained).toBeGreaterThan(0);
+
+    const viewer = createBoardStore(props, { file });
+    viewer.getState().seek(file.log.length);
+    expect(carryover(viewer.getState().game)[props.units[0]!.pid]!.exp).toBe(0); // 초기 국면
+    expect(carryover(displayState(viewer.getState()))[props.units[0]!.pid]!.exp).toBe(gained);
+  });
+});
 
 describe("dispatch 기보 누적", () => {
   it("행동마다 스텝 1건 — 이동은 롤 무소비, 공격은 롤·이벤트 병기", () => {

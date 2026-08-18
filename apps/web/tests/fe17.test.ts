@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -34,6 +34,19 @@ describe("unitStats — 스탯 상한(Limit) 배선", () => {
     expect(unitStats(disposUnit({}), "n")).toEqual({
       hp: 22, str: 6, mag: 0, dex: 5, spd: 7, lck: 5, def: 5, res: 3, bld: 4,
     });
+  });
+});
+
+describe("챕터 연쇄 (MP5 5-3)", () => {
+  it("nextChapter — 본편 사슬은 chapter.xml NextChapter가 정본이다", () => {
+    // 왜 위험한가: 종전 chapterlist는 cid/category/recommendedLevel 3필드뿐이라 캠페인이
+    // 다음 챕터를 알 방법이 없었다(파일명 정렬은 외전·신룡의 장을 섞어 놓는다).
+    expect(nextChapter("CID_M002")).toBe("CID_M003");
+    expect(nextChapter("CID_S001")).toBeUndefined(); // 외전은 사슬 밖 — 해금(unlock)으로 열린다
+  });
+
+  it("unlock — 외전 개방 시점이 실린다(MA 공략의 외전 진입 판단 입력)", () => {
+    expect(chapterList.find((e) => e.cid === "CID_S001")?.unlock).toBe("M005");
   });
 });
 
@@ -133,6 +146,16 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
     const full = emblemEngageWeapons("GID_エイリーク", "ko", 20);
     expect(full).toHaveLength(3); // + かぜの剣(10)·ジークリンデ(15)
     expect(full.every((w) => w.kind > 0 && w.rangeMax >= 1)).toBe(true);
+  });
+
+  it("boardPropsFor — 성장 안전장치(cap·maxLevel)가 유닛에 실린다 (MP5 5-0)", () => {
+    // 왜 위험한가: 엔진 rollGrowth의 캡 게이트와 grantExp의 최대 레벨 정지는 이 두 필드가
+    // 있어야만 동작한다. 사영이 없으면 게이트가 항상 통과해 인계(MP5)를 켜는 순간 무한 성장이 된다.
+    const props = boardPropsFor("m003", "ko");
+    const lueur = props.units.find((u) => u.pid === "PID_リュール")!;
+    // 뤼에르(JID_神竜ノ子) 상한 = job.Limit + person.Limit 실값(Lv99 산출은 이 상한에 못 닿는 스탯이 있다).
+    expect(lueur.cap).toEqual({ hp: 68, str: 42, mag: 25, dex: 37, spd: 44, lck: 35, def: 35, res: 25, bld: 13 });
+    expect(lueur.maxLevel).toBe(20);
   });
 
   it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {

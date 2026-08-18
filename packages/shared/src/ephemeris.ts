@@ -22,7 +22,10 @@ export interface EphemerisStep {
 }
 
 /**
- * 유닛 1기의 초기 세팅 diff — 전부 선택적, 부재 = dispos 기본. 키 정본 = 보드 유닛 id(u{순번}).
+ * 유닛 1기의 초기 세팅 diff — 전부 선택적, 부재 = dispos 기본.
+ * 키 = 보드 유닛 id(u{순번}) **또는 pid**(PID_로 시작). ☠챕터가 바뀌면 같은 인물이 다른 순번이라
+ * 챕터 인계(MP5)는 pid로 적는다. 같은 인물의 두 키가 다 있으면 순번 키가 이긴다(편집기 의도 우선).
+ * pid 키는 **자군에만** 적용된다 — 인계는 자군 로스터의 계약이고, 적은 pid가 겹친다(환영병).
  * 이원 표현: stats(+이하 스냅숏)는 **열람 경로의 정본**(원천 테이블 없이 결정적 재구성 — /s/ 워커에
  * 대용량 테이블 반입 금지), level·items·sids·god·bond는 **편집기 복원용 의도**다.
  * 편집기는 의도를 바꿀 때마다 스냅숏을 재산출해 함께 기록한다(불일치 = 편집기 결함).
@@ -32,6 +35,16 @@ export interface SetupUnit {
   y?: number;
   removed?: boolean;
   level?: number;
+  /** 잔여 경험치 — 챕터 인계(부재 = 0). */
+  exp?: number;
+  /** 내부 레벨(경험치 레벨차 입력) — 전직이 올린다(부재 = 직업 기본). */
+  internalLevel?: number;
+  /** 직업 — 전직 결과의 인계(부재 = dispos jid). ☠스탯은 stats 스냅숏이 정본이다. */
+  jid?: string;
+  /** 현재 HP — 챕터 인계(부재 = 만HP). 인게임 문법은 챕터 개시 시 만회복이라 보통 부재다. */
+  hp?: number;
+  /** 고정 성장 누적기(GrowMode.Fixed) — 부재 = person.Grow가 초기값. */
+  growthAcc?: Partial<StatBlock>;
   /** 소지품 교체(아이템 id 순서 그대로 — [0] = 장비 무기) */
   items?: string[];
   /** 장착 스킬 교체(스킬 id) */

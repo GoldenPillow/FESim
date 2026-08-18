@@ -101,10 +101,11 @@ describe("기록", () => {
     // 상대 행운 10 = 필살률 0 → 타격당 롤 1개. 격파라 반격·추격 롤은 없다.
     const foe = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 10, def: 0, res: 0, bld: 5 };
     const growth = { hp: 50, str: 50, mag: 50, dex: 50, spd: 50, lck: 50, def: 50, res: 50, bld: 50 };
-    const s = state([
+    // Random 모드 명시 — 성장 롤이 존재하는 계약을 지키는 절이다(서비스 기본 fixed는 롤을 안 쓴다).
+    const s = { ...state([
       unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
       unit({ id: "e", force: 1, x: 1, y: 0, stats: foe, hp: 1, weapon: sword }),
-    ]);
+    ]), growMode: "random" as const };
     const rng = recordingSource(seq(7, 10, 90, 10, 90, 10, 90, 10, 90, 10, 55, 66));
     const next = reduce(s, { type: "attack", unit: "a", target: "e" }, rng);
 

@@ -1,4 +1,4 @@
-import { parseEphemeris, serializeEphemeris, type Difficulty, type EphemerisFile } from "@fesim/shared";
+import { parseEphemeris, serializeEphemeris, type Difficulty, type EphemerisFile, type SetupUnit } from "@fesim/shared";
 
 /**
  * 게스트 자동 저장 — 무계정으로도 판이 이어지는 게이트 제로의 최소형.
@@ -80,6 +80,62 @@ export function hasGuestSave(mapId: string, game = "fe17"): boolean {
 export function clearSlot(key: SaveKey): void {
   try {
     storage()?.removeItem(slotKey(key));
+  } catch {
+    // 지우지 못해도 다음 저장이 덮어쓴다.
+  }
+}
+
+/* ── 런(캠페인) — 챕터 사슬의 진행 상태. 게이트 제로 유지(서버 저장은 M4 로그인 선행).
+   ☠챕터 자동 저장(fesim:eph:*)과 다른 축이다: 저쪽은 판 하나의 기보, 이쪽은 판을 잇는 로스터다. */
+
+export interface RunState {
+  game: string;
+  difficulty: Difficulty;
+  /** 다음에 플레이할 챕터(cid). */
+  chapter: string;
+  /** 완료한 챕터(cid) — 진행 순서 그대로. */
+  cleared: string[];
+  /** 인계 로스터 = 다음 챕터 setup에 그대로 들어간다(키 = pid, carryover 산출물). */
+  roster: Record<string, SetupUnit>;
+  updated: string;
+}
+
+/** 게임당 런 1개 — 다중 런 슬롯은 M4 보관함 소관이다. */
+export const runKey = (game: string): string => `fesim:run:${game}`;
+
+export function saveRun(run: RunState): void {
+  try {
+    storage()?.setItem(runKey(run.game), JSON.stringify(run));
+  } catch {
+    // 쿼터·프라이빗 모드 = 저장 스킵. 진행 중인 판은 건드리지 않는다.
+  }
+}
+
+/** 손상·이물 런은 조용히 버린다 — 복원 실패로 캠페인 진입이 막히면 안 된다. */
+export function loadRun(game = "fe17"): RunState | undefined {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(runKey(game));
+  } catch {
+    return undefined;
+  }
+  if (text === null || text === undefined) return undefined;
+  try {
+    const run = JSON.parse(text) as RunState;
+    if (run.game !== game || typeof run.chapter !== "string" || typeof run.roster !== "object") {
+      throw new Error("런 슬롯의 형태가 계약과 다르다");
+    }
+    return { ...run, cleared: run.cleared ?? [] };
+  } catch (e) {
+    console.warn("런 복원 실패 — 새 런으로 시작한다", e);
+    clearRun(game);
+    return undefined;
+  }
+}
+
+export function clearRun(game = "fe17"): void {
+  try {
+    storage()?.removeItem(runKey(game));
   } catch {
     // 지우지 못해도 다음 저장이 덮어쓴다.
   }

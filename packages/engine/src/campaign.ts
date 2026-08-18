@@ -1,0 +1,39 @@
+import type { SetupUnit } from "@fesim/shared";
+import type { GameState } from "./battle.js";
+
+/**
+ * 캠페인층 — 챕터 기보의 사슬(런)을 잇는 순수 함수.
+ * 규약: 룰은 컴포넌트 밖에 산다. 저장·UI는 여기서 나온 값을 나르기만 한다.
+ */
+
+/**
+ * 챕터 종료 국면 → 다음 챕터의 setup 로스터(키 = pid).
+ *
+ * ☠현재 HP는 싣지 않는다 — 챕터 개시 만HP 회복이 인게임 문법이라 부재가 곧 정답이다.
+ * 사망 자군은 `removed`로 적는다: 안 적으면 다음 챕터 dispos가 그 인물을 기본 스탯으로 되살린다.
+ * pid 없는 유닛은 건너뛴다(인계 키가 없으면 다음 챕터에서 슬롯을 못 찾는다).
+ */
+export function carryover(state: GameState): Record<string, SetupUnit> {
+  const roster: Record<string, SetupUnit> = {};
+  for (const u of state.units) {
+    if (u.force !== 0 || u.pid === undefined) continue;
+    if (u.dead) {
+      roster[u.pid] = { removed: true };
+      continue;
+    }
+    const entry: SetupUnit = { level: u.level, exp: u.exp, stats: u.stats };
+    if (u.internalLevel !== undefined) entry.internalLevel = u.internalLevel;
+    if (u.jid !== undefined) entry.jid = u.jid;
+    if (u.growthAcc !== undefined) entry.growthAcc = u.growthAcc;
+    if (u.weapons !== undefined) entry.weapons = u.weapons;
+    if (u.staves !== undefined) entry.staves = u.staves;
+    if (u.consumables !== undefined) entry.consumables = u.consumables;
+    if (u.skills !== undefined) entry.skills = u.skills;
+    if (u.engage !== undefined) entry.engage = u.engage;
+    if (u.engagedSkills !== undefined) entry.engagedSkills = u.engagedSkills;
+    if (u.engageWeapons !== undefined) entry.engageWeapons = u.engageWeapons;
+    if (u.engageArt !== undefined) entry.engageArt = u.engageArt;
+    roster[u.pid] = entry;
+  }
+  return roster;
+}
