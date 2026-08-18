@@ -127,6 +127,8 @@ try {
   const ai = engine.createAi(calculator);
   let memory = engine.emptyAiMemory();
   const deficits = [];
+  // ★자동화율의 분모 — 결손 건수만으로는 "많이 틀렸다"와 "판이 컸다"를 구분 못 한다(MP7 B4).
+  let aiCalls = 0;
 
   /** 적 페이즈 — BoardIsland.runEnemyAuto와 같은 루프(진행 감시 포함). */
   const enemyPhase = () => {
@@ -134,6 +136,7 @@ try {
       const before = state();
       if (before.outcome !== undefined || before.phase === 0) return;
       const decision = ai.next(before, enemyRng, memory);
+      aiCalls += 1;
       memory = decision.memory;
       if (decision.actions.length === 0) {
         for (const d of decision.deficits) deficits.push(d);
@@ -193,7 +196,19 @@ try {
     // ☠자군 전사는 모범답안지의 실격 사유다 — 숫자로 숨기지 말고 이름으로 남긴다.
     playerLost: final.units.filter((u) => u.force === 0 && u.dead).map(nameOf),
     enemyAlive: final.units.filter((u) => u.force === 1 && !u.dead).length,
+    // ★결손은 비율로 읽어야 한다 — 분모(비자군 유닛 수·AI 호출 수)를 함께 낸다(MP7 B4 재측정).
+    aiUnits: final.units.filter((u) => u.force !== 0).length,
+    aiCalls,
     deficits: deficits.length,
+    deficitUnits: new Set(deficits.map((d) => d.unit)).size,
+    deficitKinds: Object.fromEntries(
+      Object.entries(deficits.reduce((acc, d) => ({ ...acc, [d.kind]: (acc[d.kind] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]),
+    ),
+    deficitReasons: Object.fromEntries(
+      Object.entries(deficits.reduce((acc, d) => ({ ...acc, [d.reason]: (acc[d.reason] ?? 0) + 1 }), {}))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8),
+    ),
     out: outPath,
   };
   console.log(JSON.stringify(report, null, 2));
