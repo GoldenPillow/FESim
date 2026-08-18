@@ -75,6 +75,8 @@ export default function BoardIsland(props: BoardProps) {
   const replaySteps = useBoard(store, (s) => s.replay?.timeline.steps.length ?? 0);
   const [ready, setReady] = useState(false);
   const urlWritten = useRef(false);
+  /** 이 챕터의 기본 기보 — 자동 재생을 건너뛴 경우에도 REPLAY 버튼이 이걸로 열린다. */
+  const defaultFile = useRef<EphemerisFile | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
@@ -131,9 +133,11 @@ export default function BoardIsland(props: BoardProps) {
      * ★맵 진입 = 리플레이 시작(2026-08-18 사용자 확정) — 신규 사용자가 첫 화면에서 바로 턴을 넘긴다.
      * 단 **이어하던 판이 있으면 그쪽이 이긴다**(남의 시연이 내 진행을 덮으면 안 된다).
      * 기본 기보가 없는 챕터는 조용히 플레이 모드로 시작한다(404 = 정상).
+     *
+     * ☠자동 재생을 건너뛰더라도 파일은 **반드시 손에 쥔다**(defaultFile) — 그래야 REPLAY 버튼이
+     * 살아 있다. 안 그러면 이어하던 사용자에겐 버튼이 흐린 채로 남아 "없는 것처럼" 보인다.
      */
-    const defaultReplay = async (): Promise<EphemerisFile | undefined> => {
-      if (hasGuestSave(props.mapId)) return undefined;
+    const fetchDefault = async (): Promise<EphemerisFile | undefined> => {
       try {
         const res = await fetch(defaultReplayPath(props.mapId));
         if (!res.ok) return undefined;
@@ -142,6 +146,11 @@ export default function BoardIsland(props: BoardProps) {
         console.warn("기본 기보 로드 실패 — 플레이 모드로 시작", err);
         return undefined;
       }
+    };
+    const defaultReplay = async (): Promise<EphemerisFile | undefined> => {
+      const file = await fetchDefault();
+      defaultFile.current = file;
+      return hasGuestSave(props.mapId) ? undefined : file;
     };
     if (props.script === undefined) {
       void defaultReplay().then((file) => {
@@ -1013,10 +1022,16 @@ export default function BoardIsland(props: BoardProps) {
             className="tb-replay"
             aria-pressed={mode === "replay"}
             title={mode === "replay" ? labels.replayOn : labels.replayOff}
-            disabled={mode !== "replay" && recorded <= 1}
+            disabled={mode !== "replay" && recorded <= 1 && defaultFile.current === undefined}
             onClick={() => {
-              if (mode === "replay") store.getState().exitReplay();
-              else store.getState().loadReplay(store.getState().toFile());
+              if (mode === "replay") {
+                store.getState().exitReplay();
+              } else if (defaultFile.current !== undefined) {
+                // 라벨이 "이 챕터의 기보"라고 말한다 — 있으면 그걸 연다(신규 사용자가 기대하는 것).
+                store.getState().loadReplay(defaultFile.current);
+              } else {
+                store.getState().loadReplay(store.getState().toFile()); // 기보 없는 챕터 = 내가 둔 수
+              }
               clearLocal();
             }}
           >

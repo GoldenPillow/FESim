@@ -56,6 +56,13 @@ const heading = title.name ? `${title.prefix} · ${title.name}` : title.prefix;
         min-height: calc(100vh - 3.5rem);
         padding: 1.5rem;
       }
+      /* ☠사이드가 화면보다 길면 그리드 행이 그 높이를 따라 늘어나고, 가운데 정렬된 보드가
+         통째로 접힌 아래로 내려간다(m014 = 로스터 57유닛 3551px → 보드 상단 1521px 실측).
+         열 안에서 스크롤시켜 행 높이를 화면으로 묶는다. */
+      .board-frame > aside {
+        max-height: calc(100vh - 5rem);
+        overflow-y: auto;
+      }
     }
   </style>
 </Base>

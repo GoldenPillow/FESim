@@ -358,7 +358,17 @@
   «‹ ›» = 좌 과거 / 우 미래 · 중앙 = 리플레이 토글. 리플레이 중엔 바 전체가 파란 테두리로 바뀐다.
 */
 .plate .turn-bar {
+  /* ☠sticky가 핵심 — 큰 맵(m003 등)에선 보드가 화면보다 커서 바가 접힌 아래로 밀려난다(실측 821px/768px).
+     주 조작 도구가 스크롤해야 보이면 없는 것과 같다. 보드가 화면에 있는 동안 바닥에 붙는다. */
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 6;
   margin-top: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 1rem;
+  /* 보드 위로 겹칠 때 글자가 묻히지 않게 바탕을 깐다. */
+  background: color-mix(in srgb, var(--ground, #12161b) 82%, transparent);
+  backdrop-filter: blur(3px);
   display: flex;
   flex-direction: column;
   align-items: center;
