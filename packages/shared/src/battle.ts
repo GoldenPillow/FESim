@@ -261,7 +261,15 @@ export type BattleEvent =
    * 최대 레벨 도달 시 0 강제(AddExp 0x1A39D40)를 재생이 복원하는 통로다.
    * 부재 = 구기보 — 재생은 종전대로 100을 차감한다.
    */
-  | { type: "levelUp"; unit: string; level: number; gains: Partial<StatBlock>; exp?: number }
+  | {
+      type: "levelUp";
+      unit: string;
+      level: number;
+      gains: Partial<StatBlock>;
+      exp?: number;
+      /** 고정 성장 누적기 스냅숏(절대값) — GrowMode.Fixed에서만 실린다. 부재 = Random 모드·구기보. */
+      acc?: Partial<StatBlock>;
+    }
   | { type: "phase"; phase: number; turn: number }
   | { type: "outcome"; outcome: "victory" | "defeat" };
 

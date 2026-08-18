@@ -87,6 +87,12 @@ export interface UnitState {
   growth?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
   cap?: StatBlock;
+  /**
+   * 고정 성장 누적기(m_GrowCapability) — 레벨업마다 성장률을 더해 100을 넘을 때마다 +1.
+   * ☠미지정 = `growth`(person.Grow)가 초기값이다(Unit.CreateImpl1 0x1A08944) — 0이 아니다.
+   * 재생·챕터 인계가 이 값을 복원해야 다음 레벨업이 맞는다.
+   */
+  growthAcc?: Partial<StatBlock>;
   level: number;
   /**
    * 최대 레벨(job.MaxLevel) — 도달 시 경험치 가산 정지(AddExp 0x1A39D40).
@@ -515,6 +521,11 @@ export interface GameState {
   /** 현재 페이즈의 군 (0 자군 · 1 적군 · 2 우군). */
   phase: number;
   difficulty?: Difficulty;
+  /**
+   * 성장 모드(GrowMode) — 인게임도 메인 메뉴에서 고른다(Random=0 · Fixed=1).
+   * 부재 = "fixed"(서비스 기본, 사용자 지시). ☠난수 소비가 모드마다 다르므로 기보 계약의 일부다.
+   */
+  growMode?: "random" | "fixed";
   map: BattleMap;
   units: UnitState[];
   /** 게임 변수(GameVariable 사영) — 이벤트 발화 플래그·勝利/敗北 포함. 쓰기는 이벤트 레이어만. */
@@ -635,6 +646,31 @@ function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
     if (bestCount >= GROW_ABORT) break;
   }
   return best;
+}
+
+/**
+ * 고정 성장(GrowMode.Fixed) — 정본 = App.Unit.LevelUp(RVA 0x1A3A040) Fixed 분기.
+ *
+ * 난수를 쓰지 않는다. 스탯별 누적기에 성장률을 더하고 100을 넘을 때마다 +1을 준다.
+ * ☠Random 분기와 다른 두 가지: (1) 누적기 초기값이 person.Grow다(0이 아니다),
+ * (2) 상한 게이트가 루프 진입 전 1회라 캡에 닿은 스탯은 **누적조차 하지 않는다**.
+ */
+function fixedGrowth(unit: UnitState): { gains: Partial<StatBlock>; acc: Partial<StatBlock> } {
+  const gains: Partial<StatBlock> = {};
+  const acc: Partial<StatBlock> = { ...(unit.growthAcc ?? unit.growth ?? {}) };
+  for (const key of STAT_KEYS) {
+    const grow = Math.min(Math.max(unit.growth?.[key] ?? 0, 0), 255);
+    if (grow === 0) continue;
+    const cap = unit.cap?.[key];
+    if (cap !== undefined && unit.stats[key] >= cap) continue;
+    let carry = Math.min((acc[key] ?? 0) + grow, 255);
+    while (carry > 99) {
+      carry -= 100;
+      gains[key] = (gains[key] ?? 0) + 1;
+    }
+    acc[key] = carry;
+  }
+  return { gains, acc };
 }
 
 /**
@@ -841,7 +877,13 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
   }
 
   /** 경험치 가산 + 100 단위 레벨업(성장 롤 소비) — 전투·지팡이가 같은 경로를 쓴다(중복 구현 금지). */
-  function grantExp(u: UnitState, gained: number, events: BattleEvent[], rng: RandomSource): void {
+  function grantExp(
+    u: UnitState,
+    gained: number,
+    events: BattleEvent[],
+    rng: RandomSource,
+    growMode: "random" | "fixed",
+  ): void {
     if (gained <= 0) return;
     // 최대 레벨은 AddExp(0x1A39D40) 첫 줄에서 통째로 return한다 — 경험치도 이벤트도 없다.
     if (u.maxLevel !== undefined && u.level >= u.maxLevel) return;
@@ -850,7 +892,14 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
     while (u.exp >= 100) {
       u.exp -= 100;
       u.level += 1;
-      const gains = rollGrowth(u, rng);
+      let gains: Partial<StatBlock>;
+      if (growMode === "fixed") {
+        const fixed = fixedGrowth(u);
+        gains = fixed.gains;
+        u.growthAcc = fixed.acc;
+      } else {
+        gains = rollGrowth(u, rng);
+      }
       const stats = { ...u.stats };
       for (const key of STAT_KEYS) {
         const gain = gains[key];
@@ -860,12 +909,16 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (gains.hp !== undefined) u.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도
       // 최대 레벨 도달 시 잔여 경험치는 0 강제(AddExp 셋째 줄) — 다음 레벨로 이월하지 않는다.
       if (u.maxLevel !== undefined && u.level >= u.maxLevel) u.exp = 0;
-      events.push({ type: "levelUp", unit: u.id, level: u.level, gains, exp: u.exp });
+      events.push({
+        type: "levelUp", unit: u.id, level: u.level, gains, exp: u.exp,
+        ...(u.growthAcc !== undefined ? { acc: u.growthAcc } : {}),
+      });
       if (u.maxLevel !== undefined && u.level >= u.maxLevel) break;
     }
   }
 
   return function reduce(state: GameState, action: BattleAction, rng: RandomSource): GameState {
+    const growMode = state.growMode ?? "fixed";
     const events: BattleEvent[] = [];
     const units = state.units.map((u) => ({ ...u }));
     const byId = new Map(units.map((u) => [u.id, u]));
@@ -1062,7 +1115,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval(formula, expEnv(attacker, defender, chainCount, difficulty)) as number,
           );
-          grantExp(attacker, gained, events, rng);
+          grantExp(attacker, gained, events, rng, growMode);
         }
         // 가드 경험치 — チェインガード経験計算(상대 = 지킨 아군 = m_Parent, GetGuardExp 0x1E94390).
         // 다타격을 받아도 전투당 1회. 공격측 경험 뒤 = 사이드 순서(Offense 0 < ChainDefense 26+) 가정.
@@ -1071,7 +1124,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval("チェインガード経験計算", expEnv(guard, defender, 0, difficulty)) as number,
           );
-          grantExp(guard, gained, events, rng);
+          grantExp(guard, gained, events, rng, growMode);
         }
         break;
       }
@@ -1104,7 +1157,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval("杖経験計算", expEnv(caster, target, 0, difficulty, { 杖経験値: staff.rodExp })) as number,
           );
-          grantExp(caster, gained, events, rng);
+          grantExp(caster, gained, events, rng, growMode);
         };
 
         if (staff.rodType === 2) {
@@ -1206,7 +1259,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval("踊り経験計算", expEnv(dancer, target, 0, difficulty)) as number,
           );
-          grantExp(dancer, gained, events, rng);
+          grantExp(dancer, gained, events, rng, growMode);
         }
         break;
       }
@@ -1362,7 +1415,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           const gained = Math.floor(
             calc.eval(formula, expEnv(attacker, defender, 0, difficulty)) as number,
           );
-          grantExp(attacker, gained, events, rng);
+          grantExp(attacker, gained, events, rng, growMode);
         }
         break;
       }

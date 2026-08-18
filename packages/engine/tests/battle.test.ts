@@ -384,11 +384,13 @@ describe("전투 해결", () => {
     // person.Grow 실측 최대 105(D축 §4)라 초과 성장이 영구 소실된다. 롤 소비 수는 스탯당 1회로 유지(리플레이 계약).
     const enemyStats = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
     const growth = { hp: 0, str: 105, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
-    const mk = () =>
-      state([
+    const mk = (): GameState => ({
+      ...state([
         unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
         unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
-      ]);
+      ]),
+      growMode: "random", // 이 절은 정본 Random 분기 — 서비스 기본(fixed)과 다른 계약이다
+    });
     // 롤 소비: 명중 → 필살 → 성장률이 0이 아닌 스탯만 1롤(str뿐). 잔여 5% = 5000/100000.
     const over = reduce(mk(), { type: "attack", unit: "a", target: "e" }, seq(0, 99, 4999));
     expect(over.units.find((u) => u.id === "a")!.stats.str).toBe(baseStats.str + 2); // 확정 1 + 잔여 성공
@@ -400,10 +402,13 @@ describe("전투 해결", () => {
   it("격파 경험치 = calculator 공식 그대로 (동레벨 노멀 = 18), 레벨업은 성장률 롤", () => {
     const enemyStats = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
     const growth = { hp: 100, str: 100, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
-    const s = state([
-      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
-      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
-    ]);
+    const s: GameState = {
+      ...state([
+        unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth }),
+        unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 1, weapon: sword }),
+      ]),
+      growMode: "random",
+    };
     const next = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
     const a = next.units.find((u) => u.id === "a")!;
     const expEvent = next.events.find((ev) => ev.type === "exp") as { amount: number };
@@ -692,7 +697,8 @@ describe("레벨업 성장 — 상한 게이트·재굴림", () => {
       }),
       unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
     ]);
-    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, rng);
+    // Random 모드 명시 — 서비스 기본은 fixed다(고정 성장). 이 절은 정본 Random 분기를 지킨다.
+    const next = reduce({ ...s, growMode: "random" }, { type: "attack", unit: "a", target: "e" }, rng);
     return { unit: next.units.find((u) => u.id === "a")!, consumed };
   };
   /** 전투에서 성장 롤보다 먼저 소비되는 몫 = 명중 + 필살(이 조합은 필살률이 0이 아니다). */
@@ -805,5 +811,79 @@ describe("최대 레벨 정지 — job.MaxLevel", () => {
     const grown = attackExp({ level: 20 });
     expect(grown.level).toBe(21);
     expect(grown.exp).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 고정 성장(GrowMode.Fixed) — 인게임 실재 모드다. 사용자가 메인 메뉴에서 고르고
+ * (`MainMenuSequence.GrowModeSelectMenuSequence`), 알고리즘은 `App.Unit.LevelUp`
+ * (RVA 0x1A3A040) Fixed 분기에 있다(STATS_GROWTH §2-3(c)):
+ * ```
+ * g = percents[i]; if (g == 0) continue
+ * if (GetNoEnhanceCapability(i) >= GetCapabilityLimit(i)) continue   ; 게이트는 진입 전 1회
+ * acc[i] = Min(acc[i] + g, 255)
+ * while (acc[i] > 99) { stat += 1; acc[i] -= 100 }
+ * ```
+ * 왜 위험한가: 누적기는 유닛 상태다. 초기값(person.Grow)·잔여값을 재생과 인계가 복원하지
+ * 못하면 같은 기보가 다른 스탯을 낳는다 — 캠페인 사슬 전체가 어긋난다.
+ */
+describe("고정 성장 — GrowMode.Fixed 누적기", () => {
+  const zeroGrowth: StatBlock = { hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
+  const levelUp = (over: Partial<UnitState>): UnitState => {
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, ...over }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
+    ]);
+    return reduce({ ...s, growMode: "fixed" }, { type: "attack", unit: "a", target: "e" }, alwaysHit)
+      .units.find((u) => u.id === "a")!;
+  };
+
+  it("누적기 초기값 = person.Grow — 성장률 60이면 첫 레벨업에 이미 120(= +1, 잔여 20)", () => {
+    const grown = levelUp({ growth: { ...zeroGrowth, str: 60 } });
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.growthAcc?.str).toBe(20);
+  });
+
+  it("100 미만이면 오르지 않고 누적만 된다(성장률 40 → 80)", () => {
+    const grown = levelUp({ growth: { ...zeroGrowth, str: 40 } });
+    expect(grown.stats.str).toBe(baseStats.str);
+    expect(grown.growthAcc?.str).toBe(80);
+  });
+
+  it("이월 누적기가 있으면 그것이 초기값을 대체한다(재생·인계 복원 통로)", () => {
+    const grown = levelUp({
+      growth: { ...zeroGrowth, str: 40 },
+      growthAcc: { ...zeroGrowth, str: 95 },
+    });
+    expect(grown.stats.str).toBe(baseStats.str + 1); // 95 + 40 = 135
+    expect(grown.growthAcc?.str).toBe(35);
+  });
+
+  it("성장률 250이면 한 레벨에 2 오른다(누적 500 → 255 클램프 → +2, 잔여 55)", () => {
+    const grown = levelUp({ growth: { ...zeroGrowth, str: 250 } });
+    expect(grown.stats.str).toBe(baseStats.str + 2);
+    expect(grown.growthAcc?.str).toBe(55);
+  });
+
+  it("상한에 닿은 스탯은 누적조차 하지 않는다(게이트가 루프 진입 전 1회)", () => {
+    const grown = levelUp({ growth: { ...zeroGrowth, str: 60 }, cap: { ...baseStats, str: baseStats.str } });
+    expect(grown.stats.str).toBe(baseStats.str);
+    expect(grown.growthAcc?.str).toBe(60); // 초기값(person.Grow) 그대로 — 가산조차 없다
+  });
+
+  it("난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)", () => {
+    let consumed = 0;
+    const rng: RandomSource = { next: () => { consumed += 1; return 0; } };
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, growth: { ...zeroGrowth, str: 60 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
+    ]);
+    reduce({ ...s, growMode: "fixed" }, { type: "attack", unit: "a", target: "e" }, rng);
+    const fixedConsumed = consumed;
+    consumed = 0;
+    reduce({ ...s, growMode: "random" }, { type: "attack", unit: "a", target: "e" }, rng);
+    expect(consumed).toBeGreaterThan(fixedConsumed);
   });
 });

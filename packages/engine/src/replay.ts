@@ -14,7 +14,7 @@ import { effectiveWeapons, equipCandidates, type GameState, type TerrainPatch, t
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-7";
+export const RULE_VERSION = "fe17-8";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -222,6 +222,8 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
         // exp 절대값이 실려 있으면 그것이 정본(최대 레벨 도달 시 0 강제).
         u.exp = ev.exp ?? u.exp - 100;
         u.level = ev.level;
+        // 고정 성장 누적기는 유닛 상태다 — 절대값 스냅숏으로 복원해야 다음 레벨업이 맞는다.
+        if (ev.acc !== undefined) u.growthAcc = ev.acc;
         const stats = { ...u.stats };
         for (const [key, gain] of Object.entries(ev.gains) as [StatKey, number][]) stats[key] += gain;
         u.stats = stats;

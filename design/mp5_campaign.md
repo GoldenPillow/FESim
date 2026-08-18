@@ -56,21 +56,35 @@ target: packages/engine + packages/shared + apps/web + tools/replay (MP5 캠페�
 
 ## 3. 고정 성장 — 스탯별 누적기 (2026-08-18 사용자 확정 = Q1 B)
 
-레벨업마다 스탯별 누적기에 성장률을 더하고, 100을 넘을 때마다 +1을 준다.
+★☠**2026-08-18 정정 — 이것은 서비스 이탈이 아니라 인게임 실재 모드다.**
+`GameUserData.GetGrowMode()`의 `GrowMode{Random=0, Fixed=1}`이고, **사용자가 메인 메뉴에서 고른다**
+(`MainMenuSequence.GrowModeSelectMenuSequence`). 즉 사용자 지시 3("고정형 성장테이블")은 게임의 Fixed 모드
+그대로이며, 종전 서술("의도적 이탈 · 기전 장부 등재")은 **철회한다**. 알고리즘은 코드로 확정돼 있다
+(`App.Unit.LevelUp` RVA 0x1A3A040 GrowMode.Fixed 분기, STATS_GROWTH.md §2-3(c)):
 
 ```
-레벨업 시 각 스탯:  acc += 성장률
-                    while (acc >= 100) { stat += 1; acc -= 100 }      (상한 도달 시 가산 중지)
+for i in 0..8:
+   g = percents[i]; if (g == 0) continue
+   if (GetNoEnhanceCapability(i) >= GetCapabilityLimit(i)) continue    ; ★상한 게이트는 루프 진입 전 1회
+   m_GrowCapability[i] = Min(m_GrowCapability[i] + g, 255)             ; ★255 클램프
+   while (m_GrowCapability[i] > 99) { BaseCapability.Add(i,1); m_GrowCapability[i] -= 100 }
 ```
 
-- 누적기 초기값 = **0**(유닛 생성 시점). 즉 배치 스탯은 지금처럼 자동레벨 표(`deriveStats`)가 주고,
-  그 뒤의 성장만 누적기가 소유한다.
-- 상한 게이트는 원기와 같은 결로 **증가 1회마다** 확인한다(확정 가산분도 캡을 못 뚫는다).
+정본이 뒤집은 종전 설계안 2건:
+
+| 항목 | 종전 설계안(추정) | 정본(코드 확정) |
+|---|---|---|
+| 누적기 초기값 | 0 | **`person.Grow`**(유닛 생성 시 `Unit.CreateImpl1` 0x1A08944가 9회 대입) — 첫 레벨업이 그만큼 빠르다 |
+| 상한 게이트 | 증가 1회마다 재확인 | **루프 진입 전 1회** — 캡에 닿은 스탯은 누적기 가산 자체를 건너뛴다 |
+
+그 밖에 정본이 정한 것: 누적기는 `Min(acc+g, 255)` 클램프 · 조건은 `> 99`(= `>= 100`과 동치) ·
+성장률 0인 스탯은 건너뛴다.
+
 - ★누적기는 **유닛 상태의 일부**다 — 기보 재생과 챕터 인계가 이 값을 복원해야 다음 레벨업이 맞는다.
-  ⇒ `levelUp` 이벤트에 누적기 스냅숏을 실어 절대 재생 계약을 지키고, `SetupUnit`에도 필드를 연다.
-
-☠**인게임과 갈라지는 지점이다**(원기는 난수 성장 + 4시도 재굴림). 기전 장부에 *의도적 이탈*로 등재한다.
-파급: `rollGrowth`가 난수를 안 쓰므로 **난수 소비 계약이 바뀐다** → RULE_VERSION 범프 + m002 기보 재생성.
+  ⇒ `levelUp` 이벤트에 누적기 스냅숏을 실어 절대 재생 계약을 지키고, `SetupUnit`에도 필드를 연다(5-2).
+- Random 경로(난수 + 4시도 재굴림)는 **지우지 않는다** — 같은 게임의 다른 모드이고 엔진·테스트가 이미 있다.
+  국면이 모드를 들고(`GameState.growMode`) 리듀서가 분기한다. 서비스 기본 = `fixed`(사용자 지시 3).
+- 파급: Fixed는 난수를 안 쓰므로 **난수 소비 계약이 바뀐다** → RULE_VERSION 범프 + m002 기보 재생성.
 
 ## 4. 인계 구조 (제안)
 
@@ -104,7 +118,11 @@ target: packages/engine + packages/shared + apps/web + tools/replay (MP5 캠페�
   - 부수 정정 = `statCap`에 `Clamp(0,255)`(GetCapabilityLimit 0x1A30B60 — person Limit은 -3까지 음수)
   - 재생 계약 = `levelUp` 이벤트에 잔여 경험치 **절대값** `exp` 추가(부재 = 구기보 → 종전대로 100 차감 — 무회귀)
   - 테스트 = battle.test.ts 3건(정지·잔여 0 강제·무회귀) · fe17.test.ts 1건(cap·maxLevel 실값) · boardStore.test.ts 1건(국면 사영)
-- [ ] **5-1 고정 성장** — rollGrowth 대체 · RULE_VERSION 범프 · 장부 등재 · m002 기보 재생성
+- [x] **5-1 고정 성장**(2026-08-18 완료) — GrowMode.Fixed 배선 · RULE_VERSION fe17-8 범프 · 장부 등재 · m002 기보 재생성
+  - 엔진 = `GameState.growMode`(부재 = fixed) 분기 · `UnitState.growthAcc`(부재 = growth가 초기값) ·
+    `levelUp` 이벤트 `acc` 절대값 스냅숏 · Random 경로는 정본으로 보존
+  - m002 재생성 = 84스텝(종전 69) · 승리 8턴 · verified · 결손 0 · 자군 4명 생존
+  - 테스트 6건(초기값·미달 누적·이월 복원·255 클램프·캡 게이트·난수 무소비) + 기존 Random 절 5건에 모드 명시
 - [ ] **5-2 인계 그릇** — SetupUnit 확장(exp·internalLevel·jid·hp) + pid 키 해석층 + `projectUnit` override
 - [ ] **5-3 런 저장** — `fesim:run:*` 계층(guestSave.ts 국소) + 챕터 연쇄 순서(chapterlist에 next 탑재, 파이프라인)
 - [ ] **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
