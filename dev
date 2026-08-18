@@ -30,7 +30,7 @@ clear_report() {
 
   behind="$(git rev-list --count "main..$branch" 2>/dev/null || echo "?")"
   if [ "$behind" = "0" ]; then echo "  · ${branch} = main 동기(게시 안 된 작업 없음)"
-  else echo "  ☠ 미게시 커밋 ${behind}건 — ${branch}에만 있고 베타에 안 올라갔다"; bad=1; fi
+  else echo "  ☠ 미게시 커밋 ${behind}건 — ${branch} 브랜치에만 있다(베타 채널 미반영)"; bad=1; fi
 
   if [ "$bad" -eq 0 ]; then echo "== /clear 안전: 손실 없음 =="; return 0; fi
   echo "== ☠/clear 위험: 위 항목은 세션과 함께 잊힌다 =="
