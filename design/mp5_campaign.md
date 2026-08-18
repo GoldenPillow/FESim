@@ -96,13 +96,20 @@ target: packages/engine + packages/shared + apps/web + tools/replay (MP5 캠페�
 
 ## 6. 단계 (승인 후 착수)
 
-- **5-0 안전장치** — `cap` 보드 프롭 배선 + `MaxLevel` 정지. ☠인계보다 먼저(§2 상단 2건)
-- **5-1 고정 성장** — rollGrowth 대체 · RULE_VERSION 범프 · 장부 등재 · m002 기보 재생성
-- **5-2 인계 그릇** — SetupUnit 확장(exp·internalLevel·jid·hp) + pid 키 해석층 + `projectUnit` override
-- **5-3 런 저장** — `fesim:run:*` 계층(guestSave.ts 국소) + 챕터 연쇄 순서(chapterlist에 next 탑재, 파이프라인)
-- **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
-- **5-5 기보 생성기 확장** — `./dev replay --run` 으로 챕터 사슬 생성(m000→m001→m002→m003), 전직 정책 포함
-- **5-6 UI** — 런 진행 표시·이어하기 진입점
+- [x] **5-0 안전장치**(2026-08-18 완료) — `cap` 보드 프롭 배선 + `MaxLevel` 정지. ☠인계보다 먼저(§2 상단 2건)
+  - 배선 = `unitCap` → `BoardUnitProp.cap`/`maxLevel` → `projectUnit` → `UnitState` · 엔진 `grantExp` 정지·잔여 0 강제
+  - ★**자군 한정 사영** — 경험치·레벨업이 자군 한정(grantExp force 0)이고, 전 유닛에 실으면 챕터 JSON 예산(§11 50KB gz)을
+    넘긴다(e006.ko 실측 52,656B). 자군만 = 51,112B로 통과 · ☠**여유가 88B뿐이다**(기준선 50,311B) — 보드 JSON에
+    유닛 필드를 더 얹기 전에 압축이 선행돼야 한다(미룸 등재)
+  - 부수 정정 = `statCap`에 `Clamp(0,255)`(GetCapabilityLimit 0x1A30B60 — person Limit은 -3까지 음수)
+  - 재생 계약 = `levelUp` 이벤트에 잔여 경험치 **절대값** `exp` 추가(부재 = 구기보 → 종전대로 100 차감 — 무회귀)
+  - 테스트 = battle.test.ts 3건(정지·잔여 0 강제·무회귀) · fe17.test.ts 1건(cap·maxLevel 실값) · boardStore.test.ts 1건(국면 사영)
+- [ ] **5-1 고정 성장** — rollGrowth 대체 · RULE_VERSION 범프 · 장부 등재 · m002 기보 재생성
+- [ ] **5-2 인계 그릇** — SetupUnit 확장(exp·internalLevel·jid·hp) + pid 키 해석층 + `projectUnit` override
+- [ ] **5-3 런 저장** — `fesim:run:*` 계층(guestSave.ts 국소) + 챕터 연쇄 순서(chapterlist에 next 탑재, 파이프라인)
+- [ ] **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
+- [ ] **5-5 기보 생성기 확장** — `./dev replay --run` 으로 챕터 사슬 생성(m000→m001→m002→m003), 전직 정책 포함
+- [ ] **5-6 UI** — 런 진행 표시·이어하기 진입점
 
 ## §결정 (2026-08-18 사용자)
 

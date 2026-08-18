@@ -594,7 +594,15 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "combat.levelup-growth",
     label: { en: "Level-up growth (cap gate, retry up to 4)", ko: "레벨업 성장 — 상한 게이트·최대 4시도 재굴림" },
     status: "anchored",
-    evidence: "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · 미배선 = GrowMode.Fixed(고정 성장 모드)·성장률 변조 스킬(努力の才 *2·星玉の加護 +15)·무기 GrowRatio",
+    evidence: "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · ★☠**상한 사영 배선(2026-08-18, MP5 5-0)**: 종전엔 엔진에 게이트가 있어도 `UnitState.cap`을 채우는 코드가 저장소에 없어 **런타임에서 게이트가 항상 통과**했다(BoardUnitProp에 필드 자체가 부재 — `fe17.ts statCap`은 초기 스탯 산출 입력으로만 쓰였다). 챕터가 늘 새 판이라 미발현이었고 캠페인 인계를 켜면 즉시 무한 성장이 된다. 배선 = `unitCap` → `BoardUnitProp.cap` → `projectUnit` → `UnitState.cap` · **자군 한정 사영**(경험치·레벨업이 자군 한정 = grantExp force 0 게이트, 전 유닛에 실으면 챕터 JSON 예산 §11을 넘긴다 — e006.ko 실측 52.6KB gz > 50KB) · 부수 정정 = `statCap`에 `Clamp(0,255)` 추가(GetCapabilityLimit 0x1A30B60 — person Limit은 -3까지 음수) · 앵커 = fe17.test.ts 뤼에르 cap 실값 · boardStore.test.ts 국면 사영 · 미배선 = GrowMode.Fixed(고정 성장 모드 — MP5 5-1이 이 자리를 대체한다)·성장률 변조 스킬(努力の才 *2·星玉の加護 +15)·무기 GrowRatio",
+  },
+
+  {
+    id: "combat.max-level",
+    label: { en: "Max level stops EXP", ko: "최대 레벨 = 경험치 정지" },
+    status: "anchored",
+    evidence:
+      "★IL2CPP 코드 확정 + 배선(2026-08-18, MP5 5-0 — STATS_GROWTH.md §2-7 App.Unit.AddExp RVA 0x1A39D40): `if (level >= job.MaxLevel) return` → `e = exp + m_Exp; if (e >= 100) { level += 1; e %= 100 }` → `if (job.MaxLevel == level) e = 0`. 종전엔 `job.MaxLevel`을 읽는 코드가 저장소에 0건이라 20레벨을 넘겨도 계속 굴렸다(챕터가 늘 새 판이라 미발현 — 인계를 켜면 즉시 발현) · 배선 = `BoardUnitProp.maxLevel`(job.MaxLevel, 자군 한정) → `UnitState.maxLevel` → `grantExp` 정지·잔여 0 강제 · 재생 계약 = `levelUp` 이벤트에 잔여 경험치 **절대값** `exp` 추가(부재 = 구기보 → 종전대로 100 차감) · 실데이터 = MaxLevel 20이 65직·40이 46직(특수직) · 앵커 = battle.test.ts 3건 · 미배선 = `NormalizeExp`(0x1A39F60 가산량 선절삭 — 획득 경험이 100 이하라 현행 경로에서 결과 동치)",
   },
 
   // ── 유닛·스탯 ──

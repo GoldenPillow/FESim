@@ -767,3 +767,43 @@ describe("타격 순서·브레이크 발동 조건", () => {
     expect(next.units.find((u) => u.id === "a")!.hp).toBeLessThan(30); // 반격이 살아 있다
   });
 });
+
+/**
+ * 최대 레벨 정지 — 정본 `App.Unit.AddExp`(RVA 0x1A39D40, STATS_GROWTH §2-7):
+ * ```
+ * if (m_Level >= job.MaxLevel) return
+ * e = m_Exp + exp; if (e >= 100) { m_Level += 1; e %= 100 }
+ * if (job.MaxLevel == m_Level) e = 0
+ * ```
+ * 왜 위험했나: `job.MaxLevel`을 읽는 코드가 저장소에 0건이라 20레벨을 넘겨도 계속 굴렸다.
+ * 챕터가 늘 새 판이라 미발현이었지만 캠페인 인계(MP5)를 켜는 순간 무한 성장이 된다.
+ */
+describe("최대 레벨 정지 — job.MaxLevel", () => {
+  const attackExp = (over: Partial<UnitState>): UnitState => {
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95, ...over }),
+      // 적 레벨을 맞춰 둔다 — 레벨차 감쇠로 획득 경험이 0이 되면 정지 여부를 못 가린다.
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword, level: over.level ?? 1 }),
+    ]);
+    return reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit).units.find((u) => u.id === "a")!;
+  };
+
+  it("최대 레벨 유닛은 경험치를 아예 받지 않는다(AddExp 즉시 return)", () => {
+    const grown = attackExp({ level: 20, maxLevel: 20 });
+    expect(grown.level).toBe(20);
+    expect(grown.exp).toBe(95);
+  });
+
+  it("최대 레벨 도달 레벨업은 잔여 경험치를 0으로 강제한다", () => {
+    const grown = attackExp({ level: 19, maxLevel: 20 });
+    expect(grown.level).toBe(20);
+    expect(grown.exp).toBe(0);
+  });
+
+  it("최대 레벨 미지정이면 종전대로 굴린다(무회귀)", () => {
+    const grown = attackExp({ level: 20 });
+    expect(grown.level).toBe(21);
+    expect(grown.exp).toBeGreaterThan(0);
+  });
+});

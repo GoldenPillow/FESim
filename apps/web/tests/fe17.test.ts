@@ -135,6 +135,16 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
     expect(full.every((w) => w.kind > 0 && w.rangeMax >= 1)).toBe(true);
   });
 
+  it("boardPropsFor — 성장 안전장치(cap·maxLevel)가 유닛에 실린다 (MP5 5-0)", () => {
+    // 왜 위험한가: 엔진 rollGrowth의 캡 게이트와 grantExp의 최대 레벨 정지는 이 두 필드가
+    // 있어야만 동작한다. 사영이 없으면 게이트가 항상 통과해 인계(MP5)를 켜는 순간 무한 성장이 된다.
+    const props = boardPropsFor("m003", "ko");
+    const lueur = props.units.find((u) => u.pid === "PID_リュール")!;
+    // 뤼에르(JID_神竜ノ子) 상한 = job.Limit + person.Limit 실값(Lv99 산출은 이 상한에 못 닿는 스탯이 있다).
+    expect(lueur.cap).toEqual({ hp: 68, str: 42, mag: 25, dex: 37, spd: 44, lck: 35, def: 35, res: 25, bld: 13 });
+    expect(lueur.maxLevel).toBe(20);
+  });
+
   it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {
     const props = boardPropsFor("m003", "ko");
     expect(props.objects.some((o) => o.crest === true && o.x === 9 && o.y === 10)).toBe(true);

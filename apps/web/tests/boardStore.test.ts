@@ -10,6 +10,15 @@ beforeEach(() => {
 
 const props = boardFixture();
 
+describe("성장 안전장치 사영 (MP5 5-0)", () => {
+  it("projectUnit이 cap·maxLevel을 엔진 국면까지 나른다", () => {
+    // 왜 위험한가: 보드 프롭에만 실리고 국면 사영에서 빠지면 엔진 게이트는 여전히 항상 통과한다.
+    const u = createBoardStore(props).getState().game.units[0]!;
+    expect(u.cap).toEqual(props.units[0]!.cap);
+    expect(u.maxLevel).toBe(20);
+  });
+});
+
 describe("dispatch 기보 누적", () => {
   it("행동마다 스텝 1건 — 이동은 롤 무소비, 공격은 롤·이벤트 병기", () => {
     const store = createBoardStore(props);

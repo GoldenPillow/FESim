@@ -122,6 +122,8 @@ export function projectUnit(
     engageArt: su?.engageArt ?? u.engageArt,
     skills: su?.skills ?? u.skills,
     growth: u.growth,
+    ...(u.cap !== undefined ? { cap: u.cap } : {}),
+    ...(u.maxLevel !== undefined ? { maxLevel: u.maxLevel } : {}),
     level: su?.level ?? u.levels[difficulty],
     internalLevel: u.internalLevel,
     exp: 0,

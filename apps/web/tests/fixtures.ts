@@ -53,6 +53,8 @@ const unit = (over: Partial<BoardUnitProp> & Pick<BoardUnitProp, "x" | "y" | "fo
   levels: { n: 5, h: 5, l: 5 },
   internalLevel: 0,
   growth: stats({ hp: 60, str: 50, mag: 10, dex: 50, spd: 50, lck: 40, def: 40, res: 20, bld: 10 }),
+  cap: stats({ hp: 60, str: 30, mag: 20, dex: 30, spd: 30, lck: 30, def: 30, res: 30, bld: 20 }),
+  maxLevel: 20,
   ...over,
 });
 

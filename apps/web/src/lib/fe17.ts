@@ -72,6 +72,8 @@ export interface JobRow {
   /** SkillData.Attrs 마스크 — bit3(8) = Fly(지형 회복·피해 면제 판정, JobData.IsFly). ☠용(16)은 별개 비트. */
   Attrs?: number;
   StyleName?: string;
+  /** 최대 레벨(20 = 정규직 · 40 = 특수직) — 경험치 정지의 정본. */
+  MaxLevel?: number;
 }
 
 /** tools/pipeline bake_assets.py가 만드는 에셋 목록(없으면 폴백 렌더). */
@@ -475,10 +477,19 @@ const statCap = (job: Record<string, unknown>, person: Record<string, unknown>):
   const personLimit = statBlock(person, "Limit.");
   const out = {} as StatBlock;
   for (const key of Object.keys(STAT_FIELDS) as (keyof StatBlock)[]) {
-    out[key] = jobLimit[key] + personLimit[key];
+    // Clamp(jobLimit + personLimit, 0, 255) — GetCapabilityLimit 0x1A30B60(person Limit은 음수 가능).
+    out[key] = Math.min(Math.max(jobLimit[key] + personLimit[key], 0), 255);
   }
   return out;
 };
+
+/** 유닛의 스탯 상한 — 성장 게이트(rollGrowth)의 입력. 인물·직업 테이블 미비 시 undefined. */
+export function unitCap(unit: DisposUnit): StatBlock | undefined {
+  const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
+  const job = jobs[unit.jid] as unknown as Record<string, unknown> | undefined;
+  if (person === undefined || job === undefined) return undefined;
+  return statCap(job, person);
+}
 
 /** dispos 유닛의 표시 레벨(난이도 반영, dispos 0 = 인물 기본). */
 export function unitLevel(unit: DisposUnit, difficulty: Difficulty): number {
@@ -817,6 +828,10 @@ export interface BoardUnitProp {
   internalLevel: number;
   /** 인물 성장률(%) — 자군 레벨업 롤. */
   growth?: StatBlock;
+  /** 스탯 상한(job.Limit + person.Limit) — 성장 게이트의 입력. 없으면 무제한 성장이 된다. */
+  cap?: StatBlock;
+  /** 직업 최대 레벨(job.MaxLevel) — 도달 시 경험치 정지. */
+  maxLevel?: number;
   /** 직업 StyleName 원문(連携 = 체인어택 · 重装 = 브레이크 면역). */
   style?: string;
   skills?: SkillRow[];
@@ -1216,6 +1231,9 @@ export function boardProps(
       levels: { n: unitLevel(v.unit, "n"), h: unitLevel(v.unit, "h"), l: unitLevel(v.unit, "l") },
       internalLevel: Number((jobs[v.unit.jid] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
       growth: person === undefined ? undefined : statBlock(person, "Grow."),
+      // 성장 게이트 입력은 자군에만 싣는다 — 경험치·레벨업이 자군 한정이라(battle.ts grantExp)
+      // 적·우군에 실으면 소비처 없이 유닛당 9숫자가 늘어 챕터 JSON 예산(§11)을 밀어낸다.
+      ...(v.unit.force === 0 ? { cap: unitCap(v.unit), maxLevel: job?.MaxLevel } : {}),
       style: job?.StyleName,
       skills: skillRows.length > 0 ? skillRows : undefined,
       ai: v.unit.ai,

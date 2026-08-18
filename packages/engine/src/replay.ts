@@ -219,7 +219,8 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
       case "levelUp": {
         const u = require(ev.unit);
         // exp 이벤트의 total은 레벨업 차감 전 값 — 100 차감은 레벨업 이벤트가 소유한다.
-        u.exp -= 100;
+        // exp 절대값이 실려 있으면 그것이 정본(최대 레벨 도달 시 0 강제).
+        u.exp = ev.exp ?? u.exp - 100;
         u.level = ev.level;
         const stats = { ...u.stats };
         for (const [key, gain] of Object.entries(ev.gains) as [StatKey, number][]) stats[key] += gain;

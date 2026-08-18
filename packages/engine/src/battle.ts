@@ -88,6 +88,11 @@ export interface UnitState {
   /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
   cap?: StatBlock;
   level: number;
+  /**
+   * 최대 레벨(job.MaxLevel) — 도달 시 경험치 가산 정지(AddExp 0x1A39D40).
+   * 미지정 = 정지 없음(사영 결손 시 종전 거동 유지).
+   */
+  maxLevel?: number;
   internalLevel?: number;
   exp: number;
   movePoints: number;
@@ -838,6 +843,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
   /** 경험치 가산 + 100 단위 레벨업(성장 롤 소비) — 전투·지팡이가 같은 경로를 쓴다(중복 구현 금지). */
   function grantExp(u: UnitState, gained: number, events: BattleEvent[], rng: RandomSource): void {
     if (gained <= 0) return;
+    // 최대 레벨은 AddExp(0x1A39D40) 첫 줄에서 통째로 return한다 — 경험치도 이벤트도 없다.
+    if (u.maxLevel !== undefined && u.level >= u.maxLevel) return;
     u.exp += gained;
     events.push({ type: "exp", unit: u.id, amount: gained, total: u.exp });
     while (u.exp >= 100) {
@@ -851,7 +858,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       }
       u.stats = stats;
       if (gains.hp !== undefined) u.hp += gains.hp; // 최대 HP 상승분은 현재 HP에도
-      events.push({ type: "levelUp", unit: u.id, level: u.level, gains });
+      // 최대 레벨 도달 시 잔여 경험치는 0 강제(AddExp 셋째 줄) — 다음 레벨로 이월하지 않는다.
+      if (u.maxLevel !== undefined && u.level >= u.maxLevel) u.exp = 0;
+      events.push({ type: "levelUp", unit: u.id, level: u.level, gains, exp: u.exp });
+      if (u.maxLevel !== undefined && u.level >= u.maxLevel) break;
     }
   }
 
