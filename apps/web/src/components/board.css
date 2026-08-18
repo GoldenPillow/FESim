@@ -98,10 +98,12 @@
 */
 .board .tile .coord {
   position: absolute;
-  left: 2px;
-  top: 1px;
-  font: 400 clamp(7px, calc(var(--tile) * 0.17), 11px) / 1 ui-monospace, monospace;
-  color: rgb(120 120 120 / 0.55);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 clamp(7px, calc(var(--tile) * 0.19), 12px) / 1 ui-monospace, monospace;
+  color: rgb(40 40 40 / 0.82);
   pointer-events: none;
   user-select: none;
 }
