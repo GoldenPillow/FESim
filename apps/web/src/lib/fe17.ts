@@ -773,6 +773,8 @@ export interface BoardUnitProp {
   group: string;
   /** dispos Pid — 이벤트 스크립트가 유닛을 부르는 주소. */
   pid: string;
+  /** 인물 이름 ID(person.xml Name = "MPID_...") — 이벤트 UnitGetMPID 사영. */
+  mpid?: string;
   /** dispos Jid — 직업 지정 AI(AT_Job)의 판별 주소. */
   jid: string;
   icon?: string;
@@ -911,6 +913,13 @@ export interface BoardProps {
     victory: string;
     defeat: string;
     reset: string;
+    replayCmd: string;
+    replayPrev: string;
+    replayNext: string;
+    replayPrevPhase: string;
+    replayNextPhase: string;
+    zoomIn: string;
+    zoomOut: string;
     undoCmd: string;
     editCmd: string;
     editExit: string;
@@ -1150,6 +1159,7 @@ export function boardProps(
       group: v.group,
       pid: v.unit.pid,
       jid: v.unit.jid,
+      ...(person?.["Name"] !== undefined ? { mpid: String(person["Name"]) } : {}),
       icon: v.icon,
       abbr: v.abbr,
       name: v.name,
@@ -1423,6 +1433,13 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     victory: t.victory,
     defeat: t.defeat,
     reset: t.reset,
+    replayCmd: t.replayCmd,
+    replayPrev: t.replayPrev,
+    replayNext: t.replayNext,
+    replayPrevPhase: t.replayPrevPhase,
+    replayNextPhase: t.replayNextPhase,
+    zoomIn: t.zoomIn,
+    zoomOut: t.zoomOut,
     copyRecord: t.copyRecord,
     copied: t.copied,
     logTags: t.logTags,

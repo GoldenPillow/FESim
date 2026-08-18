@@ -17,6 +17,7 @@ declare module "fengari-web" {
     lua_settop(L: LuaState, n: number): void;
     lua_pop(L: LuaState, n: number): void;
     lua_type(L: LuaState, idx: number): number;
+    lua_typename(L: LuaState, tp: number): unknown;
     lua_tonumber(L: LuaState, idx: number): number;
     lua_tointeger(L: LuaState, idx: number): number;
     lua_toboolean(L: LuaState, idx: number): boolean;

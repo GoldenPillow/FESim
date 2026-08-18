@@ -10634,8 +10634,8 @@
     "palette": "350Ivy",
     "jobIcon": "687LindwurmLC",
     "defaultWeapon": "MagicBook",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_エルファイアー",
     "forceTinted": false,
     "weapons": {
      "MagicBook": "assets/mapicons/350Ivy_687LindwurmLC_MagicBook.webp",
@@ -10647,8 +10647,8 @@
     "palette": "100Alfred",
     "jobIcon": "678AvenirLC",
     "defaultWeapon": "Lance",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/100Alfred_678AvenirLC_Lance.webp",
@@ -10659,8 +10659,8 @@
     "palette": "552Anna",
     "jobIcon": "618AxFighter",
     "defaultWeapon": "Ax",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/552Anna_618AxFighter_Ax.webp",
@@ -10672,7 +10672,7 @@
     "jobIcon": "637LanceKnight",
     "defaultWeapon": "Lance",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_キラーランス",
+    "equippedIid": "IID_銀の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/203Umber_637LanceKnight_Lance.webp"
@@ -10683,19 +10683,32 @@
     "jobIcon": "624Archer",
     "defaultWeapon": "Bow",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の弓",
+    "equippedIid": "IID_銀の弓",
     "forceTinted": false,
     "weapons": {
      "Bow": "assets/mapicons/152Etie_624Archer_Bow.webp",
      "NoWeapon": "assets/mapicons/152Etie_624Archer_NoWeapon.webp"
     }
    },
+   "PID_オルテンシア": {
+    "palette": "351Hortensia",
+    "jobIcon": "688SleipnirLC",
+    "defaultWeapon": "MagicBook",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_エルサンダー",
+    "forceTinted": false,
+    "weapons": {
+     "MagicBook": "assets/mapicons/351Hortensia_688SleipnirLC_MagicBook.webp",
+     "NoWeapon": "assets/mapicons/351Hortensia_688SleipnirLC_NoWeapon.webp",
+     "Staff": "assets/mapicons/351Hortensia_688SleipnirLC_Staff.webp"
+    }
+   },
    "PID_カゲツ": {
     "palette": "302Kagetsu",
     "jobIcon": "606SwordMaster",
     "defaultWeapon": "Sword",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の剣",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/302Kagetsu_606SwordMaster_NoWeapon.webp",
@@ -10719,7 +10732,7 @@
     "jobIcon": "646LancePegasus",
     "defaultWeapon": "Lance",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_ほそみの槍",
+    "equippedIid": "IID_銀の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/153Chloe_646LancePegasus_Lance.webp"
@@ -10730,7 +10743,7 @@
     "jobIcon": "609BraveHero",
     "defaultWeapon": "Sword",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鋼の大剣",
+    "equippedIid": "IID_銀の剣",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/352Goldmary_609BraveHero_Ax.webp",
@@ -10757,7 +10770,7 @@
     "jobIcon": "661Mage",
     "defaultWeapon": "MagicBook",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_サンダー",
+    "equippedIid": "IID_エルサージ",
     "forceTinted": false,
     "weapons": {
      "MagicBook": "assets/mapicons/252Citrinica_661Mage_MagicBook.webp",
@@ -10768,8 +10781,8 @@
     "palette": "250Jade",
     "jobIcon": "631AxArmor",
     "defaultWeapon": "Ax",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/250Jade_631AxArmor_Ax.webp"
@@ -10778,9 +10791,9 @@
    "PID_ジャン": {
     "palette": "103Jean",
     "jobIcon": "667Monk",
-    "defaultWeapon": "Staff",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeapon": "Scroll",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_護身の法",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/103Jean_667Monk_NoWeapon.webp",
@@ -10793,7 +10806,7 @@
     "jobIcon": "685TirailleurLC",
     "defaultWeapon": "Bow",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鋼の弓",
+    "equippedIid": "IID_銀の弓",
     "forceTinted": false,
     "weapons": {
      "Bow": "assets/mapicons/201Staluke_685TirailleurLC_Bow.webp",
@@ -10814,7 +10827,7 @@
     "jobIcon": "673Dancer",
     "defaultWeapon": "Scroll",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鋼身の法",
+    "equippedIid": "IID_鉄身の法",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/403Seadas_673Dancer_NoWeapon.webp",
@@ -10837,9 +10850,9 @@
    "PID_セリーヌ": {
     "palette": "150Celine",
     "jobIcon": "675FleurageLC",
-    "defaultWeapon": "MagicBook",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeapon": "Sword",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の剣",
     "forceTinted": false,
     "weapons": {
      "MagicBook": "assets/mapicons/150Celine_675FleurageLC_MagicBook.webp",
@@ -10864,7 +10877,7 @@
     "jobIcon": "683SuccesseurLC",
     "defaultWeapon": "Sword",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の剣",
+    "equippedIid": "IID_銀の剣",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/200Diamand_683SuccesseurLC_NoWeapon.webp",
@@ -10901,8 +10914,8 @@
     "palette": "400Fogato",
     "jobIcon": "690CupidoLC",
     "defaultWeapon": "Bow",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鋼の弓",
     "forceTinted": false,
     "weapons": {
      "Bow": "assets/mapicons/400Fogato_690CupidoLC_Bow.webp",
@@ -10912,9 +10925,9 @@
    "PID_フラン": {
     "palette": "550Fram",
     "jobIcon": "668Monk",
-    "defaultWeapon": "Staff",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeapon": "Scroll",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_閃進の法",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/550Fram_668Monk_NoWeapon.webp",
@@ -10952,8 +10965,8 @@
     "palette": "450Misutira",
     "jobIcon": "692PitchforkLC",
     "defaultWeapon": "Lance",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_銀の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/450Misutira_692PitchforkLC_Lance.webp",
@@ -10992,8 +11005,8 @@
     "palette": "253Yunaka",
     "jobIcon": "659Thief",
     "defaultWeapon": "Knife",
-    "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄のナイフ",
+    "defaultWeaponSource": "job",
+    "equippedIid": null,
     "forceTinted": false,
     "weapons": {
      "Knife": "assets/mapicons/253Yunaka_659Thief_Knife.webp",
@@ -11005,7 +11018,7 @@
     "jobIcon": "605SwordFighter",
     "defaultWeapon": "Sword",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の大剣",
+    "equippedIid": "IID_銀の剣",
     "forceTinted": false,
     "weapons": {
      "NoWeapon": "assets/mapicons/251Lapis_605SwordFighter_NoWeapon.webp",
@@ -11029,7 +11042,7 @@
     "jobIcon": "662Sage",
     "defaultWeapon": "MagicBook",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_トロン",
+    "equippedIid": "IID_エクスカリバー",
     "forceTinted": false,
     "weapons": {
      "MagicBook": "assets/mapicons/304Linden_662Sage_MagicBook.webp",
@@ -11042,7 +11055,7 @@
     "jobIcon": "630LanceArmor",
     "defaultWeapon": "Lance",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鉄の槍",
+    "equippedIid": "IID_銀の槍",
     "forceTinted": false,
     "weapons": {
      "Lance": "assets/mapicons/102Louis_630LanceArmor_Lance.webp"
@@ -11053,7 +11066,7 @@
     "jobIcon": "653DragonKnight",
     "defaultWeapon": "Ax",
     "defaultWeaponSource": "equipped",
-    "equippedIid": "IID_鋼の大斧",
+    "equippedIid": "IID_銀の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/303Rosado_653DragonKnight_Ax.webp",
@@ -11065,9 +11078,9 @@
    "PID_ヴァンドレ": {
     "palette": "500Vandre",
     "jobIcon": "640Paladin",
-    "defaultWeapon": "Lance",
-    "defaultWeaponSource": "job",
-    "equippedIid": null,
+    "defaultWeapon": "Ax",
+    "defaultWeaponSource": "equipped",
+    "equippedIid": "IID_鉄の斧",
     "forceTinted": false,
     "weapons": {
      "Ax": "assets/mapicons/500Vandre_640Paladin_Ax.webp",
@@ -11414,6 +11427,18 @@
      }
     }
    },
+   "JID_クピードー": {
+    "m": {
+     "jobIcon": "691Cupido",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "691Cupido",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
    "JID_クピードー_E": {
     "m": {
      "jobIcon": "691Cupido",
@@ -11644,6 +11669,18 @@
      }
     }
    },
+   "JID_スュクセサール": {
+    "m": {
+     "jobIcon": "684Successeur",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "684Successeur",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
    "JID_スュクセサール_E": {
     "m": {
      "jobIcon": "684Successeur",
@@ -11664,6 +11701,18 @@
     },
     "f": {
      "jobIcon": "683SuccesseurLC",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
+   "JID_スレイプニル": {
+    "m": {
+     "jobIcon": "651Sleipnir",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "651Sleipnir",
      "forceTinted": true,
      "weapons": {}
     }
@@ -11883,6 +11932,18 @@
      "weapons": {}
     }
    },
+   "JID_ティラユール": {
+    "m": {
+     "jobIcon": "686Tirailleur",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "686Tirailleur",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
    "JID_ティラユール_E": {
     "m": {
      "jobIcon": "686Tirailleur",
@@ -12075,6 +12136,18 @@
      }
     }
    },
+   "JID_ピッチフォーク": {
+    "m": {
+     "jobIcon": "693Pitchfork",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "693Pitchfork",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
    "JID_ピッチフォーク_E": {
     "m": {
      "jobIcon": "693Pitchfork",
@@ -12095,6 +12168,18 @@
     },
     "f": {
      "jobIcon": "692PitchforkLC",
+     "forceTinted": true,
+     "weapons": {}
+    }
+   },
+   "JID_フロラージュ": {
+    "m": {
+     "jobIcon": "676Fleurage",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "676Fleurage",
      "forceTinted": true,
      "weapons": {}
     }
@@ -12556,6 +12641,18 @@
        "e": "assets/mapicons/646LancePegasus_Lance_e.webp"
       }
      }
+    }
+   },
+   "JID_リンドブルム": {
+    "m": {
+     "jobIcon": "656Lindwurm",
+     "forceTinted": true,
+     "weapons": {}
+    },
+    "f": {
+     "jobIcon": "656Lindwurm",
+     "forceTinted": true,
+     "weapons": {}
     }
    },
    "JID_リンドブルム_E": {
@@ -13382,6 +13479,7 @@
   "PID_アンナ": "assets/faces/Anna.webp",
   "PID_アンバー": "assets/faces/Umber.webp",
   "PID_エーティエ": "assets/faces/Etie.webp",
+  "PID_オルテンシア": "assets/faces/Hortensia.webp",
   "PID_カゲツ": "assets/faces/Kagetsu.webp",
   "PID_クラン": "assets/faces/Clan.webp",
   "PID_クロエ": "assets/faces/Chloe.webp",

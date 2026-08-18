@@ -297,6 +297,42 @@ def dispos_unit(row: dict, persons: dict) -> dict:
     return unit
 
 
+def chart_presets(src: Path) -> dict:
+    """chart.xml 加入 시트(0번) → 챕터별 기본 출격 명부(순서 보존).
+    Chapter 값이 있는 행 = 챕터 구분자, 이후 Pid 행들이 그 챕터 개시 시점의 자군 로스터다
+    (레벨·소지품·엠블렘 포함 — 세이브 없이 여는 시뮬의 캠페인층 근사 정본)."""
+    _, rows = load_sheet(src / "gamedata" / "chart.xml", 0)
+    presets, current = {}, None
+    for row in rows:
+        if row.get("Chapter"):
+            current = row["Chapter"]
+            presets[current] = []
+        elif current is not None and row.get("Pid"):
+            presets[current].append(row)
+    return presets
+
+
+def preset_unit(slot: dict, chart_row: dict, persons: dict) -> dict:
+    """익명 출격 슬롯(dispos Force=0·Pid 공백) + chart 명부 행 → 유닛. 좌표는 슬롯이, 신원은 chart가 소유한다."""
+    row = {
+        "Pid": chart_row["Pid"],
+        "Force": 0,
+        "DisposX": slot.get("DisposX", 0),
+        "DisposY": slot.get("DisposY", 0),
+        "Direction": slot.get("Direction", 0),
+    }
+    for key in ("Jid", "LevelN", "LevelH", "LevelL"):
+        if chart_row.get(key):
+            row[key] = chart_row[key]
+    for i in range(1, 6):
+        iid = chart_row.get(f"Item{i}.Iid")
+        if iid:
+            row[f"Item{i}.Iid"] = iid
+    if chart_row.get("GodId"):
+        row["Gid"] = chart_row["GodId"]
+    return dispos_unit(row, persons)
+
+
 def build_chapter(src: Path, out: Path, chapter: str) -> None:
     cid = chapter if chapter.startswith("CID_") else f"CID_{chapter}"
     tail = cid[len("CID_"):]
@@ -320,17 +356,45 @@ def build_chapter(src: Path, out: Path, chapter: str) -> None:
     persons = keyed(persons, "Pid")
     dispos_name = expand(row.get("Dispos", "*"), tail).lower()
     groups, objects, current = [], [], None
+    slots, placed = [], set()  # 익명 Force=0 행 = 출격 슬롯(실기는 세이브 로스터가 채운다)
     for unit_row in load_sheet(src / "dispos" / f"{dispos_name}.xml")[1]:
         if unit_row.get("Group"):
             current = unit_row["Group"]
             if current != OBJECT_GROUP:
                 groups.append({"name": current, "units": []})
         if not unit_row.get("Pid") or current is None:
+            if current is not None and current != OBJECT_GROUP and not unit_row.get("Pid") \
+                    and unit_row.get("Force") == 0 and "DisposX" in unit_row:
+                slots.append((len(groups) - 1, unit_row))
             continue
+        placed.add(unit_row["Pid"])
         if current == OBJECT_GROUP:
             objects.append(dispos_object(unit_row, tids))
         else:
             groups[-1]["units"].append(dispos_unit(unit_row, persons))
+
+    # 기본 출격 채움 — chart.xml 명부 순서대로 슬롯 정원까지(초과분 = 벤치, 선택 출격은 M4 편집기 몫).
+    # dispos에 이미 놓인 인물(고정 배치)은 건너뛴다. dispos 원문 행은 절대 수정하지 않는다.
+    chart_rows = {row["Pid"]: row for row in chart_presets(src).get(tail, [])}
+    fill = [row for row in chart_rows.values() if row["Pid"] not in placed]
+    for (gi, slot), chart_row in zip(slots, fill):
+        groups[gi]["units"].append(preset_unit(slot, chart_row, persons))
+
+    # 고정 배치 자군의 결측 보강 — dispos가 **비워 둔 필드만** chart로 채운다(dispos 값이 있으면 절대 우선).
+    # 세이브 소유 필드(레벨 0·빈 소지품·무엠블렘)가 그대로 새면 자군이 맨손 Lv1로 렌더된다(m003~ 실발현).
+    for group in groups:
+        for unit in group["units"]:
+            chart_row = chart_rows.get(unit["pid"])
+            if chart_row is None or unit["force"] != 0:
+                continue
+            if all(v == 0 for v in unit["level"].values()):
+                unit["level"] = {"n": chart_row.get("LevelN", 0), "h": chart_row.get("LevelH", 0),
+                                 "l": chart_row.get("LevelL", 0)}
+            if not unit["items"]:
+                unit["items"] = [{"iid": chart_row[f"Item{i}.Iid"], "drop": False}
+                                 for i in range(1, 6) if chart_row.get(f"Item{i}.Iid")]
+            if "gid" not in unit and chart_row.get("GodId"):
+                unit["gid"] = chart_row["GodId"]
 
     interactions = extract_interactions(script_closure(src, row))
 

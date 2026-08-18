@@ -30,6 +30,8 @@ export interface EventHost {
     | undefined;
   /** PersonGetIndex — person.xml 행 인덱스(AI 예약 변수에 저장됨, 소비 = MP4). 부재 = 0. */
   personIndex?(pid: string): number;
+  /** UnitGetMPID — 인물 이름 ID(person.xml Name = "MPID_..."). 부재 = 정직 거부(nil이면 SubPrefix가 침묵 오류). */
+  mpid?(pid: string): string | undefined;
   /**
    * TID → 지형 1칸 사영(TerrainSet·TerrainSetOne). 클라이언트엔 terrain 표가 없어 데이터층이
    * 챕터 Lua 폐포의 "TID_..." 전수를 미리 굳혀 넘긴다(보드 script.terrains).
@@ -457,20 +459,55 @@ export function createEventSession(opts: {
     lua.lua_pushboolean(A, u?.statuses?.some((s) => s.sid === sid) === true);
     return 1;
   });
+  // 엠블렘 클러스터 — UnitGetGodUnit 핸들이 통째로 떼었다 붙이는 필드 묶음(m026 오프닝 브래킷).
+  const GOD_FIELDS = ["engage", "engagedSkills", "engageWeapons", "engageArt"] as const;
+  /** UnitGetGodUnit이 발급한 핸들(1-based) → 그 시점의 엠블렘 클러스터 스냅숏. */
+  const godStash: Partial<Pick<UnitState, (typeof GOD_FIELDS)[number]>>[] = [];
+  /** 클러스터 대입 — patch null = 삭제(재생 replay.ts와 같은 계약). draft에는 delete로 반영한다. */
+  const applyGodPatch = (u: UnitState, next: Partial<Pick<UnitState, (typeof GOD_FIELDS)[number]>>): void => {
+    const patch: Record<string, unknown> = {};
+    for (const f of GOD_FIELDS) {
+      if (next[f] === undefined) {
+        if (u[f] !== undefined) {
+          patch[f] = null;
+          delete (u as unknown as Record<string, unknown>)[f];
+        }
+      } else {
+        patch[f] = next[f];
+        (u as unknown as Record<string, unknown>)[f] = next[f];
+      }
+    }
+    emit({ type: "godUnit", unit: u.id, gid: "", patch });
+  };
   register("UnitSetGodUnit", () => {
     const u = unitAt(1);
-    const gid = str(2);
-    if (u !== undefined) {
-      const patch = host.godUnit?.(u, gid);
-      if (patch !== undefined) Object.assign(u, patch);
-      emit({ type: "godUnit", unit: u.id, gid, ...(patch !== undefined ? { patch: patch as Record<string, unknown> } : {}) });
+    if (u === undefined) return 0;
+    // nil = 해제(m026 오프닝 외す) — ☠str(2)가 nil을 타면 JS TypeError가 경계에서 오류 값을 부순다.
+    if (lua.lua_type(A, 2) <= lua.LUA_TNIL) {
+      applyGodPatch(u, {});
+      return 0;
     }
+    // 숫자 = UnitGetGodUnit 핸들 재장착(원상 복구).
+    if (lua.lua_type(A, 2) === lua.LUA_TNUMBER) {
+      const snap = godStash[lua.lua_tointeger(A, 2) - 1];
+      if (snap === undefined) return lauxlib.luaL_error(A, to_luastring("UnitSetGodUnit: 미지 핸들"));
+      applyGodPatch(u, snap);
+      return 0;
+    }
+    const gid = str(2);
+    const patch = host.godUnit?.(u, gid);
+    if (patch !== undefined) Object.assign(u, patch);
+    emit({ type: "godUnit", unit: u.id, gid, ...(patch !== undefined ? { patch: patch as Record<string, unknown> } : {}) });
     return 0;
   });
   register("UnitGetGodUnit", () => {
     const u = unitAt(1);
-    if (u?.engage !== undefined) lua.lua_pushinteger(A, 1);
-    else lua.lua_pushnil(A);
+    if (u?.engage === undefined) {
+      lua.lua_pushnil(A);
+      return 1;
+    }
+    godStash.push({ engage: u.engage, engagedSkills: u.engagedSkills, engageWeapons: u.engageWeapons, engageArt: u.engageArt });
+    lua.lua_pushinteger(A, godStash.length);
     return 1;
   });
   register("UnitSetEngageCount", () => {
@@ -722,6 +759,18 @@ export function createEventSession(opts: {
     const u = unitAt(1);
     if (u?.pid === undefined) lua.lua_pushnil(A);
     else lua.lua_pushstring(A, to_luastring(u.pid));
+    return 1;
+  });
+  register("UnitGetMPID", () => {
+    const u = unitAt(1);
+    if (u?.pid === undefined) {
+      lua.lua_pushnil(A);
+      return 1;
+    }
+    const name = host.mpid?.(u.pid);
+    // ☠JS throw는 fengari 경계에서 오류 값이 깨진다(스택 잔재가 오류로 둔갑) — 정직 거부는 luaL_error로.
+    if (name === undefined) return lauxlib.luaL_error(A, to_luastring(`UnitGetMPID: MPID 사영 부재 (${u.pid})`));
+    lua.lua_pushstring(A, to_luastring(name));
     return 1;
   });
   register("UnitGetByPos", () => {
@@ -1036,7 +1085,14 @@ export function createEventSession(opts: {
       status = lua.lua_resume(co, null, 0);
     }
     if (status !== lua.LUA_OK) {
-      throw new Error(`이벤트 콜백 오류: ${to_jsstring(lua.lua_tostring(co, -1))}`);
+      // ☠오류 값이 문자열이 아니면(error(테이블) 등) lua_tostring이 null이라 to_jsstring이
+      // TypeError로 죽어 진짜 원인이 가려진다 — 비문자 값은 타입명으로라도 표면화한다.
+      const raw = lua.lua_tostring(co, -1);
+      const msg =
+        raw === null || raw === undefined
+          ? `(비문자 오류 값: ${to_jsstring(lua.lua_typename(co, lua.lua_type(co, -1)))})`
+          : to_jsstring(raw);
+      throw new Error(`이벤트 콜백 오류: ${msg}`);
     }
     lua.lua_pop(L, 1); // thread
   };

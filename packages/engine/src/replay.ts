@@ -269,7 +269,11 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
       }
       case "godUnit": {
         const u = require(ev.unit);
-        if (ev.patch !== undefined) Object.assign(u, ev.patch as Partial<UnitState>);
+        // patch null = 필드 삭제(엠블렘 해제 — UnitSetGodUnit nil). undefined는 JSON에서 살아남지 못한다.
+        for (const [key, value] of Object.entries(ev.patch ?? {})) {
+          if (value === null) delete (u as unknown as Record<string, unknown>)[key];
+          else (u as unknown as Record<string, unknown>)[key] = value;
+        }
         break;
       }
       case "ai": {

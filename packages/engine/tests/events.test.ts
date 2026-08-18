@@ -116,6 +116,92 @@ FORCE_ALLY = 2
 const mkSession = (h = host(), script = SCRIPT) =>
   createEventSession({ sources: { common: COMMON_MIN, test: script }, chapter: "test", host: h });
 
+describe("UnitGetMPID — 인물 이름 ID(호스트 mpid 사영)", () => {
+  const SCRIPT_MPID = `
+Include("Common")
+function Startup()
+  VariableSet("이름", UnitGetMPID("PID_p"))
+end
+`;
+  /** m026 오프닝이 자군 전원을 돌며 MPID로 대사 MID를 만든다 — 미배선이면 로스터 확장 즉시 부트가 죽는다. */
+  it("호스트 mpid 사영을 그대로 돌려준다(person.xml Name이 정본)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, test: SCRIPT_MPID },
+      chapter: "test",
+      host: host({ mpid: (pid) => (pid === "PID_p" ? "MPID_P" : undefined) }),
+    });
+    session.setRng(rolls([0]));
+    const r = session.setup(state([unit({ id: "p", force: 0, x: 1, y: 1 })]));
+    expect(r.state.variables?.["이름"]).toBe("MPID_P");
+  });
+
+  it("☠사영 부재는 nil로 강하하지 않고 거부한다(SubPrefix(nil) 침묵 오류 방지)", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, test: SCRIPT_MPID },
+      chapter: "test",
+      host: host(),
+    });
+    session.setRng(rolls([0]));
+    expect(() => session.setup(state([unit({ id: "p", force: 0, x: 1, y: 1 })]))).toThrow(/MPID 사영 부재/);
+  });
+});
+
+describe("UnitSetGodUnit — 엠블렘 해제·핸들 재장착(m026 오프닝 브래킷)", () => {
+  const engaged = () =>
+    unit({
+      id: "p", force: 0, x: 1, y: 1,
+      engage: { count: 1, limit: 7, turnLimit: 3, turn: 0, engaging: false },
+    });
+
+  /** m026 오프닝: 외す(UnitSetGodUnit nil) → 연출 → 되돌림(핸들 재장착). nil 인자가 str()를 타면
+   *  JS TypeError가 경계에서 nil 오류로 둔갑해 부트 전체가 침묵 사망한다(실발현). */
+  it("nil = 해제(engage 제거) · 핸들 = 원상 복구, 절대 재생도 동형", () => {
+    const SCRIPT_GOD = `
+Include("Common")
+function Startup()
+  local u = "PID_p"
+  local god = UnitGetGodUnit(u)
+  UnitSetGodUnit(u, nil)
+  VariableSet("해제중", UnitGetGodUnit(u) == nil and 1 or 0)
+  UnitSetGodUnit(u, god)
+end
+`;
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, test: SCRIPT_GOD },
+      chapter: "test",
+      host: host(),
+    });
+    session.setRng(rolls([0]));
+    const r = session.setup(state([engaged()]));
+    expect(r.state.variables?.["해제중"]).toBe(1);
+    const after = r.state.units.find((u) => u.id === "p")!;
+    expect(after.engage).toEqual({ count: 1, limit: 7, turnLimit: 3, turn: 0, engaging: false });
+    // 절대 재생 — 기록 이벤트(godUnit patch)만으로 같은 국면(해제→복구 상쇄)이 복원된다.
+    const { applyStep } = createReplayer(base); // ☠열람 경로 상정 — 세션 무반입
+    const replayed = applyStep(state([engaged()]), {
+      action: { type: "setup" },
+      events: r.state.events,
+    });
+    expect(replayed.units.find((u) => u.id === "p")!.engage).toEqual(after.engage);
+  });
+});
+
+describe("이벤트 콜백 오류 표면화", () => {
+  /** 왜 위험한가: error(테이블)·경계를 넘은 JS 예외는 lua_tostring이 null을 줘 to_jsstring이
+   *  TypeError로 죽는다 — 진짜 원인이 통째로 가려진다(m026 로스터 확장에서 실발현). */
+  it("비문자 오류 객체(테이블)도 콜백 오류 메시지로 던진다 — TypeError로 가리지 않는다", () => {
+    const SCRIPT_ERR = `
+Include("Common")
+function Startup()
+  error({ code = 7 })
+end
+`;
+    const session = mkSession(host(), SCRIPT_ERR);
+    session.setRng(rolls([0]));
+    expect(() => session.setup(state([unit({ id: "p", force: 0, x: 1, y: 1 })]))).toThrow(/이벤트 콜백 오류/);
+  });
+});
+
 describe("파괴 트리거(EventEntryDestroy) — 완파 시 발화", () => {
   const SCRIPT_D = `
 Include("Common")
@@ -390,8 +476,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
     e005: ["UnitPutOffItem"],
     e006: ["UnitPutOffItem"],
     m014: ["UnitSetItemEquip"],
-    // (2) 미모델 유닛 속성 — MPID(인물 이름 ID 미사영 — PID에서 유추하면 픽션).
-    m022: ["UnitGetMPID"],
+    // (2) [해소 2026-08-18] m022 UnitGetMPID — person.xml Name 사영을 호스트 mpid 훅으로 배선.
     // (3) ☠원문 Lua 문법 오류(추출 산물 아님 — 게임의 실행 형태 미확인). g001.txt:157이 `if A then
     //     return a` 뒤에 end 없이 다음 if를 연다(elseif 오타 — 메인 실검 확정). fengari는 로드를 거부한다.
     //     ☠손대지 않는다: data/는 파이프라인 산출물이라 손수정이 곧 표류다.
@@ -400,6 +485,10 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
   };
 
   // 지형 TID → CostName·회피/수비 — 보드 팔레트(fe17.ts)가 쓰는 것과 같은 표.
+  // 인물 이름 ID(MPID) — UnitGetMPID 호스트 사영의 정본(person.xml Name).
+  const personsTable = JSON.parse(
+    readFileSync(new URL("../../../data/fe17/tables/persons.json", import.meta.url), "utf-8"),
+  ) as Record<string, { Name?: string }>;
   const terrainTable = JSON.parse(
     readFileSync(new URL("../../../data/fe17/tables/terrain.json", import.meta.url), "utf-8"),
   ) as Record<string, {
@@ -557,6 +646,7 @@ describe("변환 챕터 전수 세션 부트 스모크", () => {
       godUnit: () => ({ engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } }),
       gainItem: (iid) => gainItemOf(iid),
       terrainCell: terrainCellOf,
+      mpid: (pid) => personsTable[pid]?.Name,
     };
     const gap = HONEST_GAPS[cid];
 
@@ -684,7 +774,6 @@ describe("정직 결손 — 미등록 유지 네이티브", () => {
     ["MapOverlapSet", `MapOverlapSet(1, 1, "TID_瘴気_永続")`, "런타임 오버레이 생성 미모델(장부 turn.map-gimmicks) — 瘴気는 피해가 본질이라 가시성만 맞추면 오재현"],
     ["MapOverlapRemove", `MapOverlapRemove(1, 1)`, "위와 같은 계열(생성·제거 한 쌍)"],
     ["UnitGetJID", `UnitGetJID("PID_p")`, "직업 ID 미사영 — nil이면 == \"JID_...\" 분기가 통째로 뒤집힌다"],
-    ["UnitGetMPID", `UnitGetMPID("PID_p")`, "인물 이름 ID 미사영 — PID에서 유추하면 픽션"],
     ["Battle", `Battle("PID_p", "PID_p")`, "이벤트 전투 실행 — 난수·대미지 파이프라인 주입 필요"],
     ["BattleSetAttack", `BattleSetAttack("PID_p", "IID_鉄の剣")`, "위와 같음"],
     ["BattleAddTarget", `BattleAddTarget("PID_p")`, "위와 같음"],

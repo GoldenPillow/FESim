@@ -689,8 +689,8 @@ export const FIDELITY: readonly FidelityEntry[] = [
   {
     id: "units.chapter-preset-roster",
     label: { en: "Per-chapter preset party state (level, promotion, inventory, sync)", ko: "챕터별 프리셋 파티 상태(레벨·승급·소지품·싱크로)" },
-    status: "absent",
-    evidence: "chart.xml 加入 1510행(챕터 54 + QA 3) — dispos Force=0 1415행은 레벨 0·Jid/Gid/Sid 공란으로 아군 스탯 미소유, 교집합 60건 실값 일치 0셀, 전역 시그니처 대조 0/1510(gaps/O §10-1) · units.difficulty-scaling·units.promotion과 별개 소스(dispos·encount에 중복 0건)",
+    status: "assumed",
+    evidence: "chart.xml 加入 1510행(챕터 54 + QA 3) — dispos Force=0 1415행은 레벨 0·Jid/Gid/Sid 공란으로 아군 스탯 미소유, 교집합 60건 실값 일치 0셀, 전역 시그니처 대조 0/1510(gaps/O §10-1) · units.difficulty-scaling·units.promotion과 별개 소스(dispos·encount에 중복 0건) · ★1차 배선(2026-08-18 transform.py): 익명 출격 슬롯(dispos Force=0·Pid 공백)을 chart 명부 순서대로 채우고(레벨·소지품·GodId 포함), 고정 배치 자군의 결측 필드(레벨 0·빈 소지품·무엠블렘)만 chart로 보강한다(dispos 값 절대 우선) — m004 자군 1→7명 실발현이 계기 · ⚠가정 = 채움 순서 chart 원문 순 · 슬롯 정원 초과분(벤치) 미모델 · 선택 출격 = M4 편집기 몫 — 실기는 세이브 로스터가 채우는 자리라 '세이브 없는 기준 국면'의 근사다",
   },
   {
     id: "units.equipped-weapon",
@@ -1096,7 +1096,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Event engine (full Lua runtime)", ko: "이벤트 엔진(풀 Lua 실행)" },
     status: "implemented",
     evidence:
-      "배선(2026-08-18 MP2, events.test.ts 11건) — 챕터 스크립트 원문(파이프라인 가공: 주석 제거·!= 정규화·유니코드 식별자 맹글링)을 fengari(순 JS Lua 5.3)로 실행 · 콜백 = 코루틴 완주(WaitTime 실 yield) · 연출 API = no-op 테이블(결정 2026-08-18) · 미등록 네이티브 = 정직 오류 · m002·m003 전 경로 미지 호출 0 실측 · setup = 기보 스텝 0(절대 이벤트로 열람 경로 복원 — fengari는 제작 경로 지연 청크만, /s/ 무반입) · 조사 정본 = extracted/lua/LUA_USAGE.md + il2cpp/LUA_BINDINGS.md · ★`UnitSetHp` 배선(2026-08-18, MP4 2라운드 긴급): 종전 '미등록 유지' 결손이었으나 사유였던 '절대 재생 계약 선행'은 **이미 충족돼 있었다**(heal 이벤트가 hpAfter 절대값을 싣고 replay가 그대로 대입). ☠미등록인 채로 두니 **m001 턴3 쌍자이탈이 endPhase를 통째로 거부**했고 화면·콘솔이 전부 침묵해 '적턴 AI 무한루프'로 오진됐다 — 미등록 네이티브 1건이 전혀 다른 층에서 발현한 사례다. 최대치 클램프 + heal 절대 이벤트로 배선하고 결손 목록에서 제거(events.test.ts 2건: 클램프·세션 무반입 재생). ⚠HP 0 대입 시 사망 처리는 근거가 없어 미배선(실사용은 m001·e006 모두 양수) · ★부수: boardStore.dispatch가 거부를 **조용히 삼키던 것**을 개발 콘솔 경고로 노출(같은 오진 재발 방지)",
+      "배선(2026-08-18 MP2, events.test.ts 11건) — 챕터 스크립트 원문(파이프라인 가공: 주석 제거·!= 정규화·유니코드 식별자 맹글링)을 fengari(순 JS Lua 5.3)로 실행 · 콜백 = 코루틴 완주(WaitTime 실 yield) · 연출 API = no-op 테이블(결정 2026-08-18) · 미등록 네이티브 = 정직 오류 · m002·m003 전 경로 미지 호출 0 실측 · setup = 기보 스텝 0(절대 이벤트로 열람 경로 복원 — fengari는 제작 경로 지연 청크만, /s/ 무반입) · 조사 정본 = extracted/lua/LUA_USAGE.md + il2cpp/LUA_BINDINGS.md · ★`UnitSetHp` 배선(2026-08-18, MP4 2라운드 긴급): 종전 '미등록 유지' 결손이었으나 사유였던 '절대 재생 계약 선행'은 **이미 충족돼 있었다**(heal 이벤트가 hpAfter 절대값을 싣고 replay가 그대로 대입). ☠미등록인 채로 두니 **m001 턴3 쌍자이탈이 endPhase를 통째로 거부**했고 화면·콘솔이 전부 침묵해 '적턴 AI 무한루프'로 오진됐다 — 미등록 네이티브 1건이 전혀 다른 층에서 발현한 사례다. 최대치 클램프 + heal 절대 이벤트로 배선하고 결손 목록에서 제거(events.test.ts 2건: 클램프·세션 무반입 재생). ⚠HP 0 대입 시 사망 처리는 근거가 없어 미배선(실사용은 m001·e006 모두 양수) · ★부수: boardStore.dispatch가 거부를 **조용히 삼키던 것**을 개발 콘솔 경고로 노출(같은 오진 재발 방지) · ★`UnitGetMPID` 배선(2026-08-18): 정본 실재(person.xml Name = MPID) — 호스트 mpid 훅으로 사영(SSG가 유닛에 굳힘), m022 부트 결손 해소·m026 오프닝 대사 루프 해소. 부재 = 정직 거부(nil이면 SubPrefix가 침묵 오류) · ★`UnitSetGodUnit(nil)`·`UnitGetGodUnit` 핸들 왕복 배선(2026-08-18): m026 오프닝의 엠블렘 외す→연출→되돌림 브래킷 — nil = 엠블렘 클러스터(engage·engagedSkills·engageWeapons·engageArt) 해제, 핸들 = 스냅숏 복구, 재생 계약 = godUnit patch null = 필드 삭제(replay.ts) · ☠교훈: 네이티브의 정직 거부는 luaL_error로만 — JS throw는 fengari 경계에서 오류 값이 깨져 원인이 nil로 둔갑한다(콜백 오류 표면화 테스트로 박제)",
   },
   {
     id: "events.triggers",
