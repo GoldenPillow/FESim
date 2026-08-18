@@ -142,8 +142,12 @@ function bestItem(engine, game, unit, mine) {
   return best;
 }
 
-/** 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다. */
-function bestVisit(engine, game, unit) {
+/**
+ * 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다.
+ * ☠**위협을 본다**: 종전에는 도달만 보고 갔다가 m004 1턴에 리월이 민가 앞에서 죽었다(2026-08-18).
+ * 아이템 하나와 주인공의 목숨을 바꾸지 않는다 — 살아서 다음 턴에 열면 된다.
+ */
+function bestVisit(engine, calculator, game, unit, zones) {
   const spots = (game.map.interactions ?? []).filter((i) => i.kind === "visit");
   if (spots.length === 0) return undefined;
   const taken = new Set(game.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * game.map.width + u.x));
@@ -154,6 +158,7 @@ function bestVisit(engine, game, unit) {
     const k = y * game.map.width + x;
     if (taken.has(k) || !reach.has(k)) continue;
     if ((game.visited ?? []).some((v) => v.x === x && v.y === y)) continue; // 이미 연 민가
+    if (deadly(engine, calculator, game, unit, { x, y }, zones)) continue;
     return { x, y };
   }
   return undefined;
@@ -190,8 +195,18 @@ function bestAttack(engine, calculator, game, unit, foes, zones) {
   return best;
 }
 
-/** 회복 지팡이 — 가장 많이 잃은 아군을 사거리 안에서 회복. */
-function bestHeal(engine, game, unit, allies) {
+/**
+ * 그 칸에 서면 이번 적 페이즈에 죽는가 — 이동을 동반하는 비전투 행동(방문·회복)의 공용 게이트.
+ * ★공방의 안정 = "이득을 취하러 사지에 들어가지 않는다". 여유는 전진과 같은 몫(ADVANCE_MARGIN).
+ */
+function deadly(engine, calculator, game, unit, at, zones) {
+  if (zones === undefined || zones.length === 0) return false;
+  const threat = incoming(engine, calculator, game, unit, at, zones);
+  return threat.total >= unit.hp - Math.floor(unit.stats.hp * ADVANCE_MARGIN);
+}
+
+/** 회복 지팡이 — 가장 많이 잃은 아군을 사거리 안에서 회복. ☠술자도 사지에는 안 선다. */
+function bestHeal(engine, calculator, game, unit, allies, zones) {
   const staves = (unit.staves ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.uses > 0 && s.rodType === 2);
   if (staves.length === 0) return undefined;
   let best;
@@ -203,6 +218,7 @@ function bestHeal(engine, game, unit, allies) {
         if (lost <= 0) continue;
         const range = dist(at, ally);
         if (range < s.rangeMin || range > s.rangeMax) continue;
+        if (deadly(engine, calculator, game, unit, at, zones)) continue;
         const score = lost * 10 - range;
         if (best === undefined || score > best.score) best = { score, at, ally, staff: i };
       }
@@ -328,8 +344,8 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     const zones = threatZones(engine, cur, enemies);
     // ★민가 방문 — 방문 칸에 설 수 있으면 우선한다(사용자 지적: "인접 민가에서 아이템을 얻어도").
     //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
-    const visit = bestVisit(engine, cur, self);
-    const heal = bestHeal(engine, cur, self, mine);
+    const visit = bestVisit(engine, calculator, cur, self, zones);
+    const heal = bestHeal(engine, calculator, cur, self, mine, zones);
     const atk = bestAttack(engine, calculator, cur, self, targets, zones);
     // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
     const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
