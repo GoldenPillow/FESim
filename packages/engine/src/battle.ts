@@ -17,7 +17,7 @@ import type { Calculator } from "./formula/calculator.js";
 import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
-import { movementRange, type MoveType } from "./range.js";
+import { IMPASSABLE, movementRange, type MoveType } from "./range.js";
 import { makeSkillModifier, type SkillRow } from "./skills.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
 
@@ -76,6 +76,12 @@ export interface UnitState {
   /** 인게이지 게이지 — 엠블렘 장착 유닛만. limit·turnLimit 산출은 데이터층(스냅숏) 소관. */
   engage?: EngageState;
   skills?: SkillRow[];
+  /**
+   * 엠블렘 싱크로 스킬(SynchroSkills) — 장착 중 상시 유효한 문장사 패시브.
+   * ☠skills에 섞지 않는다: 엠블렘은 붙였다 떼는 것이라(UnitSetGodUnit nil·핸들 복구) 섞으면
+   * 해제 때 사람 고유 스킬과 구분이 안 된다. 엠블렘 클러스터와 함께 통째로 붙고 떨어진다.
+   */
+  synchroSkills?: SkillRow[];
   /**
    * 인게이지 중 스킬 세트(EngagedSkills 교체본 — 싱크로 ∪ 인게이지 스킬, EngageSid 치환 완료본).
    * engaging일 때 skills 대신 이 목록이 유효(GetSyncroSkills 0x2342530). 산출은 데이터층 소관.
@@ -161,7 +167,13 @@ export function hasBadState(u: UnitState, bit: number): boolean {
  * ☠u.skills 직접 소비 금지 — 판정·예보·UI 전부 이 함수를 거쳐야 교체가 새지 않는다.
  */
 export function effectiveSkills(u: UnitState): SkillRow[] | undefined {
-  const base = u.engage?.engaging === true ? (u.engagedSkills ?? u.skills) : u.skills;
+  // 비인게이지 = 사람 스킬 ∪ 싱크로(문장사 패시브) · 인게이지 = EngagedSkills 교체본(싱크로를 이미 품는다).
+  const base =
+    u.engage?.engaging === true
+      ? (u.engagedSkills ?? u.skills)
+      : u.synchroSkills === undefined
+        ? u.skills
+        : [...(u.skills ?? []), ...u.synchroSkills];
   // 무기 부여 스킬(EquipSids) — 장비 중에만 합류(특효·무기 스킬의 원천, 무장 해제 시 소멸).
   const granted = u.weapon?.sids;
   if (granted === undefined || granted.length === 0) return base;
@@ -187,6 +199,36 @@ export function effectiveWeapons(u: UnitState): BattleWeapon[] | undefined {
  */
 export function equipCandidates(u: UnitState): BattleWeapon[] {
   return [...(u.weapons ?? []), ...(u.engageWeapons ?? [])];
+}
+
+/**
+ * 관통형 인게이지 기술(시구르드 オーバードライブ)의 경로 — `MapSkill.CalcPierce`(0x1F4EC90) 사영.
+ * 대상 방향으로 한 칸씩 나아가며 적을 연쇄 타격하고 **첫 빈 통행 가능 칸에 착지**한다.
+ * 불성립(직교 인접 아님·맵 밖·아군이 막음·착지 칸 통행 불가) = `undefined` — ☠1타로 조용히 강하시키지
+ * 않는다(그러면 "왜 한 명만 맞지?"가 영영 안 잡힌다). AI와 reduce가 **같은 함수**를 봐야 판정이 안 갈린다.
+ * ⚠가정 = 통행 판정에 **공격자의 이동타입**을 쓴다(원문은 유닛 없이 지형만 본다 — 현행 맵엔 갈리는 칸이 없다).
+ */
+export function piercePath(
+  state: GameState,
+  units: readonly UnitState[],
+  attacker: UnitState,
+  target: UnitState,
+): { victims: UnitState[]; landing: { x: number; y: number } } | undefined {
+  const dx = target.x - attacker.x;
+  const dy = target.y - attacker.y;
+  if (dx * dx + dy * dy !== 1) return undefined;
+  const costAt = makeCostAt(state.map, state.structures, attacker.moveType, state.terrainPatches);
+  const victims: UnitState[] = [target];
+  for (let x = target.x + dx, y = target.y + dy; ; x += dx, y += dy) {
+    if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) return undefined;
+    const occupant = units.find((u) => !u.dead && u.x === x && u.y === y);
+    if (occupant === undefined) {
+      if (costAt(x, y) >= IMPASSABLE) return undefined;
+      return { victims, landing: { x, y } };
+    }
+    if (occupant.force === attacker.force) return undefined;
+    victims.push(occupant);
+  }
 }
 
 /**
@@ -1412,8 +1454,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         } else if (manhattan(attacker, defender) < rangeMin || manhattan(attacker, defender) > rangeMax) {
           throw new Error("사거리 밖 기술");
         }
-        // 반격 사거리 판정은 **착지 뒤** 거리로 본다(리워프는 여기서 이미 이동을 마쳤다).
-        const distance = manhattan(attacker, defender);
+
+        const path = art.pierce === true ? piercePath(state, units, attacker, defender) : undefined;
+        if (art.pierce === true && path === undefined) throw new Error("관통 경로 불성립(맵 밖·아군 차단·착지 불가)");
+        const victims: UnitState[] = path?.victims ?? [defender];
+        const landing = path?.landing;
 
         // 기술 스킬 세트(기술 행 + SyncSids 전개)는 이 전투 한정으로 공격측에 합류한다 — 국면 스킬은 불변.
         const artSkills = [...(effectiveSkills(attacker) ?? []), ...art.skills];
@@ -1423,18 +1468,6 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           initiator: true,
           striking: true,
         };
-        const defenderC = {
-          ...toCombatant(defender, state.map, units, supportEffects, state.terrainPatches),
-          initiator: false,
-          striking: false,
-        };
-        // 흐름 변수는 汎用設定(SyncSids)이 데이터로 소유한다: 攻撃回数·手番回数·相手の手番回数.
-        // 기본값 1은 통상 전투의 문법 — 汎用設定이 없으면 1타·반격 허용으로 강하한다.
-        const flowEnv = combatEnv({ ...attackerC, skills: undefined }, defenderC);
-        const flow = makeSkillModifier(artSkills, flowEnv, { initiator: true, striking: true });
-        const strikesPerTurn = Math.max(Math.trunc(flow("攻撃回数", 1)), 0);
-        const turns = Math.max(Math.trunc(flow("手番回数", 1)), 0);
-        const foeTurns = Math.max(Math.trunc(flow("相手の手番回数", 1)), 0);
 
         const strike = (
           from: UnitState,
@@ -1453,20 +1486,56 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           }
         };
 
-        // ⚠단순화(가정): 체인어택·추격·브레이크는 기술 전투에서 미발동으로 둔다 — 汎用設定이 회수를
-        // 고정하는 문법과 정합하나 실기 앵커는 없다(실측 대조 대상, 장부 actions.engage-attack).
-        for (let turn = 0; turn < turns && !defender.dead; turn++) {
-          for (let i = 0; i < strikesPerTurn && !defender.dead; i++) {
-            const weapon = strikeWeapon(i);
-            const numbers = forecastSide(calc, { ...attackerC, weapon }, defenderC);
-            // 대미지 감쇠(ダメージ３０％류) = 공격측 스킬의 相手のダメージ 대입 — 원문 식이 올림을 소유한다.
-            const damage = Math.trunc(flow("相手のダメージ", numbers.damage));
-            strike(attacker, defender, { ...numbers, damage });
+        // 관통형은 **한 액션 안에서 대상이 여럿**이다 — 목록 순서 = 진행 방향(CalcPierce 열거 순).
+        // 비관통형은 victims가 [대상] 하나라 아래 루프가 종전 경로 그대로다.
+        let expGained = 0;
+        for (const victim of victims) {
+          if (attacker.dead) break;
+          const defenderC = {
+            ...toCombatant(victim, state.map, units, supportEffects, state.terrainPatches),
+            initiator: false,
+            striking: false,
+          };
+          // 흐름 변수는 汎用設定(SyncSids)이 데이터로 소유한다: 攻撃回数·手番回数·相手の手番回数.
+          // 기본값 1은 통상 전투의 문법 — 汎用設定이 없으면 1타·반격 허용으로 강하한다.
+          const flowEnv = combatEnv({ ...attackerC, skills: undefined }, defenderC);
+          const flow = makeSkillModifier(artSkills, flowEnv, { initiator: true, striking: true });
+          const strikesPerTurn = Math.max(Math.trunc(flow("攻撃回数", 1)), 0);
+          const turns = Math.max(Math.trunc(flow("手番回数", 1)), 0);
+          const foeTurns = Math.max(Math.trunc(flow("相手の手番回数", 1)), 0);
+
+          // ⚠단순화(가정): 체인어택·추격·브레이크는 기술 전투에서 미발동으로 둔다 — 汎用設定이 회수를
+          // 고정하는 문법과 정합하나 실기 앵커는 없다(실측 대조 대상, 장부 actions.engage-attack).
+          for (let turn = 0; turn < turns && !victim.dead; turn++) {
+            for (let i = 0; i < strikesPerTurn && !victim.dead; i++) {
+              const weapon = strikeWeapon(i);
+              const numbers = forecastSide(calc, { ...attackerC, weapon }, defenderC);
+              // 대미지 감쇠(ダメージ３０％류) = 공격측 스킬의 相手のダメージ 대입 — 원문 식이 올림을 소유한다.
+              const damage = Math.trunc(flow("相手のダメージ", numbers.damage));
+              strike(attacker, victim, { ...numbers, damage });
+            }
+          }
+          // 반격 사거리 판정은 **착지 전** 위치 기준(리워프는 위에서 이미 이동을 마쳤다).
+          const foeDistance = manhattan(attacker, victim);
+          if (foeTurns > 0 && !victim.dead && !victim.broken && inWeaponRange(victim, foeDistance)) {
+            const defF = forecastSide(calc, { ...defenderC, striking: true }, { ...attackerC, striking: false });
+            for (let i = 0; i < foeTurns && !attacker.dead; i++) strike(victim, attacker, defF);
+          }
+          // 충전: 공격측은 인게이지 중이라 항상 무충전, 피격측은 통상 규칙.
+          chargeEngage(victim, events);
+          if (attacker.force === 0 && !attacker.dead) {
+            const difficulty = state.difficulty ?? "n";
+            const formula = victim.dead ? "撃破経験計算" : "戦闘経験計算";
+            expGained += Math.floor(
+              calc.eval(formula, expEnv(attacker, victim, 0, difficulty)) as number,
+            );
           }
         }
-        if (foeTurns > 0 && !defender.dead && !defender.broken && inWeaponRange(defender, distance)) {
-          const defF = forecastSide(calc, { ...defenderC, striking: true }, { ...attackerC, striking: false });
-          for (let i = 0; i < foeTurns && !attacker.dead; i++) strike(defender, attacker, defF);
+        // 착지 — 관통은 뚫고 지나간 자리에 선다(절대 좌표 이벤트 = 열람 경로 복원의 정본).
+        if (landing !== undefined && !attacker.dead) {
+          attacker.x = landing.x;
+          attacker.y = landing.y;
+          events.push({ type: "setPos", unit: attacker.id, x: landing.x, y: landing.y });
         }
 
         // 게이지 차감(技コスト — 대부분 0) — charge 이벤트 절대값으로 기보에 실린다.
@@ -1474,19 +1543,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           attacker.engage = { ...g, count: g.count - art.cost };
           events.push({ type: "charge", unit: attacker.id, count: attacker.engage.count });
         }
-        // 충전: 공격측은 인게이지 중이라 항상 무충전, 피격측은 통상 규칙.
-        chargeEngage(defender, events);
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
         consumeCrest(attacker);
-        if (attacker.force === 0 && !attacker.dead) {
-          const difficulty = state.difficulty ?? "n";
-          const formula = defender.dead ? "撃破経験計算" : "戦闘経験計算";
-          const gained = Math.floor(
-            calc.eval(formula, expEnv(attacker, defender, 0, difficulty)) as number,
-          );
-          grantExp(attacker, gained, events, rng, growMode);
-        }
+        if (attacker.force === 0 && !attacker.dead) grantExp(attacker, expGained, events, rng, growMode);
         break;
       }
 

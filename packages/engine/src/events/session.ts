@@ -393,9 +393,28 @@ export function createEventSession(opts: {
     }
     return 0;
   });
+  /**
+   * `Unit.ResetParam`(RVA 0x1A5DCC0) 판독 — 순서 그대로:
+   * `SetEngage(false)` → `ResetEngageCount`(경과 턴 0 · count = min(エンゲージ初期値 7, limit))
+   * → `SkillArray.ClearCycles` → Status &= ~(FIXED|CANDIDATE|0x80|ENGAGING|…) → HP 만회복.
+   * ☠종전 배선은 HP·브레이크·상태만 되돌려 **인게이지가 살아남았다** — m002 1회전 종료 재배치에서
+   * 리월이 발동한 채로 2회전에 들어갔다(사용자 관측 2026-08-18).
+   */
   register("UnitResetParam", () => {
     const u = unitAt(1);
     if (u !== undefined) {
+      if (u.engage !== undefined) {
+        const wasEngaging = u.engage.engaging === true;
+        u.engage = { ...u.engage, engaging: false, turn: 0, count: Math.min(7, u.engage.limit) };
+        // 해제가 먼저다 — 재생측 disengage가 count를 0으로 깎으므로 충전 이벤트가 뒤에 와야 값이 선다.
+        if (wasEngaging) {
+          if (u.weapon !== undefined && u.engageWeapons?.includes(u.weapon) === true) u.weapon = u.weapons?.[0];
+          emit({ type: "disengage", unit: u.id });
+        }
+        emit({ type: "charge", unit: u.id, count: u.engage.count });
+      }
+      // 해제되는 상태 비트 중 우리가 모형화한 것 = FIXED(1)·CANDIDATE(64)·0x80. ENGAGING은 engage가 소유.
+      if (u.flags !== undefined && (u.flags & 0xc1) !== 0) setFlags(u, u.flags & ~0xc1);
       u.hp = u.stats.hp;
       u.broken = false;
       delete u.statuses;
@@ -462,7 +481,7 @@ export function createEventSession(opts: {
     return 1;
   });
   // 엠블렘 클러스터 — UnitGetGodUnit 핸들이 통째로 떼었다 붙이는 필드 묶음(m026 오프닝 브래킷).
-  const GOD_FIELDS = ["gid", "engage", "engagedSkills", "engageWeapons", "engageArt"] as const;
+  const GOD_FIELDS = ["gid", "engage", "synchroSkills", "engagedSkills", "engageWeapons", "engageArt"] as const;
   /** UnitGetGodUnit이 발급한 핸들(1-based) → 그 시점의 엠블렘 클러스터 스냅숏. */
   const godStash: Partial<Pick<UnitState, (typeof GOD_FIELDS)[number]>>[] = [];
   /** 클러스터 대입 — patch null = 삭제(재생 replay.ts와 같은 계약). draft에는 delete로 반영한다. */
@@ -508,7 +527,7 @@ export function createEventSession(opts: {
       lua.lua_pushnil(A);
       return 1;
     }
-    godStash.push({ gid: u.gid, engage: u.engage, engagedSkills: u.engagedSkills, engageWeapons: u.engageWeapons, engageArt: u.engageArt });
+    godStash.push({ gid: u.gid, engage: u.engage, synchroSkills: u.synchroSkills, engagedSkills: u.engagedSkills, engageWeapons: u.engageWeapons, engageArt: u.engageArt });
     lua.lua_pushinteger(A, godStash.length);
     return 1;
   });

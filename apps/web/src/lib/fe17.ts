@@ -672,12 +672,25 @@ export const engageStateFor = (gid: string, bondLevel?: number): EngageState | u
   };
 };
 
-export function unitSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] {
+/**
+ * 사람이 소유한 스킬 행(dispos sids + person.CommonSids).
+ * ☠엠블렘 싱크로는 여기 섞지 않는다 — 반지는 붙였다 떼는 것이라 `synchroSkills`(엠블렘 클러스터)가
+ * 소유해야 해제가 성립한다. 합류는 엔진 `effectiveSkills` 한 곳에서만 일어난다.
+ */
+export function unitSkillRows(unit: DisposUnit): SkillRow[] {
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
-  const sync = unit.gid !== undefined ? emblemSyncSids(unit.gid, bondLevel) : [];
-  const sids = [...new Set([...unit.sids, ...commons, ...sync])];
+  const sids = [...new Set([...unit.sids, ...commons])];
   return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+}
+
+/** 엠블렘 싱크로 스킬 행 — 장착 중 상시 유효(문장사 패시브). */
+export function unitSynchroSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] | undefined {
+  if (unit.gid === undefined) return undefined;
+  const rows = emblemSyncSids(unit.gid, bondLevel)
+    .map(slimSkill)
+    .filter((r): r is SkillRow => r !== undefined);
+  return rows.length > 0 ? rows : undefined;
 }
 
 /**
@@ -858,6 +871,8 @@ export interface BoardUnitProp {
   flag?: number;
   /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
   engage?: EngageState;
+  /** 엠블렘 싱크로 스킬(SynchroSkills) — 장착 중 상시 유효한 문장사 패시브. */
+  synchroSkills?: SkillRow[];
   /** 인게이지 중 스킬 세트(EngagedSkills 교체본) — engaging일 때 skills 대신 이 목록이 유효. */
   engagedSkills?: SkillRow[];
   /** 엠블렘 무기(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지). */
@@ -933,7 +948,18 @@ export interface BoardProps {
      * arts = 인게이지 기술의 **스타일 분기 해소본**("" = 스타일 무관 기본, 그 외 = StyleName 키).
      * ☠스크립트가 반지를 주는 유닛(m004 세리카→세리누)은 dispos에 gid가 없어 기술이 여기서만 온다.
      */
-    gods: Record<string, { engage: EngageState; engageWeapons?: BoardWeaponProp[]; arts?: Record<string, EngageArt> }>;
+    gods: Record<
+      string,
+      {
+        engage: EngageState;
+        /** 싱크로 스킬 행(장착 중 상시) — 문장사 패시브. 없으면 그 엠블렘은 성장표가 비었다는 뜻. */
+        synchroSkills?: SkillRow[];
+        /** 인게이지 중 교체본(싱크로 ∪ 인게이지 스킬) — 迅走 같은 발동 한정 패시브가 여기 산다. */
+        engagedSkills?: SkillRow[];
+        engageWeapons?: BoardWeaponProp[];
+        arts?: Record<string, EngageArt>;
+      }
+    >;
     /**
      * 스크립트가 부르는 TID 사영(TerrainSet·TerrainSetOne — 런타임 지형 교체).
      * ☠클라이언트엔 terrain 표가 없다 — 챕터 Lua 폐포(챕터 + common*)의 "TID_..." 전수를 여기 굳힌다.
@@ -1073,9 +1099,20 @@ const STYLE_SKILL_FIELD: Record<string, string> = {
  * ☠連動(EngageAttackLink — リュール 전용)·暴走(Rampage — 적 GodState)은 미배선: 기본 경로만 산출한다.
  * 스킬 세트 = 기술 행 + SyncSids 1단 전개(汎用設定·ダメージ% 류) — engageAttack 전투 한정 주입물.
  */
+/**
+ * ☠비계(2026-08-18) — god.xml이 비운 EngageAttack을 정규 엠블렘 것으로 메운다.
+ * GID_M002_シグルド는 `EngageAttack=""` · `AIEngageAttackType=None`이라 판독상 오버드라이브가 없는데,
+ * **사용자 실기 관측은 2회전 뤼미에르가 H9 도달 시 오버드라이브를 쓴다**(2026-08-18 확인, 관측 우선 결정).
+ * 제거 조건 = 실기 재관측으로 미사용이 확인되거나, 변종 엠블렘이 정규 기술을 참조하는 경로를 판독했을 때.
+ */
+const ENGAGE_ATTACK_SCAFFOLD: Record<string, string> = {
+  GID_M002_シグルド: "SID_シグルドエンゲージ技",
+};
+
 export const emblemEngageArt = (gid: string, styleName: string | undefined, locale: Locale): EngageArt | undefined => {
   const god = godsTable.gods[gid];
-  const baseSid = god === undefined ? undefined : String(god["EngageAttack"] ?? "");
+  const baseSid =
+    god === undefined ? undefined : String(god["EngageAttack"] ?? "") || (ENGAGE_ATTACK_SCAFFOLD[gid] ?? "");
   if (baseSid === undefined || baseSid === "" || skills[baseSid] === undefined) return undefined;
   const field = STYLE_SKILL_FIELD[styleName ?? ""];
   const variant = field === undefined ? undefined : (skills[baseSid] as Record<string, unknown>)[field];
@@ -1101,6 +1138,8 @@ export const emblemEngageArt = (gid: string, styleName: string | undefined, loca
     ...(typeof row["RangeO"] === "number" && (row["RangeO"] as number) > 0 ? { rangeMax: row["RangeO"] as number } : {}),
     cost: Number(row["Cost"] ?? 0),
     ...(Number(row["Rewarp"] ?? 0) > 0 ? { rewarp: Number(row["Rewarp"]) } : {}),
+    // Target = SkillData.Targets.Pierce(4) = 관통형(시구르드 オーバードライブ) — 실행 문법은 엔진이 소유.
+    ...(Number(row["Target"] ?? 0) === 4 ? { pierce: true as const } : {}),
     ...(row["WeaponProhibit"] !== undefined ? { weaponProhibit: Number(row["WeaponProhibit"]) } : {}),
   };
 };
@@ -1278,12 +1317,14 @@ export function boardProps(
         const engage = engageStateFor(v.unit.gid);
         if (engage === undefined) return {};
         gidsUsed.add(v.unit.gid);
+        const synchroSkills = unitSynchroSkillRows(v.unit);
         const engagedSkills = unitEngagedSkillRows(v.unit);
         const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
         const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);
         return {
           gid: v.unit.gid,
           engage,
+          ...(synchroSkills !== undefined ? { synchroSkills } : {}),
           ...(engagedSkills !== undefined ? { engagedSkills } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
           ...(engageArt !== undefined ? { engageArt } : {}),
@@ -1461,8 +1502,14 @@ export function boardProps(
           const art = emblemEngageArt(m[1], style, locale);
           if (art !== undefined && art.sid !== baseArt?.sid) arts[style] = art;
         }
+        // 문장사 패시브 — 싱크로(상시)와 인게이지 교체본(발동 중)을 **함께** 싣는다.
+        // 없으면 Lua로 붙인 엠블렘이 게이지·무기·기술만 얻고 패시브는 조용히 사라진다.
+        const synchroSkills = emblemSyncSids(m[1]).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+        const engagedSkills = emblemEngagedSids(m[1]).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
         gods[m[1]] = {
           engage,
+          ...(synchroSkills.length > 0 ? { synchroSkills } : {}),
+          ...(engagedSkills.length > 0 ? { engagedSkills } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
           ...(Object.keys(arts).length > 0 ? { arts } : {}),
         };

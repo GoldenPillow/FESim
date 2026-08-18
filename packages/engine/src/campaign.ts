@@ -36,6 +36,8 @@ export function carryover(state: GameState): Record<string, SetupUnit> {
     if (u.engage !== undefined) {
       entry.engage = { ...u.engage, count: Math.min(7, u.engage.limit), turn: 0, engaging: false };
     }
+    if (u.gid !== undefined) entry.gid = u.gid;
+    if (u.synchroSkills !== undefined) entry.synchroSkills = u.synchroSkills;
     if (u.engagedSkills !== undefined) entry.engagedSkills = u.engagedSkills;
     if (u.engageWeapons !== undefined) entry.engageWeapons = u.engageWeapons;
     if (u.engageArt !== undefined) entry.engageArt = u.engageArt;

@@ -324,6 +324,45 @@ describe("인게이지 기술(engageAttack)", () => {
     expect(next.events).toContainEqual({ type: "charge", unit: "a", count: 4 });
   });
 
+  it("관통형(オーバードライブ) = 일직선 적 연쇄 타격 + 뚫고 나간 첫 빈 칸 착지", () => {
+    // 왜 위험한가: 관통을 1타로 강하시키면 "두 줄로 서면 둘 다 맞는다"는 실기 문법이 통째로 사라진다
+    // (사용자 관측 2026-08-18 — m002 2회전 뤼미에르). 정본 = MapSkill.CalcPierce(0x1F4EC90):
+    // 대상 방향으로 나아가며 적을 전부 치고 첫 빈 통행 가능 칸에 선다.
+    const g = mk({ pierce: true });
+    const two = {
+      ...g,
+      units: [
+        ...g.units,
+        unit({ id: "e2", force: 1, x: 2, y: 0, weapon: sword, stats: { ...baseStats, hp: 99 }, hp: 99 }),
+      ],
+    };
+    const next = reduce(two, { type: "engageAttack", unit: "a", target: "e" } as BattleAction, roll(...Array(12).fill(0)));
+    const hit = new Set(next.events.filter((ev) => ev.type === "strike").map((ev) => ev.type === "strike" && ev.defender));
+    expect(hit).toEqual(new Set(["e", "e2"])); // 뒤에 선 적까지 맞는다
+    const me = next.units.find((u) => u.id === "a")!;
+    expect([me.x, me.y]).toEqual([3, 0]); // 둘을 지나친 첫 빈 칸
+    expect(next.events).toContainEqual({ type: "setPos", unit: "a", x: 3, y: 0 });
+  });
+
+  it("관통 불성립은 조용히 1타로 강하하지 않고 거부한다 — 대각·아군 차단·맵 밖", () => {
+    const g = mk({ pierce: true });
+    const act = { type: "engageAttack", unit: "a", target: "e" } as BattleAction;
+    // 대각(dx²+dz² != 1) — 사거리 게이트를 통과해도(2칸 기술) 관통은 직교만 받는다
+    const wide = mk({ pierce: true, rangeMin: 1, rangeMax: 2 });
+    const diag = { ...wide, units: wide.units.map((u) => (u.id === "e" ? { ...u, x: 1, y: 1 } : u)) };
+    expect(() => reduce(diag, act, roll())).toThrow(/관통/);
+    // 경로를 아군이 막는다
+    const blocked = { ...g, units: [...g.units, unit({ id: "f", force: 0, x: 2, y: 0 })] };
+    expect(() => reduce(blocked, act, roll())).toThrow(/관통/);
+    // 대상 뒤가 맵 밖
+    const edge = {
+      ...g,
+      map: { ...g.map, width: 2 },
+      units: g.units.map((u) => (u.id === "e" ? { ...u, x: 1, y: 0 } : u)),
+    };
+    expect(() => reduce(edge, act, roll())).toThrow(/관통/);
+  });
+
   it("절대 재생(events)이 기술 전투를 복원한다", () => {
     const rng = recordingSource(roll(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     const live = reduce(mk(), { type: "engageAttack", unit: "a", target: "e" } as BattleAction, rng);

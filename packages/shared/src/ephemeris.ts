@@ -63,8 +63,12 @@ export interface SetupUnit {
   consumables?: ConsumableItem[];
   /** 장착 스킬 행 스냅숏 — sids 의도의 산출 결과(행 원형 그대로) */
   skills?: SkillRow[];
+  /** 장착 엠블렘(GID) — 배지·교체의 주소. 인계 사슬이 반지를 물고 가는 자리다. */
+  gid?: string;
   /** 인게이지 게이지 스냅숏 — god·bond 의도의 산출 결과 */
   engage?: EngageState;
+  /** 엠블렘 싱크로 스킬 스냅숏(SynchroSkills) — 장착 중 상시 유효한 문장사 패시브 */
+  synchroSkills?: SkillRow[];
   /** 인게이지 중 스킬 세트 스냅숏(EngagedSkills 교체본) — god·bond 의도의 산출 결과 */
   engagedSkills?: SkillRow[];
   /** 엠블렘 무기 스냅숏(EngageItems) — engaging일 때 weapons 뒤에 증설(인덱스 계약 유지) */

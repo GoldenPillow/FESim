@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -108,9 +108,42 @@ describe("emblemSyncSids — 絆 레벨 싱크로", () => {
     expect(sids).not.toContain("SID_見切り");
   });
 
-  it("unitSkillRows가 絆 레벨을 그대로 태운다", () => {
-    const rows = unitSkillRows(disposUnit({ gid: "GID_マルス" }), 3);
-    expect(rows.map((r) => r.Sid)).toContain("SID_技＋２");
+  it("싱크로 스킬은 unitSkillRows(사람 스킬)가 아니라 unitSynchroSkillRows(엠블렘 클러스터)가 소유한다", () => {
+    // 왜 위험한가: 반지는 붙였다 뗀다. 싱크로를 사람 스킬에 섞으면 해제(UnitSetGodUnit nil)가
+    // 패시브를 못 걷어내고, 반대로 Lua로 붙인 엠블렘은 패시브가 통째로 안 붙는다(m002 2회전 결손).
+    const unit = disposUnit({ gid: "GID_マルス" });
+    expect(unitSkillRows(unit).map((r) => r.Sid)).not.toContain("SID_技＋２");
+    expect(unitSynchroSkillRows(unit, 3)?.map((r) => r.Sid)).toContain("SID_技＋２");
+    expect(unitSynchroSkillRows(disposUnit({}))).toBeUndefined();
+  });
+});
+
+describe("스크립트 엠블렘(m002 2회전 시구르드) — 문장사 패시브·오버드라이브", () => {
+  const gods = boardPropsFor("m002", "ko").script!.gods;
+
+  /**
+   * ☠조용한 결손이었다: Lua로 붙인 엠블렘(UnitCreateGodUnit)이 게이지·무기·기술만 받고
+   * **패시브를 하나도 못 받았다**. 그래서 2회전 뤼미에르가 迅走(이동+5)를 못 얻어 거리를 못 좁혔고,
+   * 오류도 경고도 없어 "AI가 소극적이다"로 오해되기만 했다(사용자 관측 2026-08-18).
+   */
+  it("script.gods가 싱크로·인게이지 스킬을 함께 싣는다 — 迅走(이동+5)가 인게이지 세트에 있다", () => {
+    const sigurd = gods["GID_M002_シグルド"]!;
+    expect(sigurd.synchroSkills?.map((r) => r.Sid)).toEqual(
+      expect.arrayContaining(["SID_守備＋３", "SID_移動＋１", "SID_再移動"]),
+    );
+    const engaged = sigurd.engagedSkills?.find((r) => r.Sid === "SID_迅走");
+    expect(engaged?.["EnhanceValue.Move"]).toBe(5);
+  });
+
+  /**
+   * ☠비계 — god.xml GID_M002_シグルド는 EngageAttack이 비어 있다(정규 GID_シグルド만 보유).
+   * 사용자 실기 관측이 "2회전 뤼미에르가 오버드라이브를 쓴다"라 관측을 정본으로 채택했다(2026-08-18).
+   * 제거 조건 = 실기 재관측으로 미사용 확인, 또는 변종이 정규 기술을 참조하는 경로 판독.
+   */
+  it("오버드라이브가 관통형(Target=Pierce 4)으로 실린다", () => {
+    const art = gods["GID_M002_シグルド"]!.arts?.[""];
+    expect(art?.sid).toBe("SID_シグルドエンゲージ技");
+    expect(art?.pierce).toBe(true);
   });
 });
 

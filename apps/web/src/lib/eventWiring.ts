@@ -48,13 +48,25 @@ export function eventWiringFor(
         godUnit: (unit, gid) => {
           const god = script.gods[gid];
           if (god === undefined) return undefined;
-          // 기술 = 받는 유닛의 스타일로 고른다(m004 세리카→세리누 ワープライナ). 인게이지 스킬 세트는
-          // 여전히 미배선(유닛별 산출이라 GID 사영에 안 실린다 — 발현 시 흡수).
+          // 기술 = 받는 유닛의 스타일로 고른다(m004 세리카→세리누 ワープライナ).
           // gid를 함께 실어야 배지가 교체를 따라간다(해제 = patch null → 필드 삭제).
+          // ☠문장사 패시브(싱크로·인게이지 스킬)는 **반드시 함께 실린다** — 종전엔 게이지·무기·기술만
+          //   실어서 Lua로 붙인 엠블렘의 패시브가 통째로 죽어 있었다(m002 2회전 뤼미에르가 迅走 이동+5를
+          //   못 받아 거리를 못 좁혔다 — 사용자 관측 2026-08-18). 오류도 경고도 없는 조용한 결손이었다.
           const engageArt = god.arts?.[unit.style ?? ""] ?? god.arts?.[""];
           return {
             gid,
             engage: { ...god.engage },
+            ...(god.synchroSkills !== undefined ? { synchroSkills: god.synchroSkills } : {}),
+            // engagedSkills는 **교체본**이다(effectiveSkills가 skills 대신 이것만 본다) — 사람 스킬을
+            // 함께 담지 않으면 발동하는 순간 고유 스킬이 사라진다. Sid로 중복만 걷는다.
+            ...(god.engagedSkills !== undefined
+              ? {
+                  engagedSkills: [...(unit.skills ?? []), ...god.engagedSkills].filter(
+                    (row, i, all) => all.findIndex((r) => r.Sid === row.Sid) === i,
+                  ),
+                }
+              : {}),
             ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}),
             ...(engageArt !== undefined ? { engageArt } : {}),
           };

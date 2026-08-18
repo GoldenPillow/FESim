@@ -146,6 +146,42 @@ end
   });
 });
 
+describe("UnitResetParam — 재배치 초기화(m002 1회전 종료)", () => {
+  const SCRIPT_RESET = `
+Include("Common")
+function Startup()
+  UnitSetPos("PID_p", 6, 3)
+  UnitResetParam("PID_p")
+end
+`;
+  /**
+   * 왜 위험했나: 종전 배선은 HP·브레이크·상태만 되돌려 **인게이지가 살아남았다**.
+   * m002 1회전이 끝나고 자군을 재배치할 때 리월이 발동한 채로 2회전에 들어가, 화면엔 발동 이펙트가
+   * 남고 게이지는 소각(0)된 상태라 2회전에 다시 켜지도 못했다(사용자 관측 2026-08-18).
+   * 정본 = Unit.ResetParam(0x1A5DCC0): SetEngage(false) → ResetEngageCount(min(7,limit)) → HP 만회복.
+   */
+  it("위치·HP만이 아니라 인게이지도 끈다 — 게이지는 min(7, limit)로 되돌아간다", () => {
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, test: SCRIPT_RESET },
+      chapter: "test",
+      host: host(),
+    });
+    session.setRng(rolls([0]));
+    const hurt = unit({
+      id: "p", force: 0, x: 1, y: 1, hp: 3,
+      engage: { count: 0, limit: 7, turnLimit: 3, turn: 2, engaging: true },
+    });
+    const r = session.setup(state([hurt]));
+    const p = r.state.units.find((u) => u.pid === "PID_p")!;
+    expect({ x: p.x, y: p.y }).toEqual({ x: 6, y: 3 });
+    expect(p.hp).toBe(p.stats.hp);
+    expect(p.engage).toMatchObject({ engaging: false, turn: 0, count: 7 });
+    // 절대 재생 계약 — disengage가 먼저(게이지 0), charge가 뒤(만충)여야 값이 선다.
+    const kinds = r.events.filter((e) => e.type === "disengage" || e.type === "charge").map((e) => e.type);
+    expect(kinds).toEqual(["disengage", "charge"]);
+  });
+});
+
 describe("UnitSetGodUnit — 엠블렘 해제·핸들 재장착(m026 오프닝 브래킷)", () => {
   const engaged = () =>
     unit({

@@ -184,6 +184,13 @@ export interface EngageArt {
    * 게이트는 지형 `IsNotTarget`만(이동 코스트 무관). 액션의 `x`/`y`가 그 칸이다.
    */
   rewarp?: number;
+  /**
+   * 기술 행 Target = `SkillData.Targets.Pierce`(4) — **관통형**(시구르드 オーバードライブ 전용, 전수 5행 = 스타일 변종).
+   * 정본 = `MapSkill.CalcPierce`(0x1F4EC90): 대상은 **직교 인접**(dx²+dz²==1)이어야 하고, 그 방향으로
+   * 한 칸씩 나아가며 (a) 적 유닛이면 타격 후 계속 · (b) 빈 칸이면 `Map.CanEnterTerrain` 통과 시 **착지**하고 종료 ·
+   * (c) 아군·플레이영역 밖·통행 불가면 **기술 불성립**. 사거리(RangeI/O 1)는 첫 대상까지의 거리다.
+   */
+  pierce?: true;
   /** 기술 행 WeaponProhibit — 비트 kind 금지 마스크(가정: (mask >> kind) & 1 = 금지. 마르스 1021 = 검만 허용 정합). */
   weaponProhibit?: number;
 }
