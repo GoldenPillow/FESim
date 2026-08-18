@@ -264,6 +264,12 @@ export interface TerrainCell {
   moveFirst?: number;
   /** 워프 착지 금지 — terrain.json Flag bit17(NotTarget bit16과 별개). */
   notWarp?: boolean;
+  /**
+   * 워프 목적지 금지 — `TerrainData.IsNotTarget`(0x21E33D0) = `Flag & 0x2001`(비트 0·13).
+   * 리워프형 인게이지 기술의 착지 칸 게이트다(`MapDeployTemplate.UnitRewarp` 0x2C1FE40).
+   * 실데이터 해당 = `TID_扉`·`TID_扉_HP30` 2종뿐 — 벽·요새 위로는 워프가 **된다**.
+   */
+  notTarget?: boolean;
 }
 
 /**
@@ -1331,8 +1337,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const g = attacker.engage;
         if (art === undefined || g === undefined) throw new Error("인게이지 기술 없음");
         if (!g.engaging) throw new Error("인게이지 중에만 기술을 쓸 수 있다");
-        // ☠리워프형(세리카 Rewarp>0)·무기 없는 시전은 미배선 결손인 채 정직하게 거부한다(과대 재현 금지).
-        if ((art.rewarp ?? 0) > 0) throw new Error("미배선 인게이지 기술(리워프형)");
+        const rewarp = (art.rewarp ?? 0) > 0;
         // WeaponProhibit = kind 비트 금지 마스크 — 가정((mask>>kind)&1, 마르스 1021 = 검만 허용 정합).
         const own = attacker.weapon;
         if (own !== undefined && art.weaponProhibit !== undefined && ((art.weaponProhibit >> own.kind) & 1) === 1) {
@@ -1342,10 +1347,35 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const strikeWeapon = (i: number): BattleWeapon | undefined => art.weapons?.[i] ?? own ?? undefined;
         const firstWeapon = strikeWeapon(0);
         if (firstWeapon === undefined) throw new Error("무기 없는 유닛은 기술을 쓸 수 없다");
-        const distance = manhattan(attacker, defender);
         const rangeMin = art.rangeMin ?? firstWeapon.rangeMin;
         const rangeMax = art.rangeMax ?? firstWeapon.rangeMax;
-        if (distance < rangeMin || distance > rangeMax) throw new Error("사거리 밖 기술");
+        if (rewarp) {
+          // ★리워프형(세리카 ワープライナ류) — 착지 칸을 골라 **순간이동한 뒤** 친다.
+          // 정본 = `MapDeployTemplate.UnitRewarp`(0x2C1FE40): 대상마다 `MapTarget.CalcAttackRange`로
+          // 기술 사거리를 구하고 그 링의 칸을 후보로 칠한다. 게이트는 지형 `IsNotTarget`(0x21E33D0,
+          // Flag & 0x2001 = 扉류 2종)뿐이고 **이동 코스트는 보지 않는다** — 벽·요새 위로도 간다.
+          // 판별자 = `AIThink.IsEngageRewarp`(0x1954560) = Rewarp ≥ 1 && Sid ≠ SID_セリカエンゲージ技_闇_M020.
+          if (action.x === undefined || action.y === undefined) throw new Error("리워프형 기술은 착지 칸이 필요하다");
+          const { x, y } = action;
+          if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) throw new Error("맵 밖 착지");
+          const cell = terrainPatchAt(state.terrainPatches, x, y)?.cell ?? state.map.terrain?.[y]?.[x];
+          if (cell?.notTarget === true || overlayAt(state.map, x, y)?.cell.notTarget === true) {
+            throw new Error("워프 금지 지형(IsNotTarget)");
+          }
+          if (units.some((u) => !u.dead && u.id !== attacker.id && u.x === x && u.y === y)) {
+            throw new Error("착지 칸에 유닛이 있다");
+          }
+          const landed = Math.abs(x - defender.x) + Math.abs(y - defender.y);
+          if (landed < rangeMin || landed > rangeMax) throw new Error("착지 칸이 기술 사거리 밖이다");
+          attacker.x = x;
+          attacker.y = y;
+          // 절대 좌표 이벤트 — 표를 안 든 열람 경로도 이 행 하나로 착지를 복원한다.
+          events.push({ type: "setPos", unit: attacker.id, x, y });
+        } else if (manhattan(attacker, defender) < rangeMin || manhattan(attacker, defender) > rangeMax) {
+          throw new Error("사거리 밖 기술");
+        }
+        // 반격 사거리 판정은 **착지 뒤** 거리로 본다(리워프는 여기서 이미 이동을 마쳤다).
+        const distance = manhattan(attacker, defender);
 
         // 기술 스킬 세트(기술 행 + SyncSids 전개)는 이 전투 한정으로 공격측에 합류한다 — 국면 스킬은 불변.
         const artSkills = [...(effectiveSkills(attacker) ?? []), ...art.skills];

@@ -202,6 +202,44 @@ function canEngageNow(game, unit, foes) {
   return foes.some((f) => dist(unit, f) <= reach);
 }
 
+/**
+ * 인게이지 기술 시도 — 성공하면 true. 리워프형은 착지 칸(대상 사거리 링 중 빈 칸)을 골라 함께 싣는다.
+ * ☠엔진이 심판이라 여기서 합법성을 다시 재지 않는다 — 거부되면 국면이 그대로라 false로 돌려준다.
+ */
+function dispatchEngageArt({ engine, calculator, dispatch, state, unit, art, target, zones }) {
+  const before = state();
+  const rangeMin = art.rangeMin ?? unit.weapon?.rangeMin ?? 1;
+  const rangeMax = art.rangeMax ?? unit.weapon?.rangeMax ?? 1;
+  if ((art.rewarp ?? 0) > 0) {
+    const map = before.map;
+    const taken = new Set(before.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * map.width + u.x));
+    // ★착지 칸은 **가장 안전한 칸**을 고른다 — 순간이동은 적진 한복판으로도 가므로 첫 합법 칸을 쓰면
+    //   그대로 죽는다. 인게임 정석도 회복 타일(砦: 회피 30·회복 10) 위로 내려서는 것이다.
+    const cands = [];
+    for (let y = Math.max(target.y - rangeMax, 0); y <= Math.min(target.y + rangeMax, map.height - 1); y++) {
+      for (let x = Math.max(target.x - rangeMax, 0); x <= Math.min(target.x + rangeMax, map.width - 1); x++) {
+        const d = Math.abs(x - target.x) + Math.abs(y - target.y);
+        if (d < rangeMin || d > rangeMax) continue;
+        if (taken.has(y * map.width + x)) continue;
+        const cell = map.terrain?.[y]?.[x];
+        if (cell?.notTarget === true) continue;
+        const threat = incoming(engine, calculator, before, unit, { x, y }, zones ?? []);
+        cands.push({ x, y, score: -threat.total * 10 + (cell?.avoid ?? 0) * 0.2 + (cell?.heal ?? 0) });
+      }
+    }
+    cands.sort((a, b) => b.score - a.score);
+    for (const c of cands) {
+      dispatch({ type: "engageAttack", unit: unit.id, target: target.id, x: c.x, y: c.y });
+      if (state() !== before) return true;
+    }
+    return false;
+  }
+  const d = Math.abs(unit.x - target.x) + Math.abs(unit.y - target.y);
+  if (d < rangeMin || d > rangeMax) return false;
+  dispatch({ type: "engageAttack", unit: unit.id, target: target.id });
+  return state() !== before;
+}
+
 export function playerPhase({ engine, calculator, dispatch, state, log }) {
   for (let guard = 0; guard < 300; guard++) {
     const game = state();
@@ -236,7 +274,14 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
       dispatch({ type: "staff", unit: actor.id, target: heal.ally.id, staff: heal.staff });
     } else if (atk !== undefined) {
       if (atk.at.x !== actor.x || atk.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: atk.at.x, y: atk.at.y });
-      dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
+      // ★인게이지 기술 — 인게이지 중이고 게이지가 기술 코스트를 감당하면 통상 공격 대신 기술을 쓴다.
+      //   리워프형(세리카 ワープライナ)은 착지 칸을 함께 실어야 한다(엔진이 좌표를 요구한다).
+      const art = self.engage?.engaging === true ? self.engageArt : undefined;
+      const usedArt =
+        art !== undefined && (self.engage?.count ?? 0) >= (art.cost ?? 0)
+          ? dispatchEngageArt({ engine, calculator, dispatch, state, unit: self, art, target: atk.foe, zones })
+          : false;
+      if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
       const go = bestAdvance(engine, calculator, cur, self, enemies, zones);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {

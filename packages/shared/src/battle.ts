@@ -177,7 +177,12 @@ export interface EngageArt {
   rangeMax?: number;
   /** 技コスト — 발동 시 게이지 차감(전수 9행 三級長 戦技만 0 초과). */
   cost: number;
-  /** 기술 행 Rewarp — 0 초과면 리워프형(세리카). 엔진이 미배선 정직 거부하는 판별자. */
+  /**
+   * 기술 행 Rewarp — 0 초과면 **리워프형**(세리카 ワープライナ류): 착지 칸을 지정해 순간이동한 뒤 친다.
+   * 판별 = `AIThink.IsEngageRewarp`(0x1954560) = `Rewarp >= 1 && Sid != SID_セリカエンゲージ技_闇_M020`.
+   * 착지 후보 = `MapDeployTemplate.UnitRewarp`(0x2C1FE40) — 기술 사거리로 적을 칠 수 있는 칸 전부,
+   * 게이트는 지형 `IsNotTarget`만(이동 코스트 무관). 액션의 `x`/`y`가 그 칸이다.
+   */
   rewarp?: number;
   /** 기술 행 WeaponProhibit — 비트 kind 금지 마스크(가정: (mask >> kind) & 1 = 금지. 마르스 1021 = 검만 허용 정합). */
   weaponProhibit?: number;
@@ -296,7 +301,11 @@ export type BattleAction =
   /** 인게이지 발동 — 만충 필요, 행동 소모 없음(발동 후 이동·공격 가능). ☠교환 후에는 불가(실기 판별). */
   | { type: "engage"; unit: string }
   /** 인게이지 기술(공격기) — engaging 중에만. 기술 스냅숏(engageArt)이 흐름·무기·비용을 소유한다. */
-  | { type: "engageAttack"; unit: string; target: string }
+  /**
+   * 인게이지 기술 — `x`/`y`는 **리워프형(세리카 ワープライナ류)의 착지 칸**이다.
+   * 통상 기술은 좌표를 싣지 않는다(기존 기보 계약 불변). 착지 규칙 = `MapDeployTemplate.UnitRewarp`.
+   */
+  | { type: "engageAttack"; unit: string; target: string; x?: number; y?: number }
   /**
    * 교환 — 인접 아군과 소지품 1점 이동(행동 무소모라 연속 액션 = 인게임 다중 이동).
    * kind·index = 주는 쪽 목록 채널·인덱스, back = 상대 → 자신 방향. 이동 창 소진 + 인게이지 발동 봉쇄.

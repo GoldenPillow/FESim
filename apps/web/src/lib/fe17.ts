@@ -751,6 +751,8 @@ export interface BoardOverlayProp {
   heal?: number;
   moveFirst?: number;
   notWarp?: boolean;
+  /** 워프 목적지 금지 — TerrainData.IsNotTarget = Flag & 0x2001(扉류 2종). 리워프형 기술 착지 게이트. */
+  notTarget?: boolean;
   /** 이동 코스트 가산(terrain.json MoveCost/FlyCost). */
   moveCost?: number;
   flyCost?: number;
@@ -926,7 +928,7 @@ export interface BoardProps {
     items: Record<string, { kind: "weapon" | "staff" | "consumable" | "none"; item?: BoardWeaponProp | StaffItem | ConsumableItem }>;
     terrains: Record<string, {
       /** 엔진 TerrainCell 그대로(표시 필드 제외 — 색·이름은 아래가 소유, 중복 직렬화 금지). */
-      cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean };
+      cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean; notTarget?: boolean };
       cost?: Partial<Record<MoveType, number>>;
       color: string;
       name: string;
@@ -1309,6 +1311,7 @@ export function boardProps(
       ...opt("heal", row?.Heal),
       ...opt("moveFirst", row?.MoveFirst),
       ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...((Number(row?.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
       ...(row?.cost !== undefined ? { cost: row.cost } : {}),
     };
   });
@@ -1365,6 +1368,7 @@ export function boardProps(
           ...opt("heal", row?.Heal),
           ...opt("moveFirst", row?.MoveFirst),
           ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...((Number(row?.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
           ...opt("moveCost", row?.MoveCost),
           ...opt("flyCost", row?.FlyCost),
         };
@@ -1453,6 +1457,7 @@ export function boardProps(
               ...opt("heal", row.Heal),
               ...opt("moveFirst", row.MoveFirst),
               ...((Number(row.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+              ...((Number(row.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
             },
             ...(row.cost !== undefined ? { cost: row.cost } : {}),
             color: tileColor(m[1]),
