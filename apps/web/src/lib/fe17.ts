@@ -885,6 +885,12 @@ export interface BoardProps {
   tiles: number[][];
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
+  /**
+   * 紋章氣 표시명(로케일) — ☠**런타임 생성분 전용**이다. 스크립트가 `MapOverlapSetOne`으로
+   * 충전 지점을 새로 놓는 챕터(m002 뤼미에르 격파 후 등)는 정적 objects에 그 좌표가 없어서
+   * 이름을 빌려올 데가 없다. 정적 紋章氣가 있으면 그쪽 이름을 쓴다.
+   */
+  crestName: string;
   /** 구조물 레이어(m_Layers) — 엔진 StructureState의 초기값 + 렌더 표시 필드(색·이름은 SSG에서 굳힘). */
   structures?: BoardStructureProp[];
   /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
@@ -1393,6 +1399,7 @@ export function boardProps(
       };
     })(),
     units,
+    crestName: tileName(locale, "TID_紋章氣"),
     labels,
     ...(() => {
       const routines = chapterAiRoutines(views.map((v) => v.unit));

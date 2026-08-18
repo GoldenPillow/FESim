@@ -701,6 +701,7 @@ export default function BoardIsland(props: BoardProps) {
           case "godUnit":
           case "ai":
           case "crestAdd":
+          case "visited":
           case "reset":
           case "unitFlags":
           case "equip":
@@ -1155,7 +1156,7 @@ export default function BoardIsland(props: BoardProps) {
         height={height}
         tiles={tiles}
         palette={props.palette}
-        objects={visibleObjects(objects, game.crests)}
+        objects={visibleObjects(objects, game.crests, props.crestName)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}
         patches={game.terrainPatches}

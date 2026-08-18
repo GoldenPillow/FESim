@@ -39,9 +39,24 @@ export const visibleStructures = (
   });
 };
 
-/** 표시용 objects — 소비된 紋章氣(국면 crests에 없음)를 걸러낸다. 보드·리플레이·/s/ SSR 공용(중복 구현 금지). */
+/**
+ * 표시용 objects — 紋章氣를 **국면(crests)에 맞춘다**. 보드·리플레이·/s/ SSR 공용(중복 구현 금지).
+ *
+ * ☠종전엔 **거르기만** 했다. 그래서 소비된 紋章氣는 사라졌지만 **런타임에 생긴 것은 영영 안 보였다** —
+ * m002는 뤼미에르 격파 뒤 `MapOverlapSetOne(8, 4, "TID_紋章氣")`로 충전 지점을 새로 놓는데
+ * 정적 objects에 그 좌표가 없으니 화면에 아무것도 안 떴다(2026-08-18 사용자 관측).
+ * 국면이 정본이므로 **없는 좌표는 만들어서 그린다**.
+ */
 export const visibleObjects = (
   objects: BoardProps["objects"],
   crests: { x: number; y: number }[] | undefined,
-): BoardProps["objects"] =>
-  objects.filter((o) => o.crest !== true || crests?.some((c) => c.x === o.x && c.y === o.y) !== false);
+  crestName?: string,
+): BoardProps["objects"] => {
+  const kept = objects.filter((o) => o.crest !== true || crests?.some((c) => c.x === o.x && c.y === o.y) !== false);
+  if (crests === undefined || crests.length === 0) return kept;
+  const name = objects.find((o) => o.crest === true)?.name ?? crestName ?? "TID_紋章氣";
+  const extra = crests
+    .filter((c) => !kept.some((o) => o.crest === true && o.x === c.x && o.y === c.y))
+    .map((c) => ({ x: c.x, y: c.y, name, crest: true }));
+  return extra.length === 0 ? kept : [...kept, ...extra];
+};

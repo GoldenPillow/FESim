@@ -134,6 +134,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
   // 증가 전에 발화한다) 그대로 쓰면 턴이 되감긴다. 턴은 리듀서 재계산이 정본이다.
   let phase = state.phase;
   let crests = state.crests;
+  let visited = state.visited;
   let structures = state.structures;
   let terrainPatches = state.terrainPatches;
   let variables = state.variables;
@@ -296,6 +297,9 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
       case "crestAdd":
         crests = [...(crests ?? []), { x: ev.x, y: ev.y }];
         break;
+      case "visited":
+        visited = [...(visited ?? []), { x: ev.x, y: ev.y }];
+        break;
       case "reset": {
         const u = require(ev.unit);
         u.hp = ev.hpAfter;
@@ -368,6 +372,7 @@ function applyEventList(state: GameState, events: readonly BattleEvent[]): GameS
     units,
     phase,
     ...(crests === undefined ? {} : { crests }),
+    ...(visited === undefined ? {} : { visited }),
     ...(structures === undefined ? {} : { structures }),
     ...(terrainPatches === undefined ? {} : { terrainPatches }),
     ...(variables === undefined ? {} : { variables }),

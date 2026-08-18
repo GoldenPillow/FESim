@@ -252,6 +252,8 @@ export type BattleEvent =
   | { type: "ai"; unit: string; params: (string | number | boolean)[] }
   /** 紋章氣 타일 생성(MapOverlapSetOne) — crest(소비)와 대칭. */
   | { type: "crestAdd"; x: number; y: number }
+  /** 민가 방문 완료 — 그 민가는 닫힌다(재방문 불가). 절대 재생이 이 행으로 소진 상태를 복원한다. */
+  | { type: "visited"; x: number; y: number }
   /** 유닛 파라미터 초기화(UnitResetParam) — HP 절대값 복원 + 상태·브레이크 해제(⚠범위는 가정). */
   | { type: "reset"; unit: string; hpAfter: number }
   /**

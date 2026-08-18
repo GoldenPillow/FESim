@@ -544,6 +544,8 @@ export interface GameState {
   winRule?: WinRule;
   /** 남은 紋章氣 타일 — 소비 시 제거(1회성 소멸, MapOverlap.Remove). 부재 = 타일 없음. */
   crests?: { x: number; y: number }[];
+  /** 이미 방문한 민가 좌표(서는 칸) — 민가는 한 번만 열린다. */
+  visited?: { x: number; y: number }[];
   /** 구조물 상태(m_Layers 사영) — hp = Hp_{난이도} 초기값, 파괴 = hp 0(통행 개방·지붕 걷힘). */
   structures?: StructureState[];
   /** 런타임 지형 교체(TerrainSet·TerrainSetOne) — 베이스 격자를 덮는 패치 리스트. */
@@ -943,6 +945,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
     };
     let crests = state.crests;
+    let visited = state.visited;
     let structures: StructureState[] | undefined;
     /**
      * 紋章氣 소비 — MapSequenceMind.EngageHeal(0x2681CC0) 코드 확정: 비인게이지·비만충일 때
@@ -1020,6 +1023,12 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           (i: MapInteraction) => i.kind === "visit" && (i.stand?.x ?? i.x) === u.x && (i.stand?.y ?? i.y) === u.y,
         );
         if (!spot) throw new Error("방문할 민가가 없다");
+        // ☠**민가는 한 번만 열린다** — 막지 않으면 정책이 같은 칸을 계속 방문해 행동을 버린다
+        //   (m004 실측: 민가 2곳에 방문 액션 17회). 스크립트 쪽 플래그가 두 번째 발화를 삼켜
+        //   국면은 안 바뀌는데 행동만 소모되므로, 합법성 단계에서 잘라야 한다.
+        if ((state.visited ?? []).some((v) => v.x === u.x && v.y === u.y)) throw new Error("이미 방문한 민가다");
+        visited = [...(visited ?? state.visited ?? []), { x: u.x, y: u.y }];
+        events.push({ type: "visited", x: u.x, y: u.y });
         u.acted = true;
         break;
       }
@@ -1535,7 +1544,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
       }
     }
 
-    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), ...(structures === undefined ? {} : { structures }), events });
+    return settleOutcome({ ...state, units, ...(crests === undefined ? {} : { crests }), ...(visited === undefined ? {} : { visited }), ...(structures === undefined ? {} : { structures }), events });
   };
 }
 

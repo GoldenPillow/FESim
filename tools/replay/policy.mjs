@@ -148,6 +148,7 @@ function bestVisit(engine, game, unit) {
     const y = i.stand?.y ?? i.y;
     const k = y * game.map.width + x;
     if (taken.has(k) || !reach.has(k)) continue;
+    if ((game.visited ?? []).some((v) => v.x === x && v.y === y)) continue; // 이미 연 민가
     return { x, y };
   }
   return undefined;

@@ -83,6 +83,7 @@ export function boardFixture(mapId = "m999"): BoardProps {
     palette: [{ tid: "TID_平地", color: "#000", name: "plain", blocked: false, avoid: 0, def: 0, cost: { foot: 1 } }],
     tiles: Array.from({ length: size }, () => Array.from({ length: size }, () => 0)),
     objects: [],
+    crestName: "문장의 기운",
     units: [unit({ x: 1, y: 1, force: 0 }), unit({ x: 2, y: 1, force: 1 })],
     labels: LABELS,
   };
