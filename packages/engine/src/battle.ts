@@ -344,6 +344,8 @@ export interface MapInteraction {
   y: number;
   x2?: number;
   y2?: number;
+  /** 방문·상자의 **서는 칸**(민가 본체는 통행 불가라 앞칸에 선다) — 파이프라인 사영. */
+  stand?: { x: number; y: number };
   /** 상자 내용물(chest) — 개방 실행이 미배선이라 현재는 소비처가 없다. */
   iid?: string;
   /** 이탈점에 걸린 대상 인물(escape) — S015의 반지 소지 적처럼 특정 유닛 전용 이탈점이 있다. */
@@ -1006,6 +1008,19 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         u.acted = true;
         u.moved = false; // 행동 = 재이동(시구르드) 창을 연다(커맨드 공통 문법)
         consumeCrest(u);
+        break;
+      }
+
+      case "visit": {
+        // 민가 방문 — 방문 좌표(EventEntryVisit이 등록한 칸 = interactions의 stand)에 서 있어야 한다.
+        // ☠보상은 스크립트 몫이다(ItemGain·플래그) — 여기서는 합법성과 행동 소모만 소유한다.
+        const u = require(action.unit);
+        assertActable(u);
+        const spot = (state.map.interactions ?? []).some(
+          (i: MapInteraction) => i.kind === "visit" && (i.stand?.x ?? i.x) === u.x && (i.stand?.y ?? i.y) === u.y,
+        );
+        if (!spot) throw new Error("방문할 민가가 없다");
+        u.acted = true;
         break;
       }
 

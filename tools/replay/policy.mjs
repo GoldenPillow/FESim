@@ -137,6 +137,22 @@ function bestItem(engine, game, unit, mine) {
   return best;
 }
 
+/** 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다. */
+function bestVisit(engine, game, unit) {
+  const spots = (game.map.interactions ?? []).filter((i) => i.kind === "visit");
+  if (spots.length === 0) return undefined;
+  const taken = new Set(game.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * game.map.width + u.x));
+  const reach = new Set(reachable(engine, game, unit).map((t) => t.y * game.map.width + t.x));
+  for (const i of spots) {
+    const x = i.stand?.x ?? i.x;
+    const y = i.stand?.y ?? i.y;
+    const k = y * game.map.width + x;
+    if (taken.has(k) || !reach.has(k)) continue;
+    return { x, y };
+  }
+  return undefined;
+}
+
 function bestAttack(engine, calculator, game, unit, foes, zones) {
   const weapons = engine.effectiveWeapons(unit) ?? (unit.weapon !== undefined ? [unit.weapon] : []);
   if (weapons.length === 0) return undefined;
@@ -292,13 +308,19 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
     const cur = state();
     const self = cur.units.find((u) => u.id === actor.id) ?? actor;
     const zones = threatZones(engine, cur, enemies);
+    // ★민가 방문 — 방문 칸에 설 수 있으면 우선한다(사용자 지적: "인접 민가에서 아이템을 얻어도").
+    //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
+    const visit = bestVisit(engine, cur, self);
     const heal = bestHeal(engine, cur, self, mine);
     const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
     // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
     const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
     // 다친 아군이 있으면 힐 우선 — 단 확실한 격파가 있으면 격파가 먼저다(적 화력 자체를 줄인다).
-    if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
+    if (visit !== undefined && (atk === undefined || !atk.fc.kill)) {
+      if (visit.x !== self.x || visit.y !== self.y) dispatch({ type: "move", unit: actor.id, x: visit.x, y: visit.y });
+      dispatch({ type: "visit", unit: actor.id });
+    } else if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
       if (heal.at.x !== actor.x || heal.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: heal.at.x, y: heal.at.y });
       dispatch({ type: "staff", unit: actor.id, target: heal.ally.id, staff: heal.staff });
     } else if (item !== undefined && atk === undefined && self.hp < self.stats.hp * 0.7) {

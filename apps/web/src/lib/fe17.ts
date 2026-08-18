@@ -1379,6 +1379,9 @@ export function boardProps(
         y: it.y,
         ...(it.x2 !== undefined ? { x2: it.x2 } : {}),
         ...(it.y2 !== undefined ? { y2: it.y2 } : {}),
+        // ☠**서는 칸**을 빠뜨리면 민가가 영영 안 열린다 — 민가 본체는 통행 불가고 `EventEntryVisit`이
+        //   등록하는 좌표는 **앞칸**이다(m004: 집 (7,5) · 서는 칸 (7,4)). 방문 액션의 합법성 기준.
+        ...(it.stand !== undefined ? { stand: it.stand } : {}),
         ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid), iid: it.iid } : {}),
         // ★이탈점의 대상 인물 — S015처럼 특정 유닛 전용 이탈점이 있다(AI MV_Escape가 소비).
         ...(it.pid !== undefined ? { pid: it.pid } : {}),

@@ -313,5 +313,10 @@ export type BattleAction =
   | { type: "trade"; unit: string; target: string; kind: "weapon" | "staff" | "consumable"; index: number; back?: boolean }
   /** 파괴 — 인접 구조물(x·y가 덮인 칸)에 공격력 결정 차감. ☠난수 무소비(명중·필살·반격 없음 — MP3_READINGS §3). */
   | { type: "destroy"; unit: string; x: number; y: number }
+  /**
+   * 민가 방문 — 그 칸에 선 유닛이 `EventEntryVisit` 좌표에서 방문을 확정한다(행동 소모).
+   * ☠보상 지급은 **스크립트가 소유**한다(ItemGain 등) — 엔진은 발화 접점만 만든다.
+   */
+  | { type: "visit"; unit: string }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };

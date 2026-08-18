@@ -266,6 +266,46 @@ end
   });
 });
 
+describe("민가 방문(EventEntryVisit) — 서는 칸에서 발화", () => {
+  const SCRIPT_V = `
+Include("Common")
+function Startup()
+  WinRuleSetEnemyNumberLessThanOrEqualTo(-1)
+  EventEntryVisit(onVisit, 3, 4)
+end
+function onVisit()
+  VariableSet("방문발화", 1)
+end
+`;
+  const mk = () =>
+    createEventSession({ sources: { common: COMMON_MIN, test: SCRIPT_V }, chapter: "test", host: host() });
+
+  it("방문 칸에 서서 visit하면 콜백이 돈다 — 다른 칸에서는 액션 자체가 거부된다", () => {
+    // 왜 위험한가: `visit`은 등록만 돼 있고 **발화 경로가 없었다** — m004 민가 2곳이 영영 안 열렸다
+    // (루나틱 정석이 2턴째 민가 아이템을 전제한다). 서는 칸 좌표를 사영에서 빠뜨린 것도 같은 결함이었다:
+    // 민가 본체는 통행 불가라 `EventEntryVisit`이 등록하는 좌표는 **앞칸**이다(집 (3,5) · 서는 칸 (3,4)).
+    const session = mk();
+    const reduce = createEventedReducer(base, session);
+    const p = unit({ id: "p", force: 0, x: 3, y: 4, weapon: sword });
+    const raw = state([p, unit({ id: "e", force: 1, x: 9, y: 9 })]);
+    raw.map.interactions = [{ kind: "visit", x: 3, y: 5, stand: { x: 3, y: 4 } }];
+    let s = session.setup(raw).state;
+    s = reduce(s, { type: "visit", unit: "p" }, noRolls);
+    expect(s.variables?.["방문발화"]).toBe(1);
+    expect(s.units.find((u) => u.id === "p")?.acted).toBe(true);
+  });
+
+  it("방문 칸이 아니면 거부한다 — 조용한 no-op 금지", () => {
+    const session = mk();
+    const reduce = createEventedReducer(base, session);
+    const p = unit({ id: "p", force: 0, x: 0, y: 0, weapon: sword });
+    const raw = state([p, unit({ id: "e", force: 1, x: 9, y: 9 })]);
+    raw.map.interactions = [{ kind: "visit", x: 3, y: 5, stand: { x: 3, y: 4 } }];
+    const s = session.setup(raw).state;
+    expect(() => reduce(s, { type: "visit", unit: "p" }, noRolls)).toThrow(/민가/);
+  });
+});
+
 describe("이벤트 세션 — 등록·발화·조건", () => {
   it("setup: Startup 규칙·변수 + MapOpening 스폰 + 1턴 Turn 발화(조건 함수 = 상태 질의)", () => {
     const h: EventHost = {
