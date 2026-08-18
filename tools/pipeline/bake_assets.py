@@ -209,6 +209,43 @@ def bake(args, chapter_name: str, assets: dict) -> int:
     return 0
 
 
+def bake_gods(data: Path, faces: dict) -> int:
+    """문장사(엠블렘) 초상 — 챕터가 아니라 gods.json 전수를 한 번에 굽는다.
+
+    인물 얼굴은 pid 키인데 엠블렘은 인물이 아니라 GID다 — 같은 표에 못 넣어 godFaces를 따로 둔다.
+    스프라이트 이름 = AsciiName 우선, 없으면 FaceIconName의 "Face_" 접두를 뗀 것.
+    """
+    gods_path = data / "tables" / "gods.json"
+    if not gods_path.is_file():
+        print(f"gods table not found: {gods_path}", file=sys.stderr)
+        return 2
+    gods = json.loads(gods_path.read_text(encoding="utf-8"))["gods"]
+    face_dir = data / "assets" / "faces"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+
+    resolved, missing, baked = {}, [], 0
+    for gid, god in gods.items():
+        for key in (god.get("AsciiName") or "", (god.get("FaceIconName") or "").removeprefix("Face_")):
+            if key in faces:
+                dest = face_dir / f"{key}.webp"
+                if not dest.is_file():
+                    write_webp(faces[key].read().image.convert("RGBA"), dest)
+                    baked += 1
+                resolved[gid] = f"assets/faces/{key}.webp"
+                break
+        else:
+            missing.append(f'{gid}({god.get("AsciiName")})')
+
+    manifest["godFaces"] = dict(sorted(resolved.items()))
+    manifest["godFacesMissing"] = sorted(missing)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"gods: {len(resolved)}/{len(gods)} faces ({baked} new)")
+    if missing:
+        print(f"missing godFaces: {missing}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chapter", default="M002")
@@ -228,7 +265,7 @@ def main() -> int:
         chapters = [e["cid"].removeprefix("CID_") for e in json.loads(listing.read_text(encoding="utf-8"))]
 
     assets = load_assets(args.romfs)
-    failed = 0
+    failed = bake_gods(args.data, assets["faces"])
     for chapter in chapters:
         failed += 1 if bake(args, chapter, assets) else 0
 

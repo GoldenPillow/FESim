@@ -114,10 +114,12 @@ export function projectUnit(
     y: su?.y ?? u.y,
     hp: su?.hp ?? stats.hp,
     stats,
-    weapon: su?.weapons?.[0] ?? u.weapon,
+    // 장비 무기 = 소지 목록 머리(보드 JSON은 이 값을 따로 싣지 않는다 — 중복 지출).
+    weapon: (su?.weapons ?? u.weapons)?.[0],
     weapons: su?.weapons ?? u.weapons,
     staves: su?.staves ?? u.staves,
     consumables: su?.consumables ?? u.consumables,
+    ...(u.gid !== undefined ? { gid: u.gid } : {}),
     engage: su?.engage ?? u.engage,
     engagedSkills: su?.engagedSkills ?? u.engagedSkills,
     engageWeapons: su?.engageWeapons ?? u.engageWeapons,

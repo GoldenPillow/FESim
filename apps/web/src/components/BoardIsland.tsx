@@ -32,6 +32,7 @@ import {
   type GameState,
   type MoveQuery,
   type SideForecast,
+  type StrikeKind,
   type Tile,
   type UnitState,
 } from "@fesim/engine";
@@ -51,7 +52,7 @@ import {
 import { eventWiringFor } from "../lib/eventWiring";
 import { clampZoom, hasGuestSave, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
-import BoardView, { type BoardFx } from "./BoardView";
+import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
 // REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
 import "@fontsource/jetbrains-mono/latin-700.css";
@@ -81,6 +82,7 @@ export default function BoardIsland(props: BoardProps) {
   // 연출 상태 — seq는 같은 유닛이 연속 피격될 때 CSS 애니메이션을 다시 트는 용도(클래스만으론 재시작 안 된다).
   const fxRef = useRef(0);
   const [fx, setFx] = useState<BoardFx | undefined>(undefined);
+  const [strikes, setStrikes] = useState<readonly StrikeSummary[] | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
@@ -713,6 +715,64 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   /**
+   * 전투 타격 요약 — 전투에 낀 유닛마다 그 전투의 타격을 시간순으로 모은다.
+   * 왼쪽 = 쓰인 무기 + **받은** 대미지 · 오른쪽 = **준** 대미지(사용자 지정 배치)라
+   * 한 타격은 그 유닛 기준으로 taken/dealt 중 하나다(때린 쪽과 맞은 쪽에 같은 줄이 대칭으로 선다).
+   * ☠무기는 strike 이벤트에 없다 — 타격 주체의 **전투 직전 장비**로 근사한다(인게이지 강제 무기는 미반영).
+   */
+  const strikeSummaries = (
+    events: readonly BattleEvent[],
+    before: GameState,
+    after: GameState,
+  ): readonly StrikeSummary[] | undefined => {
+    const t = labels.logTags;
+    const hits = events.filter((e): e is Extract<BattleEvent, { type: "strike" }> => e.type === "strike");
+    if (hits.length === 0) return undefined;
+    const weaponOf = (id: string): string | undefined => {
+      const u = before.units.find((x) => x.id === id) ?? after.units.find((x) => x.id === id);
+      return u?.weapon?.name;
+    };
+    const kindOf = (kind: StrikeKind): string | undefined =>
+      kind === "chain" ? t.chain
+      : kind === "counter" ? t.counter
+      : kind === "followUp" ? t.follow
+      : kind === "counterFollowUp" ? `${t.counter}·${t.follow}`
+      : undefined;
+    const rows = new Map<string, StrikeRow[]>();
+    /** 각 유닛의 상대 — 표를 반대편에 세우기 위한 기준(같은 쪽에 세우면 두 표가 서로를 덮는다). */
+    const foe = new Map<string, string>();
+    const push = (id: string, other: string, row: StrikeRow): void => {
+      if (!foe.has(id)) foe.set(id, other);
+      const list = rows.get(id);
+      if (list === undefined) rows.set(id, [row]);
+      else list.push(row);
+    };
+    for (const e of hits) {
+      const base = {
+        ...(weaponOf(e.attacker) !== undefined ? { weapon: weaponOf(e.attacker) } : {}),
+        ...(kindOf(e.kind) !== undefined ? { kind: kindOf(e.kind) } : {}),
+        miss: !e.hit,
+        crit: e.crit,
+        damage: e.damage,
+      };
+      push(e.attacker, e.defender, { ...base, side: "dealt" });
+      push(e.defender, e.attacker, { ...base, side: "taken" });
+    }
+    const posOf = (id: string): UnitState | undefined =>
+      after.units.find((u) => u.id === id) ?? before.units.find((u) => u.id === id);
+    return [...rows].map(([id, list]) => {
+      const mine = posOf(id);
+      const theirs = posOf(foe.get(id) ?? "");
+      // 상대의 반대쪽. ☠세로로 붙어 있으면 x가 같아 둘 다 같은 쪽이 된다 — 그때는 y로 가른다.
+      const away =
+        mine === undefined || theirs === undefined ? false
+        : mine.x !== theirs.x ? mine.x > theirs.x
+        : mine.y > theirs.y;
+      return { id, anchor: away ? ("right" as const) : ("left" as const), rows: list };
+    });
+  };
+
+  /**
    * 행동 연출 — 이동 궤적 화살표 · 공격자 1픽셀 돌진 · 피격자 붉은 펄스(1초).
    * ★기보 작성(플레이)과 리플레이가 **같은 함수**를 쓴다(사용자 확정): 입력이 둘 다
    * "스텝 하나 = 액션 + 절대 이벤트"라 갈릴 이유가 없다 — 갈리면 같은 수가 다르게 보인다.
@@ -743,7 +803,10 @@ export default function BoardIsland(props: BoardProps) {
             },
             { x: action.x, y: action.y },
           );
-          if (tiles !== null && tiles.length > 1) next.trail = tiles;
+          if (tiles !== null && tiles.length > 1) {
+            next.trail = tiles;
+            next.trailUnit = mover.id;
+          }
         }
       }
     }
@@ -772,6 +835,10 @@ export default function BoardIsland(props: BoardProps) {
       })
       .filter((g): g is { id: string; x: number; y: number } => g !== undefined);
     if (ghosts.length > 0) next.ghosts = ghosts;
+
+    // ☠타격 요약은 fx와 수명이 다르다 — **행동마다** 갈아끼운다(연출 없는 수여도 지운다:
+    //   안 지우면 남의 전투 표가 계속 붙어 있다). fx 쪽 1~2초 타이머와 섞지 않는 이유다.
+    setStrikes(strikeSummaries(events, before, after));
 
     if (next.trail === undefined && next.pulse === undefined && next.ghosts === undefined) return;
     setFx(next);
@@ -1098,6 +1165,8 @@ export default function BoardIsland(props: BoardProps) {
         visuals={visuals}
         range={boardRange}
         path={path ?? fx?.trail}
+        godFaces={props.godFaces}
+        strikes={strikes}
         fx={fx}
         selectedId={editing ? editSel : selectedId}
         targetId={targetId}

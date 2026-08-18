@@ -71,6 +71,8 @@ export interface UnitState {
   staves?: StaffItem[];
   /** 사용형 아이템 목록 — item.item 인덱스의 해석 대상. 잔여 횟수는 국면 상태다. */
   consumables?: ConsumableItem[];
+  /** 장착 엠블렘(GID) — 보드 배지 표시와 godUnit 이벤트 교체의 주소. 게이지 수치는 engage가 소유. */
+  gid?: string;
   /** 인게이지 게이지 — 엠블렘 장착 유닛만. limit·turnLimit 산출은 데이터층(스냅숏) 소관. */
   engage?: EngageState;
   skills?: SkillRow[];

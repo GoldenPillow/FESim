@@ -184,6 +184,39 @@ end
     });
     expect(replayed.units.find((u) => u.id === "p")!.engage).toEqual(after.engage);
   });
+
+  /** 왜 위험한가: 보드 배지의 얼굴 원천은 gid 하나뿐이라 엠블렘 클러스터에서 gid가 빠지면
+   *  해제해도 남의 초상이 남고, 재장착해도 예전 얼굴이 붙는다(게이지만 맞고 그림이 거짓말). */
+  it("gid도 엠블렘 클러스터다 — nil 해제로 지워지고 핸들 복구로 돌아온다", () => {
+    const SCRIPT_GOD = `
+Include("Common")
+function Startup()
+  local u = "PID_p"
+  local god = UnitGetGodUnit(u)
+  UnitSetGodUnit(u, nil)
+  VariableSet("얼굴없음", UnitGetGodUnit(u) == nil and 1 or 0)
+  UnitSetGodUnit(u, god)
+end
+`;
+    const ringed = () => ({ ...engaged(), gid: "GID_マルス" });
+    const session = createEventSession({
+      sources: { common: COMMON_MIN, test: SCRIPT_GOD },
+      chapter: "test",
+      host: host(),
+    });
+    session.setRng(rolls([0]));
+    const r = session.setup(state([ringed()]));
+    expect(r.state.variables?.["얼굴없음"]).toBe(1);
+    expect(r.state.units.find((u) => u.id === "p")!.gid).toBe("GID_マルス");
+    // 해제 이벤트가 gid: null을 실어야 절대 재생도 같은 국면에 선다(patch null = 삭제 계약).
+    const unset = r.state.events.find(
+      (e) => e.type === "godUnit" && (e.patch as Record<string, unknown> | undefined)?.["gid"] === null,
+    );
+    expect(unset).toBeDefined();
+    const { applyStep } = createReplayer(base);
+    const replayed = applyStep(state([ringed()]), { action: { type: "setup" }, events: r.state.events });
+    expect(replayed.units.find((u) => u.id === "p")!.gid).toBe("GID_マルス");
+  });
 });
 
 describe("이벤트 콜백 오류 표면화", () => {

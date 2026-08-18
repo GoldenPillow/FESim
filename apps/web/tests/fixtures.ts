@@ -46,10 +46,10 @@ const unit = (over: Partial<BoardUnitProp> & Pick<BoardUnitProp, "x" | "y" | "fo
   rangeMin: 1,
   rangeMax: 1,
   stats: { n: stats(), h: stats(), l: stats() },
-  weapon: {
+  weapons: [{
     name: "sword", might: 8, hit: 90, crit: 5, weight: 5, avoid: 0,
     magic: false, rangeMin: 1, rangeMax: 1, kind: 1,
-  },
+  }],
   levels: { n: 5, h: 5, l: 5 },
   internalLevel: 0,
   growth: stats({ hp: 60, str: 50, mag: 10, dex: 50, spd: 50, lck: 40, def: 40, res: 20, bld: 10 }),

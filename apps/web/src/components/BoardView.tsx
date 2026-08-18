@@ -28,6 +28,13 @@ export interface BoardViewProps {
   visuals: Map<string, UnitVisual>;
   range?: { move: Tile[]; attack: Tile[]; staff?: Tile[] };
   path?: Tile[];
+  /** GID → 문장사 초상 경로 — 반지 장착 유닛의 왼쪽 위 배지. 없으면 배지 없이 게이지만 선다. */
+  godFaces?: BoardProps["godFaces"];
+  /**
+   * 전투 타격 요약 — ★fx와 **수명이 다르다**(사용자 확정 "다음 행동까지"):
+   * fx는 1~2초 뒤 스스로 걷히는 연출이고 이쪽은 멈춰서 읽는 표라 다음 행동이 갈아끼울 때까지 선다.
+   */
+  strikes?: readonly StrikeSummary[];
   fx?: BoardFx;
   selectedId?: string;
   targetId?: string;
@@ -44,10 +51,35 @@ export interface BoardViewProps {
 export interface BoardFx {
   seq: number;
   trail?: Tile[];
+  /** 이동 잔상의 주인 — trail 경로 위에 흐린 스프라이트를 순차로 남긴다(어디서 왔는지가 궤적만으로는 안 읽힌다). */
+  trailUnit?: string;
   nudge?: { id: string; dx: number; dy: number };
   pulse?: readonly string[];
   /** 전사한 유닛의 자리 — 유닛이 즉시 사라져 테두리 펄스를 띄울 몸이 없다(실루엣 잔상으로 2초). */
   ghosts?: readonly { id: string; x: number; y: number }[];
+}
+
+/** 한 유닛 옆에 붙는 타격 표 — 그 전투에서 이 유닛이 낀 타격이 시간순 한 줄씩. */
+export interface StrikeSummary {
+  id: string;
+  /** 표를 세울 쪽 — ☠**상대의 반대편**이다: 둘 다 같은 쪽에 세우면 두 표가 서로를 덮는다. */
+  anchor: "left" | "right";
+  rows: readonly StrikeRow[];
+}
+
+/**
+ * 타격 한 줄 — 왼쪽 = 쓰인 무기 + **받은** 대미지 · 오른쪽 = **준** 대미지(사용자 지정 배치).
+ * 한 타격에서 이 유닛은 때리거나 맞거나 둘 중 하나라 `side`가 어느 칸에 수치가 서는지를 정한다.
+ * 라벨(kind·무기명)은 로케일 소관이라 산출측(BoardIsland)이 이미 번역해서 넘긴다.
+ */
+export interface StrikeRow {
+  weapon?: string;
+  /** 체인·반격·추격 표시. 본공격은 붙이지 않는다(줄 수만으로 읽힌다). */
+  kind?: string;
+  side: "taken" | "dealt";
+  miss: boolean;
+  crit: boolean;
+  damage: number;
 }
 
 /** 짝수/홀수로 이름을 번갈아 = 같은 연출이 연속될 때도 애니메이션이 처음부터 다시 돈다. */
@@ -71,6 +103,8 @@ export default function BoardView({
   visuals,
   range,
   path,
+  godFaces,
+  strikes,
   fx,
   selectedId,
   targetId,
@@ -260,6 +294,7 @@ export default function BoardView({
             if (v === undefined) return null;
             const nudge = fx?.nudge?.id === u.id ? fx.nudge : undefined;
             const hit = fx?.pulse?.includes(u.id) === true;
+            const godFace = u.gid === undefined ? undefined : godFaces?.[u.gid];
             const cls = [
               "cell",
               u.id === selectedId && "sel",
@@ -304,11 +339,46 @@ export default function BoardView({
                     <i style={{ width: `${Math.min(Math.max(u.exp, 0), 100)}%` }} />
                   </span>
                 )}
+                {/* 인게이지 발동 = 테두리 푸른 점멸. ☠연출이 아니라 **상태 표시**라 모드 무관 상시(사용자 확정).
+                    링을 실제 자식으로 두는 이유 = ::before(선택)·::after(피격)가 이미 차 있다. */}
+                {u.engage?.engaging === true && <i className="engring" aria-hidden="true" />}
+                {u.engage !== undefined && (
+                  <span className="god" title={`${u.engage.count} / ${u.engage.limit}`}>
+                    {godFace !== undefined && <img src={godFace} alt="" width="32" height="32" loading="lazy" decoding="async" />}
+                    <b>{u.engage.count}/{u.engage.limit}</b>
+                  </span>
+                )}
                 {u.broken && <span className="brk" title="Break">✗</span>}
               </span>
             );
           })}
         </div>
+
+        {/* 이동 잔상 — 지나온 칸마다 스프라이트를 흐리게 남기고 순차로 지운다(어디서 왔는지가 한눈에).
+            도착 칸(마지막)은 본체가 서 있으므로 뺀다 — 겹치면 그냥 두꺼워 보인다. */}
+        {fx?.trailUnit !== undefined && fx.trail !== undefined && fx.trail.length > 1 && (
+          <div className="layer afterimages" aria-hidden="true">
+            {fx.trail.slice(0, -1).map((t, i) => {
+              const icon = visuals.get(fx.trailUnit!)?.icon;
+              if (icon === undefined) return null;
+              return (
+                <span
+                  key={`a${fx.seq}-${i}`}
+                  className="cell afterimage"
+                  style={
+                    {
+                      gridColumn: col(t.x),
+                      gridRow: row(t.y),
+                      animationDelay: `${i * 70}ms`,
+                    } as React.CSSProperties
+                  }
+                >
+                  <img src={icon} alt="" width="48" height="48" />
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {/* 전사 잔상 — 스프라이트 알파를 마스크로 써서 도트 실루엣 그대로 단색 적색 펄스(2초). */}
         {fx?.ghosts !== undefined && fx.ghosts.length > 0 && (
@@ -347,11 +417,57 @@ export default function BoardView({
           </div>
         )}
 
+        {/* 타격 요약 — 전투에 낀 유닛 옆에 붙는 작은 표. 오른쪽 끝 유닛은 왼쪽으로 뒤집는다(잘림 방지). */}
+        {strikes !== undefined && strikes.length > 0 && (
+          <div className="layer strikes">
+            {strikes.map((s) => {
+              const u = units.find((x) => x.id === s.id);
+              if (u === undefined) return null;
+              return (
+                <span
+                  key={s.id}
+                  className={strikeSide(s.anchor, u.x, width) === "left" ? "cell strike flip" : "cell strike"}
+                  style={{ gridColumn: col(u.x), gridRow: row(u.y) }}
+                >
+                  <span className="sbox">
+                    {s.rows.map((r, i) => (
+                      <span key={i} className="srow">
+                        <span className="sl">
+                          {r.weapon !== undefined && <i className="sw">{r.weapon}</i>}
+                          {r.kind !== undefined && <i className="sk">{r.kind}</i>}
+                          {r.side === "taken" && <b className={dmgClass(r)}>{r.miss ? "MISS" : r.damage}</b>}
+                        </span>
+                        <span className="sr">
+                          {r.side === "dealt" && <b className={dmgClass(r)}>{r.miss ? "MISS" : r.damage}</b>}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         {banner !== undefined && <div className={bannerStay ? "banner stay" : "banner"}>{banner}</div>}
       </div>
     </>
   );
 }
+
+/** miss = 화이트 · crit = 노란색 · 그 외 대미지 = 레드(사용자 지정). */
+const dmgClass = (r: StrikeRow): string => (r.miss ? "miss" : r.crit ? "crit" : "dmg");
+
+/**
+ * 상대 반대편이 기본 — 둘 다 같은 쪽이면 두 표가 서로를 덮는다.
+ * ☠맨 끝 칸에서만 뒤집는다: 표가 보드 밖으로 조금 넘치는 건 괜찮지만(레이어가 overflow: visible)
+ * 반대편으로 옮기면 상대 표와 정면으로 겹쳐 둘 다 못 읽는다.
+ */
+const strikeSide = (anchor: "left" | "right", x: number, width: number): "left" | "right" => {
+  if (anchor === "left" && x === 0) return "right";
+  if (anchor === "right" && x === width - 1) return "left";
+  return anchor;
+};
 
 function ArrowHead({
   from,

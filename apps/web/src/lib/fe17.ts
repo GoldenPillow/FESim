@@ -85,6 +85,8 @@ export interface MapIconEntry {
 export interface AssetManifest {
   mapicons?: { byPid?: Record<string, MapIconEntry> };
   faces?: Record<string, string>;
+  /** 문장사 초상 — GID 키(인물 얼굴은 pid 키라 같은 표에 못 넣는다: 엠블렘은 인물이 아니다). */
+  godFaces?: Record<string, string>;
 }
 
 interface NamedRow {
@@ -816,9 +818,11 @@ export interface BoardUnitProp {
   rangeMax: number;
   /** 난이도별 실스탯(스탯 모델 v1 + 정적 스킬 보정) — 아일랜드가 실시간 난이도 전환. */
   stats?: Record<Difficulty, StatBlock | undefined>;
-  /** 장비 무기 = 소지품 첫 공격 무기(가정 — 실기 반증 시 갱신). */
-  weapon?: BoardWeaponProp;
-  /** 소지 공격 무기 전체(소지품 순) — 예보 패널 무기 목록·attack.weapon 인덱스의 해석 대상. */
+  /**
+   * 소지 공격 무기 전체(소지품 순) — 예보 패널 무기 목록·attack.weapon 인덱스의 해석 대상.
+   * ☠**장비 무기는 따로 싣지 않는다** = 항상 `weapons[0]`이다(가정: 소지품 첫 공격 무기 — 실기 반증 시 갱신).
+   * 종전엔 같은 무기를 `weapon`으로도 실어 e006.ko 기준 1.8KB gz를 중복 지출했다(챕터 JSON 예산 §11).
+   */
   weapons?: BoardWeaponProp[];
   /** 소지 지팡이 전체(소지품 순) — staff.staff 인덱스의 해석 대상. */
   staves?: StaffItem[];
@@ -826,6 +830,8 @@ export interface BoardUnitProp {
   consumables?: ConsumableItem[];
   /** HP 스톡(dispos HpStockCount) — 다단 보스. ☠사영·이벤트 전용, 부활 거동은 미배선(장부 combat.hp-stock). */
   hpStock?: number;
+  /** 장착 엠블렘(GID) — 문장사 배지의 주소. 얼굴 경로는 보드 단위 `godFaces`가 소유(유닛마다 반복 금지). */
+  gid?: string;
   /** 인게이지 게이지 초기 스냅숏 — 엠블렘(gid) 장착 유닛만. */
   engage?: EngageState;
   /** 인게이지 중 스킬 세트(EngagedSkills 교체본) — engaging일 때 skills 대신 이 목록이 유효. */
@@ -873,6 +879,8 @@ export interface BoardProps {
    */
   interactions?: (MapInteraction & { name?: string })[];
   units: BoardUnitProp[];
+  /** GID → 문장사 초상 경로 — 이 챕터가 쓰는 것만. 배지 렌더의 유일한 얼굴 원천. */
+  godFaces?: Record<string, string>;
   /**
    * 이 챕터가 쓰는 ai.xml 루틴만 모은 표 — ★유닛마다 복사하지 않고 보드에 **한 번만** 싣는다.
    * projectUnit이 각 유닛의 `ai.routines`에 같은 참조를 붙인다(적턴 자동의 유일한 프로그램 원천).
@@ -1173,6 +1181,8 @@ export function boardProps(
   const map = chapter.map;
   const views = unitsFor(chapter, locale);
   const moveTypes = new Set<MoveType>();
+  // 이 챕터가 실제로 쓰는 GID만 모은다 — 얼굴 경로를 유닛마다 반복하지 않고 보드에 한 번만 싣는다.
+  const gidsUsed = new Set<string>();
   const units: BoardUnitProp[] = views.map((v) => {
     const job = jobs[v.unit.jid];
     const moveType = MOVE_TYPES[job?.MoveType ?? 0] ?? "none";
@@ -1214,7 +1224,7 @@ export function boardProps(
       stats: { n: withEnhance("n"), h: withEnhance("h"), l: withEnhance("l") },
       ...(() => {
         const weapons = attackWeapons(v.unit, locale);
-        return weapons.length > 0 ? { weapon: weapons[0], weapons } : {};
+        return weapons.length > 0 ? { weapons } : {};
       })(),
       ...(() => {
         const staves = staffItems(v.unit, locale);
@@ -1228,10 +1238,12 @@ export function boardProps(
         if (v.unit.gid === undefined) return {};
         const engage = engageStateFor(v.unit.gid);
         if (engage === undefined) return {};
+        gidsUsed.add(v.unit.gid);
         const engagedSkills = unitEngagedSkillRows(v.unit);
         const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
         const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);
         return {
+          gid: v.unit.gid,
           engage,
           ...(engagedSkills !== undefined ? { engagedSkills } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
@@ -1384,6 +1396,7 @@ export function boardProps(
         if (engage === undefined) continue;
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
+        gidsUsed.add(m[1]);
       }
       // 아이템 사영 — 폐포 = 챕터 + common*(공용 헬퍼가 상자·민가 지급을 소유한다).
       const itemPack: NonNullable<BoardProps["script"]>["items"] = {};
@@ -1421,6 +1434,16 @@ export function boardProps(
         }
       }
       return { script: { chapter: mapId, sources, commons, disposGroups, skills: sidRows, gods, terrains, items: itemPack } };
+    })(),
+    // ★엠블렘 초상은 **보드에 한 번만** 싣는다(유닛 사영은 gid 문자열만) — 같은 경로를 유닛마다
+    //   반복하면 챕터 JSON 예산(§11)을 갉아먹는다. ☠스크립트 gods 뒤에 와야 한다(gidsUsed가 그때 완성된다).
+    ...(() => {
+      const godFaces: Record<string, string> = {};
+      for (const gid of [...gidsUsed].sort()) {
+        const path = assetHref(manifest.godFaces?.[gid]);
+        if (path !== undefined) godFaces[gid] = path;
+      }
+      return Object.keys(godFaces).length > 0 ? { godFaces } : {};
     })(),
   };
 }

@@ -19,6 +19,22 @@ describe("성장 안전장치 사영 (MP5 5-0)", () => {
   });
 });
 
+describe("엠블렘·장비 사영", () => {
+  it("gid가 국면까지 간다 — 보드 배지가 읽는 유일한 얼굴 주소다", () => {
+    // 왜 위험한가: 보드 프롭에만 gid가 실리고 국면에서 빠지면 배지는 초기 렌더에만 뜨고
+    // 엠블렘 교체(godUnit)·리플레이 재생 국면에서는 사라진다(같은 판이 두 그림을 갖는다).
+    const ringed = { ...props, units: [{ ...props.units[0]!, gid: "GID_マルス" }, ...props.units.slice(1)] };
+    expect(createBoardStore(ringed).getState().game.units[0]!.gid).toBe("GID_マルス");
+  });
+
+  it("장비 무기 = weapons[0] — 보드가 따로 안 실어도 국면에 선다", () => {
+    // 왜 위험한가: 중복 필드(weapon)를 걷어낸 뒤 국면 사영이 그것만 보고 있으면
+    // 전 유닛이 비무장으로 떨어져 공격·예보가 통째로 성립하지 않는다.
+    const u = createBoardStore(props).getState().game.units[0]!;
+    expect(u.weapon).toEqual(props.units[0]!.weapons?.[0]);
+  });
+});
+
 describe("챕터 인계 그릇 (MP5 5-2)", () => {
   const setupBy = (key: string) => ({
     units: {
@@ -372,7 +388,7 @@ describe("지팡이 회복 (MP0)", () => {
     const p = boardFixture();
     // u0 = 힐러(마력 8·라이브), u2 = 손상 아군 — u1(적)은 멀리 치워 교전 배제.
     p.units = [
-      { ...p.units[0], weapon: undefined, stats: { n: undefined, h: undefined, l: { ...p.units[0].stats!.l!, mag: 8 } }, staves: [{ power: 10, rangeMin: 1, rangeMax: 1, uses: 2, rodType: 2, rodExp: 25 }] },
+      { ...p.units[0], weapons: undefined, stats: { n: undefined, h: undefined, l: { ...p.units[0].stats!.l!, mag: 8 } }, staves: [{ power: 10, rangeMin: 1, rangeMax: 1, uses: 2, rodType: 2, rodExp: 25 }] },
       { ...p.units[1], x: 5, y: 5 },
       { ...p.units[0], x: 1, y: 2, name: "hurt" },
     ];
