@@ -61,7 +61,7 @@ const LABELS: BoardProps["labels"] = {
   diffNames: { n: "n", h: "h", l: "l" },
   forceNames: ["player", "enemy", "ally"],
   endPhase: "", waitCmd: "", attackCmd: "", staffCmd: "", itemCmd: "", engageCmd: "", tradeCmd: "", closeCmd: "", turnPhase: "", turnWord: "",
-  victory: "", defeat: "", reset: "", undoCmd: "", copyRecord: "", copied: "",
+  victory: "", defeat: "", reset: "", replayCmd: "", replayPrev: "", replayNext: "", replayPrevPhase: "", replayNextPhase: "", zoomIn: "", zoomOut: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },

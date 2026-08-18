@@ -78,6 +78,8 @@ export interface BoardState {
   dispatch: (action: BattleAction) => GameState;
   toFile: (meta?: EphemerisFile["meta"]) => EphemerisFile;
   loadReplay: (file: EphemerisFile) => void;
+  /** 리플레이 열람 종료 — 기보 끝 국면의 플레이 모드로 복귀(맵 페이지 자기 기보 열람용). */
+  exitReplay: () => void;
   seek: (cursor: number) => void;
   stepAction: (delta: number) => void;
   stepPhase: (delta: number) => void;
@@ -457,6 +459,25 @@ export function createBoardStore(
           visuals: base.visuals,
           recording: [...file.log],
           replay: sessionOf(base.game, file),
+          cursor: 0,
+        });
+      },
+
+      exitReplay() {
+        const { replay } = get();
+        if (replay === undefined) return;
+        const file = replay.file;
+        // restore()와 같은 결 — 초기 국면에 기록을 재적용해 기보 끝 국면으로 복귀한다.
+        // 이벤트 국면 플래그는 GameState.variables가 소유하므로 세션 재구축 없이 이어진다.
+        const base = initGame(props, file.chapter.difficulty, file.chapter.scenario, file.setup ?? get().setup);
+        let state = base.game;
+        for (const step of file.log) state = replayer.applyStep(state, step);
+        set({
+          mode: "play",
+          game: state,
+          visuals: base.visuals,
+          recording: [...file.log],
+          replay: undefined,
           cursor: 0,
         });
       },

@@ -252,6 +252,29 @@ describe("리플레이", () => {
     store.getState().stepPhase(-1);
     expect(store.getState().cursor).toBe(0);
   });
+
+  /** 맵 페이지 리플레이 열람(자기 기보) — 종료 시 보던 판의 끝 국면으로 복귀해야 한다(진행 유실 금지). */
+  it("exitReplay — 플레이 모드 복귀, 기록·최종 국면 보존, 이어서 플레이 가능", () => {
+    const store = createBoardStore(props);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 2 });
+    store.getState().dispatch({ type: "endPhase" });
+    const before = store.getState().game;
+    const log = store.getState().recording;
+
+    store.getState().loadReplay(store.getState().toFile());
+    store.getState().stepAction(1);
+    expect(store.getState().mode).toBe("replay");
+
+    store.getState().exitReplay();
+    expect(store.getState().mode).toBe("play");
+    expect(store.getState().recording).toEqual(log);
+    expect(store.getState().game.units).toEqual(before.units);
+    expect(store.getState().game.turn).toBe(before.turn);
+    expect(store.getState().game.phase).toBe(before.phase);
+
+    store.getState().dispatch({ type: "wait", unit: "u1" });
+    expect(store.getState().recording.length).toBe(log.length + 1);
+  });
 });
 
 describe("지팡이 회복 (MP0)", () => {

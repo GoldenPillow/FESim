@@ -51,6 +51,7 @@ import {
   type EventWiring,
   type UnitVisual,
 } from "../lib/boardStore";
+import { clampZoom, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import BoardView from "./BoardView";
 import "./board.css";
@@ -88,6 +89,8 @@ function eventWiringFor(
             return unit === undefined ? [] : [unit];
           }),
         skillRow: (sid) => script.skills[sid],
+        // 인물 이름 ID — person.xml Name 사영(SSG가 유닛에 굳힘). 부재 = 엔진이 정직 거부한다.
+        mpid: (pid) => props.units.find((u) => u.pid === pid)?.mpid,
         // IID → 채널·스냅숏 — SSG가 굳힌 script.items만 안다(클라이언트엔 items 표가 없다).
         gainItem: (iid) => script.items?.[iid] as never,
         // TID → 지형 1칸 — SSG가 굳힌 script.terrains만 안다(클라이언트엔 terrain 표가 없다).
@@ -122,6 +125,8 @@ export default function BoardIsland(props: BoardProps) {
   const mode = useBoard(store, (s) => s.mode);
   const visuals = useBoard(store, (s) => s.visuals);
   const recorded = useBoard(store, (s) => s.recording.length);
+  const cursor = useBoard(store, (s) => s.cursor);
+  const replaySteps = useBoard(store, (s) => s.replay?.timeline.steps.length ?? 0);
   const [ready, setReady] = useState(false);
   const urlWritten = useRef(false);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -130,6 +135,14 @@ export default function BoardIsland(props: BoardProps) {
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  // 맵 줌 — SSR·하이드레이션은 디폴트로 그리고 마운트 후 저장값 반영(마크업 불일치 회피).
+  const [zoom, setZoom] = useState(ZOOM_DEFAULT);
+  useEffect(() => setZoom(loadZoom()), []);
+  const changeZoom = (delta: number) => {
+    const next = clampZoom(zoom + delta);
+    setZoom(next);
+    saveZoom(next);
+  };
   /** 적턴 자동이 건너뛴 유닛(정직 결손) — 몰래 대기시키지 않고 여기에 남긴다. */
   const [aiGaps, setAiGaps] = useState<AiDeficit[]>([]);
   // ★AI 난수 = `Random.System` — 전투 RNG(기보 스트림)와 **별도**다(AI_ENGINE §7-4).
@@ -217,6 +230,22 @@ export default function BoardIsland(props: BoardProps) {
     const t = setTimeout(() => setCopied(false), 1300);
     return () => clearTimeout(t);
   }, [copied]);
+
+  // 리플레이 키보드 — ←→ = 행동 1스텝 · PageUp/Down = 페이즈(전체턴) 스텝(2026-08-18 사용자 확정).
+  useEffect(() => {
+    if (mode !== "replay") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        store.getState().stepAction(e.key === "ArrowRight" ? 1 : -1);
+      } else if (e.key === "PageUp" || e.key === "PageDown") {
+        e.preventDefault();
+        store.getState().stepPhase(e.key === "PageDown" ? 1 : -1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, store]);
 
   // 전투 취소 — 보드·예보(플레이트) 바깥 클릭 = 교전 해제(인게임 B버튼 문법).
   useEffect(() => {
@@ -708,6 +737,7 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   const onTileClick = (x: number, y: number) => {
+    if (mode === "replay") return; // 열람 전용 — 조작은 스테퍼(포커스 모드 문법)
     if (editing) {
       // 편집 모드: 유닛 클릭 = 선택, 빈 칸 클릭 = 선택 유닛 배치 이동(전 세력 대상).
       const clicked = byTile.get(tileKey(x, y));
@@ -877,7 +907,7 @@ export default function BoardIsland(props: BoardProps) {
   return (
     <figure
       className="plate"
-      style={{ "--cols": width, "--rows": height } as React.CSSProperties}
+      style={{ "--cols": width, "--rows": height, "--zoom": zoom } as React.CSSProperties}
       aria-label={labels.board}
     >
       <nav className="diff-switch" aria-label={labels.difficulty}>
@@ -940,6 +970,16 @@ export default function BoardIsland(props: BoardProps) {
         </button>
         <button
           type="button"
+          disabled={recorded === 0 || mode === "replay"}
+          onClick={() => {
+            store.getState().loadReplay(store.getState().toFile());
+            clearLocal();
+          }}
+        >
+          {labels.replayCmd}
+        </button>
+        <button
+          type="button"
           disabled={mode === "replay"}
           className={editing ? "on" : undefined}
           onClick={() => {
@@ -974,6 +1014,80 @@ export default function BoardIsland(props: BoardProps) {
         onTileClick={onTileClick}
         onTileHover={setHover}
       />
+
+      {mode === "replay" && (
+        <div className="replay-bar" role="toolbar" aria-label={labels.replayCmd}>
+          <button
+            type="button"
+            aria-label={labels.replayPrevPhase}
+            title={labels.replayPrevPhase}
+            disabled={cursor <= 0}
+            onClick={() => store.getState().stepPhase(-1)}
+          >
+            «
+          </button>
+          <button
+            type="button"
+            aria-label={labels.replayPrev}
+            title={labels.replayPrev}
+            disabled={cursor <= 0}
+            onClick={() => store.getState().stepAction(-1)}
+          >
+            ‹
+          </button>
+          <span className="replay-count">
+            {cursor} / {replaySteps}
+          </span>
+          <button
+            type="button"
+            aria-label={labels.replayNext}
+            title={labels.replayNext}
+            disabled={cursor >= replaySteps}
+            onClick={() => store.getState().stepAction(1)}
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            aria-label={labels.replayNextPhase}
+            title={labels.replayNextPhase}
+            disabled={cursor >= replaySteps}
+            onClick={() => store.getState().stepPhase(1)}
+          >
+            »
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              store.getState().exitReplay();
+              clearLocal();
+            }}
+          >
+            {labels.closeCmd}
+          </button>
+        </div>
+      )}
+
+      <div className="zoom-bar">
+        <button
+          type="button"
+          aria-label={labels.zoomOut}
+          title={labels.zoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          onClick={() => changeZoom(-ZOOM_STEP)}
+        >
+          <MagnifierIcon plus={false} />
+        </button>
+        <button
+          type="button"
+          aria-label={labels.zoomIn}
+          title={labels.zoomIn}
+          disabled={zoom >= ZOOM_MAX}
+          onClick={() => changeZoom(ZOOM_STEP)}
+        >
+          <MagnifierIcon plus />
+        </button>
+      </div>
 
       {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2) || hasChainGuardSkill(selected)) && (
         <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
@@ -1331,6 +1445,18 @@ export default function BoardIsland(props: BoardProps) {
         </div>
       )}
     </figure>
+  );
+}
+
+/** 돋보기 +/− 아이콘 — 외부 에셋 없이 인라인 렌더(색 = currentColor로 테마 추종). */
+function MagnifierIcon({ plus }: { plus: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="5.75" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12.8 12.8 17 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M6 8.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      {plus && <path d="M8.5 6v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />}
+    </svg>
   );
 }
 

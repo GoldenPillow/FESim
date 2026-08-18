@@ -65,3 +65,38 @@ export function clearSlot(key: SaveKey): void {
     // 지우지 못해도 다음 저장이 덮어쓴다.
   }
 }
+
+/* ── 맵 줌 배율 — 전 맵 공용 1값. 디폴트 0.9 = 현행 타일 공식 대비 -10%(2026-08-18 사용자 지시).
+   ☠board-metrics.css --m-zoom-default와 동기(SSR·리플레이의 CSS 폴백이 그 값을 쓴다).
+   로그인 영구저장은 M4 소셜 로그인 선행 — 그때 이 계층만 서버 동기로 확장한다. */
+
+export const ZOOM_DEFAULT = 0.9;
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 1.5;
+export const ZOOM_STEP = 0.1;
+const ZOOM_KEY = "fesim:ui:zoom";
+
+/** 상·하한 절단 + 0.1 스텝 잔차 반올림 — 부동소수 누적이 저장·표시로 새면 안 된다. */
+export const clampZoom = (zoom: number): number =>
+  Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom)) * 10) / 10;
+
+export function saveZoom(zoom: number): void {
+  try {
+    storage()?.setItem(ZOOM_KEY, String(clampZoom(zoom)));
+  } catch {
+    // 쿼터·프라이빗 모드 = 저장 스킵.
+  }
+}
+
+/** 손상·범위 밖 값은 디폴트로 강하 — 이물 배율이 보드를 0px·거대 렌더로 죽이면 안 된다. */
+export function loadZoom(): number {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(ZOOM_KEY);
+  } catch {
+    return ZOOM_DEFAULT;
+  }
+  if (text === null || text === undefined) return ZOOM_DEFAULT;
+  const zoom = Number(text);
+  return Number.isFinite(zoom) && zoom >= ZOOM_MIN && zoom <= ZOOM_MAX ? clampZoom(zoom) : ZOOM_DEFAULT;
+}

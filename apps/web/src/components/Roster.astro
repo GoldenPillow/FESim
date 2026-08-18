@@ -42,7 +42,7 @@ const sections = [
               <details class="card" style={`--force:${forceStyle(u.unit.force).ring}`}>
                 <summary>
                   {u.face ? (
-                    <img src={u.face} alt="" class="portrait" width="46" height="34" />
+                    <img src={u.face} alt="" class="portrait" width="41" height="31" />
                   ) : u.icon ? (
                     <span class="portrait sprite">
                       <img src={u.icon} alt="" width="48" height="48" />
@@ -126,8 +126,8 @@ const sections = [
     display: none;
   }
   .portrait {
-    width: 46px;
-    height: 34px;
+    width: var(--m-roster-face-w);
+    height: var(--m-roster-face-h);
     flex-shrink: 0;
     border-radius: 2px;
     object-fit: cover;

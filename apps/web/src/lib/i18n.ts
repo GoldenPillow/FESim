@@ -63,6 +63,13 @@ interface Strings {
   victory: string;
   defeat: string;
   reset: string;
+  replayCmd: string;
+  replayPrev: string;
+  replayNext: string;
+  replayPrevPhase: string;
+  replayNextPhase: string;
+  zoomIn: string;
+  zoomOut: string;
   undoCmd: string;
   editCmd: string;
   editExit: string;
@@ -158,6 +165,13 @@ export const UI: Record<Locale, Strings> = {
     victory: "Victory!",
     defeat: "Defeat...",
     reset: "Reset",
+    replayCmd: "Replay",
+    replayPrev: "Previous action",
+    replayNext: "Next action",
+    replayPrevPhase: "Previous phase",
+    replayNextPhase: "Next phase",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
     undoCmd: "Undo",
     editCmd: "Edit",
     editExit: "Done",
@@ -258,6 +272,13 @@ export const UI: Record<Locale, Strings> = {
     victory: "승리!",
     defeat: "패배...",
     reset: "초기화",
+    replayCmd: "리플레이",
+    replayPrev: "이전 행동",
+    replayNext: "다음 행동",
+    replayPrevPhase: "이전 페이즈",
+    replayNextPhase: "다음 페이즈",
+    zoomIn: "확대",
+    zoomOut: "축소",
     undoCmd: "물리기",
     editCmd: "편집",
     editExit: "편집 종료",

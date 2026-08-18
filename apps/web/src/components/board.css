@@ -10,7 +10,11 @@
   --tile-fluid: var(--m-tile-slope);
   --tile-fit-h: calc((100vh - var(--m-fit-v-reserve)) / var(--rows));
   --tile-fit-w: calc((100vw - var(--m-fit-h-reserve)) / var(--cols));
-  --tile: clamp(var(--m-tile-min), min(var(--tile-fluid), var(--tile-fit-h), var(--tile-fit-w)), var(--m-tile-max));
+  /* --zoom = 유저 줌 배율(BoardIsland이 인라인으로 주입·localStorage 보존) — 미주입(리플레이·SSR)은 기본값. */
+  --tile: calc(
+    clamp(var(--m-tile-min), min(var(--tile-fluid), var(--tile-fit-h), var(--tile-fit-w)), var(--m-tile-max)) *
+      var(--zoom, var(--m-zoom-default))
+  );
   position: relative;
   width: calc(var(--cols) * var(--tile));
   margin: 0;
@@ -352,6 +356,66 @@
 @keyframes banner-hold {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: none; }
+}
+
+/* 리플레이 스테퍼 — 보드 아래(‹› = 행동 1스텝 · «» = 페이즈 전체턴 — 키보드 ←→·PageUp/Down 동형) */
+.plate .replay-bar {
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.plate .replay-bar button {
+  min-width: 1.9rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .replay-bar button:hover:not(:disabled) {
+  color: var(--ink);
+}
+.plate .replay-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.plate .replay-bar .replay-count {
+  min-width: 4ch;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 줌 바 — 보드 바로 아래 우측의 돋보기 확대·축소(배율 정본 = board-metrics --m-zoom-default) */
+.plate .zoom-bar {
+  margin-top: 0.4rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+.plate .zoom-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .zoom-bar button:hover:not(:disabled) {
+  color: var(--ink);
+}
+.plate .zoom-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* 편집 바(M4 세팅층) — 보드 아래 플로우, 선택 유닛·제거·복원 */

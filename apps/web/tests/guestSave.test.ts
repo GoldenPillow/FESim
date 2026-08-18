@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EphemerisFile } from "@fesim/shared";
-import { clearSlot, loadSlot, saveSlot, slotKey, type SaveKey } from "../src/lib/guestSave";
+import {
+  clampZoom,
+  clearSlot,
+  loadSlot,
+  loadZoom,
+  saveSlot,
+  saveZoom,
+  slotKey,
+  ZOOM_DEFAULT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+  type SaveKey,
+} from "../src/lib/guestSave";
 import { memoryStorage } from "./fixtures";
 
 const KEY: SaveKey = { game: "fe17", mapId: "m002", difficulty: "l", scenario: "1" };
@@ -66,5 +79,38 @@ describe("게스트 저장", () => {
     expect(loadSlot(KEY)).toBeUndefined();
     use(memoryStorage("removeItem"));
     expect(() => clearSlot(KEY)).not.toThrow();
+  });
+});
+
+describe("맵 줌 저장", () => {
+  it("clampZoom — 상·하한을 자르고 스텝 누적의 부동소수 잔차를 반올림한다", () => {
+    expect(clampZoom(ZOOM_MAX + ZOOM_STEP)).toBe(ZOOM_MAX);
+    expect(clampZoom(ZOOM_MIN - ZOOM_STEP)).toBe(ZOOM_MIN);
+    // 0.9 - 0.1 = 0.8000000000000001 — 잔차가 저장·표시로 새면 안 된다.
+    expect(clampZoom(ZOOM_DEFAULT - ZOOM_STEP)).toBe(0.8);
+  });
+
+  it("왕복 — 저장한 배율이 그대로 돌아오고, 빈 저장소는 디폴트다", () => {
+    use(memoryStorage());
+    expect(loadZoom()).toBe(ZOOM_DEFAULT);
+    saveZoom(1.2);
+    expect(loadZoom()).toBe(1.2);
+  });
+
+  /** 손상 값이 배율로 새면 보드가 0px·거대 렌더로 죽는다 — 범위 밖·이물은 디폴트로 강하. */
+  it("손상·범위 밖 값은 디폴트로 강하한다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    storage.setItem("fesim:ui:zoom", "not-a-number");
+    expect(loadZoom()).toBe(ZOOM_DEFAULT);
+    storage.setItem("fesim:ui:zoom", "99");
+    expect(loadZoom()).toBe(ZOOM_DEFAULT);
+  });
+
+  it("localStorage 예외는 저장·복원에서 무해화된다", () => {
+    use(memoryStorage("setItem"));
+    expect(() => saveZoom(1)).not.toThrow();
+    use(memoryStorage("getItem"));
+    expect(loadZoom()).toBe(ZOOM_DEFAULT);
   });
 });

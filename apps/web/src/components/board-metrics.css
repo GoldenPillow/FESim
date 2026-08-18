@@ -9,13 +9,16 @@
   --m-fit-v-reserve: 15rem;        /* 세로 맞춤 시 상하 UI 예약 높이 */
   --m-fit-h-reserve: 47rem;        /* 가로 맞춤 시 좌우 패널 예약 폭 */
   --m-fit-h-reserve-narrow: 2.75rem;
+  --m-zoom-default: 0.9;           /* 기본 줌 배율(공식 대비 -10%) — ☠guestSave.ts ZOOM_DEFAULT와 동기 */
 
   /* ── 유닛 도트 스프라이트 (배율 = 타일 대비) ── */
-  --m-icon-scale: 2;               /* 캔버스 여백 포함 배율 — 캐릭터 실폭이 대략 타일 1칸 */
-  --m-icon-foot: 0.29;             /* 발밑 접지 보정(타일 단위) — scale × 0.145 근사 */
+  --m-icon-scale: 1.8;             /* 캔버스 여백 포함 배율(2에서 -10%, 2026-08-18 사용자 지시) */
+  --m-icon-foot: 0.26;             /* 발밑 접지 보정(타일 단위) — scale × 0.145 근사 */
   --m-chip-scale: 0.82;            /* 아이콘 없는 유닛의 원형 칩 */
 
-  /* ── 로스터 스프라이트 얼굴 크롭 ── */
-  --m-roster-sprite: 84px;         /* 46×34 창 안에 확대되는 스프라이트 한 변 */
-  --m-roster-sprite-top: -30px;    /* 크롭 창 시작(캔버스 중하단이 얼굴) */
+  /* ── 로스터 얼굴 썸네일 (전 세력 공통 — 크기도 여기가 정본) ── */
+  --m-roster-face-w: 41px;         /* 46×34에서 -10%(2026-08-18 사용자 지시) */
+  --m-roster-face-h: 31px;
+  --m-roster-sprite: 76px;         /* 얼굴 창 안에 확대되는 스프라이트 한 변(84에서 -10%) */
+  --m-roster-sprite-top: -27px;    /* 크롭 창 시작(캔버스 중하단이 얼굴) */
 }
