@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { parseEphemeris, serializeEphemeris } from "@fesim/shared";
-import { RULE_VERSION } from "@fesim/engine";
+import { carryover, RULE_VERSION } from "@fesim/engine";
 import { createBoardStore, displayState } from "../src/lib/boardStore";
 import { boardFixture, memoryStorage } from "./fixtures";
 
@@ -52,6 +52,24 @@ describe("챕터 인계 그릇 (MP5 5-2)", () => {
     const enemyPid = props.units[1]!.pid;
     const store = createBoardStore(props, undefined, { units: { [enemyPid]: { level: 9 } } });
     expect(store.getState().game.units.find((x) => x.id === "u1")!.level).not.toBe(9);
+  });
+});
+
+describe("인계 로스터 추출 — 커서 국면 (MP5 5-5)", () => {
+  it("리플레이의 인계는 displayState에서 뽑는다 — store.game은 초기 국면이다", () => {
+    // 왜 위험했나: 기보 생성기가 seek(끝) 뒤 store.game을 읽어 carryover를 돌렸고,
+    // 그 결과 경험치·레벨이 통째로 0인 로스터가 **조용히** 다음 챕터로 인계됐다.
+    // seek은 커서만 옮긴다 — 커서 국면의 소유자는 displayState다.
+    const play = createBoardStore(props);
+    play.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const file = play.getState().toFile();
+    const gained = carryover(play.getState().game)[props.units[0]!.pid]!.exp!;
+    expect(gained).toBeGreaterThan(0);
+
+    const viewer = createBoardStore(props, { file });
+    viewer.getState().seek(file.log.length);
+    expect(carryover(viewer.getState().game)[props.units[0]!.pid]!.exp).toBe(0); // 초기 국면
+    expect(carryover(displayState(viewer.getState()))[props.units[0]!.pid]!.exp).toBe(gained);
   });
 });
 

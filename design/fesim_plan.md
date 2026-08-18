@@ -72,7 +72,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [x] 5-2 인계 그릇 (2026-08-18 완료) — SetupUnit 확장(exp·internalLevel·jid·hp·growthAcc) + pid 키 해석층(순번 키 우선·pid 키는 자군만 — 적은 pid 중복) + projectUnit override. 테스트 3건. jid override는 그릇만(재산출 = 5-4)
     - [x] 5-3 런 저장 (2026-08-18 완료) — RunState + `fesim:run:*`(게이트 제로) · carryover(engine/campaign.ts — 생존 자군 pid 키·HP 미인계·사망 removed) · chapterlist에 next 31건·unlock 20건 탑재(파이프라인). 테스트 11건. 승리 시 런 갱신 배선 = 5-6
     - [ ] 5-4 전직 — 챕터 사이 사용자 지정(판독 확정: 레벨 1·Exp 0·누적 성장분 보존·내부레벨 clamp) + 상급직 분기 HighJob1/2 선택 + 마스터 프루프 사영 복원(현행 `AddTarget=0`이라 아이템 사영에서 탈락)
-    - [ ] 5-5 기보 생성기 확장 — `./dev replay` 사슬 모드(m002→m003 인계 1건 실측) · 전직 시점 정책(고정 성장이라 승급 시점별 최종 스탯이 **계산 가능**해진다 — ma_walkthrough의 [지식] 표기를 계산으로 대체)
+    - [~] 5-5 기보 생성기 확장 — `./dev replay <cid> --carry <앞 기보>` 배선 + ★Q3 사슬 실증 완료(m002→m003 인계 4명·검증 통과·결손 0·6턴 승리). ☠수리 = seek 뒤 store.game을 읽어 exp/레벨 0 로스터가 조용히 인계되던 결함(커서 국면 = displayState). m003 기보 미탑재(자군 1명 손실 — 인계 무관, 정책 플레이어 한계 = MA 트랙). 전직 정책 · 전직 시점 정책(고정 성장이라 승급 시점별 최종 스탯이 **계산 가능**해진다 — ma_walkthrough의 [지식] 표기를 계산으로 대체)
     - [ ] 5-6 UI — 런 진행 표시·이어하기 진입점·정비(전직) 화면
   - [ ] MP6 조작 테스트 패스 — 사용자 전맵 실기형 조작 테스트(적턴 = AI 자동)·결손 즉시 MP 선두 흡수·M002/M003 루나틱 코퍼스 박제(M3.5 이관분 흡수)
 - [ ] **MA 모범답안지** — 루나틱/클래식·무DLC(결정) 1장~엔딩 효율 클리어 기보 1부.

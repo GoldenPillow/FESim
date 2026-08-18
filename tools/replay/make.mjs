@@ -26,7 +26,7 @@ const { createServer } = await import(
 const args = process.argv.slice(2);
 const cid = args.find((a) => !a.startsWith("--"));
 if (cid === undefined) {
-  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--out <path>]");
+  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--out <path>]");
   process.exit(2);
 }
 const flag = (name, fallback) => {
@@ -34,6 +34,8 @@ const flag = (name, fallback) => {
   return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : fallback;
 };
 const difficulty = flag("difficulty", "l");
+// 챕터 인계(MP5) — 앞 챕터 기보의 종료 국면에서 자군 로스터를 뽑아 이 판의 setup으로 넣는다.
+const carryPath = flag("carry", undefined);
 const locale = flag("locale", "ko");
 const maxTurns = Number(flag("max-turns", "40"));
 const outPath = resolve(ROOT, flag("out", `data/fe17/replays/${cid}.eph.json`));
@@ -52,12 +54,40 @@ const server = await createServer({
 
 try {
   const { boardPropsFor } = await server.ssrLoadModule("/src/lib/fe17.ts");
-  const { createBoardStore, calculator } = await server.ssrLoadModule("/src/lib/boardStore.ts");
+  const { createBoardStore, calculator, displayState } = await server.ssrLoadModule("/src/lib/boardStore.ts");
   const { eventWiringFor } = await server.ssrLoadModule("/src/lib/eventWiring.ts");
   const engine = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/engine/src/index.ts"));
   const eventsMod = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/engine/src/events/index.ts"));
 
   const props = boardPropsFor(cid, locale);
+  const { parseEphemeris: parseEph } = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/shared/src/index.ts"));
+
+  /** 공용 Lua 반입 — 브라우저가 /fe17/scripts/에서 fetch하는 것과 같은 파일(경로만 파일시스템). */
+  const commonsOf = (p) =>
+    Object.fromEntries(
+      (p.script?.commons ?? []).map((name) => [
+        name,
+        readFileSync(resolve(ROOT, `data/fe17/scripts/${name}.lua`), "utf-8"),
+      ]),
+    );
+
+  /**
+   * 앞 챕터 기보 → 이 판의 setup. 재생은 **웹과 같은 경로**로 한다(리플레이 스토어 + 커서 끝).
+   * ☠기보를 다시 돌리는 것이지 국면을 상상하는 게 아니다 — 인계값의 출처는 항상 실기보다.
+   */
+  const carrySetup = async () => {
+    if (carryPath === undefined) return undefined;
+    const prevFile = parseEph(readFileSync(resolve(ROOT, carryPath), "utf-8"));
+    const prevProps = boardPropsFor(prevFile.chapter.cid, locale);
+    const prevWiring = eventWiringFor(prevProps, eventsMod, commonsOf(prevProps));
+    const prevStore = createBoardStore(prevProps, { file: prevFile }, prevFile.setup, prevWiring);
+    prevStore.getState().seek(prevFile.log.length);
+    // ☠커서 국면은 displayState가 소유한다 — store.game은 리플레이 모드에서 **초기 국면**이다
+    //   (그걸 읽으면 경험치·레벨이 통째로 0인 로스터가 조용히 인계된다).
+    const roster = engine.carryover(displayState(prevStore.getState()));
+    console.error(`carry: ${prevFile.chapter.cid} → ${cid} · 인계 ${Object.keys(roster).length}명`);
+    return { units: roster };
+  };
   // 공용 Lua = 브라우저가 /fe17/scripts/에서 fetch하는 것과 같은 파일(경로만 파일시스템).
   const commons = Object.fromEntries(
     (props.script?.commons ?? []).map((name) => [
@@ -66,7 +96,8 @@ try {
     ]),
   );
   const wiring = eventWiringFor(props, eventsMod, commons);
-  const store = createBoardStore(props, undefined, undefined, wiring);
+  const setup = await carrySetup();
+  const store = createBoardStore(props, undefined, setup, wiring);
   store.getState().setDifficulty(difficulty);
 
   const dispatch = (action) => store.getState().dispatch(action);
@@ -122,9 +153,8 @@ try {
 
   // ★왕복 검증 — 쓴 파일을 **웹과 같은 경로로** 되읽는다: parseEphemeris → 리플레이 스토어 생성.
   //   여기서 걸리면 브라우저에서도 그대로 걸린다(파싱 거부 또는 "기록 열람 모드" 배지).
-  const { parseEphemeris } = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/shared/src/index.ts"));
-  const reloaded = parseEphemeris(readFileSync(outPath, "utf-8"));
-  const check = createBoardStore(props, { file: reloaded }, undefined, wiring);
+  const reloaded = parseEph(readFileSync(outPath, "utf-8"));
+  const check = createBoardStore(props, { file: reloaded }, reloaded.setup, wiring);
   const session = check.getState().replay;
   const replayed = check.getState().replay.timeline;
 
