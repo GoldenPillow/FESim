@@ -53,6 +53,7 @@ target: packages/engine + packages/shared + apps/web + tools/replay (MP5 캠페�
 | 7 | `grownLevels`가 IL 숫자를 쓴다 | `stats.ts:28` — 정본은 `Rank != 0 ? 19 : 0` 불리언. 현 데이터에선 1행만 갈리지만 전직 재산출을 열면 표면화 |
 | 8 | 저장 슬롯에 "런" 축이 없다 | `guestSave.ts:17` — 맵×난이도×국면. `loadSlot`이 cid 불일치 슬롯을 폐기해 **이월을 구조적으로 거부**한다 |
 | 9 | 챕터 연쇄 순서가 산출물에 없다 | `chapterlist.json` = cid/category/recommendedLevel 3필드. chapter.xml `NextChapter`를 transform이 안 싣는다 |
+| 10 | ★☠**BaseCapability 그릇이 없다**(2026-08-18 5-4 착수 점검에서 발견 — **전직의 선행**) | 정본 스탯 = `Clamp(job.Base + BaseCapability, 0, Limit) + Enhance`이고 전직은 **job만 갈고 BaseCapability는 그대로 둔다**(ClassChange 0x1A3C7B0). 그런데 엔진·어댑터는 합쳐진 `stats`만 들고 있다(`stats.ts deriveStats`는 반환값이 스탯 하나, 5-1 고정 성장도 `gains`를 `stats`에 직접 더한다) ⇒ 캡·하한이 이미 섞여 **되돌릴 수 없다**. 전직 후 스탯을 산출하려면 성장 누적분(BaseCapability)을 별도 필드로 들고 인계해야 한다 |
 
 ## 3. 고정 성장 — 스탯별 누적기 (2026-08-18 사용자 확정 = Q1 B)
 
@@ -134,6 +135,10 @@ for i in 0..8:
   - 테스트 = campaign.test.ts 6건 · guestSave.test.ts 3건 · fe17.test.ts 2건
   - 잔여: 챕터 승리 → 런 갱신·다음 챕터 진입 **배선은 5-6 UI**, 사슬 실증은 5-5
 - [ ] **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
+  - ☠**선행 = §2-10 BaseCapability 그릇 도입**(2026-08-18 점검). 없으면 전직 스탯을 산출할 수 없다(job.Base를 되빼는 역산은
+    캡·하한이 섞여 불가). 범위 = `deriveStats`가 baseCap을 함께 내고 · `UnitState`/`SetupUnit`이 들고 · 고정 성장이 baseCap에 누적
+  - 함께 해소할 정확도 결손 = §2-6 `internalLevel` person 우선·job 폴백 · §2-7 `grownLevels`는 IL 숫자가 아니라 `Rank != 0 ? 19 : 0`
+  - 발현 조건 = 전직 자체(3장까지 사슬에선 미발현) — Q3 범위 밖이라 사용자 지시 대기
 - [~] **5-5 기보 생성기 확장** — `./dev replay <cid> --carry <앞 챕터 eph.json>`(2026-08-18 배선) · 전직 정책 = 5-4 뒤
   - ★**Q3 사슬 실증 완료(2026-08-18)**: m002 → m003 인계 4명(뤼에르 Lv2 exp8 · 반드레 exp9 · 클랜 exp47 · 프랑 exp13),
     m003 검증 통과·AI 결손 0·6턴 승리. 인계 경로가 실기보 → carryover → setup → 국면까지 닫혔다
