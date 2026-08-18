@@ -228,3 +228,57 @@ describe("절대 적용의 국면 복원", () => {
     expect(replayed.units[0].weapon).toEqual(lance);
   });
 });
+
+/**
+ * ★스크립트가 행동 도중 페이즈를 닫는 경우 — 라이브와 재생이 갈리던 자리 (MP8 A7).
+ *
+ * 왜 위험했나: m002는 `行動後フェイズ終了` 변수로 **그 행동에서 페이즈를 끝낸다**
+ * (events/index.ts — 안 지키면 재배치된 유닛이 한 번 더 움직인다). 라이브는 거기서 진짜 endPhase를
+ * 돌려 활성화 리셋(acted·moved·broken·인게이지 턴·지형회복·상태 에이징)을 하는데,
+ * 재생의 `case "phase"`는 **필드 하나만 바꿨다**. 그래서 재생 국면에는 전 유닛의 `acted`가 남고
+ * 다음 자군 행동이 "행동 완료 유닛"으로 거부된다 — **생성한 기보가 재생되지 않는다**.
+ * 궤적 의존이라 시드를 바꾸면 사라져서 "나쁜 시드"로 오인되기 쉬웠다(`./dev replay m002 --seed 3` 재현).
+ *
+ * 층별 테스트로는 안 잡힌다: reduce도 맞고 applyEventList도 맞는데 **사이**가 끊겨 있었다.
+ */
+describe("★행동 중 페이즈 종료 — 라이브 == 재생 (관통)", () => {
+  const build = () => {
+    const initial = state([
+      unit({ id: "a", force: 0, x: 1, y: 0, weapon: sword }),
+      unit({ id: "b", force: 0, x: 0, y: 2, weapon: sword }),
+      unit({ id: "e", force: 1, x: 2, y: 0, stats: foeStats, hp: 30, weapon: sword }),
+    ]);
+    const action: BattleAction = { type: "attack", unit: "a", target: "e" };
+    const rec = recordingSource(seq(...Array.from({ length: 20 }, (_, i) => (i * 13) % 100)));
+    const attacked = reduce(initial, action, rec);
+    // 스크립트가 행동 뒤 페이즈를 닫는다 — 라이브는 진짜 endPhase를 이어 돌리고 이벤트를 합친다.
+    const closed = reduce(attacked, { type: "endPhase" }, seq());
+    const step: EphemerisStep = {
+      action,
+      rolls: rec.drain(),
+      events: [...attacked.events, ...closed.events],
+    };
+    return { initial, step, live: closed };
+  };
+
+  it("재생 국면이 라이브 국면과 같다(phase·turn·활성화 플래그)", () => {
+    const { initial, step, live } = build();
+    const replayed = replayer.applyStep(initial, step);
+
+    expect(replayed.phase).toBe(live.phase);
+    expect(replayed.turn).toBe(live.turn);
+    for (const u of live.units) {
+      const r = replayed.units.find((x) => x.id === u.id)!;
+      expect({ id: r.id, acted: r.acted, moved: r.moved, broken: r.broken }).toEqual({
+        id: u.id, acted: u.acted, moved: u.moved, broken: u.broken,
+      });
+    }
+  });
+
+  it("재생 뒤 새 진영의 유닛이 실제로 행동할 수 있다(거부되지 않는다)", () => {
+    const { initial, step } = build();
+    const replayed = replayer.applyStep(initial, step);
+    const mover = replayed.units.find((u) => u.force === replayed.phase && !u.dead)!;
+    expect(() => reduce(replayed, { type: "wait", unit: mover.id }, seq())).not.toThrow();
+  });
+});

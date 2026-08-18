@@ -136,6 +136,7 @@ export {
   aiIsRandom,
   betterAttack,
   compareBlow,
+  rejectsLowKill,
   getAttackPosition,
   getAttackScore,
   moveImageOf,
@@ -224,3 +225,11 @@ export {
   type CombatantWeapon,
   type SideForecast,
 } from "./formula/combat.js";
+export {
+  createRandom,
+  INIT_SPIN,
+  randomFromState,
+  seedState,
+  type Random,
+  type RandomState,
+} from "./random.js";

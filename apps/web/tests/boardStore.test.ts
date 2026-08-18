@@ -465,3 +465,70 @@ describe("지팡이 회복 (MP0)", () => {
     expect(undone.units.find((u) => u.id === "u0")!.staves![0].uses).toBe(2);
   });
 });
+
+/**
+ * ★관통 테스트 — 되돌리기 x 난수 커서 (MP8 A6).
+ *
+ * 왜 위험했나: 엔진의 난수 계약과 스토어의 되돌리기는 **다른 층**이라, 층별 테스트는 둘 다 그린이었다.
+ * 엔진은 "주입된 난수를 그대로 쓴다"를 지키고, 스토어는 "국면을 정확히 되돌린다"를 지켰다.
+ * 그런데 사이가 끊겨 있었다 — `undo`가 국면만 되돌리고 **난수 커서를 안 되돌려서**,
+ * 되감고 같은 수를 다시 두면 다른 결과가 나왔다. 인게임은 정확히 반대다(사용자 실측 2026-08-19:
+ * 되감아도 같고, 사이에 다른 캐릭터가 조금이라도 때리면 바뀐다).
+ * 오류도 경고도 없이 조용히 틀리는 종류라, 이 경계에 하나 박제한다.
+ *
+ * 정본 = MapHistory가 난수 4워드를 통째로 저장·복원한다(WriteRandom 0x24CC2D0 / ReadRandom 0x24CBA00).
+ * 판독물 = ~/fesim_data/extracted/il2cpp/_mp8/A6_s5s6_rewind.md §5·§6
+ */
+describe("★되돌리기 x 난수 커서 (관통)", () => {
+  const rollsOf = (store: ReturnType<typeof createBoardStore>): number[] =>
+    store.getState().recording.at(-1)?.rolls ?? [];
+
+  it("되감고 같은 수를 다시 두면 같은 결과다", () => {
+    const store = createBoardStore(props, undefined, undefined, undefined, 20260819);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const first = store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const firstRolls = rollsOf(store);
+    expect(firstRolls.length).toBeGreaterThan(0);
+
+    store.getState().undo();
+    const again = store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+
+    expect(rollsOf(store)).toEqual(firstRolls);
+    expect(again.events).toEqual(first.events);
+  });
+
+  it("사이에 다른 행동이 끼면 결과가 달라진다(정본이 그렇다)", () => {
+    // 자군 2기 판 — 되감은 뒤 **다른 유닛이 먼저 때리는** 상황이라야 커서가 밀린다.
+    const twoAllies = boardFixture();
+    twoAllies.units = [...twoAllies.units, { ...twoAllies.units[0]!, x: 3, y: 1, pid: "PID_ally2" }];
+    const store = createBoardStore(twoAllies, undefined, undefined, undefined, 20260819);
+
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const firstRolls = rollsOf(store);
+    expect(firstRolls.length).toBeGreaterThan(0);
+
+    store.getState().undo();
+    store.getState().dispatch({ type: "attack", unit: "u2", target: "u1" }); // 다른 유닛이 한 대 때린다
+    expect((store.getState().recording.at(-1)?.rolls ?? []).length).toBeGreaterThan(0);
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+
+    expect(rollsOf(store)).not.toEqual(firstRolls);
+  });
+
+  it("같은 시드면 같은 판이 열린다 — 시드가 기보에 실린다", () => {
+    const a = createBoardStore(props, undefined, undefined, undefined, 4242);
+    const b = createBoardStore(props, undefined, undefined, undefined, 4242);
+    a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    b.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(rollsOf(a)).toEqual(rollsOf(b));
+    expect(a.getState().toFile().seed).toBe(4242);
+  });
+
+  it("시드가 다르면 다른 판이다(커서 복원이 시드를 무시하지 않는다)", () => {
+    const a = createBoardStore(props, undefined, undefined, undefined, 1);
+    const b = createBoardStore(props, undefined, undefined, undefined, 2);
+    a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    b.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(rollsOf(a)).not.toEqual(rollsOf(b));
+  });
+});

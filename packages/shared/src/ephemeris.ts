@@ -87,6 +87,13 @@ export interface EphemerisFile extends EphemerisHeader {
   eph: 1;
   chapter: { cid: string; difficulty: Difficulty; scenario?: string };
   setup?: EphemerisSetup;
+  /**
+   * 이 판을 연 난수 시드 — `App.Random.Initialize(uint)` 대응(시딩 + Spin 20).
+   * ☠재생에 쓰이지 않는다(재생 정본은 여전히 step.rolls·events). 이것이 사는 자리는 **되돌리기**다:
+   * 되감은 지점의 난수 커서를 `시드 + 남은 롤 수만큼 공전`으로 복원한다(인게임 = 4워드 커서 복원).
+   * 부재 = 옛 기보. 그때는 세션이 새 시드를 잡고, 되돌리기 재현은 그 세션 안에서만 성립한다.
+   */
+  seed?: number;
   log: EphemerisStep[];
   meta?: { title?: string; author?: string; created?: string };
 }
@@ -142,6 +149,7 @@ export function parseEphemeris(text: string): EphemerisFile {
       for (const u of Object.values(units)) assert(isRecord(u), "setup.units 원소가 객체가 아니다");
     }
   }
+  if (raw.seed !== undefined) assert(typeof raw.seed === "number", "seed가 숫자가 아니다");
   const log = raw.log;
   assert(Array.isArray(log), "log가 배열이 아니다");
   for (const step of log) {

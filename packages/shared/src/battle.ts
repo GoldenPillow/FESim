@@ -50,6 +50,13 @@ export interface BattleWeapon extends CombatantWeapon {
   kind: number;
   /** 무기 부여 스킬(EquipSids 행 사영) — 장비 중에만 유효 스킬에 합류(특효 스킬의 원천). */
   sids?: SkillRow[];
+  /**
+   * items.json `Enhance.*` — **장비 중 스탯 강화**(무기 35종이 든다: 티르핑 마방+5 등).
+   * ☠도핑 아이템 전용이 아니다. 정본 = `UnitEnhanceCalculator.Commit1st`(0x1F74B40)가
+   * 0x1F74C44에서 장착 아이템의 `Enhance`(0xB0)를 직접 읽는다.
+   * 소비는 `toCombatant` 한 곳 — `UnitState.stats`에 더하면 레벨업 상한 판정이 오염된다.
+   */
+  enhance?: Partial<StatBlock>;
   name?: string;
 }
 

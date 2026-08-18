@@ -982,14 +982,16 @@ export function healMindTo(ctx: HandlerContext, opcode: number): ActionResult {
   // ActionHealMiddleLow만 `m_Think == AttackHigh(5)`에서 차단된다.
   if (opcode === ACT.healMiddleLow && ctx.think === AI_THINK.attackHigh) return NONE;
   if (!aiHealCondition(ctx.unit).askHealB) return NONE;
-  if (((ctx.unit.ai?.flag ?? 0) & AI_FLAG.heal) === 0) {
-    // 상처약 경로가 막혔다 → 회복 지형 경로(Hc_Terrain)로 넘어가는데 그 플래그의 출처가 미판독이다.
-    return { kind: "deficit", reason: "회복 지형 경로 미판독: HealMindToTerrain 게이트(Hc_Terrain)" };
-  }
+  // ☠종전에는 여기서 결손을 뱉었다(90건). **가짜 결손이었다**(2026-08-19 MP8 A3):
+  // 상처약 경로가 막히면 정본은 `HealMindToTerrain`으로 넘어가는데, 그 게이트 `Hc_Terrain`(UnitAI.Flag 8)을
+  // 세우는 곳은 `SetupSummon`(0x1F607C4)·`SetupVersus`(0x1F60A84) **딱 2곳**이고 `SetDisposAi`는 세우지 않는다
+  // (.text 전수 스캔). ⇒ 통상 챕터의 dispos 유닛에서 이 경로는 **코드상 도달 불가**이고 정본도 None이다.
+  // 즉 산출 행동은 처음부터 같았고 결손 리포트만 90건 울리고 있었다.
+  // ⚠비계 — **제거 조건 = 소환수(SetupForSummon) 모델링**. 그때는 `Hc_Terrain` +
+  //   `GetTerrainHealPosition`(0x195ABA0, 미판독)을 실제로 이식해야 한다.
+  if (((ctx.unit.ai?.flag ?? 0) & AI_FLAG.heal) === 0) return NONE;
   const idx = (ctx.unit.consumables ?? []).findIndex((c) => c.addType === 2 && c.uses > 0);
-  if (idx < 0) {
-    return { kind: "deficit", reason: "회복 지형 경로 미판독: HealMindToTerrain 게이트(Hc_Terrain)" };
-  }
+  if (idx < 0) return NONE;
   return { kind: "decide", actions: [{ type: "item", unit: ctx.unit.id, item: idx }] };
 }
 

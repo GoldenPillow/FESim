@@ -489,6 +489,23 @@ const STAT_FIELDS: Record<keyof StatBlock, string> = {
 
 const DIFF_SUFFIX: Record<Difficulty, string> = { n: "N", h: "H", l: "L" };
 
+/**
+ * items.json `Enhance.*` → 엔진 스탯 키. 비0인 항목만 담고, 전부 0이면 undefined(스냅숏 군살 방지).
+ * ☠`Enhance`는 도핑 아이템 전용이 아니다 — 무기 35종이 이 열을 든다(2026-08-19 MP8 A8 확인).
+ */
+const enhanceBlock = (row: Record<string, unknown>): Partial<StatBlock> | undefined => {
+  const out: Partial<StatBlock> = {};
+  let any = false;
+  for (const [key, field] of Object.entries(STAT_FIELDS) as [keyof StatBlock, string][]) {
+    const v = Number(row[`Enhance.${field}`] ?? 0);
+    if (v !== 0) {
+      out[key] = v;
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+};
+
 const statBlock = (row: Record<string, unknown>, prefix: string): StatBlock => {
   const out = {} as StatBlock;
   for (const [key, field] of Object.entries(STAT_FIELDS) as [keyof StatBlock, string][]) {
@@ -820,6 +837,11 @@ export interface BoardWeaponProp {
   rangeMax: number;
   /** items.json Kind — 상성(브레이크) 판정 입력. */
   kind: number;
+  /**
+   * items.json `Enhance.*` — 장비 중 스탯 강화(무기 35종이 든다: 티르핑 마방+5 등).
+   * ☠도핑 아이템 전용이 아니다. 엔진 `toCombatant`가 소비한다.
+   */
+  enhance?: Partial<StatBlock>;
   /** 무기 부여 스킬 행(EquipSids 슬림 사영) — 장비 중에만 유효(엔진 effectiveSkills 합류). */
   sids?: SkillRow[];
 }
@@ -1069,6 +1091,12 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
     ...(() => {
       const rows = (row.EquipSids ?? []).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
       return rows.length > 0 ? { sids: rows } : {};
+    })(),
+    ...(() => {
+      // 장비 중 스탯 강화(items.json `Enhance.*`) — 무기 35종이 든다(티르핑 마방+5 등).
+      // ☠도핑 아이템 전용이 아니다. 소비는 엔진 toCombatant 한 곳.
+      const enhance = enhanceBlock(row);
+      return enhance === undefined ? {} : { enhance };
     })(),
   };
 };

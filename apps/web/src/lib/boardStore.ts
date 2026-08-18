@@ -9,7 +9,8 @@ import {
   type BattleAction,
   type GameState,
   type MoveType,
-  type RandomSource,
+  createRandom,
+  type Random,
   type Reduce,
   type Timeline,
   type UnitState,
@@ -41,7 +42,11 @@ export interface EventWiring {
 
 /** 공유 열람(/s/)의 서버 렌더가 같은 재생기를 쓴다 — 스냅숏 계산이 서버·클라에서 갈라지면 안 된다. */
 export const replayer = createReplayer(reduce);
-const liveRng: RandomSource = { next: (bound: number) => Math.floor(Math.random() * bound) };
+/**
+ * 판을 열 시드 — 인게임은 `DateTime.Now.Ticks` 하위 32비트(부팅)·`FrameCount + System.GetValue()`(맵 개시)라
+ * 실기에서도 재현 불가다. 우리는 그 자리에 **기록되는 시드**를 넣는다(기보 헤더 seed).
+ */
+const freshSeed = (): number => (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
 
 /** dispos Flag 하위 3비트 = 난이도 마스크(IsDifficulty 0x1CFB5B0의 테이블 @0x4D6BF70 = {1,2,4}). */
 const DIFFICULTY_BIT: Record<Difficulty, number> = { n: 1, h: 2, l: 4 };
@@ -309,12 +314,25 @@ export function createBoardStore(
   setup?: EphemerisSetup,
   events?: EventWiring,
   /**
-   * 실굴림 난수원 — 생략 = `Math.random`(브라우저 플레이). ☠기보 **생성**은 이것을 주입해야 재현된다:
-   * 재생은 기록된 rolls를 그대로 먹어 결정론이지만, 생성은 매 실행 다른 판이 나와 회귀 판정이 못 선다
-   * (`./dev replay --seed`). 엔진 계약(난수는 항상 주입)의 웹측 주입구다.
+   * ★판의 난수 시드 — 생략 = 매 판 새로 잡는다. 기보 헤더(`seed`)에 실려 저장·복원된다.
+   * ☠**`RandomSource` 주입이 아니라 시드 주입이다**(2026-08-19 MP8 A6): 되돌리기가 정본처럼 동작하려면
+   * 커서를 되돌릴 수 있어야 하고, 그러려면 상태를 가진 PRNG를 **스토어가 소유**해야 한다.
+   * `Math.random`은 되돌릴 상태 자체가 없어 원리적으로 불가능했다.
    */
-  rng: RandomSource = liveRng,
+  seedIn?: number,
 ): BoardStore {
+  const seed = seedIn ?? replayInit?.file.seed ?? freshSeed();
+  /** Game 스트림(전투 판정) — 인게임의 `Random.Game`에 대응. AI(System)는 웹이 아직 안 돌린다. */
+  let rng: Random = createRandom(seed);
+
+  /** 되감은 지점의 커서 복원 — 정본은 4워드를 통째로 복원한다(MapHistory ReadRandom 0x24CBA00).
+   *  우리는 굴림 1회 = 전진 1회가 보장되므로 **시드에서 남은 롤 수만큼 공전**해 같은 지점을 만든다. */
+  const rewindRng = (log: readonly EphemerisStep[]): void => {
+    let spins = 0;
+    for (const step of log) spins += step.rolls?.length ?? 0;
+    rng = createRandom(seed);
+    rng.spin(spins);
+  };
   const evented = events !== undefined && props.script !== undefined;
 
   /** 리플레이 검증 — 이벤트 챕터는 새 세션의 이벤트 리듀서로 재계산한다(스텝 재현 = 세션 재구축). */
@@ -362,6 +380,7 @@ export function createBoardStore(
     });
 
     const fresh = (difficulty: Difficulty, scenario: string | undefined) => {
+      rewindRng([]); // 새 판 = 커서도 판 머리로(같은 시드면 같은 판이 열린다)
       const next = boot(difficulty, scenario, get().setup);
       live = next.live;
       set({
@@ -435,6 +454,7 @@ export function createBoardStore(
         const base = initGame(props, difficulty, scenario, currentSetup);
         let state = base.game;
         for (const step of log) state = replayer.applyStep(state, step);
+        rewindRng(log); // ★국면만 되돌리면 같은 수를 다시 둬도 다른 결과가 나온다 — 커서도 되돌린다
         set({ game: state, recording: log });
         saveSlot(saveKey(), get().toFile());
       },
@@ -471,6 +491,7 @@ export function createBoardStore(
           ruleVersion: RULE_VERSION,
           chapter: { cid: props.mapId, difficulty, scenario },
           ...(currentSetup === undefined ? {} : { setup: currentSetup }),
+          seed,
           log: recording,
           ...(meta === undefined ? {} : { meta }),
         };

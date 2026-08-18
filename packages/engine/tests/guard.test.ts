@@ -184,14 +184,19 @@ describe("체인가드 치환 — 전투 해결", () => {
     expect(next.units[0].exp).toBe(0);
   });
 
-  it("가드 경험치 감쇠 — 루나틱 레벨 20 가드가 레벨 1을 지키면 clamp 하한 1, 다타격이어도 전투당 1회", () => {
+  /**
+   * ☠이 테스트는 2026-08-19 이전까지 **틀린 거동을 고정하고 있었다** — 가드가 추격까지 두 번 막는다고
+   * 적어 두었다(`30 - 6 - trunc(24*0.2)`). 정본은 성립 즉시 `Status.ChainGuarded`가 새겨져
+   * 다음 타격 후보에서 빠지므로 **전투당 1회**다(MP8 A1 §4, 0x246F578). 기대값을 정본으로 되돌린다.
+   */
+  it("가드 경험치 감쇠 — 루나틱 레벨 20 가드가 레벨 1을 지키면 clamp 하한 1, 가드는 전투당 1회", () => {
     const { attacker, defender, guard } = battlefield();
     guard.level = 20;
-    attacker.stats = { ...baseStats, spd: 20 }; // 추격 발생 — 가드가 두 번 받아도 경험은 1건
-    const rng = counting([0, 0]);
+    attacker.stats = { ...baseStats, spd: 20 }; // 추격 발생 — 그래도 가드는 첫 타격만 막는다
+    const rng = counting([0, 0, 0, 0, 0, 0]);
     const next = reduce(state([attacker, defender, guard], 1, "l"), { type: "attack", unit: "e", target: "d" }, rng);
     expect(next.events.filter((ev) => ev.type === "exp")).toEqual([{ type: "exp", unit: "g", amount: 1, total: 1 }]);
-    expect(next.units[2].hp).toBe(30 - 6 - Math.trunc(24 * 0.2)); // 두 번째 블록은 줄어든 현재 HP 기준
+    expect(next.units[2].hp).toBe(30 - 6); // 1회만 막는다
   });
 
   it("chainGuardFor — 인접 1·같은 군·생존·스탠스만 (UI 예보 공용)", () => {
@@ -219,3 +224,47 @@ describe("체인가드 재생(절대 적용)", () => {
     expect(replayed.units[1].hp).toBe(30);
   });
 });
+
+/**
+ * 체인가드 수명 — **전투당 1회, 성립하면 스탠스가 소모된다** (MP8 A1 §4 판독).
+ *
+ * 왜 위험했나: 우리는 가드를 **전투 시작 시 한 번 구해 전 타격에 재사용**했다.
+ * 정본은 가드가 성립하는 순간 `Status.ChainGuarded`(0x2471740)를 새기고 그 사이드를 다음 타격
+ * 후보에서 제외하며(0x246F578), 전투가 끝나면 `CommitUnit`(0x2477FB8)이 `Unit.Status.ChainGuard(64)`를
+ * 지운다. ⇒ 우리 쪽은 **추격이 있는 전투에서 대미지를 과소·가드 HP 손실을 과대**로 냈고,
+ * 스탠스는 자기 턴이 돌아올 때까지 무한히 남았다. 둘 다 화면에는 "막았다"로만 보인다.
+ */
+describe("체인가드 수명 — 전투당 1회 + 성립 시 소모", () => {
+  const setup = () => {
+    // 공격자가 빠르다(추격 성립) → 본공격 + 추격 2타.
+    const atk = unit({ id: "a", force: 1, x: 2, y: 0, stats: { ...baseStats, spd: 20 }, weapon: sword });
+    // ☠방어측은 무기 없음 — 반격 크리로 공격자가 죽으면 추격 자체가 안 일어나 시험이 무의미해진다.
+    const def = unit({ id: "d", force: 0, x: 1, y: 0 });
+    const g = monk({ id: "g", force: 0, x: 0, y: 0, guarding: true });
+    return { atk, def, g };
+  };
+
+  it("한 전투에서 같은 가드가 두 번 막지 않는다(추격은 대상이 맞는다)", () => {
+    const { atk, def, g } = setup();
+    const s = state([atk, def, g], 1);
+    const next = reduce(s, { type: "attack", unit: "a", target: "d" }, counting([0, 9999, 0, 9999, 0, 9999, 0, 9999]));
+    const blocks = next.events.filter((e) => e.type === "guardBlock");
+    expect(blocks).toHaveLength(1);
+    // 두 번째 타격은 대상이 실제로 맞아야 한다 — 막았으면 HP가 그대로다.
+    expect(next.units.find((u) => u.id === "d")!.hp).toBeLessThan(baseStats.hp);
+  });
+
+  it("가드가 성립하면 스탠스가 소모된다(다음 전투는 못 막는다)", () => {
+    const { atk, def, g } = setup();
+    const after = reduce(state([atk, def, g], 1), { type: "attack", unit: "a", target: "d" }, counting([0, 9999, 0, 9999, 0, 9999, 0, 9999]));
+    expect(after.units.find((u) => u.id === "g")!.guarding).not.toBe(true);
+  });
+
+  it("성립하지 않았으면 스탠스는 남는다(소모는 성립의 대가다)", () => {
+    const g = monk({ id: "g", force: 0, x: 0, y: 0, guarding: true });
+    const atk = unit({ id: "a", force: 1, x: 5, y: 5, weapon: sword });
+    const far = unit({ id: "d", force: 0, x: 5, y: 4, weapon: sword }); // 가드와 인접하지 않다
+    const after = reduce(state([atk, far, g], 1), { type: "attack", unit: "a", target: "d" }, counting([0, 9999, 0, 9999, 0, 9999, 0, 9999]));
+    expect(after.units.find((u) => u.id === "g")!.guarding).toBe(true);
+  });
+})
