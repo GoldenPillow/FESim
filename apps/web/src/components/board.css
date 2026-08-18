@@ -121,6 +121,7 @@
 .board .layer.overlays,
 .board .layer.structures,
 .board .layer.roofs,
+.board .layer.ghosts,
 .board .layer.marks {
   position: absolute;
   inset: 0;
@@ -295,12 +296,32 @@
   position: absolute;
   left: 12%;
   right: 12%;
-  bottom: 4%;
+  /* 경험치 바가 아래 한 줄을 가져간다 — HP를 그만큼 올린다. */
+  bottom: 11%;
   height: 8%;
   background: rgb(0 0 0 / 0.55);
   border-radius: 2px;
   overflow: hidden;
   pointer-events: none;
+}
+/* 경험치 바 — HP 바 바로 아래 노란 줄(자군 전용). 다음 레벨까지의 진척이 한눈에 읽혀야
+   "이 격파를 누구에게 주는가"가 전략 판단이 된다. */
+.board .expbar {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 4%;
+  height: 5%;
+  background: rgb(0 0 0 / 0.55);
+  border-radius: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.board .expbar i {
+  display: block;
+  height: 100%;
+  background: #ffd23e;
+  transition: width 300ms ease;
 }
 .board .hpbar i {
   display: block;
@@ -311,6 +332,115 @@
 /* React 스타일 직렬화는 콜론 뒤 공백이 없다 — 값 부분만 매칭 */
 .board .cell[style*="#e2635c"] .hpbar i {
   background: linear-gradient(90deg, #f0a058, #e2635c);
+}
+
+/*
+  행동 연출 — 플레이·리플레이 공용(같은 스텝 이벤트가 소스다).
+  돌진 폭 = **스프라이트 1픽셀**: 아이콘은 48px 캔버스를 tile×icon-scale로 늘려 그리므로
+  화면 1아트픽셀 = (tile × icon-scale) / 48 이다(사용자 지정 "캐릭터 픽셀 기준 1픽셀").
+*/
+.board .cell.nudge,
+.board .cell.hit {
+  animation-duration: 240ms, 1s;
+  animation-timing-function: ease-out, ease-in-out;
+  animation-fill-mode: none;
+}
+.board .cell.nudge {
+  --fx-step: calc(var(--tile) * var(--m-icon-scale) / 48);
+}
+@keyframes cell-nudge-a {
+  50% {
+    transform: translate(calc(var(--nx) * var(--fx-step)), calc(var(--ny) * var(--fx-step)));
+  }
+}
+@keyframes cell-nudge-b {
+  50% {
+    transform: translate(calc(var(--nx) * var(--fx-step)), calc(var(--ny) * var(--fx-step)));
+  }
+}
+/* 피격 = 테두리 붉은 펄스 1초. ::after를 써서 선택 링(::before)과 겹쳐도 서로 지우지 않는다. */
+.board .cell.hit::after {
+  content: "";
+  position: absolute;
+  inset: 4%;
+  border-radius: 4px;
+  border: 2px solid #e2635c;
+  box-shadow: 0 0 8px rgb(226 99 92 / 0.8);
+  pointer-events: none;
+  animation: hit-ring 1s ease-in-out;
+}
+@keyframes hit-ring {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  55% {
+    opacity: 1;
+  }
+}
+@keyframes cell-hit-a {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cell-hit-b {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+  전사 잔상 — 죽은 유닛은 즉시 사라져 테두리 펄스를 걸 몸이 없다.
+  스프라이트의 알파를 **마스크**로 써서 도트 실루엣 그대로 단색 적색을 채운다(색 필터가 아니라
+  마스크라야 원본 색과 무관하게 정확한 실루엣이 나온다). 발밑 앵커는 유닛 아이콘과 같은 식.
+*/
+.board .layer.ghosts {
+  z-index: 4;
+}
+.board .ghost {
+  pointer-events: none;
+}
+.board .ghost .sil {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--tile) * -1 * var(--m-icon-foot));
+  width: calc(var(--tile) * var(--m-icon-scale));
+  height: calc(var(--tile) * var(--m-icon-scale));
+  transform: translateX(-50%);
+  background: #e2635c;
+  mask: var(--sil) center / contain no-repeat;
+  -webkit-mask: var(--sil) center / contain no-repeat;
+  image-rendering: pixelated;
+  animation: ghost-pulse 2s ease-in-out forwards;
+}
+/* 아이콘이 없는 유닛(칩 표시)은 마스크할 그림이 없다 — 타일 크기 단색 사각으로 같은 펄스만 준다. */
+.board .ghost .sil.solid {
+  width: calc(var(--tile) * 0.7);
+  height: calc(var(--tile) * 0.7);
+  bottom: 15%;
+  border-radius: 3px;
+  mask: none;
+  -webkit-mask: none;
+}
+@keyframes ghost-pulse {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  40% {
+    opacity: 0.3;
+  }
+  62% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* 브레이크 뱃지 */
