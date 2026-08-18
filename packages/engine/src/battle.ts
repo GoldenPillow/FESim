@@ -154,8 +154,12 @@ export interface UnitState {
   attrs?: number;
 }
 
-/** 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024. */
-export const BAD_STATE = { silence: 32, freeze: 256, stun: 1024 } as const;
+/**
+ * 엔진이 소비하는 BadState 비트(SkillData.States) — 침묵 32 · 이동불가 256 · 기절 1024 · 유인 4096.
+ * ☠유인(decoy)은 상태를 **거는 경로가 아직 없다**(부여 = `SID_囮指名`, 스킬 부여층 미배선) —
+ * 소비 측(적 AI 우선권 S1 하드 게이트)만 정본대로 서 있다. 제거 조건 = GiveSids 부여층 배선.
+ */
+export const BAD_STATE = { silence: 32, freeze: 256, stun: 1024, decoy: 4096 } as const;
 
 /** 상태 비트 보유 판정 — bit는 마스크 합성 가능(freeze | stun). UI·reduce 공용(중복 구현 금지). */
 export function hasBadState(u: UnitState, bit: number): boolean {

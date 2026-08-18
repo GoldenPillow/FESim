@@ -24,19 +24,6 @@ const { createServer } = await import(
   pathToFileURL(createRequire(resolve(ROOT, "package.json")).resolve("vite")).href
 );
 
-/** mulberry32 — 시드 하나로 재현되는 32비트 PRNG(암호용 아님, 판 재현용). */
-const mulberry32 = (seed) => {
-  let a = seed >>> 0;
-  return {
-    next: (bound) => {
-      a = (a + 0x6d2b79f5) >>> 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * bound);
-    },
-  };
-};
-
 const args = process.argv.slice(2);
 const cid = args.find((a) => !a.startsWith("--"));
 if (cid === undefined) {
@@ -61,10 +48,13 @@ const outPath = resolve(ROOT, flag("out", `data/fe17/replays/${cid}.eph.json`));
 // 수순의 효과를 대조하는 스위치고, `--opening-check`는 해석 결과만 보고 **파일을 쓰지 않는다**(수순 검수).
 const openingCheck = args.includes("--opening-check");
 const opening = args.includes("--no-opening") ? undefined : loadOpening(ROOT, cid);
-const liveRng = { next: (bound) => Math.floor(Math.random() * bound) };
+/** 시드 미지정 = 매 실행 다른 판(회귀 판정이 못 선다 — 기보 생성은 항상 --seed를 준다). */
+const freshSeed = () => (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
 const seed = seedArg === undefined ? undefined : Number(seedArg);
-const playerRng = seed === undefined ? liveRng : mulberry32(seed);
-const enemyRng = seed === undefined ? liveRng : mulberry32(seed ^ 0x9e3779b9);
+// ★난수는 인게임 정본 PRNG(xorshift128 + Spin20)로 통일했다(2026-08-19 MP8 A6) —
+// 종전 mulberry32는 우리 것이라 "인게임에서 같은 판이 나오는가"를 물을 수조차 없었다.
+// 스트림 2개는 정본의 Game(전투 판정)·System(AI)에 대응한다.
+const gameSeed = seed === undefined ? freshSeed() : seed;
 
 const server = await createServer({
   root: WEB,
@@ -83,6 +73,8 @@ try {
   const { createBoardStore, calculator, displayState } = await server.ssrLoadModule("/src/lib/boardStore.ts");
   const { eventWiringFor } = await server.ssrLoadModule("/src/lib/eventWiring.ts");
   const engine = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/engine/src/index.ts"));
+  /** AI(System) 스트림 — 정본도 판정(Game)과 별개 스트림이다(RNG_SYSTEM §3). */
+  const enemyRng = engine.createRandom(gameSeed ^ 0x9e3779b9);
   const eventsMod = await server.ssrLoadModule("/@fs" + resolve(ROOT, "packages/engine/src/events/index.ts"));
 
   const props = boardPropsFor(cid, locale);
@@ -144,7 +136,7 @@ try {
   );
   const wiring = eventWiringFor(props, eventsMod, commons);
   const setup = await carrySetup();
-  const store = createBoardStore(props, undefined, setup, wiring, playerRng);
+  const store = createBoardStore(props, undefined, setup, wiring, gameSeed);
   store.getState().setDifficulty(difficulty);
 
   const dispatch = (action) => store.getState().dispatch(action);

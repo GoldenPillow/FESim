@@ -7,8 +7,10 @@
  * ☠섞지 말 것 — 위치 스코어에는 기대 대미지·격파확률이 들어가지 않는다.
  */
 import {
+  BAD_STATE,
   canBreak,
   chainAttackers,
+  hasBadState,
   effectiveWeapons,
   makeCostAt,
   moveBudgetOn,
@@ -37,6 +39,15 @@ import { AI_FLAG, AI_THINK, ATTACK_FLAG, battleRateOf, BATTLE_RATE } from "./typ
 
 /** `AI.IsRandom()`(0x19235D0) = `Random.System.GetValue(2) != 0` — 동점 50% 코인플립. */
 export const aiIsRandom = (rng: RandomSource): boolean => rng.next(2) !== 0;
+
+/**
+ * `AttackHigh`(5) 회전의 저확률 기각(0x19566A0) — 격파확률 0.3 미만 후보를 버린다.
+ * ☠단 **유인(Decoy) 대상은 면제**된다(0x1956664). 면제가 없으면 유인이 저확률일 때
+ * 후보 목록에서 통째로 사라져 S1 하드 게이트가 볼 것 자체가 없어진다.
+ */
+export function rejectsLowKill(think: number, kill: number, targetDecoy: boolean): boolean {
+  return think === AI_THINK.attackHigh && kill < 0.3 && !targetDecoy;
+}
 
 /**
  * 도달 가능 칸 → 이동 코스트 이미지(`AIDeploy.MoveImage`). ★턴 1회 캐시가 아니라 **행동 시도 단위 재계산**(§5-A-4).
@@ -86,6 +97,8 @@ export interface AttackEvaluation extends AttackPosition {
   kill: number;
   dead: number;
   expectation: number;
+  /** 표적이 유인(Decoy) 상태인가 — S1 하드 게이트와 AttackHigh 기각 면제의 입력. */
+  decoy: boolean;
 }
 
 export interface AttackContext {
@@ -238,6 +251,8 @@ export function getAttackScore(
   const thinkBreak = ((actor.ai?.flag ?? 0) & AI_FLAG.break) !== 0;
   const thinkChain = ((actor.ai?.flag ?? 0) & AI_FLAG.chain) !== 0;
 
+  const targetDecoy = hasBadState(target, BAD_STATE.decoy);
+
   let best: AttackEvaluation | undefined;
   for (let i = 0; i < weapons.length; i++) {
     const weapon = weapons[i]!;
@@ -266,8 +281,7 @@ export function getAttackScore(
       defenseHp: target.hp,
       chainExpectation,
     });
-    // ★AttackHigh(5) 회전에서는 격파확률 0.3 미만 후보를 기각한다(0x19566A0).
-    if (ctx.think === AI_THINK.attackHigh && sim.kill < 0.3) continue;
+    if (rejectsLowKill(ctx.think, sim.kill, targetDecoy)) continue;
 
     const score = battleScore({
       rate: layout,
@@ -287,6 +301,7 @@ export function getAttackScore(
       kill: sim.kill,
       dead: sim.dead,
       expectation: sim.expectation,
+      decoy: targetDecoy,
     };
     if (best === undefined || betterAttack(candidate, best, ctx.rng)) best = candidate;
   }
@@ -294,12 +309,15 @@ export function getAttackScore(
 }
 
 /**
- * `CheckAttackPriorityImpl` — 파레토 지배 5단 → 스코어 → 동점 50% 코인플립.
- * ★(2)~(5)는 서열이 아니라 **파레토 지배**다: 하나라도 열세면 즉시 기각,
+ * `CheckAttackPriorityImpl`(0x1955ED0) — S1 하드 게이트 → 파레토 지배 → 스코어 → 동점 50% 코인플립.
+ * ★S2~S5는 서열이 아니라 **파레토 지배**다: 하나라도 열세면 즉시 기각,
  * 열세 없이 하나라도 우세면 **스코어를 보지 않고** 채택한다.
- * ☠유인(Decoy)·탄 적합성·AI 커맨드 좌표는 엔진 미모델링 = 무판정(장부 assumed).
+ * ☠S7은 `battle` **단일 uint 무부호 비교**다 — 다필드 사전식이 아니다(ATTACK_PRIORITY.md 정정 C3).
+ * ☠탄 적합성(S2)·AI 커맨드 좌표(S5)는 아직 미이식 = 무판정(장부 assumed, 대조표 항목 5·6·15~19).
  */
 export function betterAttack(next: AttackEvaluation, cur: AttackEvaluation, rng: RandomSource): boolean {
+  // S1 유인 하드 게이트(0x1955F54-F7C) — 다른 비교자보다 **앞**이고 OR에 넣지 않고 즉시 return한다.
+  if (next.decoy !== cur.decoy) return next.decoy;
   if (next.chainCount < cur.chainCount) return false;
   const chainCmp = next.chainCount > cur.chainCount ? -1 : 0;
   const blowCmp = compareBlow(next.blow, next.kill, cur.blow, cur.kill);
