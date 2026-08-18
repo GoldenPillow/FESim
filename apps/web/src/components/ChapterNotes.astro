@@ -14,7 +14,8 @@ const sections =
   view === undefined
     ? []
     : ([
-        { label: t.drops, entries: view.drops },
+        // ☠난이도마다 드랍이 다르다 — 기준을 안 밝히면 노멀 플레이어가 루나틱 드랍을 사실로 읽는다.
+        { label: view.dropsVaryByDifficulty ? `${t.drops} (${t.diffNames[view.difficulty]})` : t.drops, entries: view.drops },
         { label: t.visits, entries: view.visits },
         { label: t.rewards, entries: view.rewards },
         { label: t.ringsGain, entries: view.rings.gain },

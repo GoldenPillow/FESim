@@ -425,7 +425,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Chain guard", ko: "체인가드" },
     status: "assumed",
     evidence:
-      "배선(2026-08-18 MP1-6, guard.test.ts) — 치환 = 대상 대미지 0(브레이크 불발)·가드 trunc(현재 HP*0.2)·하한 없음·guardBlock 이벤트(절대 재생)·**가드가 서면 필살 롤 무소비**(CalcAttackHit 통째 스킵 = 난수 계약, CalcAttack 0x24716BC) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9·SEQUENCE_BREAK.md §2-11): 대미지 = trunc(가드 유닛의 **전투 내 현재 HP**(BattleInfoSide.Hp +0x94) * 0.2)이고 **하한 1이 없다**(HP 4 이하면 0) · 산식 선택 = GetChainGuardDamage(RVA 0x24720C0)가 Unit.Status.ChainGuard(64) 분기에서 calculator의 チェインガードダメージ를 평가 · 발동 게이트 = CalcChainGuardSide(RVA 0x246F3C0) — 피격 측이 Defense 또는 ChainDefense1~4일 때만 · 공격 측이 체인어택이면 무효 · BattleInfo.Flags.EngageAttack(인게이지 기술)이면 무효(둘 다 엔진 반영) · ⚠가정 = 보호 범위 인접 1(공식 도움말 '隣接する味方' 앵커 — 열거 코드 CalcChain 미판독)·복수 가드 선두 선택 = 유닛 목록 순",
+      "★수명 정정(2026-08-19 MP8 A1 §4, RULE_VERSION fe17-11) — **전투당 유닛 1회**이고 **성립하면 스탠스가 소모**된다. 종전에는 가드를 전투 시작에 한 번 구해 전 타격에 재사용했고(추격 있는 전투에서 대미지 과소·가드 HP 과대) 스탠스는 자기 활성화 복귀까지 남았다. 정본 = 성립 즉시 `Status.ChainGuarded`(0x2471740)를 새겨 다음 타격 후보에서 제외(0x246F578) + `CommitUnit`(0x2477FB8)이 `Unit.Status.ChainGuard(64)` 제거(DualGuard는 미소모). ☠**이미 있던 테스트가 옛 거동을 고정하고 있었다**(다타격 2회 블록을 기대값으로 박아 둠) — 정본으로 되돌렸다. 다른 가드가 이어받는 것은 허용(첫 후보 = ChainGuarded 없는 사이드). 배선(2026-08-18 MP1-6, guard.test.ts) — 치환 = 대상 대미지 0(브레이크 불발)·가드 trunc(현재 HP*0.2)·하한 없음·guardBlock 이벤트(절대 재생)·**가드가 서면 필살 롤 무소비**(CalcAttackHit 통째 스킵 = 난수 계약, CalcAttack 0x24716BC) · ★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §2-9·SEQUENCE_BREAK.md §2-11): 대미지 = trunc(가드 유닛의 **전투 내 현재 HP**(BattleInfoSide.Hp +0x94) * 0.2)이고 **하한 1이 없다**(HP 4 이하면 0) · 산식 선택 = GetChainGuardDamage(RVA 0x24720C0)가 Unit.Status.ChainGuard(64) 분기에서 calculator의 チェインガードダメージ를 평가 · 발동 게이트 = CalcChainGuardSide(RVA 0x246F3C0) — 피격 측이 Defense 또는 ChainDefense1~4일 때만 · 공격 측이 체인어택이면 무효 · BattleInfo.Flags.EngageAttack(인게이지 기술)이면 무효(둘 다 엔진 반영) · ⚠가정 = 보호 범위 인접 1(공식 도움말 '隣接する味方' 앵커 — 열거 코드 CalcChain 미판독)·복수 가드 선두 선택 = 유닛 목록 순",
   },
   {
     id: "combat.engage-guard",
@@ -924,6 +924,13 @@ export const FIDELITY: readonly FidelityEntry[] = [
     label: { en: "Magic damage detection (Kind 6 or flag)", ko: "마법 데미지 판별(Kind 6 또는 Flag bit16)" },
     status: "anchored",
     evidence: "item.xml 661건 전수 — Kind=6/Flag bit16 상호배타·반례 0(gaps/B §2, 2026-08-17)",
+  },
+  {
+    id: "weapons.equip-enhance",
+    label: { en: "Equipped item stat enhancement (Enhance.*)", ko: "장비 아이템 능력치 강화(Enhance.*)" },
+    status: "anchored",
+    evidence:
+      "★배선 완료(2026-08-19 MP8 A8, RULE_VERSION fe17-11) — **무기 35종**이 `items.json Enhance.*`를 든다(티르핑 마방+5 · 봉인의 검 수비/마방+5 · 빛의 검 행운+10 · 호신 체술 수비+5). 종전에는 이 열을 **도핑 아이템 전용으로 오해해 사영조차 없었고**, `m004`에 `GID_シグルド`가 실재하므로 **이미 발현 중인 결손**이었다(엠블렘 무기를 드는 순간 방어 수치가 실기와 갈린다). 정본 = `UnitEnhanceCalculator.Commit1st`(0x1F74B40)가 **0x1F74C44에서 장착 아이템의 `Enhance`(0xB0)를 직접 읽는다**(사슬 = `Unit.UpdateStateImpl` → `Unit.CommitEnhance` → `Commit1st`). 배선 = `fe17.ts enhanceBlock` 사영 → `BattleWeapon.enhance` → 엔진 `toCombatant` **한 곳**에서만 가산(☠`UnitState.stats`에 더하면 레벨업 상한 판정이 오염된다). 현행 데이터의 무기는 Def/Mdef/Luck/Quick/Str만 쓰고 Hp·Move는 0이나 계약은 맞춰 뒀다. 앵커 = enhance.test.ts 5건(스탯 가산·원본 불변·마방이 피해를 줄임·속도가 추격 임계를 넘김) + fe17.test.ts 사영 3건. ⚠미배선 = 로스터 화면의 표시 스탯(전투 입력에만 얹는다) · 신기 연성 시 `TryGetGodWeaponRefineResultEnhance`(0x2344BE0) 대체 경로",
   },
   {
     id: "weapons.cannon-hit-model",

@@ -825,9 +825,20 @@ export function canChainGuard(u: UnitState): boolean {
  * ⚠인접 1 = 공식 도움말 원문("隣接する味方") 앵커 — 열거 코드(CalcChain)는 미판독. 복수 가드 시
  * 선두 선택은 유닛 목록 순 가정. 예보 UI와 reduce가 같은 판정을 써야 한다(중복 구현 금지).
  */
-export function chainGuardFor(target: UnitState, units: readonly UnitState[]): UnitState | undefined {
+export function chainGuardFor(
+  target: UnitState,
+  units: readonly UnitState[],
+  /** 이번 전투에서 이미 막은 가드 — 정본이 `Status.ChainGuarded`로 후보에서 빼는 자리(0x246F578). */
+  spent?: ReadonlySet<string>,
+): UnitState | undefined {
   return units.find(
-    (g) => !g.dead && g.guarding === true && g.id !== target.id && g.force === target.force && manhattan(g, target) === 1,
+    (g) =>
+      !g.dead &&
+      g.guarding === true &&
+      g.id !== target.id &&
+      g.force === target.force &&
+      manhattan(g, target) === 1 &&
+      spent?.has(g.id) !== true,
   );
 }
 
@@ -888,8 +899,21 @@ export function toCombatant(
   supportEffects?: SupportEffects,
   patches?: readonly TerrainPatch[],
 ): Combatant {
+  // 장비 강화(items.json Enhance.*) — 무기가 스탯을 올린다(티르핑 마방+5 등, Commit1st 0x1F74C44).
+  // ☠u.stats에 더하지 않는다 — 레벨업 상한 판정이 오염된다. 전투 입력에서만 얹는다.
+  const enh = u.weapon?.enhance;
+  const stats = { ...u.stats, maxHp: u.stats.hp, hp: u.hp };
+  if (enh !== undefined) {
+    for (const key of STAT_KEYS) {
+      const add = enh[key] ?? 0;
+      if (add === 0) continue;
+      // Enhance.Hp는 최대 HP를 올린다(현재 HP는 그대로) — 현행 데이터의 무기엔 0이지만 계약은 맞춰 둔다.
+      if (key === "hp") stats.maxHp += add;
+      else stats[key] += add;
+    }
+  }
   return {
-    stats: { ...u.stats, maxHp: u.stats.hp, hp: u.hp },
+    stats,
     weapon: u.weapon,
     terrain: terrainBonusAt(map, u.x, u.y, u.force, patches),
     skills: effectiveSkills(u),
@@ -1112,8 +1136,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
 
         // 체인가드: 대상을 지키는 스탠스 유닛 — 본공격·추격만 치환(체인어택은 무효 — CalcChainGuardSide).
-        const guard = chainGuardFor(defender, units);
-        let guardBlocks = 0;
+        // ☠**전투당 유닛 1회**다 — 성립하는 순간 `Status.ChainGuarded`(0x2471740)가 새겨져 다음 타격
+        //   후보에서 빠진다(0x246F578). 미리 한 번 구해 전 타격에 재사용하면 추격 있는 전투에서
+        //   대상 대미지가 과소·가드 HP 손실이 과대로 나온다(2026-08-19 MP8 A1 §4에서 적발).
+        const spentGuards = new Set<string>();
+        const blockedGuards: UnitState[] = [];
 
         // 체인어택: 공격측 군의 연계 스타일 유닛 중 대상이 자기 무기 사거리 안인 유닛.
         const chainUnits = chainAttackers(attacker, defender, units);
@@ -1126,14 +1153,18 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         ): void => {
           if (from.dead || to.dead) return;
           const hit = isHit(numbers.hitRate, rng.next(10000));
-          if (hit && to === defender && kind !== "chain" && guard !== undefined) {
+          // 타격마다 다시 고른다 — 이미 막은 가드는 빠지고 **다른 가드가 이어받을 수 있다**.
+          const guard =
+            to === defender && kind !== "chain" ? chainGuardFor(defender, units, spentGuards) : undefined;
+          if (hit && guard !== undefined) {
             // 체인가드 치환 — 가드가 서면 CalcAttackHit(대미지·필살 롤)를 통째로 건너뛴다(CalcAttack 0x24716BC).
             // 대상 대미지 0(브레이크도 없음), 가드 = trunc(자기 현재 HP*0.2)·하한 없음(GetChainGuardDamage 0x24720C0).
             const gd = Math.trunc(
               calc.eval("チェインガードダメージ", combatEnv({ stats: { ...guard.stats, maxHp: guard.stats.hp, hp: guard.hp } })) as number,
             );
             guard.hp = Math.max(guard.hp - gd, 0);
-            guardBlocks += 1;
+            spentGuards.add(guard.id);
+            blockedGuards.push(guard);
             events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit: true, crit: false, damage: 0, hpAfter: to.hp });
             events.push({ type: "guardBlock", unit: guard.id, target: to.id, damage: gd, hpAfter: guard.hp });
             return;
@@ -1211,7 +1242,11 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         }
         // 가드 경험치 — チェインガード経験計算(상대 = 지킨 아군 = m_Parent, GetGuardExp 0x1E94390).
         // 다타격을 받아도 전투당 1회. 공격측 경험 뒤 = 사이드 순서(Offense 0 < ChainDefense 26+) 가정.
-        if (guardBlocks > 0 && guard !== undefined && guard.force === 0 && !guard.dead) {
+        for (const guard of blockedGuards) {
+          // ☠스탠스는 **성립의 대가로 소모**된다 — `CommitUnit`(0x2477FB8)이 `Unit.Status.ChainGuard(64)`를
+          //   지운다. 종전엔 자기 활성화가 돌아올 때까지 남아 한 번 세워 두면 계속 막았다.
+          delete guard.guarding;
+          if (guard.force !== 0 || guard.dead) continue;
           const difficulty = state.difficulty ?? "n";
           const gained = Math.floor(
             calc.eval("チェインガード経験計算", expEnv(guard, defender, 0, difficulty)) as number,
@@ -1580,7 +1615,7 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
               if (aged.force !== nextForce) return aged;
               const fresh: UnitState = { ...aged, acted: false, broken: false, moved: false };
               delete fresh.traded; // 새 활성화 — 교환 창 제약 해제
-              delete fresh.guarding; // 체인가드 스탠스 해제 — 수명 = 자기 활성화 복귀까지
+              delete fresh.guarding; // 체인가드 스탠스 해제 — 수명 = 자기 활성화 복귀 **또는 성립 시 소모**(둘 중 먼저)
               // 인게이지 소비 = 자기 페이즈 시작마다 1턴, 도달 시 해제 + 게이지 0 (ResetPhaseBeginAfter 코드 확정).
               const g = fresh.engage;
               if (g?.engaging === true && !fresh.dead) {

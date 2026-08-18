@@ -17,6 +17,8 @@ interface Strings {
   notes: {
     title: string; drops: string; visits: string; rewards: string; unlocks: string;
     shop: string; shopKinds: { weapon: string; item: string; fleaMarket: string };
+    /** 난이도 표기 — 드랍처럼 난이도마다 갈리는 항목의 기준을 밝힌다. */
+    diffNames: { n: string; h: string; l: string };
     ringsGain: string; ringsLose: string; ringsRegain: string; joins: string; cautions: string;
   };
   units: string;
@@ -124,6 +126,7 @@ export const UI: Record<Locale, Strings> = {
     notes: {
       title: "Chapter Notes", drops: "Drops", visits: "Visits", rewards: "Rewards", unlocks: "Unlocks",
       shop: "Shop stock", shopKinds: { weapon: "Weapons", item: "Items", fleaMarket: "Flea market" },
+      diffNames: { n: "Normal", h: "Hard", l: "Lunatic" },
       ringsGain: "Rings gained", ringsLose: "Rings lost", ringsRegain: "Rings regained", joins: "Joins",
       cautions: "Cautions",
     },
@@ -237,6 +240,7 @@ export const UI: Record<Locale, Strings> = {
     notes: {
       title: "챕터 노트", drops: "드랍", visits: "민가", rewards: "입수", unlocks: "해금",
       shop: "상점 입하", shopKinds: { weapon: "무기점", item: "도구점", fleaMarket: "벼룩시장" },
+      diffNames: { n: "노멀", h: "하드", l: "루나틱" },
       ringsGain: "반지 획득", ringsLose: "반지 상실", ringsRegain: "반지 회수", joins: "가입",
       cautions: "주의",
     },

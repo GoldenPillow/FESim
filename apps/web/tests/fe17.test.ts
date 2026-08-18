@@ -408,3 +408,28 @@ describe("문장사 배지 사영 (엠블렘 초상·게이지)", () => {
     expect(Object.keys(props.units[0]!)).not.toContain("weapon");
   });
 });
+
+/**
+ * 장비 강화(items.json `Enhance.*`) 사영 — 층 사이를 잇는 자리.
+ *
+ * 왜 위험했나: 엔진은 `toCombatant`에서 `weapon.enhance`를 소비할 준비가 돼 있어도,
+ * 이 어댑터가 안 실어 주면 값은 영원히 0이다. `Enhance.*`를 **도핑 아이템 전용**으로 오해해
+ * 사영 자체가 없었고, 그래서 티르핑을 든 시구르드의 마방 +5가 어디에도 안 나타났다(m004에 실재).
+ * 엔진 테스트는 enhance를 직접 넣으므로 영원히 그린이다 — 그 경계를 여기서 잡는다.
+ */
+describe("장비 Enhance 사영", () => {
+  it("엠블렘 무기 티르핑이 마방 +5를 싣는다", () => {
+    const [w] = attackWeapons(disposUnit({ items: [{ iid: "IID_シグルド_ティルフィング", drop: false }] }), "ko");
+    expect(w?.enhance).toEqual({ res: 5 });
+  });
+
+  it("강화가 없는 평범한 무기는 enhance를 안 단다(스냅숏 군살 방지)", () => {
+    const [w] = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko");
+    expect(w?.enhance).toBeUndefined();
+  });
+
+  it("일반 상점 무기도 강화를 든다(호신 체술 = 수비 +5)", () => {
+    const [w] = attackWeapons(disposUnit({ items: [{ iid: "IID_護身の法", drop: false }] }), "ko");
+    expect(w?.enhance).toEqual({ def: 5 });
+  });
+});
