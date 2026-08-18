@@ -21,6 +21,8 @@
   --ink: #e3e9ef;
   --muted: #909dab;
   --gold: #d9b878;
+  /* 리플레이 표지색 — 강조색(gold)과 겹치면 "재생 중"이 안 읽힌다. */
+  --replay: #5b9dff;
   --board-frame: #3a444f;
   --board-shadow: 0 22px 50px -26px rgb(0 0 0 / 0.9);
   color-scheme: dark;
@@ -34,6 +36,7 @@
   --ink: #171d24;
   --muted: #5b6773;
   --gold: #96712c;
+  --replay: #1f5fd0;
   --board-frame: #b9c2cc;
   --board-shadow: 0 18px 40px -24px rgb(23 29 36 / 0.55);
   color-scheme: light;

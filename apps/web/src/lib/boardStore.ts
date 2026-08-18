@@ -37,6 +37,7 @@ const reduce = baseReduce;
 export interface EventWiring {
   create(difficulty: Difficulty): Reduce;
 }
+
 /** 공유 열람(/s/)의 서버 렌더가 같은 재생기를 쓴다 — 스냅숏 계산이 서버·클라에서 갈라지면 안 된다. */
 export const replayer = createReplayer(reduce);
 const liveRng = { next: (bound: number) => Math.floor(Math.random() * bound) };
@@ -463,20 +464,30 @@ export function createBoardStore(
         });
       },
 
+      /**
+       * 리플레이 해제 = **보던 그 수부터 이어 두기**(무한 천각 문법 — 되돌리기에 제한이 없는 서비스라
+       * "여기부터 내가 둔다"가 곧 기본 조작이다). 커서 뒤 기록은 버려지고 이후 수가 새로 쌓인다.
+       * 이벤트 국면 플래그는 GameState.variables가 소유하므로 세션 재구축 없이 이어진다.
+       */
       exitReplay() {
-        const { replay } = get();
+        const { replay, cursor } = get();
         if (replay === undefined) return;
         const file = replay.file;
-        // restore()와 같은 결 — 초기 국면에 기록을 재적용해 기보 끝 국면으로 복귀한다.
-        // 이벤트 국면 플래그는 GameState.variables가 소유하므로 세션 재구축 없이 이어진다.
+        // ☠개시 스텝(setup)은 판 그 자체다 — 커서를 0까지 되감고 나가도 이건 남긴다.
+        //   빼면 이벤트 챕터가 스폰·변수 없는 원시 배치로 떨어진다.
+        const floor = file.log[0]?.action.type === "setup" ? 1 : 0;
+        const log = file.log.slice(0, Math.max(cursor, floor));
         const base = initGame(props, file.chapter.difficulty, file.chapter.scenario, file.setup ?? get().setup);
         let state = base.game;
-        for (const step of file.log) state = replayer.applyStep(state, step);
+        for (const step of log) state = replayer.applyStep(state, step);
+        // ★이어 두려면 살아 있는 이벤트 리듀서가 필요하다 — 리플레이로 생성된 스토어는 live가 없다.
+        //   1회성 발화 플래그는 GameState.variables가 들고 있으므로 새 세션이 과거 이벤트를 재발화하지 않는다.
+        live = evented ? events!.create(file.chapter.difficulty) : undefined;
         set({
           mode: "play",
           game: state,
           visuals: base.visuals,
-          recording: [...file.log],
+          recording: log,
           replay: undefined,
           cursor: 0,
         });

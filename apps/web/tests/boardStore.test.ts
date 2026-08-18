@@ -253,8 +253,8 @@ describe("리플레이", () => {
     expect(store.getState().cursor).toBe(0);
   });
 
-  /** 맵 페이지 리플레이 열람(자기 기보) — 종료 시 보던 판의 끝 국면으로 복귀해야 한다(진행 유실 금지). */
-  it("exitReplay — 플레이 모드 복귀, 기록·최종 국면 보존, 이어서 플레이 가능", () => {
+  /** 끝까지 본 뒤 나가면 진행이 그대로여야 한다 — 여기서 유실되면 자기 기보 열람이 판을 날린다. */
+  it("exitReplay — 끝에서 나가면 기록·최종 국면 보존, 이어서 플레이 가능", () => {
     const store = createBoardStore(props);
     store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 2 });
     store.getState().dispatch({ type: "endPhase" });
@@ -262,7 +262,7 @@ describe("리플레이", () => {
     const log = store.getState().recording;
 
     store.getState().loadReplay(store.getState().toFile());
-    store.getState().stepAction(1);
+    store.getState().seek(log.length);
     expect(store.getState().mode).toBe("replay");
 
     store.getState().exitReplay();
@@ -274,6 +274,33 @@ describe("리플레이", () => {
 
     store.getState().dispatch({ type: "wait", unit: "u1" });
     expect(store.getState().recording.length).toBe(log.length + 1);
+  });
+
+  /**
+   * ★리플레이 해제 = **보던 커서 국면부터 이어 두기**(2026-08-18 확정 — 무한 천각 문법).
+   * 왜 위험한가: 커서 뒤 기록을 그대로 두면 화면(커서 국면)과 기록(끝 국면)이 어긋나 다음 수가
+   * 엉뚱한 국면에 얹힌다. 커서에서 잘라야 화면과 기록이 같은 것을 가리킨다.
+   */
+  it("exitReplay — 중간 커서에서 나가면 그 국면부터 이어 둔다", () => {
+    const store = createBoardStore(props);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 1, y: 2 });
+    store.getState().dispatch({ type: "wait", unit: "u0" });
+    store.getState().dispatch({ type: "endPhase" });
+    const full = store.getState().recording;
+
+    store.getState().loadReplay(store.getState().toFile());
+    store.getState().seek(1);
+    const seen = displayState(store.getState());
+
+    store.getState().exitReplay();
+    expect(store.getState().mode).toBe("play");
+    expect(store.getState().recording).toEqual(full.slice(0, 1));
+    expect(store.getState().game.units).toEqual(seen.units);
+    expect(store.getState().game.turn).toBe(seen.turn);
+
+    // 이어 둔 수는 잘린 기록 뒤에 쌓인다 — 버려진 뒷부분이 되살아나면 안 된다.
+    store.getState().dispatch({ type: "wait", unit: "u0" });
+    expect(store.getState().recording.length).toBe(2);
   });
 });
 

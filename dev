@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|promote|link:put|perf
+# FESim 단일 러너 — ./dev done|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|promote|link:put|perf
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -45,6 +45,11 @@ case "$cmd" in
   verify-all) shift; "$PY" tools/pipeline/verify_all.py "$@" ;;
   notes)    shift; "$PY" tools/pipeline/build_notes.py "$@" ;;
   bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
+  replay)   shift
+            # 챕터 기보 생성 — 헤드리스 완주 후 data/fe17/replays/<cid>.eph.json (= 맵의 기본 기보).
+            # ☠승리·자군 무손실·검증 통과가 아니면 실패로 끝난다(리포트의 verified/playerLost 확인).
+            [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--out <path>]"; exit 2; }
+            node tools/replay/make.mjs "$@" ;;
   link:put) shift
             # 공유 링크 수동 등재(발급 API는 M4). 키 = id 그대로 · 값 = .eph 원문(@fesim/api 계약).
             [ $# -ge 2 ] || { echo "usage: ./dev link:put <id> <eph.json> [--local]"; exit 2; }
@@ -85,5 +90,5 @@ case "$cmd" in
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  *)        echo "usage: ./dev done|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

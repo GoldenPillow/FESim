@@ -12,6 +12,13 @@ export const boardsJsonPath = (mapId: string, locale: Locale): string =>
 export const scriptPath = (name: string): string => `/fe17/scripts/${name}.lua`;
 
 /**
+ * 맵의 **기본 기보** 주소 — 없으면 404다(있는 챕터만 리플레이로 열린다).
+ * 생산 = `./dev replay <cid>` → data/fe17/replays/ (public/fe17/replays 심링크로 서빙).
+ * 맵 진입이 곧 리플레이 시작이라 이 파일이 신규 사용자의 첫 화면을 소유한다.
+ */
+export const defaultReplayPath = (mapId: string): string => `/fe17/replays/${mapId}.eph.json`;
+
+/**
  * 표시용 구조물 — 파괴분(hp 0)을 제거하고, 같은 group의 지붕은 그 group의 비지붕 구조물이 전멸하면
  * 함께 걷힌다(m015 문·지붕 연동, group 0 = 무연동). props[i] ↔ state[i]는 initGame이 보존하는 인덱스 계약.
  * 보드·리플레이·/s/ SSR 공용(중복 구현 금지) — 이 모듈은 테이블 무임포트(워커 안전).
