@@ -918,6 +918,12 @@ export interface BoardProps {
     replayNext: string;
     replayPrevPhase: string;
     replayNextPhase: string;
+    replayOn: string;
+    replayOff: string;
+    unitTurn: string;
+    prevUnit: string;
+    nextUnit: string;
+    nextTurn: string;
     zoomIn: string;
     zoomOut: string;
     undoCmd: string;
@@ -1438,6 +1444,12 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     replayNext: t.replayNext,
     replayPrevPhase: t.replayPrevPhase,
     replayNextPhase: t.replayNextPhase,
+    replayOn: t.replayOn,
+    replayOff: t.replayOff,
+    unitTurn: t.unitTurn,
+    prevUnit: t.prevUnit,
+    nextUnit: t.nextUnit,
+    nextTurn: t.nextTurn,
     zoomIn: t.zoomIn,
     zoomOut: t.zoomOut,
     copyRecord: t.copyRecord,

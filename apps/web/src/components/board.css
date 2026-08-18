@@ -267,11 +267,6 @@
   gap: 0.5rem;
   z-index: 5;
 }
-.plate .turn-strip .turn-label {
-  font-size: 11px;
-  color: var(--ink, #ddd);
-  letter-spacing: 0.02em;
-}
 .plate .turn-strip button {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
@@ -358,37 +353,95 @@
   to { opacity: 1; transform: none; }
 }
 
-/* 리플레이 스테퍼 — 보드 아래(‹› = 행동 1스텝 · «» = 페이즈 전체턴 — 키보드 ←→·PageUp/Down 동형) */
-.plate .replay-bar {
-  margin-top: 0.4rem;
+/*
+  턴 바 — 보드 아래 상시 고정(모드 무관). 무한 천각이 기본 골자라 시간 이동이 늘 손에 닿아야 한다.
+  «‹ ›» = 좌 과거 / 우 미래 · 중앙 = 리플레이 토글. 리플레이 중엔 바 전체가 파란 테두리로 바뀐다.
+*/
+.plate .turn-bar {
+  /* ☠sticky가 핵심 — 큰 맵(m003 등)에선 보드가 화면보다 커서 바가 접힌 아래로 밀려난다(실측 821px/768px).
+     주 조작 도구가 스크롤해야 보이면 없는 것과 같다. 보드가 화면에 있는 동안 바닥에 붙는다. */
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 6;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 1rem;
+  /* 보드 위로 겹칠 때 글자가 묻히지 않게 바탕을 깐다. */
+  background: color-mix(in srgb, var(--ground, #12161b) 82%, transparent);
+  backdrop-filter: blur(3px);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 0.35rem;
+}
+.plate .turn-bar .tb-row {
+  display: flex;
+  align-items: stretch;
   gap: 0.4rem;
 }
-.plate .replay-bar button {
-  min-width: 1.9rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+.plate .turn-bar button {
+  border: 2px solid var(--gold, #f0c85a);
   border-radius: 9999px;
   background: transparent;
-  font-size: 12px;
+  color: var(--gold, #f0c85a);
   line-height: 1;
-  color: var(--muted);
   cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.plate .replay-bar button:hover:not(:disabled) {
-  color: var(--ink);
+/* 좌우로 넓은 화살표 — 손가락·마우스 모두 크게 잡히도록 폭을 키운다(높이는 유지). */
+.plate .turn-bar .tb-arrow {
+  min-width: 3.6rem;
+  padding: 0.34rem 0.9rem;
+  font-size: 15px;
 }
-.plate .replay-bar button:disabled {
-  opacity: 0.4;
+.plate .turn-bar .tb-replay {
+  min-width: 7.5rem;
+  padding: 0.34rem 1.1rem;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.plate .turn-bar button:hover:not(:disabled) {
+  background: var(--gold, #f0c85a);
+  color: var(--ground, #14161a);
+}
+.plate .turn-bar button:disabled {
+  opacity: 0.32;
   cursor: default;
 }
-.plate .replay-bar .replay-count {
-  min-width: 4ch;
-  text-align: center;
+/* 리플레이 활성 = 파란 굵은 테두리 + 대문자 REPLAY(JetBrains Mono) — 한눈에 "지금은 재생 중"이 읽힌다. */
+.plate .turn-bar.on button {
+  border-color: var(--replay, #4c8dff);
+  color: var(--replay, #4c8dff);
+}
+.plate .turn-bar.on .tb-replay {
+  border-width: 3px;
+  font-family: "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+}
+.plate .turn-bar.on button:hover:not(:disabled) {
+  background: var(--replay, #4c8dff);
+  color: var(--ground, #14161a);
+}
+/* 실제 턴 / 유닛 턴 — 축이 다르므로 칩을 나눠 둔다(리플레이 버튼 아래). */
+.plate .turn-bar .tb-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 11px;
   color: var(--muted);
+}
+.plate .turn-bar .tb-meta .tb-turn {
+  color: var(--ink, #ddd);
+}
+.plate .turn-bar .tb-meta .tb-unit {
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  font-variant-numeric: tabular-nums;
+}
+.plate .turn-bar.on .tb-meta .tb-unit {
+  color: var(--replay, #4c8dff);
 }
 
 /* 줌 바 — 보드 바로 아래 우측의 돋보기 확대·축소(배율 정본 = board-metrics --m-zoom-default) */

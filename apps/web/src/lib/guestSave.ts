@@ -58,6 +58,25 @@ export function loadSlot(key: SaveKey): EphemerisFile | undefined {
   }
 }
 
+/**
+ * 이 맵에 이어하던 판이 있나 — 난이도·국면을 가리지 않고 하나라도 있으면 참.
+ * 쓰임: 맵 진입 시 기본 기보 자동 재생 여부. ☠남의 시연이 내 진행을 덮으면 안 된다.
+ */
+export function hasGuestSave(mapId: string, game = "fe17"): boolean {
+  const s = storage();
+  if (s === undefined) return false;
+  const prefix = `fesim:eph:${game}:${mapId}:`;
+  try {
+    for (let i = 0; i < s.length; i++) {
+      const k = s.key(i);
+      if (k !== null && k.startsWith(prefix)) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function clearSlot(key: SaveKey): void {
   try {
     storage()?.removeItem(slotKey(key));

@@ -68,6 +68,12 @@ interface Strings {
   replayNext: string;
   replayPrevPhase: string;
   replayNextPhase: string;
+  replayOn: string;
+  replayOff: string;
+  unitTurn: string;
+  prevUnit: string;
+  nextUnit: string;
+  nextTurn: string;
   zoomIn: string;
   zoomOut: string;
   undoCmd: string;
@@ -170,6 +176,12 @@ export const UI: Record<Locale, Strings> = {
     replayNext: "Next action",
     replayPrevPhase: "Previous phase",
     replayNextPhase: "Next phase",
+    replayOn: "Replay running — press to take over from here",
+    replayOff: "Watch the replay of this chapter",
+    unitTurn: "Action",
+    prevUnit: "Previous unit",
+    nextUnit: "Next unit",
+    nextTurn: "End turn",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
     undoCmd: "Undo",
@@ -277,6 +289,12 @@ export const UI: Record<Locale, Strings> = {
     replayNext: "다음 행동",
     replayPrevPhase: "이전 페이즈",
     replayNextPhase: "다음 페이즈",
+    replayOn: "리플레이 재생 중 — 누르면 이 국면부터 직접 둔다",
+    replayOff: "이 챕터의 기보를 본다",
+    unitTurn: "행동",
+    prevUnit: "이전 유닛",
+    nextUnit: "다음 유닛",
+    nextTurn: "턴 종료",
     zoomIn: "확대",
     zoomOut: "축소",
     undoCmd: "물리기",

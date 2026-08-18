@@ -8,6 +8,8 @@
     "deploy": "echo '☠ 스테이블 배포는 ./dev promote — rules/deploy.md 참조' && exit 1"
   },
   "devDependencies": {
-    "@lhci/cli": "^0.15.1"
+    "@lhci/cli": "^0.15.1",
+    "fengari": "0.1.5",
+    "vite": "^8.2.1"
   }
 }

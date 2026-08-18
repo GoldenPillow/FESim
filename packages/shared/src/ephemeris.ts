@@ -82,7 +82,25 @@ function assert(ok: unknown, why: string): asserts ok {
 }
 
 const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
-const ACTION_TYPES: readonly unknown[] = ["move", "attack", "staff", "item", "dance", "engage", "engageAttack", "trade", "wait", "endPhase"];
+/**
+ * ☠전수 맵이지 목록이 아니다 — `Record<BattleAction["type"], true>`라 액션이 늘면 **컴파일이 깨진다**.
+ * 손목록이던 시절 `setup`·`guard`·`destroy`가 빠져 이벤트 챕터 기보 전부와 게스트 저장 복원이 막혔다.
+ */
+const ACTION_TYPES: Record<BattleAction["type"], true> = {
+  setup: true,
+  move: true,
+  attack: true,
+  staff: true,
+  item: true,
+  dance: true,
+  guard: true,
+  engage: true,
+  engageAttack: true,
+  trade: true,
+  destroy: true,
+  wait: true,
+  endPhase: true,
+};
 
 /**
  * 남이 만든 파일이 들어오는 신뢰 경계 — 뼈대만 검사한다.
@@ -111,7 +129,10 @@ export function parseEphemeris(text: string): EphemerisFile {
   for (const step of log) {
     assert(isRecord(step), "log 원소가 객체가 아니다");
     const action = step.action;
-    assert(isRecord(action) && ACTION_TYPES.includes(action.type), "log 원소의 action이 불량이다");
+    assert(
+      isRecord(action) && typeof action.type === "string" && Object.hasOwn(ACTION_TYPES, action.type),
+      "log 원소의 action이 불량이다",
+    );
   }
   return raw as unknown as EphemerisFile;
 }

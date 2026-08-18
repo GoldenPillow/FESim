@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEphemeris, serializeEphemeris, type EphemerisFile } from "@fesim/shared";
+import { parseEphemeris, serializeEphemeris, type BattleAction, type EphemerisFile } from "@fesim/shared";
 
 /**
  * .eph 기보 = 공유 링크의 정본 페이로드다. 왕복(직렬화→파싱)이 손실되면 남의 전략이 다르게 재생되고,
@@ -58,6 +58,32 @@ describe(".eph 기보", () => {
     expect(() => parseEphemeris(JSON.stringify({ ...file, setup: [] }))).toThrow();
     expect(() => parseEphemeris(JSON.stringify({ ...file, setup: { units: [] } }))).toThrow();
     expect(() => parseEphemeris(JSON.stringify({ ...file, setup: { units: { u0: 1 } } }))).toThrow();
+  });
+
+  /**
+   * 왜 위험했나(2026-08-18): 허용 목록이 손으로 관리돼 `setup`·`guard`·`destroy`가 빠져 있었다.
+   * 이벤트 챕터 기보는 0번 스텝이 항상 `setup`이라 **m000·m001·m002 전 기보가 첫 줄에서 거부**됐고,
+   * 게스트 자동저장 복원(loadSlot → parseEphemeris)까지 매번 조용히 실패했다.
+   * 액션 종류가 늘 때 목록이 또 밀리지 않도록, 이 테스트는 유니온 전수를 세워 통과를 요구한다.
+   */
+  it("BattleAction 전 종류를 받는다 — 허용 목록 드리프트 금지", () => {
+    const samples: Record<BattleAction["type"], BattleAction> = {
+      setup: { type: "setup" },
+      move: { type: "move", unit: "a", x: 1, y: 1 },
+      attack: { type: "attack", unit: "a", target: "e" },
+      staff: { type: "staff", unit: "a", target: "b" },
+      item: { type: "item", unit: "a" },
+      dance: { type: "dance", unit: "a", target: "b" },
+      guard: { type: "guard", unit: "a" },
+      engage: { type: "engage", unit: "a" },
+      engageAttack: { type: "engageAttack", unit: "a", target: "e" },
+      trade: { type: "trade", unit: "a", target: "b", kind: "weapon", index: 0 },
+      destroy: { type: "destroy", unit: "a", x: 2, y: 3 },
+      wait: { type: "wait", unit: "a" },
+      endPhase: { type: "endPhase" },
+    };
+    const log = Object.values(samples).map((action) => ({ action }));
+    expect(parseEphemeris(JSON.stringify({ ...file, log })).log).toHaveLength(log.length);
   });
 
   it("깨진 입력은 던진다 (파싱은 신뢰 경계)", () => {

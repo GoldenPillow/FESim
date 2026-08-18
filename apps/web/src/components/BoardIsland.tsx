@@ -35,26 +35,25 @@ import {
   type Tile,
   type UnitState,
 } from "@fesim/engine";
-import { serializeEphemeris } from "@fesim/shared";
+import { parseEphemeris, serializeEphemeris, type EphemerisFile } from "@fesim/shared";
 import { tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
-import { scriptPath, visibleObjects, visibleStructures } from "../lib/boards";
-import type { EventHost } from "@fesim/engine/events";
+import { defaultReplayPath, scriptPath, visibleObjects, visibleStructures } from "../lib/boards";
 import {
-  baseReduce,
   calculator,
   createBoardStore,
   displayState,
-  projectUnit,
   useBoard,
   type BoardStore,
-  type EventWiring,
   type UnitVisual,
 } from "../lib/boardStore";
-import { clampZoom, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
+import { eventWiringFor } from "../lib/eventWiring";
+import { clampZoom, hasGuestSave, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import BoardView from "./BoardView";
 import "./board.css";
+// REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
+import "@fontsource/jetbrains-mono/latin-700.css";
 
 /**
  * 보드 아일랜드 — 인터랙션 셸: 선택·호버·명령 배선만 하고 국면은 스토어(boardStore)가 소유한다.
@@ -62,59 +61,6 @@ import "./board.css";
  * ☠fengari가 이 아일랜드 청크에만 실린다(제작 경로 — 열람 /s/는 절대 이벤트 복원).
  */
 
-/**
- * 이벤트 배선 — 새 판마다 새 세션(Startup 재등록 중복 방지). 호스트 = props 사영(원천 테이블 무반입).
- * ☠이벤트 모듈은 동적 임포트로만 — fengari(-web interop)가 임포트 시점에 Function()을 실행해
- * SSR(CF 워커 러너 = 코드 생성 금지)이 죽는다. 클라이언트 하이드레이션 후에만 로드한다.
- */
-type EventsModule = typeof import("@fesim/engine/events");
-
-function eventWiringFor(
-  props: BoardProps,
-  mod: EventsModule,
-  commonSources?: Record<string, string>,
-): EventWiring | undefined {
-  const script = props.script;
-  if (script === undefined) return undefined;
-  const sources = { ...commonSources, ...script.sources };
-  return {
-    create(difficulty) {
-      const host: EventHost = {
-        spawnGroup: (group, state) =>
-          props.units.flatMap((u, i) => {
-            if (u.group !== group) return [];
-            // ☠id 계약(u{i} = visuals 조회 키)상 같은 그룹 재스폰은 미재현 — 원기는 중복 허용(장부 events.dispos).
-            if (state.units.some((placed) => placed.id === `u${i}`)) return [];
-            const unit = projectUnit(props, i, difficulty);
-            return unit === undefined ? [] : [unit];
-          }),
-        skillRow: (sid) => script.skills[sid],
-        // 인물 이름 ID — person.xml Name 사영(SSG가 유닛에 굳힘). 부재 = 엔진이 정직 거부한다.
-        mpid: (pid) => props.units.find((u) => u.pid === pid)?.mpid,
-        // IID → 채널·스냅숏 — SSG가 굳힌 script.items만 안다(클라이언트엔 items 표가 없다).
-        gainItem: (iid) => script.items?.[iid] as never,
-        // TID → 지형 1칸 — SSG가 굳힌 script.terrains만 안다(클라이언트엔 terrain 표가 없다).
-        terrainCell: (tid) => {
-          const row = script.terrains?.[tid];
-          if (row === undefined) return undefined;
-          return {
-            cell: row.cell,
-            ...(row.cost !== undefined ? { cost: row.cost } : {}),
-            display: { color: row.color, name: row.name },
-          };
-        },
-        godUnit: (_unit, gid) => {
-          const god = script.gods[gid];
-          if (god === undefined) return undefined;
-          // 기술(engageArt)·인게이지 스킬 세트는 미배선(발현 시 흡수) — 게이지·엠블렘 무기까지 사영.
-          return { engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
-        },
-      };
-      const session = mod.createEventSession({ sources, chapter: script.chapter, host });
-      return mod.createEventedReducer(baseReduce, session);
-    },
-  };
-}
 export default function BoardIsland(props: BoardProps) {
   const { width, height, tiles, objects, labels } = props;
   // 이벤트 챕터는 스토어를 두 단계로 연다 — SSR·초기 렌더 = 무이벤트 원시판, 모듈 로드 후 이벤트판으로 교체.
@@ -129,6 +75,8 @@ export default function BoardIsland(props: BoardProps) {
   const replaySteps = useBoard(store, (s) => s.replay?.timeline.steps.length ?? 0);
   const [ready, setReady] = useState(false);
   const urlWritten = useRef(false);
+  /** 이 챕터의 기본 기보 — 자동 재생을 건너뛴 경우에도 REPLAY 버튼이 이걸로 열린다. */
+  const defaultFile = useRef<EphemerisFile | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
@@ -172,30 +120,68 @@ export default function BoardIsland(props: BoardProps) {
 
   useEffect(() => {
     // 국면 프리셋 폐지(MP2) — 국면 전이는 이벤트 엔진이 소유한다. URL의 d(난이도)만 읽는다.
-    const boot = (target: BoardStore) => {
+    const boot = (target: BoardStore, file?: EphemerisFile) => {
       const query = readMapQuery(window.location.search);
-      if (query.d !== undefined) target.getState().setDifficulty(query.d);
-      target.getState().restore();
+      if (file === undefined && query.d !== undefined) target.getState().setDifficulty(query.d);
+      if (file === undefined) target.getState().restore();
       setReady(true);
     };
-    if (props.script === undefined) {
-      boot(store);
-      return;
-    }
     let dead = false;
+    // 첫 프레임 = 챕터의 진짜 개막 배치. 이벤트 챕터는 스텝 0이 setup(스폰·변수)이라 그 뒤에서 시작한다.
+    const openingCursor = (file: EphemerisFile): number => (file.log[0]?.action.type === "setup" ? 1 : 0);
+    /**
+     * ★맵 진입 = 리플레이 시작(2026-08-18 사용자 확정) — 신규 사용자가 첫 화면에서 바로 턴을 넘긴다.
+     * 단 **이어하던 판이 있으면 그쪽이 이긴다**(남의 시연이 내 진행을 덮으면 안 된다).
+     * 기본 기보가 없는 챕터는 조용히 플레이 모드로 시작한다(404 = 정상).
+     *
+     * ☠자동 재생을 건너뛰더라도 파일은 **반드시 손에 쥔다**(defaultFile) — 그래야 REPLAY 버튼이
+     * 살아 있다. 안 그러면 이어하던 사용자에겐 버튼이 흐린 채로 남아 "없는 것처럼" 보인다.
+     */
+    const fetchDefault = async (): Promise<EphemerisFile | undefined> => {
+      try {
+        const res = await fetch(defaultReplayPath(props.mapId));
+        if (!res.ok) return undefined;
+        return parseEphemeris(await res.text());
+      } catch (err) {
+        console.warn("기본 기보 로드 실패 — 플레이 모드로 시작", err);
+        return undefined;
+      }
+    };
+    const defaultReplay = async (): Promise<EphemerisFile | undefined> => {
+      const file = await fetchDefault();
+      defaultFile.current = file;
+      return hasGuestSave(props.mapId) ? undefined : file;
+    };
+    if (props.script === undefined) {
+      void defaultReplay().then((file) => {
+        if (dead) return;
+        if (file === undefined) {
+          boot(store);
+          return;
+        }
+        // 리플레이는 스토어 생성 시점에 실려야 한다(boardStore ReplayInit 주석 — 하이드레이션 튐 방지).
+        const next = createBoardStore(props, { file, cursor: openingCursor(file) });
+        setStore(next);
+        boot(next, file);
+      });
+      return () => {
+        dead = true;
+      };
+    }
     // 공용 Lua(common*)는 보드 JSON에 인라인하지 않는다 — 이벤트 모듈과 병렬 fetch 후 세션에 병합(3-6).
     const commonFetches = (props.script.commons ?? []).map(async (name) => {
       const res = await fetch(scriptPath(name));
       if (!res.ok) throw new Error(`공용 스크립트 로드 실패: ${name} (${res.status})`);
       return [name, await res.text()] as const;
     });
-    void Promise.all([import("@fesim/engine/events"), Promise.all(commonFetches)])
-      .then(([mod, pairs]) => {
+    void Promise.all([import("@fesim/engine/events"), Promise.all(commonFetches), defaultReplay()])
+      .then(([mod, pairs, file]) => {
         if (dead) return;
         const commons = Object.fromEntries(pairs);
-        const next = createBoardStore(props, undefined, undefined, eventWiringFor(props, mod, commons));
+        const wiring = eventWiringFor(props, mod, commons);
+        const next = createBoardStore(props, file === undefined ? undefined : { file, cursor: openingCursor(file) }, undefined, wiring);
         setStore(next);
-        boot(next);
+        boot(next, file);
       })
       .catch((err) => {
         // 이벤트판 구성 실패 = 원시판 유지(정직 강하) — 콘솔에 원인을 남긴다(조용한 오재현 금지).
@@ -265,6 +251,18 @@ export default function BoardIsland(props: BoardProps) {
   }, [alive]);
   const selected = selectedId === undefined ? undefined : alive.find((u) => u.id === selectedId);
   const target = targetId === undefined ? undefined : alive.find((u) => u.id === targetId);
+  // 유닛 턴 축 — 현 페이즈의 세력이 소유한다(적 페이즈면 적 유닛이 세는 대상).
+  const mine = useMemo(() => alive.filter((u) => u.force === game.phase), [alive, game.phase]);
+  const actedCount = mine.filter((u) => u.acted).length;
+  const readyUnits = mine.filter((u) => !u.acted);
+  /** ‹ › = 아직 안 움직인 유닛 순회(인게임 L/R 문법) — 선택만 바꾼다(행동 소모 없음). */
+  const cycleUnit = (delta: number): void => {
+    if (readyUnits.length === 0) return;
+    const at = readyUnits.findIndex((u) => u.id === selectedId);
+    const next = readyUnits[(((at < 0 ? (delta > 0 ? -1 : 0) : at) + delta) % readyUnits.length + readyUnits.length) % readyUnits.length];
+    setSelectedId(next.id);
+    setTargetId(undefined);
+  };
   // 클릭 확정 타겟은 targetId 하나 — 세력으로 교전(적)과 지팡이(아군)를 가른다(해제·취소 경로 공유).
   const foeTarget = target !== undefined && selected !== undefined && target.force !== selected.force ? target : undefined;
   const allyTarget = target !== undefined && selected !== undefined && target.force === selected.force ? target : undefined;
@@ -928,33 +926,14 @@ export default function BoardIsland(props: BoardProps) {
         ))}
       </nav>
 
+      {/* 턴·페이즈 종료·물리기·리플레이는 아래 턴 바가 소유한다 — 여기는 나머지 명령만. */}
       <div className="turn-strip">
-        <span className="turn-label">
-          {labels.turnWord} {game.turn} · {labels.forceNames[game.phase] ?? ""} {labels.turnPhase}
-        </span>
-        <button
-          type="button"
-          onClick={() => dispatch({ type: "endPhase" })}
-          disabled={game.outcome !== undefined || mode === "replay"}
-        >
-          {labels.endPhase}
-        </button>
         <button
           type="button"
           onClick={runEnemyAuto}
           disabled={game.outcome !== undefined || mode === "replay" || game.phase === 0}
         >
           {labels.enemyAuto}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            store.getState().undo();
-            clearLocal();
-          }}
-          disabled={recorded === 0 || mode === "replay"}
-        >
-          {labels.undoCmd}
         </button>
         <button
           type="button"
@@ -967,16 +946,6 @@ export default function BoardIsland(props: BoardProps) {
         </button>
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
-        </button>
-        <button
-          type="button"
-          disabled={recorded === 0 || mode === "replay"}
-          onClick={() => {
-            store.getState().loadReplay(store.getState().toFile());
-            clearLocal();
-          }}
-        >
-          {labels.replayCmd}
         </button>
         <button
           type="button"
@@ -1015,58 +984,94 @@ export default function BoardIsland(props: BoardProps) {
         onTileHover={setHover}
       />
 
-      {mode === "replay" && (
-        <div className="replay-bar" role="toolbar" aria-label={labels.replayCmd}>
+      {/*
+        턴 바 — ★**항상 보인다**(무한 천각 = 되돌리기에 제한이 없는 서비스라 시간 이동이 상시 조작이다).
+        같은 화살표가 두 모드를 겸한다: 좌 = 과거 / 우 = 미래.
+          play   « 되돌리기 · ‹ 이전 유닛 · › 다음 유닛 · » 턴 종료
+          replay « 이전 페이즈 · ‹ 이전 행동 · › 다음 행동 · » 다음 페이즈
+        중앙 = 리플레이 토글. 리플레이 해제 = 보던 커서 국면부터 이어 두기(닫기 버튼 없음).
+      */}
+      <div className={mode === "replay" ? "turn-bar on" : "turn-bar"} role="toolbar" aria-label={labels.replayCmd}>
+        <div className="tb-row">
           <button
             type="button"
-            aria-label={labels.replayPrevPhase}
-            title={labels.replayPrevPhase}
-            disabled={cursor <= 0}
-            onClick={() => store.getState().stepPhase(-1)}
+            className="tb-arrow"
+            aria-label={mode === "replay" ? labels.replayPrevPhase : labels.undoCmd}
+            title={mode === "replay" ? labels.replayPrevPhase : labels.undoCmd}
+            disabled={mode === "replay" ? cursor <= 0 : recorded <= 1}
+            onClick={() => {
+              if (mode === "replay") store.getState().stepPhase(-1);
+              else store.getState().undo();
+              clearLocal();
+            }}
           >
             «
           </button>
           <button
             type="button"
-            aria-label={labels.replayPrev}
-            title={labels.replayPrev}
-            disabled={cursor <= 0}
-            onClick={() => store.getState().stepAction(-1)}
+            className="tb-arrow"
+            aria-label={mode === "replay" ? labels.replayPrev : labels.prevUnit}
+            title={mode === "replay" ? labels.replayPrev : labels.prevUnit}
+            disabled={mode === "replay" ? cursor <= 0 : readyUnits.length === 0}
+            onClick={() => (mode === "replay" ? store.getState().stepAction(-1) : cycleUnit(-1))}
           >
             ‹
           </button>
-          <span className="replay-count">
-            {cursor} / {replaySteps}
-          </span>
           <button
             type="button"
-            aria-label={labels.replayNext}
-            title={labels.replayNext}
-            disabled={cursor >= replaySteps}
-            onClick={() => store.getState().stepAction(1)}
+            className="tb-replay"
+            aria-pressed={mode === "replay"}
+            title={mode === "replay" ? labels.replayOn : labels.replayOff}
+            disabled={mode !== "replay" && recorded <= 1 && defaultFile.current === undefined}
+            onClick={() => {
+              if (mode === "replay") {
+                store.getState().exitReplay();
+              } else if (defaultFile.current !== undefined) {
+                // 라벨이 "이 챕터의 기보"라고 말한다 — 있으면 그걸 연다(신규 사용자가 기대하는 것).
+                store.getState().loadReplay(defaultFile.current);
+              } else {
+                store.getState().loadReplay(store.getState().toFile()); // 기보 없는 챕터 = 내가 둔 수
+              }
+              clearLocal();
+            }}
+          >
+            {mode === "replay" ? "REPLAY" : labels.replayCmd}
+          </button>
+          <button
+            type="button"
+            className="tb-arrow"
+            aria-label={mode === "replay" ? labels.replayNext : labels.nextUnit}
+            title={mode === "replay" ? labels.replayNext : labels.nextUnit}
+            disabled={mode === "replay" ? cursor >= replaySteps : readyUnits.length === 0}
+            onClick={() => (mode === "replay" ? store.getState().stepAction(1) : cycleUnit(1))}
           >
             ›
           </button>
           <button
             type="button"
-            aria-label={labels.replayNextPhase}
-            title={labels.replayNextPhase}
-            disabled={cursor >= replaySteps}
-            onClick={() => store.getState().stepPhase(1)}
-          >
-            »
-          </button>
-          <button
-            type="button"
+            className="tb-arrow"
+            aria-label={mode === "replay" ? labels.replayNextPhase : labels.nextTurn}
+            title={mode === "replay" ? labels.replayNextPhase : labels.nextTurn}
+            disabled={mode === "replay" ? cursor >= replaySteps : game.outcome !== undefined}
             onClick={() => {
-              store.getState().exitReplay();
+              if (mode === "replay") store.getState().stepPhase(1);
+              else dispatch({ type: "endPhase" });
               clearLocal();
             }}
           >
-            {labels.closeCmd}
+            »
           </button>
         </div>
-      )}
+        {/* 실제 턴(게임의 턴·페이즈)과 유닛 턴(행동 단위)은 다른 축이다 — 붙여 쓰면 어느 쪽 화살표인지 헷갈린다. */}
+        <div className="tb-meta">
+          <span className="tb-turn">
+            {labels.turnWord} {game.turn} · {labels.forceNames[game.phase] ?? ""} {labels.turnPhase}
+          </span>
+          <span className="tb-unit">
+            {labels.unitTurn} {mode === "replay" ? `${cursor} / ${replaySteps}` : `${actedCount} / ${mine.length}`}
+          </span>
+        </div>
+      </div>
 
       <div className="zoom-bar">
         <button
