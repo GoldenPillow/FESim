@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# main 푸시 = ./dev done 강제 — ff 머지가 pre-merge-commit을 우회하는 구멍을 막는다
+# main 푸시 = 게이트 강제 — ff 머지가 pre-merge-commit을 우회하는 구멍을 막는다
+# ☠./dev done이 아니라 gate다(done은 이 푸시를 부르는 쪽 — 부르면 재귀한다).
 set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
+[ "${FESIM_PUBLISHING:-}" = "1" ] && exit 0   # 마감 절차가 방금 통과시킨 같은 트리
 while read -r _lref _lsha remote_ref _rsha; do
   if [ "$remote_ref" = "refs/heads/main" ]; then
-    "$ROOT/dev" done || { echo "☠ main 푸시 차단: ./dev done 레드"; exit 1; }
+    "$ROOT/dev" gate || { echo "☠ main 푸시 차단: ./dev gate 레드"; exit 1; }
     break
   fi
 done
