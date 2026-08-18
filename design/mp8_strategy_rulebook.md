@@ -61,8 +61,8 @@ target: packages/engine/src/strategy/ + tools/rulebook/ + apps/web (예지선·�
     추출은 됐는데 **아무도 소비하지 않아서** 없는 것과 같았다.
   - ☠사용자 판정 = *"모른다는 건 챕터별 상점 목록이 아직 룰북에 업데이트되지 않았다는 뜻"* ⇒ **전수조사 재지시**.
     ★합격선 = **사용자에게 묻지 않아도 답이 나오는 표**. 물어본 것 자체가 결손의 증거다.
-  - 진행 중(2026-08-19) = `_mp8/ITEM_USETYPE.md`(UseType·AddType·Kind·RodType 전값 + items.json 46필드 사영 대조
-    · ★`IsBullet()`의 Kind 포함 = A1 §5 항목 5·6의 선행) · `_mp8/ITEM_ACQUIRE.md`(상점 검증 + 상점 밖 입수 경로
+  - 진행 중(2026-08-19) = `_mp8/ITEM_USETYPE.md`(UseType·AddType·Kind·RodType 전값 + items.json **62필드**(전건 48 + 선택 14) 사영 대조
+    · ★`IsBullet()` 포함 = A1 §5 항목 5·6의 선행) ☠**내 초기 기재 오기 2건 정정(2026-08-19)**: 필드 수는 46이 아니라 **62**이고, `IsBullet()`은 **Kind가 아니라 `Flag & 0x8000000`(비트27)**이다(0x27B2380). · `_mp8/ITEM_ACQUIRE.md`(상점 검증 + 상점 밖 입수 경로
     전수 + 경제 + 산출 스키마 제안) · `_mp8/SILENT_FIELDS.md`(★`data/fe17/` **전 필드**의 소비 여부 기계 대조).
   - ☠이미 있는 것을 다시 만들지 않는다 — 상점 구간 품목은 `ma_chapter_facts.md` §5 + `chapternotes.json`에
     **이미 있다**. 할 일은 (a) 전수인지 검증 (b) 빠진 입수 경로 보충 (c) 기계 소비 형태로 정돈이다.
@@ -82,6 +82,24 @@ target: packages/engine/src/strategy/ + tools/rulebook/ + apps/web (예지선·�
     현행 5값(anchored/implemented/assumed/absent/deferred)은 **근거의 강도**만 말하고 **경로의 연결**은 못 말한다.
     그래서 층 하나만 끝난 것이 `anchored`로 게시될 수 있었다. `anchored` 49건 전건 재감사가 필요한지,
     축을 하나 늘릴지가 미결이다.
+  - ★**ITEM_USETYPE 결론(2026-08-19)**:
+    - `UseType` **43값 전수** = `CanUseImpl`(0x1DEA700)의 **점프테이블**(VA 0x4D6B8E4)이 정본.
+      `AddType`은 **같은 enum이고 진입점만 다르다**(`GetUseType` 0x20523E0 = `MapMind==53 ? AddType : UseType`).
+    - ☠☠**`IsBullet()`은 `Flag` 비트27**이고, **items.json·item.xml 양쪽 다 Bullet이 0건**이다(직접 확인).
+      ⇒ **A1 §5 항목 5·6(탄 적합성 비교자)은 "미구현"이 아니라 현행 데이터로 발현 불가**다 —
+      **최하(조건부 보류)** 로 재분류한다. 걸어 뒀던 판독 선행도 해제된다.
+    - ☠☠★**새 결손 — `Enhance.*`는 도핑 전용이 아니다. 무기 35종이 들고 있다**(직접 확인:
+      티르핑 Mdef+5 · 봉인의 검 Def+5/Mdef+5 · 빛의 검 Luck+10 · 호신 체술 Def+5).
+      정본 = `UnitEnhanceCalculator.Commit1st`(0x1F74B40)가 **0x1F74C44에서 장착 아이템의 `Enhance`(0xB0)를
+      직접 읽는다**(사슬 = `UpdateStateImpl` → `CommitEnhance` → `Commit1st`).
+      ★**이미 발현 중이다** — `m004`에 **`GID_シグルド`가 있고**(직접 확인) 티르핑을 들면 마방 +5가 붙어야 하는데
+      우리는 `Enhance.*`를 **사영조차 하지 않는다**. 속도물약(m005 이후 발현)보다 **먼저**다.
+    - ☠**UseType 22를 배선할 때 재사용 게이트를 같이 옮긴다** — `CanUseImpl` 0x1DEB044의
+      `ItemValues[i] < item.Enhance[i]` 조건. 빼면 **내구만 닳고 효과는 안 붙는** 조용한 실패가 된다.
+      (21 GrowUp = `+=` 누적·영구 / 22 Enhance = `Mathf.Max`·챕터 소거 — 재사용해도 안 오른다.)
+    - 정합 확인(고칠 것 없음) = 지팡이 회복 `Power + 魔力/2`(battle.ts:740) · 아이템 회복은 `Power`만(battle.ts:1318).
+    - 사영 = 소비 17 / 부분 5 / **미소비 40**. 배선 순 = `Enhance.*` → `ConsumableItem.useType` → `Secure` →
+      UseType 22 → UseType 21 → `Flag & CanUse`.
   - 위험 상위(전문 = `_mp8/SILENT_FIELDS.md`): supports 전량 · items `Enhance/UseType/AddSids` ·
     `chapternotes.drops.n/.h`(노멀 플레이어에게 **루나틱 드랍**을 사실로 표시) · persons 난이도별 스킬 ·
     gods `SynchroEnhance`(적 보스 스탯 저평가) · terrain `Life`(안개·화염 영구 잔존)·`ChangeTid`·포대 ·
