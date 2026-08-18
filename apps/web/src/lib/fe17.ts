@@ -308,7 +308,20 @@ export const tileColorAt = (tid: string, x: number, y: number): string => {
 };
 
 /** 통행 불가 지형 — 화면에서 "덩어리"로 읽히도록 별도 음영을 준다. */
-export const isBlocked = (tid: string): boolean => (terrain[tid]?.Prohibition ?? 0) > 0;
+/**
+ * 통행 불가 표시 — ☠**`Prohibition`으로 판정하지 않는다**(2026-08-18 정정).
+ * `MOVE_TERRAIN.md` §6-2가 "`Prohibition`(戦闘禁止)은 **통행성이 아닌 것은 확정**"이라 못박았는데도
+ * 이 함수가 그 필드를 쓰고 있었다. 그 결과 **45개 지형이 통행 불가처럼 그려졌다** —
+ * 砦(회피 30·회복 10, 보병 코스트 2)와 성벽 위(`低い壁`·`防壁` = COST_空 = 비행 진입 가능)가 전부 막힌 칸으로 보였다.
+ * 정본 = 코스트다. 어느 이동 타입으로도 못 들어가는 칸(COST_不可)만 통행 불가로 표시한다.
+ * (이동 계산 자체는 늘 코스트 격자만 봤으므로 규칙은 원래 옳았고, 틀린 것은 **표시**였다.)
+ */
+export const isBlocked = (tid: string): boolean => {
+  const cost = terrain[tid]?.cost;
+  if (cost === undefined) return false;
+  const values = Object.values(cost);
+  return values.length > 0 && values.every((v) => v >= 255);
+};
 
 export const tileName = (locale: Locale, tid: string): string =>
   label(locale, terrain[tid]?.Name) ?? tid.replace(/^TID_/, "");

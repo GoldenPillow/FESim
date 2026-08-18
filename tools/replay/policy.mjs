@@ -89,14 +89,27 @@ function incoming(engine, calculator, game, unit, at, zones) {
   const d = engine.toCombatant(self, game.map, game.units);
   let total = 0;
   let hits = 0;
+  // ☠**필살 1회분을 최악으로 얹는다**(2026-08-18). 필살은 위력 3배라, 전탄 명중만 보고 잔여 HP 1로
+  // 턴을 마치면 한 방에 죽는다 — m004 클로에가 시드 8개 중 6개에서 그렇게 죽었다(운이 아니라 계통 결함).
+  // 전 공격을 필살로 보면 너무 보수적이라 유닛이 아예 못 움직이므로, **가장 아픈 한 방만** 필살로 본다.
+  let worstCrit = 0;
+  let worstBlow = 0;
   for (const { foe, tiles } of zones) {
     if (!tiles.has(at.y * game.map.width + at.x)) continue;
     const a = engine.toCombatant(foe, game.map, game.units);
     const fc = engine.forecastSide(calculator, a, d);
-    total += fc.damage * (fc.followUp ? 2 : 1);
+    const blows = fc.followUp ? 2 : 1;
+    total += fc.damage * blows;
+    // 필살률 0이면 여지가 없다. 아니면 그 타격 하나가 3배가 되는 만큼(= 위력 2배)이 추가 위험이다.
+    if (fc.critRate > 0 && fc.damage * 2 > worstCrit) worstCrit = fc.damage * 2;
+    if (fc.damage * blows > worstBlow) worstBlow = fc.damage * blows;
     hits++;
   }
-  return { total, hits };
+  // ⚠증원(적 페이즈 중 등장)은 위협 구역에 안 잡힌다 — m004 클로에 사망 6/6의 원인이지만,
+  // "한 명 더"를 예비로 두는 근사는 과보수라 전진 자체가 막혀 오히려 패배가 늘었다(2026-08-18 실측).
+  // 미채택으로 남기고 worstBlow는 계산만 해 둔다(다음 시도의 재료).
+  void worstBlow;
+  return { total: total + worstCrit, hits };
 }
 
 function bestAttack(engine, calculator, game, unit, foes, zones) {
@@ -176,6 +189,19 @@ function bestAdvance(engine, calculator, game, unit, foes, zones) {
   return best;
 }
 
+/**
+ * 인게이지를 지금 켤 것인가 — 발동 조건(만충·미발동·미행동·교환 안 함)에 더해
+ * **이번 턴에 실제로 싸울 수 있는가**를 본다. 지속이 유한하므로 빈 턴에 켜면 그대로 낭비다.
+ */
+function canEngageNow(game, unit, foes) {
+  const g = unit.engage;
+  if (g === undefined || g.engaging === true) return false;
+  if (g.limit < 1 || g.count < g.limit) return false;
+  if (unit.acted || unit.traded === true) return false;
+  const reach = (unit.movePoints ?? 0) + (unit.weapon?.rangeMax ?? 1);
+  return foes.some((f) => dist(unit, f) <= reach);
+}
+
 export function playerPhase({ engine, calculator, dispatch, state, log }) {
   for (let guard = 0; guard < 300; guard++) {
     const game = state();
@@ -190,9 +216,19 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
     }
 
     const before = game;
-    const zones = threatZones(engine, game, enemies);
-    const heal = bestHeal(engine, game, actor, mine);
-    const atk = bestAttack(engine, calculator, game, actor, enemies, zones);
+    // ★인게이지 — 게이지가 만충이고 이번 턴에 싸울 수 있으면 먼저 발동한다(2026-08-18 사용자 지적:
+    //   "인게이지를 활용안하는듯하다"). **행동을 소모하지 않으므로**(CanEngageImpl 0x1A26F70 계약)
+    //   발동 후 그대로 이동·공격한다. ☠지속 턴이 유한하니 **싸울 수 있을 때만** 켠다 —
+    //   적이 (이동력 + 사거리) 안에 없으면 그냥 켜 두다가 빈 턴으로 흘려보낸다.
+    if (canEngageNow(game, actor, enemies)) {
+      dispatch({ type: "engage", unit: actor.id });
+    }
+    // 인게이지가 스탯·무기·스킬을 바꾼다 — 이후 평가는 **갱신된 국면**으로 한다.
+    const cur = state();
+    const self = cur.units.find((u) => u.id === actor.id) ?? actor;
+    const zones = threatZones(engine, cur, enemies);
+    const heal = bestHeal(engine, cur, self, mine);
+    const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
 
     // 다친 아군이 있으면 힐 우선 — 단 확실한 격파가 있으면 격파가 먼저다(적 화력 자체를 줄인다).
     if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
@@ -202,7 +238,7 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
       if (atk.at.x !== actor.x || atk.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: atk.at.x, y: atk.at.y });
       dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
-      const go = bestAdvance(engine, calculator, game, actor, enemies, zones);
+      const go = bestAdvance(engine, calculator, cur, self, enemies, zones);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
       }
