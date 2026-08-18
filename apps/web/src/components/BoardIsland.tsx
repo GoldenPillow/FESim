@@ -43,6 +43,7 @@ import {
   calculator,
   createBoardStore,
   displayState,
+  replayer,
   useBoard,
   type BoardStore,
   type UnitVisual,
@@ -50,7 +51,7 @@ import {
 import { eventWiringFor } from "../lib/eventWiring";
 import { clampZoom, hasGuestSave, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
-import BoardView from "./BoardView";
+import BoardView, { type BoardFx } from "./BoardView";
 import "./board.css";
 // REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
 import "@fontsource/jetbrains-mono/latin-700.css";
@@ -77,6 +78,9 @@ export default function BoardIsland(props: BoardProps) {
   const urlWritten = useRef(false);
   /** 이 챕터의 기본 기보 — 자동 재생을 건너뛴 경우에도 REPLAY 버튼이 이걸로 열린다. */
   const defaultFile = useRef<EphemerisFile | undefined>(undefined);
+  // 연출 상태 — seq는 같은 유닛이 연속 피격될 때 CSS 애니메이션을 다시 트는 용도(클래스만으론 재시작 안 된다).
+  const fxRef = useRef(0);
+  const [fx, setFx] = useState<BoardFx | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
@@ -210,6 +214,58 @@ export default function BoardIsland(props: BoardProps) {
     const t = setTimeout(() => setBanner(undefined), 1300);
     return () => clearTimeout(t);
   }, [banner, game.outcome]);
+
+  /**
+   * 좌측 로스터 되쏘기 — 레벨업·경험치·위치·전사를 SSR 카드에 반영한다.
+   * ☠로스터는 Astro 정적 컴포넌트(아일랜드 밖)라 그대로 두면 **개막 수치에 얼어붙는다**.
+   * 리액트로 옮기지 않는 이유 = 로스터는 초상화·스킬 표까지 들고 있어 아일랜드로 올리면
+   * 그 데이터가 통째로 클라이언트 번들에 실린다(열람 경로 예산). 카드 id 계약(`u{순번}`)만
+   * 공유하고 텍스트 노드 3개만 갱신한다.
+   */
+  useEffect(() => {
+    const root = document.querySelector("[data-roster]");
+    if (root === null) return;
+    for (const u of game.units) {
+      const card = root.querySelector(`[data-uid="${u.id}"]`);
+      if (card === null) continue;
+      card.classList.toggle("gone", u.dead);
+      const lv = card.querySelector(".ru-lv");
+      if (lv !== null) lv.textContent = String(u.level);
+      const exp = card.querySelector(".ru-exp");
+      // 경험치는 자군만 쌓인다 — 0이면 빈 칸으로 둬서 카드가 조용하다.
+      if (exp !== null) exp.textContent = u.force === 0 && u.exp > 0 ? `+${u.exp}` : "";
+      const pos = card.querySelector(".ru-pos");
+      if (pos !== null) pos.textContent = u.dead ? "—" : `${u.x}, ${u.y}`;
+    }
+  }, [game]);
+
+  // 연출 수명 = 피격 펄스 1초 · 전사 잔상 2초(사용자 지정). 궤적도 같이 걷는다 —
+  // 다음 수의 궤적과 겹치면 어느 수의 이동인지 못 읽는다.
+  useEffect(() => {
+    if (fx === undefined) return;
+    const t = setTimeout(() => setFx(undefined), fx.ghosts === undefined ? 1000 : 2000);
+    return () => clearTimeout(t);
+  }, [fx]);
+
+  /**
+   * 리플레이 스테핑 연출 — 커서가 앞으로 갈 때만 그 스텝을 재생한다(되감기는 연출 없음:
+   * 시간을 거꾸로 가는데 공격 모션이 나오면 무엇이 방금 일어난 건지 거짓말이 된다).
+   */
+  const lastCursor = useRef(cursor);
+  useEffect(() => {
+    const from = lastCursor.current;
+    lastCursor.current = cursor;
+    if (mode !== "replay") return;
+    const session = store.getState().replay;
+    if (session === undefined || cursor !== from + 1) {
+      if (cursor !== from) setFx(undefined);
+      return;
+    }
+    const step = session.file.log[cursor - 1];
+    if (step === undefined) return;
+    playEffects(step.action, step.events ?? [], replayer.stateAt(session.timeline, from), displayState(store.getState()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor, mode]);
 
   useEffect(() => {
     if (!copied) return;
@@ -656,11 +712,77 @@ export default function BoardIsland(props: BoardProps) {
       .filter((s) => s !== "");
   };
 
+  /**
+   * 행동 연출 — 이동 궤적 화살표 · 공격자 1픽셀 돌진 · 피격자 붉은 펄스(1초).
+   * ★기보 작성(플레이)과 리플레이가 **같은 함수**를 쓴다(사용자 확정): 입력이 둘 다
+   * "스텝 하나 = 액션 + 절대 이벤트"라 갈릴 이유가 없다 — 갈리면 같은 수가 다르게 보인다.
+   */
+  const playEffects = (
+    action: BattleAction,
+    events: readonly BattleEvent[],
+    before: GameState,
+    after: GameState,
+  ): void => {
+    const at = (state: GameState, id: string): UnitState | undefined => state.units.find((u) => u.id === id);
+    const next: BoardFx = { seq: (fxRef.current += 1) };
+
+    if (action.type === "move") {
+      const mover = at(before, action.unit);
+      if (mover !== undefined) {
+        const budget = moveBudgetOn(before.map, mover);
+        const costs = before.map.costs[mover.moveType];
+        if (budget !== undefined && costs !== undefined) {
+          const tiles = movementPath(
+            {
+              width,
+              height,
+              movePoints: budget,
+              start: { x: mover.x, y: mover.y },
+              costAt: makeCostAt(before.map, before.structures, mover.moveType),
+              ...movePredicates(before.map, before.units, mover),
+            },
+            { x: action.x, y: action.y },
+          );
+          if (tiles !== null && tiles.length > 1) next.trail = tiles;
+        }
+      }
+    }
+
+    // 피격 = 명중해서 피해가 난 쪽 전부(반격 맞은 공격자도 포함 — 실제로 맞았으니 표시한다).
+    const pulse = [...new Set(events.filter((e) => e.type === "strike" && e.hit && e.damage > 0).map((e) => (e as Extract<BattleEvent, { type: "strike" }>).defender))];
+    if (pulse.length > 0) next.pulse = pulse;
+
+    // 돌진 방향 = 공격자 → 대상. 대상이 좌표인 파괴도 같은 문법.
+    const actor = "unit" in action ? at(after, action.unit) : undefined;
+    const goal =
+      action.type === "destroy" ? { x: action.x, y: action.y }
+      : "target" in action ? at(after, action.target) ?? at(before, action.target)
+      : undefined;
+    if (actor !== undefined && goal !== undefined && pulse.length > 0) {
+      next.nudge = { id: actor.id, dx: Math.sign(goal.x - actor.x), dy: Math.sign(goal.y - actor.y) };
+    }
+
+    // 전사 잔상 — 죽은 유닛은 다음 프레임에 사라지므로 좌표를 지금 붙잡아 둔다.
+    const ghosts = events
+      .filter((e) => e.type === "death")
+      .map((e) => {
+        const id = (e as Extract<BattleEvent, { type: "death" }>).unit;
+        const u = at(after, id) ?? at(before, id);
+        return u === undefined ? undefined : { id, x: u.x, y: u.y };
+      })
+      .filter((g): g is { id: string; x: number; y: number } => g !== undefined);
+    if (ghosts.length > 0) next.ghosts = ghosts;
+
+    if (next.trail === undefined && next.pulse === undefined && next.ghosts === undefined) return;
+    setFx(next);
+  };
+
   const dispatch = (action: BattleAction): GameState => {
     // 한 클릭에 move+행동이 연달아 커밋되므로 비교 기준은 렌더 시점 game이 아니라 스토어 최신이어야 한다.
     const prev = store.getState().game;
     const next = store.getState().dispatch(action);
     if (next === prev) return prev;
+    playEffects(action, next.events, prev, next);
     const lines = describe(next.events);
     if (lines.length > 0) setLog(lines);
     for (const ev of next.events) {
@@ -975,7 +1097,8 @@ export default function BoardIsland(props: BoardProps) {
         byTile={byTileView}
         visuals={visuals}
         range={boardRange}
-        path={path}
+        path={path ?? fx?.trail}
+        fx={fx}
         selectedId={editing ? editSel : selectedId}
         targetId={targetId}
         banner={banner}

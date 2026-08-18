@@ -28,6 +28,7 @@ export interface BoardViewProps {
   visuals: Map<string, UnitVisual>;
   range?: { move: Tile[]; attack: Tile[]; staff?: Tile[] };
   path?: Tile[];
+  fx?: BoardFx;
   selectedId?: string;
   targetId?: string;
   banner?: string;
@@ -35,6 +36,25 @@ export interface BoardViewProps {
   onTileClick?: (x: number, y: number) => void;
   onTileHover?: (tile: Tile | undefined) => void;
 }
+
+/**
+ * 행동 연출 상태 — 기보 작성(플레이)과 리플레이가 같은 것을 넣는다.
+ * seq = 스텝 일련번호(애니메이션 재시작용). trail은 화살표 레이어가 소비한다(path와 같은 자리).
+ */
+export interface BoardFx {
+  seq: number;
+  trail?: Tile[];
+  nudge?: { id: string; dx: number; dy: number };
+  pulse?: readonly string[];
+  /** 전사한 유닛의 자리 — 유닛이 즉시 사라져 테두리 펄스를 띄울 몸이 없다(실루엣 잔상으로 2초). */
+  ghosts?: readonly { id: string; x: number; y: number }[];
+}
+
+/** 짝수/홀수로 이름을 번갈아 = 같은 연출이 연속될 때도 애니메이션이 처음부터 다시 돈다. */
+const fxAnimation = (seq: number, nudge: boolean, hit: boolean): string => {
+  const p = seq % 2 === 0 ? "a" : "b";
+  return [nudge && `cell-nudge-${p}`, hit && `cell-hit-${p}`].filter(Boolean).join(", ");
+};
 
 export default function BoardView({
   width,
@@ -51,6 +71,7 @@ export default function BoardView({
   visuals,
   range,
   path,
+  fx,
   selectedId,
   targetId,
   banner,
@@ -237,14 +258,35 @@ export default function BoardView({
           {units.map((u) => {
             const v = visuals.get(u.id);
             if (v === undefined) return null;
-            const cls = ["cell", u.id === selectedId && "sel", u.id === targetId && "tgt", u.acted && "acted"]
+            const nudge = fx?.nudge?.id === u.id ? fx.nudge : undefined;
+            const hit = fx?.pulse?.includes(u.id) === true;
+            const cls = [
+              "cell",
+              u.id === selectedId && "sel",
+              u.id === targetId && "tgt",
+              u.acted && "acted",
+              nudge !== undefined && "nudge",
+              hit && "hit",
+            ]
               .filter(Boolean)
               .join(" ");
             return (
               <span
                 key={u.id}
                 className={cls}
-                style={{ gridColumn: col(u.x), gridRow: row(u.y), "--force": v.ring } as React.CSSProperties}
+                style={
+                  {
+                    gridColumn: col(u.x),
+                    gridRow: row(u.y),
+                    "--force": v.ring,
+                    ...(nudge !== undefined ? { "--nx": nudge.dx, "--ny": nudge.dy } : {}),
+                    // ☠같은 유닛이 연속으로 맞으면 클래스가 그대로라 애니메이션이 다시 안 뜬다 —
+                    //   스텝마다 이름을 번갈아 줘서 브라우저가 새 애니메이션으로 보게 한다.
+                    ...(nudge !== undefined || hit
+                      ? { animationName: fxAnimation(fx!.seq, nudge !== undefined, hit) }
+                      : {}),
+                  } as React.CSSProperties
+                }
               >
                 {v.icon ? (
                   <img src={v.icon} alt={`${v.name} — ${v.job}`} className="icon" width="48" height="48" loading="eager" decoding="sync" />
@@ -256,11 +298,35 @@ export default function BoardView({
                 <span className="hpbar" aria-hidden="true">
                   <i style={{ width: `${Math.round((u.hp / u.stats.hp) * 100)}%` }} />
                 </span>
+                {/* 경험치 바(노랑) — 자군만. 적·우군은 성장하지 않아 늘 0이라 노이즈가 된다. */}
+                {u.force === 0 && (
+                  <span className="expbar" title={`EXP ${u.exp} / 100`} aria-hidden="true">
+                    <i style={{ width: `${Math.min(Math.max(u.exp, 0), 100)}%` }} />
+                  </span>
+                )}
                 {u.broken && <span className="brk" title="Break">✗</span>}
               </span>
             );
           })}
         </div>
+
+        {/* 전사 잔상 — 스프라이트 알파를 마스크로 써서 도트 실루엣 그대로 단색 적색 펄스(2초). */}
+        {fx?.ghosts !== undefined && fx.ghosts.length > 0 && (
+          <div className="layer ghosts" aria-hidden="true">
+            {fx.ghosts.map((g) => {
+              const icon = visuals.get(g.id)?.icon;
+              return (
+                <span key={`g${fx.seq}-${g.id}`} className="cell ghost" style={{ gridColumn: col(g.x), gridRow: row(g.y) }}>
+                  {icon !== undefined ? (
+                    <i className="sil" style={{ "--sil": `url(${icon})` } as React.CSSProperties} />
+                  ) : (
+                    <i className="sil solid" />
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {structures !== undefined && structures.some((s) => s.roof === true) && (
           <div className="layer roofs">
