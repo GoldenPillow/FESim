@@ -99,11 +99,6 @@
               "y": 4
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -119,11 +114,6 @@
               "y": 4
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -139,11 +129,6 @@
               "y": 4
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -188,16 +173,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -242,16 +217,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -296,16 +261,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -350,16 +305,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -404,16 +349,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -458,16 +393,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -512,16 +437,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -566,16 +481,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     },
@@ -620,16 +525,6 @@
               "y": 6
             }
           }
-        },
-        {
-          "unit": "PID_リュール",
-          "optional": true,
-          "wait": true
-        },
-        {
-          "unit": "PID_ヴァンドレ",
-          "optional": true,
-          "wait": true
         }
       ]
     }
