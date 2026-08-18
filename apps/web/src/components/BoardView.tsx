@@ -36,6 +36,10 @@ export interface BoardViewProps {
    */
   strikes?: readonly StrikeSummary[];
   fx?: BoardFx;
+  /**
+   * 이동 잔상 — 그 유닛의 **출발 칸**. 수명이 fx(1~2초)와 다르다(유닛 턴 마무리까지)라 별도 입력이다.
+   */
+  moveOrigin?: { unit: string; x: number; y: number };
   selectedId?: string;
   targetId?: string;
   banner?: string;
@@ -51,7 +55,7 @@ export interface BoardViewProps {
 export interface BoardFx {
   seq: number;
   trail?: Tile[];
-  /** 이동 잔상의 주인 — trail 경로 위에 흐린 스프라이트를 순차로 남긴다(어디서 왔는지가 궤적만으로는 안 읽힌다). */
+  /** 이동 잔상의 주인 — 궤적이 아니라 **출발 칸 한 곳**에만 남긴다(BoardViewProps.moveOrigin). */
   trailUnit?: string;
   nudge?: { id: string; dx: number; dy: number };
   pulse?: readonly string[];
@@ -106,6 +110,7 @@ export default function BoardView({
   godFaces,
   strikes,
   fx,
+  moveOrigin,
   selectedId,
   targetId,
   banner,
@@ -354,29 +359,23 @@ export default function BoardView({
           })}
         </div>
 
-        {/* 이동 잔상 — 지나온 칸마다 스프라이트를 흐리게 남기고 순차로 지운다(어디서 왔는지가 한눈에).
-            도착 칸(마지막)은 본체가 서 있으므로 뺀다 — 겹치면 그냥 두꺼워 보인다. */}
-        {fx?.trailUnit !== undefined && fx.trail !== undefined && fx.trail.length > 1 && (
+        {/* 이동 잔상 — ★**출발 칸 한 곳에 고정**으로 흐리게 남긴다(2026-08-18 사용자 지정).
+            궤적을 따라 흩뿌리면 어디서 왔는지가 아니라 "지나갔다"만 보인다.
+            수명 = 그 유닛의 턴 마무리까지 — fx 타이머(1초)와 무관하게 호출측이 소유한다. */}
+        {moveOrigin !== undefined && (
           <div className="layer afterimages" aria-hidden="true">
-            {fx.trail.slice(0, -1).map((t, i) => {
-              const icon = visuals.get(fx.trailUnit!)?.icon;
+            {(() => {
+              const icon = visuals.get(moveOrigin.unit)?.icon;
               if (icon === undefined) return null;
               return (
                 <span
-                  key={`a${fx.seq}-${i}`}
                   className="cell afterimage"
-                  style={
-                    {
-                      gridColumn: col(t.x),
-                      gridRow: row(t.y),
-                      animationDelay: `${i * 70}ms`,
-                    } as React.CSSProperties
-                  }
+                  style={{ gridColumn: col(moveOrigin.x), gridRow: row(moveOrigin.y) } as React.CSSProperties}
                 >
                   <img src={icon} alt="" width="48" height="48" />
                 </span>
               );
-            })}
+            })()}
           </div>
         )}
 
