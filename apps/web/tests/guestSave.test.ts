@@ -12,6 +12,10 @@ import {
   ZOOM_MAX,
   ZOOM_MIN,
   ZOOM_STEP,
+  loadRun,
+  saveRun,
+  runKey,
+  type RunState,
   type SaveKey,
 } from "../src/lib/guestSave";
 import { memoryStorage } from "./fixtures";
@@ -112,5 +116,41 @@ describe("맵 줌 저장", () => {
     expect(() => saveZoom(1)).not.toThrow();
     use(memoryStorage("getItem"));
     expect(loadZoom()).toBe(ZOOM_DEFAULT);
+  });
+});
+
+/**
+ * 런(캠페인) 저장 — 챕터 사슬의 상태다. 게이트 제로 유지(무계정 localStorage, 서버 저장은 M4).
+ * 왜 위험한가: 손상 슬롯 하나로 캠페인 진입이 막히면 사용자는 판을 통째로 잃는다.
+ * 자동 저장 계층의 규약과 같게 — 못 읽으면 조용히 버리고 새 런으로 간다.
+ */
+describe("런 저장 — fesim:run", () => {
+  const run = (): RunState => ({
+    game: "fe17",
+    difficulty: "l",
+    chapter: "CID_M003",
+    cleared: ["CID_M002"],
+    roster: { PID_A: { level: 6, exp: 20 } },
+    updated: "2026-08-18T00:00:00.000Z",
+  });
+
+  it("저장 → 복원 왕복", () => {
+    Object.defineProperty(globalThis, "localStorage", { value: memoryStorage(), configurable: true });
+    saveRun(run());
+    expect(loadRun()).toEqual(run());
+  });
+
+  it("이물·손상 슬롯은 조용히 버린다(캠페인 진입이 막히면 안 된다)", () => {
+    const store = memoryStorage();
+    Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
+    store.setItem(runKey("fe17"), "{ 이건 JSON이 아니다");
+    expect(loadRun()).toBeUndefined();
+    expect(store.getItem(runKey("fe17"))).toBeNull(); // 버려졌다
+  });
+
+  it("게임이 다른 런은 남의 런이다 — 게임 id가 키의 일부다", () => {
+    Object.defineProperty(globalThis, "localStorage", { value: memoryStorage(), configurable: true });
+    saveRun(run());
+    expect(loadRun("fe18")).toBeUndefined();
   });
 });

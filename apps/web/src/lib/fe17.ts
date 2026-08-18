@@ -437,9 +437,20 @@ export interface ChapterListEntry {
   cid: string;
   category: ChapterCategory;
   recommendedLevel?: number;
+  /** chapter.xml NextChapter — 본편 사슬의 다음 챕터(캠페인 진행의 순서 정본). */
+  next?: string;
+  /** chapter.xml GmapSpotOpenCondition — 이 챕터가 열리는 시점(외전 개방 조건, 접두 없는 챕터 꼬리). */
+  unlock?: string;
 }
 
+
+
 export const chapterList = parse<ChapterListEntry[]>(chapterlistRaw);
+
+const chapterByCid = new Map(chapterList.map((e) => [e.cid, e]));
+
+/** 다음 챕터(cid) — 사슬 끝(엔딩)이나 사슬 밖(외전·신룡의 장)이면 undefined. */
+export const nextChapter = (cid: string): string | undefined => chapterByCid.get(cid)?.next;
 
 export const chapterMapId = (cid: string): string => cid.replace(/^CID_/, "").toLowerCase();
 

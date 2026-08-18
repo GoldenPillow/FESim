@@ -126,7 +126,13 @@ for i in 0..8:
 - [x] **5-2 인계 그릇**(2026-08-18 완료) — SetupUnit 확장(exp·internalLevel·jid·hp·growthAcc) + pid 키 해석층 + `projectUnit` override
   - 키 계약 = 순번 키(u{i}) **우선**, 없으면 pid 키 · pid 키는 **자군만**(적은 pid가 겹친다 — 환영병)
   - 테스트 3건(pid 해석·순번 우선·자군 한정) · ☠jid override는 그릇만 열었다(스탯·캡·스킬 재산출 = 5-4 전직)
-- [ ] **5-3 런 저장** — `fesim:run:*` 계층(guestSave.ts 국소) + 챕터 연쇄 순서(chapterlist에 next 탑재, 파이프라인)
+- [x] **5-3 런 저장**(2026-08-18 완료) — `fesim:run:*` 계층 + 챕터 연쇄 순서
+  - `RunState`(game·difficulty·chapter·cleared·roster·updated) · 게임당 1런(다중 슬롯 = M4 보관함)
+  - 인계 산출 = `carryover(state)`(engine/campaign.ts) — 생존 자군만 pid 키 · **현재 HP는 안 나른다**(챕터 개시 만회복) ·
+    ☠사망 자군은 `removed: true`(안 적으면 다음 챕터 dispos가 기본 스탯으로 되살린다)
+  - 파이프라인 = chapterlist에 `next`(NextChapter 31건) + `unlock`(GmapSpotOpenCondition 20건 — 외전 개방 시기, MA 공략 입력)
+  - 테스트 = campaign.test.ts 6건 · guestSave.test.ts 3건 · fe17.test.ts 2건
+  - 잔여: 챕터 승리 → 런 갱신·다음 챕터 진입 **배선은 5-6 UI**, 사슬 실증은 5-5
 - [ ] **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
 - [ ] **5-5 기보 생성기 확장** — `./dev replay --run` 으로 챕터 사슬 생성(m000→m001→m002→m003), 전직 정책 포함
 - [ ] **5-6 UI** — 런 진행 표시·이어하기 진입점

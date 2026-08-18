@@ -49,6 +49,8 @@ export {
   type UnitState,
 } from "./battle.js";
 
+export { carryover } from "./campaign.js";
+
 export {
   createReplayer,
   recordingSource,

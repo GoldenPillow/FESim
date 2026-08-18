@@ -115,6 +115,11 @@ def build_chapterlist(src: Path, out: Path) -> None:
         entry = {"cid": row["Cid"], "category": CHAPTER_CATEGORIES[m.group(1)]}
         if row.get("RecommendedLevel"):
             entry["recommendedLevel"] = row["RecommendedLevel"]
+        # 챕터 연쇄(캠페인 인계의 순서 정본) — 본편은 NextChapter, 외전은 해금 조건 챕터가 자리를 정한다.
+        if row.get("NextChapter"):
+            entry["next"] = row["NextChapter"]
+        if row.get("GmapSpotOpenCondition"):
+            entry["unlock"] = row["GmapSpotOpenCondition"]
         entries.append(entry)
     order = {"main": 0, "paralogue": 1, "divine": 2, "fell": 3}
     entries.sort(key=lambda e: (order[e["category"]], e["cid"]))

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -34,6 +34,19 @@ describe("unitStats — 스탯 상한(Limit) 배선", () => {
     expect(unitStats(disposUnit({}), "n")).toEqual({
       hp: 22, str: 6, mag: 0, dex: 5, spd: 7, lck: 5, def: 5, res: 3, bld: 4,
     });
+  });
+});
+
+describe("챕터 연쇄 (MP5 5-3)", () => {
+  it("nextChapter — 본편 사슬은 chapter.xml NextChapter가 정본이다", () => {
+    // 왜 위험한가: 종전 chapterlist는 cid/category/recommendedLevel 3필드뿐이라 캠페인이
+    // 다음 챕터를 알 방법이 없었다(파일명 정렬은 외전·신룡의 장을 섞어 놓는다).
+    expect(nextChapter("CID_M002")).toBe("CID_M003");
+    expect(nextChapter("CID_S001")).toBeUndefined(); // 외전은 사슬 밖 — 해금(unlock)으로 열린다
+  });
+
+  it("unlock — 외전 개방 시점이 실린다(MA 공략의 외전 진입 판단 입력)", () => {
+    expect(chapterList.find((e) => e.cid === "CID_S001")?.unlock).toBe("M005");
   });
 });
 

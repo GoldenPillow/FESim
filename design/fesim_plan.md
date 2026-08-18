@@ -70,7 +70,7 @@ target: packages/engine + apps/web + tools/pipeline (M0~M4 전반)
     - [x] 5-0 안전장치 (2026-08-18 완료) — `cap`·`maxLevel` 사영(unitCap → BoardUnitProp → projectUnit → UnitState, **자군 한정** = 성장이 자군 한정 + 챕터 JSON 예산) · `grantExp` 최대 레벨 정지·잔여 경험 0 강제(AddExp 0x1A39D40 정본) · `levelUp` 이벤트에 exp 절대값(재생 계약) · statCap Clamp(0,255) 정정 · 테스트 5건. ☠**보드 JSON 예산 잔여 88B**(e006.ko 51,112/51,200B gz) — 유닛 필드 추가 전 압축 선행
     - [x] 5-1 고정 성장 (2026-08-18 완료) — ☠**정정: 의도적 이탈이 아니라 인게임 실재 모드**(GrowMode.Fixed, 메인 메뉴 선택 — 종전 '이탈' 서술 철회). 정본 코드가 뒤집은 설계안 2건 = 누적기 **초기값 = person.Grow**(0 아님) · 상한 게이트는 **루프 진입 전 1회**(캡에 닿으면 누적조차 없음). 배선 = GameState.growMode(부재 = fixed)·UnitState.growthAcc·levelUp 이벤트 acc 절대값 · RULE_VERSION fe17-8 · m002 재생성(84스텝 verified) · 테스트 6건. SetupUnit 필드는 5-2 소관
     - [x] 5-2 인계 그릇 (2026-08-18 완료) — SetupUnit 확장(exp·internalLevel·jid·hp·growthAcc) + pid 키 해석층(순번 키 우선·pid 키는 자군만 — 적은 pid 중복) + projectUnit override. 테스트 3건. jid override는 그릇만(재산출 = 5-4)
-    - [ ] 5-3 런 저장 — `fesim:run:*` 계층(guestSave.ts 국소 확장, 게이트 제로 유지 · 서버 저장 = M4) + 챕터 연쇄 순서 산출(chapter.xml `NextChapter`를 transform이 안 실어 chapterlist에 순서가 없다)
+    - [x] 5-3 런 저장 (2026-08-18 완료) — RunState + `fesim:run:*`(게이트 제로) · carryover(engine/campaign.ts — 생존 자군 pid 키·HP 미인계·사망 removed) · chapterlist에 next 31건·unlock 20건 탑재(파이프라인). 테스트 11건. 승리 시 런 갱신 배선 = 5-6
     - [ ] 5-4 전직 — 챕터 사이 사용자 지정(판독 확정: 레벨 1·Exp 0·누적 성장분 보존·내부레벨 clamp) + 상급직 분기 HighJob1/2 선택 + 마스터 프루프 사영 복원(현행 `AddTarget=0`이라 아이템 사영에서 탈락)
     - [ ] 5-5 기보 생성기 확장 — `./dev replay` 사슬 모드(m002→m003 인계 1건 실측) · 전직 시점 정책(고정 성장이라 승급 시점별 최종 스탯이 **계산 가능**해진다 — ma_walkthrough의 [지식] 표기를 계산으로 대체)
     - [ ] 5-6 UI — 런 진행 표시·이어하기 진입점·정비(전직) 화면
