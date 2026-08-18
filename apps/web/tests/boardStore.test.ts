@@ -19,6 +19,42 @@ describe("성장 안전장치 사영 (MP5 5-0)", () => {
   });
 });
 
+describe("챕터 인계 그릇 (MP5 5-2)", () => {
+  const setupBy = (key: string) => ({
+    units: {
+      [key]: {
+        level: 7, exp: 40, internalLevel: 3, hp: 12,
+        growthAcc: { str: 80 },
+        stats: { hp: 30, str: 14, mag: 0, dex: 12, spd: 12, lck: 6, def: 8, res: 4, bld: 7 },
+      },
+    },
+  });
+
+  it("pid 키가 보드 슬롯으로 해석된다 — 챕터마다 u{순번}이 달라지므로 인계 키는 pid다", () => {
+    const store = createBoardStore(props, undefined, setupBy(props.units[0]!.pid));
+    const u = store.getState().game.units.find((x) => x.id === "u0")!;
+    expect(u.level).toBe(7);
+    expect(u.exp).toBe(40);
+    expect(u.internalLevel).toBe(3);
+    expect(u.hp).toBe(12);
+    expect(u.growthAcc).toEqual({ str: 80 });
+    expect(u.stats.str).toBe(14);
+  });
+
+  it("인덱스 키(u{순번})가 pid 키보다 우선한다 — 편집기 의도가 인계를 덮는다", () => {
+    const store = createBoardStore(props, undefined, {
+      units: { ...setupBy(props.units[0]!.pid).units, u0: { level: 2 } },
+    });
+    expect(store.getState().game.units.find((x) => x.id === "u0")!.level).toBe(2);
+  });
+
+  it("pid 키는 자군에만 적용된다 — 인계는 자군 로스터의 계약이다", () => {
+    const enemyPid = props.units[1]!.pid;
+    const store = createBoardStore(props, undefined, { units: { [enemyPid]: { level: 9 } } });
+    expect(store.getState().game.units.find((x) => x.id === "u1")!.level).not.toBe(9);
+  });
+});
+
 describe("dispatch 기보 누적", () => {
   it("행동마다 스텝 1건 — 이동은 롤 무소비, 공격은 롤·이벤트 병기", () => {
     const store = createBoardStore(props);

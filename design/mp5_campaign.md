@@ -123,7 +123,9 @@ for i in 0..8:
     `levelUp` 이벤트 `acc` 절대값 스냅숏 · Random 경로는 정본으로 보존
   - m002 재생성 = 84스텝(종전 69) · 승리 8턴 · verified · 결손 0 · 자군 4명 생존
   - 테스트 6건(초기값·미달 누적·이월 복원·255 클램프·캡 게이트·난수 무소비) + 기존 Random 절 5건에 모드 명시
-- [ ] **5-2 인계 그릇** — SetupUnit 확장(exp·internalLevel·jid·hp) + pid 키 해석층 + `projectUnit` override
+- [x] **5-2 인계 그릇**(2026-08-18 완료) — SetupUnit 확장(exp·internalLevel·jid·hp·growthAcc) + pid 키 해석층 + `projectUnit` override
+  - 키 계약 = 순번 키(u{i}) **우선**, 없으면 pid 키 · pid 키는 **자군만**(적은 pid가 겹친다 — 환영병)
+  - 테스트 3건(pid 해석·순번 우선·자군 한정) · ☠jid override는 그릇만 열었다(스탯·캡·스킬 재산출 = 5-4 전직)
 - [ ] **5-3 런 저장** — `fesim:run:*` 계층(guestSave.ts 국소) + 챕터 연쇄 순서(chapterlist에 next 탑재, 파이프라인)
 - [ ] **5-4 전직** — Q2 결정에 따라 배선 + 마스터 프루프 사영 복원
 - [ ] **5-5 기보 생성기 확장** — `./dev replay --run` 으로 챕터 사슬 생성(m000→m001→m002→m003), 전직 정책 포함

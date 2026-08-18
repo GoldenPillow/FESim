@@ -98,19 +98,21 @@ export function projectUnit(
   const u = props.units[i];
   const id = `u${i}`;
   // setup diff(M4 편집): 스냅숏(stats)이 초기화의 정본 — 열람 경로가 원천 테이블 없이 재구성한다.
-  const su = setup?.units?.[id];
+  // pid 키(MP5 챕터 인계)는 자군만 — 챕터가 바뀌면 순번이 달라지므로 인물 주소로 적는다.
+  // 순번 키가 이긴다: 편집기 의도가 인계를 덮는 쪽이 사용자 조작과 맞다.
+  const su = setup?.units?.[id] ?? (u?.force === 0 ? setup?.units?.[u.pid] : undefined);
   if (u === undefined || su?.removed === true) return undefined;
   const stats = su?.stats ?? u.stats?.[difficulty];
   if (stats === undefined) return undefined;
   return {
     id,
     pid: u.pid,
-    jid: u.jid,
+    jid: su?.jid ?? u.jid,
     name: u.name,
     force: u.force,
     x: su?.x ?? u.x,
     y: su?.y ?? u.y,
-    hp: stats.hp,
+    hp: su?.hp ?? stats.hp,
     stats,
     weapon: su?.weapons?.[0] ?? u.weapon,
     weapons: su?.weapons ?? u.weapons,
@@ -122,11 +124,12 @@ export function projectUnit(
     engageArt: su?.engageArt ?? u.engageArt,
     skills: su?.skills ?? u.skills,
     growth: u.growth,
+    ...(su?.growthAcc !== undefined ? { growthAcc: su.growthAcc } : {}),
     ...(u.cap !== undefined ? { cap: u.cap } : {}),
     ...(u.maxLevel !== undefined ? { maxLevel: u.maxLevel } : {}),
     level: su?.level ?? u.levels[difficulty],
-    internalLevel: u.internalLevel,
-    exp: 0,
+    internalLevel: su?.internalLevel ?? u.internalLevel,
+    exp: su?.exp ?? 0,
     movePoints: u.movePoints,
     moveType: u.moveType,
     ...(u.flying === true ? { flying: true } : {}),
