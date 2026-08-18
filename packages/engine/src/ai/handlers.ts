@@ -14,6 +14,7 @@ import {
   staffHealAmount,
   movePower,
   movePredicates,
+  piercePath,
   moveBudgetOn,
   type BattleAction,
   type BattleMap,
@@ -158,8 +159,17 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
    */
   const art = actor.engage?.engaging === true ? actor.engageArt : undefined;
   if (art !== undefined && (art.rewarp ?? 0) === 0 && (actor.engage?.count ?? 0) >= (art.cost ?? 0)) {
-    actions.push({ type: "engageAttack", unit: actor.id, target: best.target });
-    return { kind: "decide", actions };
+    // ☠관통형은 발판에서 경로가 성립해야만 나간다(아군 차단·맵 밖·착지 불가) — reduce와 **같은 함수**로
+    //   먼저 물어본다. 안 물으면 엔진이 거부하고 그 유닛의 턴이 조용히 증발한다.
+    const target = ctx.state.units.find((u) => u.id === best.target);
+    const stand = { ...actor, x: best.moveX, y: best.moveY };
+    const ok =
+      art.pierce !== true ||
+      (target !== undefined && piercePath(ctx.state, ctx.state.units, stand, target) !== undefined);
+    if (ok) {
+      actions.push({ type: "engageAttack", unit: actor.id, target: best.target });
+      return { kind: "decide", actions };
+    }
   }
   actions.push({ type: "attack", unit: actor.id, target: best.target, weapon: best.weapon });
   return { kind: "decide", actions };
