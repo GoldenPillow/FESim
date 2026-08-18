@@ -102,6 +102,7 @@ const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
 const ACTION_TYPES: Record<BattleAction["type"], true> = {
   setup: true,
   move: true,
+  visit: true,
   attack: true,
   staff: true,
   item: true,

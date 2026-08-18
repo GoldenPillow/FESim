@@ -308,7 +308,20 @@ export const tileColorAt = (tid: string, x: number, y: number): string => {
 };
 
 /** 통행 불가 지형 — 화면에서 "덩어리"로 읽히도록 별도 음영을 준다. */
-export const isBlocked = (tid: string): boolean => (terrain[tid]?.Prohibition ?? 0) > 0;
+/**
+ * 통행 불가 표시 — ☠**`Prohibition`으로 판정하지 않는다**(2026-08-18 정정).
+ * `MOVE_TERRAIN.md` §6-2가 "`Prohibition`(戦闘禁止)은 **통행성이 아닌 것은 확정**"이라 못박았는데도
+ * 이 함수가 그 필드를 쓰고 있었다. 그 결과 **45개 지형이 통행 불가처럼 그려졌다** —
+ * 砦(회피 30·회복 10, 보병 코스트 2)와 성벽 위(`低い壁`·`防壁` = COST_空 = 비행 진입 가능)가 전부 막힌 칸으로 보였다.
+ * 정본 = 코스트다. 어느 이동 타입으로도 못 들어가는 칸(COST_不可)만 통행 불가로 표시한다.
+ * (이동 계산 자체는 늘 코스트 격자만 봤으므로 규칙은 원래 옳았고, 틀린 것은 **표시**였다.)
+ */
+export const isBlocked = (tid: string): boolean => {
+  const cost = terrain[tid]?.cost;
+  if (cost === undefined) return false;
+  const values = Object.values(cost);
+  return values.length > 0 && values.every((v) => v >= 255);
+};
 
 export const tileName = (locale: Locale, tid: string): string =>
   label(locale, terrain[tid]?.Name) ?? tid.replace(/^TID_/, "");
@@ -738,6 +751,8 @@ export interface BoardOverlayProp {
   heal?: number;
   moveFirst?: number;
   notWarp?: boolean;
+  /** 워프 목적지 금지 — TerrainData.IsNotTarget = Flag & 0x2001(扉류 2종). 리워프형 기술 착지 게이트. */
+  notTarget?: boolean;
   /** 이동 코스트 가산(terrain.json MoveCost/FlyCost). */
   moveCost?: number;
   flyCost?: number;
@@ -870,6 +885,12 @@ export interface BoardProps {
   tiles: number[][];
   /** crest = 紋章氣(1회성 소비 타일) — 엔진 국면 crests의 초기값이자 소멸 표시 판별자. */
   objects: { x: number; y: number; name: string; crest?: boolean }[];
+  /**
+   * 紋章氣 표시명(로케일) — ☠**런타임 생성분 전용**이다. 스크립트가 `MapOverlapSetOne`으로
+   * 충전 지점을 새로 놓는 챕터(m002 뤼미에르 격파 후 등)는 정적 objects에 그 좌표가 없어서
+   * 이름을 빌려올 데가 없다. 정적 紋章氣가 있으면 그쪽 이름을 쓴다.
+   */
+  crestName: string;
   /** 구조물 레이어(m_Layers) — 엔진 StructureState의 초기값 + 렌더 표시 필드(색·이름은 SSG에서 굳힘). */
   structures?: BoardStructureProp[];
   /** 지속 오버레이(m_Overlaps) — 엔진 BattleMap.overlays의 초기값 + 렌더 표시 필드. */
@@ -913,7 +934,7 @@ export interface BoardProps {
     items: Record<string, { kind: "weapon" | "staff" | "consumable" | "none"; item?: BoardWeaponProp | StaffItem | ConsumableItem }>;
     terrains: Record<string, {
       /** 엔진 TerrainCell 그대로(표시 필드 제외 — 색·이름은 아래가 소유, 중복 직렬화 금지). */
-      cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean };
+      cell: { tid: string; costName?: string; avoid: number; def: number } & Partial<Record<"playerAvoid" | "playerDef" | "enemyAvoid" | "enemyDef" | "heal" | "moveFirst", number>> & { notWarp?: boolean; notTarget?: boolean };
       cost?: Partial<Record<MoveType, number>>;
       color: string;
       name: string;
@@ -1296,6 +1317,7 @@ export function boardProps(
       ...opt("heal", row?.Heal),
       ...opt("moveFirst", row?.MoveFirst),
       ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...((Number(row?.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
       ...(row?.cost !== undefined ? { cost: row.cost } : {}),
     };
   });
@@ -1352,6 +1374,7 @@ export function boardProps(
           ...opt("heal", row?.Heal),
           ...opt("moveFirst", row?.MoveFirst),
           ...((Number(row?.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+      ...((Number(row?.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
           ...opt("moveCost", row?.MoveCost),
           ...opt("flyCost", row?.FlyCost),
         };
@@ -1362,6 +1385,9 @@ export function boardProps(
         y: it.y,
         ...(it.x2 !== undefined ? { x2: it.x2 } : {}),
         ...(it.y2 !== undefined ? { y2: it.y2 } : {}),
+        // ☠**서는 칸**을 빠뜨리면 민가가 영영 안 열린다 — 민가 본체는 통행 불가고 `EventEntryVisit`이
+        //   등록하는 좌표는 **앞칸**이다(m004: 집 (7,5) · 서는 칸 (7,4)). 방문 액션의 합법성 기준.
+        ...(it.stand !== undefined ? { stand: it.stand } : {}),
         ...(it.iid !== undefined ? { name: namedOr(items, locale, it.iid), iid: it.iid } : {}),
         // ★이탈점의 대상 인물 — S015처럼 특정 유닛 전용 이탈점이 있다(AI MV_Escape가 소비).
         ...(it.pid !== undefined ? { pid: it.pid } : {}),
@@ -1373,6 +1399,7 @@ export function boardProps(
       };
     })(),
     units,
+    crestName: tileName(locale, "TID_紋章氣"),
     labels,
     ...(() => {
       const routines = chapterAiRoutines(views.map((v) => v.unit));
@@ -1440,6 +1467,7 @@ export function boardProps(
               ...opt("heal", row.Heal),
               ...opt("moveFirst", row.MoveFirst),
               ...((Number(row.Flag ?? 0) & (1 << 17)) !== 0 ? { notWarp: true } : {}),
+              ...((Number(row.Flag ?? 0) & 0x2001) !== 0 ? { notTarget: true } : {}),
             },
             ...(row.cost !== undefined ? { cost: row.cost } : {}),
             color: tileColor(m[1]),

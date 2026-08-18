@@ -58,6 +58,12 @@ export function createEventedReducer(base: Reduce, session: EventSession): Reduc
         collected = after.events;
       }
     }
+    // 민가 방문 발화(Visit) — 방문 액션이 통과한 뒤에만(엔진이 합법성을 이미 심판했다).
+    if (action.type === "visit" && after.outcome === undefined) {
+      const r = session.visited(after, action.unit);
+      after = settle({ ...r, state: { ...r.state, events: [...collected, ...r.events] } });
+      collected = after.events;
+    }
     // 사망 발화(Die) — 이벤트 스크립트의 격파 트리거(예: m002 루미엘 1차 격파 → 국면 전환 플래그).
     const deaths = next.events.filter((e): e is Extract<BattleEvent, { type: "death" }> => e.type === "death");
     if (deaths.length > 0) {

@@ -928,17 +928,10 @@
   transform: translateX(-50%);
   object-fit: contain;
   image-rendering: pixelated;
+  /* ★출발 칸에 **고정**으로 흐리게 — 사라지지 않는다. 수명은 유닛 턴 마무리까지고 호출측이 끊는다
+     (2026-08-18 사용자 지정: "궤적을 따라 잔상을 그리지말고 최초위치에 고정으로 흐리게"). */
   filter: blur(1.5px) saturate(0.7);
-  opacity: 0;
-  animation: afterimage-fade 900ms ease-out forwards;
-}
-@keyframes afterimage-fade {
-  0% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0;
-  }
+  opacity: 0.45;
 }
 
 /*

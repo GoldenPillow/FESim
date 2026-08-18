@@ -65,7 +65,7 @@ if (env.LINKS === undefined) {
         const byTile = new Map<string, UnitState>();
         for (const u of alive) byTile.set(tileKey(u.x, u.y), u);
         frame = {
-          board: { ...board, objects: visibleObjects(board.objects, state.crests), structures: visibleStructures(board.structures, state.structures) },
+          board: { ...board, objects: visibleObjects(board.objects, state.crests, board.crestName), structures: visibleStructures(board.structures, state.structures) },
           ...(state.terrainPatches === undefined ? {} : { patches: state.terrainPatches }),
           address: toAddress(timeline, cursor),
           at: cursor,

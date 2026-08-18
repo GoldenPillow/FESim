@@ -70,6 +70,7 @@ describe(".eph 기보", () => {
     const samples: Record<BattleAction["type"], BattleAction> = {
       setup: { type: "setup" },
       move: { type: "move", unit: "a", x: 1, y: 1 },
+      visit: { type: "visit", unit: "a" },
       attack: { type: "attack", unit: "a", target: "e" },
       staff: { type: "staff", unit: "a", target: "b" },
       item: { type: "item", unit: "a" },

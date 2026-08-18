@@ -82,6 +82,11 @@ export default function BoardIsland(props: BoardProps) {
   // 연출 상태 — seq는 같은 유닛이 연속 피격될 때 CSS 애니메이션을 다시 트는 용도(클래스만으론 재시작 안 된다).
   const fxRef = useRef(0);
   const [fx, setFx] = useState<BoardFx | undefined>(undefined);
+  /**
+   * 이동 잔상(출발 칸) — ☠fx와 **수명이 다르다**: fx는 1~2초 뒤 자동으로 걷히지만 잔상은
+   * 그 유닛의 **턴 마무리까지** 남는다(2026-08-18 사용자 지정). 그래서 별도 상태다.
+   */
+  const [moveOrigin, setMoveOrigin] = useState<{ unit: string; x: number; y: number } | undefined>(undefined);
   const [strikes, setStrikes] = useState<readonly StrikeSummary[] | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
@@ -701,6 +706,7 @@ export default function BoardIsland(props: BoardProps) {
           case "godUnit":
           case "ai":
           case "crestAdd":
+          case "visited":
           case "reset":
           case "unitFlags":
           case "equip":
@@ -785,6 +791,18 @@ export default function BoardIsland(props: BoardProps) {
   ): void => {
     const at = (state: GameState, id: string): UnitState | undefined => state.units.find((u) => u.id === id);
     const next: BoardFx = { seq: (fxRef.current += 1) };
+
+    // 잔상 수명 관리 — 이동이면 출발 칸을 새로 세우고, 그 유닛이 턴을 마쳤거나 남이 움직이면 걷는다.
+    if (action.type === "move") {
+      const from = at(before, action.unit);
+      if (from !== undefined) setMoveOrigin({ unit: action.unit, x: from.x, y: from.y });
+    } else if (action.type === "endPhase") {
+      setMoveOrigin(undefined);
+    } else if ("unit" in action) {
+      // 이동 무소모 액션(발동·교환)은 아직 턴 중이라 잔상을 유지한다. 그 밖은 마무리로 본다.
+      const keep = action.type === "engage" || action.type === "trade";
+      if (!keep || action.unit !== moveOrigin?.unit) setMoveOrigin(undefined);
+    }
 
     if (action.type === "move") {
       const mover = at(before, action.unit);
@@ -1155,7 +1173,7 @@ export default function BoardIsland(props: BoardProps) {
         height={height}
         tiles={tiles}
         palette={props.palette}
-        objects={visibleObjects(objects, game.crests)}
+        objects={visibleObjects(objects, game.crests, props.crestName)}
         structures={visibleStructures(props.structures, game.structures)}
         overlays={props.overlays}
         patches={game.terrainPatches}
@@ -1168,6 +1186,7 @@ export default function BoardIsland(props: BoardProps) {
         godFaces={props.godFaces}
         strikes={strikes}
         fx={fx}
+        moveOrigin={moveOrigin}
         selectedId={editing ? editSel : selectedId}
         targetId={targetId}
         banner={banner}

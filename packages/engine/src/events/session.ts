@@ -193,6 +193,8 @@ export interface EventSession {
   battle(state: GameState, kinds: ("battleBefore" | "battleTalk" | "battleAfter")[], attackerId: string, defenderId: string): HookResult;
   /** 유닛 행동 종료 폴링(Fixed, terminal일 때만) + 영역 진입(Area) — ⚠발화 시점 근사(장부 참조). */
   acted(state: GameState, unitId: string, terminal: boolean): HookResult;
+  /** 민가 방문 발화(Visit) — 방문 액션이 통과한 칸의 EventEntryVisit 트리거. 보상은 스크립트 소유. */
+  visited(state: GameState, unitId: string): HookResult;
   /** 파괴 완파 발화(Destroy) — 완파된 구조물 사각과 교차하는 EventEntryDestroy 트리거. */
   destroyed(state: GameState, rects: { x1: number; y1: number; x2: number; y2: number }[]): HookResult;
   /**
@@ -1263,6 +1265,18 @@ export function createEventSession(opts: {
           isValue(i.force, unit.force) &&
           unit.x >= i.rect.x1 && unit.x <= i.rect.x2 && unit.y >= i.rect.y1 && unit.y <= i.rect.y2,
         );
+      });
+    },
+    visited(state, unitId) {
+      // 민가 방문 발화 — `EventEntryVisit(fn, x, z)`가 등록한 칸에서 그 콜백을 돌린다.
+      // ☠**방문 유닛을 문맥에 실어야 한다** — 콜백이 `ItemGain(MindGetUnit(), ...)`로 보상을 주므로
+      //   문맥이 비면 물건이 허공에 지급된다(m004 民家 = IID_手槍).
+      const idx = state.units.findIndex((u) => u.id === unitId);
+      if (idx < 0) return { state, events: [] };
+      const unit = state.units[idx];
+      const { x, y } = unit;
+      return withDraft(state, { unit: idx, force: unit.force }, () => {
+        fire("visit", (i) => i.rect !== undefined && i.rect.x1 <= x && x <= i.rect.x2 && i.rect.y1 <= y && y <= i.rect.y2);
       });
     },
     destroyed(state, rects) {

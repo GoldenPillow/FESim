@@ -228,6 +228,35 @@ describe("인게이지 기술(engageAttack)", () => {
       unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, stats: { ...baseStats, hp: 99 }, hp: 99 }),
     ]);
 
+  it("리워프형 기술은 착지 칸으로 순간이동한 뒤 친다 — 이동 코스트를 보지 않는다", () => {
+    // 왜 위험한가: 종전엔 rewarp>0을 통째로 거부해 **세리카 ワープライナ가 아예 안 나갔다**.
+    // 제4장은 이 기술을 가르치는 장이고(チュートリアル_ワープライナ_済), 정석 수가 "회복 타일 칸으로
+    // 워프해서 위쪽 유닛을 잡는" 것이다. 정본 = MapDeployTemplate.UnitRewarp(0x2C1FE40) —
+    // 대상마다 기술 사거리 링을 후보로 칠하고, 게이트는 지형 IsNotTarget(Flag & 0x2001)뿐이다.
+    const g = mk({ rewarp: 1 }, {});
+    // 사거리 밖(멀리) 서 있어도 착지 칸이 사거리 안이면 성립한다.
+    const far = { ...g, units: g.units.map((u) => (u.id === "a" ? { ...u, x: 5, y: 5 } : u)) };
+    const next = reduce(far, { type: "engageAttack", unit: "a", target: "e", x: 2, y: 0 } as BattleAction, roll(0, 0, 0, 0));
+    const me = next.units.find((u) => u.id === "a")!;
+    expect([me.x, me.y]).toEqual([2, 0]);
+    expect(next.events).toContainEqual({ type: "setPos", unit: "a", x: 2, y: 0 });
+    expect(next.events.filter((ev) => ev.type === "strike").length).toBeGreaterThan(0);
+  });
+
+  it("리워프 착지 칸은 기술 사거리 안이어야 하고 유닛이 없어야 한다", () => {
+    const g = mk({ rewarp: 1 }, {});
+    const far = { ...g, units: g.units.map((u) => (u.id === "a" ? { ...u, x: 5, y: 5 } : u)) };
+    // 사거리 밖 착지 — 검(사거리 1)인데 대상과 3칸 떨어진 칸
+    expect(() => reduce(far, { type: "engageAttack", unit: "a", target: "e", x: 4, y: 0 } as BattleAction, roll(0, 0, 0, 0)))
+      .toThrow(/사거리 밖/);
+    // 대상이 선 칸 자체는 점유라 안 된다
+    expect(() => reduce(far, { type: "engageAttack", unit: "a", target: "e", x: 1, y: 0 } as BattleAction, roll(0, 0, 0, 0)))
+      .toThrow(/유닛이 있다/);
+    // 좌표 없이 부르면 거부(통상 기술과 문법이 다르다)
+    expect(() => reduce(far, { type: "engageAttack", unit: "a", target: "e" } as BattleAction, roll(0, 0, 0, 0)))
+      .toThrow(/착지 칸이 필요/);
+  });
+
   it("攻撃回数 = 3타·반격 몰수(相手の手番回数 0)·명중 100 고정 — 흐름이 데이터에서 나온다", () => {
     // 명중 롤 9999(통상이면 빗나감)라도 汎用設定 명중률 100이라 전탄 명중해야 한다.
     const next = reduce(mk(), { type: "engageAttack", unit: "a", target: "e" } as BattleAction, roll(9999, 9999, 9999, 0));

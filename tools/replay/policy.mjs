@@ -15,6 +15,9 @@
 /** 이 HP 비율 밑으로 떨어질 각오까지만 한다(그 이하 = 위험수로 보고 회피). */
 const RISK_FLOOR = 0.45;
 
+/** 전진 시 남겨 둘 여유(최대 HP 비율) — 증원·필살 한 방을 흘려보낼 몫. */
+const ADVANCE_MARGIN = 0.25;
+
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 function reachable(engine, game, unit) {
@@ -89,14 +92,66 @@ function incoming(engine, calculator, game, unit, at, zones) {
   const d = engine.toCombatant(self, game.map, game.units);
   let total = 0;
   let hits = 0;
+  // ☠**필살 1회분을 최악으로 얹는다**(2026-08-18). 필살은 위력 3배라, 전탄 명중만 보고 잔여 HP 1로
+  // 턴을 마치면 한 방에 죽는다 — m004 클로에가 시드 8개 중 6개에서 그렇게 죽었다(운이 아니라 계통 결함).
+  // 전 공격을 필살로 보면 너무 보수적이라 유닛이 아예 못 움직이므로, **가장 아픈 한 방만** 필살로 본다.
+  let worstCrit = 0;
+  let worstBlow = 0;
   for (const { foe, tiles } of zones) {
     if (!tiles.has(at.y * game.map.width + at.x)) continue;
     const a = engine.toCombatant(foe, game.map, game.units);
     const fc = engine.forecastSide(calculator, a, d);
-    total += fc.damage * (fc.followUp ? 2 : 1);
+    const blows = fc.followUp ? 2 : 1;
+    total += fc.damage * blows;
+    // 필살률 0이면 여지가 없다. 아니면 그 타격 하나가 3배가 되는 만큼(= 위력 2배)이 추가 위험이다.
+    if (fc.critRate > 0 && fc.damage * 2 > worstCrit) worstCrit = fc.damage * 2;
+    if (fc.damage * blows > worstBlow) worstBlow = fc.damage * blows;
     hits++;
   }
-  return { total, hits };
+  // ⚠증원(적 페이즈 중 등장)은 위협 구역에 안 잡힌다 — m004 클로에 사망 6/6의 원인이지만,
+  // "한 명 더"를 예비로 두는 근사는 과보수라 전진 자체가 막혀 오히려 패배가 늘었다(2026-08-18 실측).
+  // 미채택으로 남기고 worstBlow는 계산만 해 둔다(다음 시도의 재료).
+  void worstBlow;
+  return { total: total + worstCrit, hits };
+}
+
+/**
+ * 상처약류 — 소모품 회복(AddType 2 = 자신 중심 반경 내 아군 일괄). 행동을 소모하므로 **칠 게 없거나
+ * 자신이 위험할 때만** 쓴다. 사용자 지적(2026-08-18): "바깥타일로 도망치고 상처약을 이용하고있는지 확인".
+ * ☠회복량은 아이템 고정값(AddPower)이라 능력치와 무관하다 — 넘치는 회복은 낭비이므로 손상량으로 점수를 낸다.
+ */
+function bestItem(engine, game, unit, mine) {
+  const list = unit.consumables ?? [];
+  let best;
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i];
+    if (it === undefined || it.addType !== 2 || (it.uses ?? 0) < 1) continue;
+    const targets = engine.itemTargets(unit, game.units, it);
+    if (targets.length === 0) continue;
+    // 실제로 채워지는 양의 합 — 상한을 넘는 몫은 세지 않는다.
+    const gain = targets.reduce((a, t) => a + Math.min(it.power ?? 0, t.stats.hp - t.hp), 0);
+    if (gain <= 0) continue;
+    if (best === undefined || gain > best.gain) best = { gain, item: i };
+  }
+  void mine;
+  return best;
+}
+
+/** 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다. */
+function bestVisit(engine, game, unit) {
+  const spots = (game.map.interactions ?? []).filter((i) => i.kind === "visit");
+  if (spots.length === 0) return undefined;
+  const taken = new Set(game.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * game.map.width + u.x));
+  const reach = new Set(reachable(engine, game, unit).map((t) => t.y * game.map.width + t.x));
+  for (const i of spots) {
+    const x = i.stand?.x ?? i.x;
+    const y = i.stand?.y ?? i.y;
+    const k = y * game.map.width + x;
+    if (taken.has(k) || !reach.has(k)) continue;
+    if ((game.visited ?? []).some((v) => v.x === x && v.y === y)) continue; // 이미 연 민가
+    return { x, y };
+  }
+  return undefined;
 }
 
 function bestAttack(engine, calculator, game, unit, foes, zones) {
@@ -160,7 +215,9 @@ function bestAdvance(engine, calculator, game, unit, foes, zones) {
   let best;
   for (const at of reachable(engine, game, unit)) {
     const threat = incoming(engine, calculator, game, unit, at, zones);
-    if (threat.total >= unit.hp) continue; // 이 칸에서 턴을 마치면 죽는다
+    // ☠**여유를 남긴다**(2026-08-18 사용자 지적 "지나친 공격위치에 있는지도 확인").
+    //   "죽지만 않으면 간다"로 두면 잔여 HP 1로 적진 앞에 서고, 증원 한 명이면 그대로 끝난다.
+    if (threat.total >= unit.hp - Math.floor(unit.stats.hp * ADVANCE_MARGIN)) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
     const score = -near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
@@ -174,6 +231,57 @@ function bestAdvance(engine, calculator, game, unit, foes, zones) {
     }
   }
   return best;
+}
+
+/**
+ * 인게이지를 지금 켤 것인가 — 발동 조건(만충·미발동·미행동·교환 안 함)에 더해
+ * **이번 턴에 실제로 싸울 수 있는가**를 본다. 지속이 유한하므로 빈 턴에 켜면 그대로 낭비다.
+ */
+function canEngageNow(game, unit, foes) {
+  const g = unit.engage;
+  if (g === undefined || g.engaging === true) return false;
+  if (g.limit < 1 || g.count < g.limit) return false;
+  if (unit.acted || unit.traded === true) return false;
+  const reach = (unit.movePoints ?? 0) + (unit.weapon?.rangeMax ?? 1);
+  return foes.some((f) => dist(unit, f) <= reach);
+}
+
+/**
+ * 인게이지 기술 시도 — 성공하면 true. 리워프형은 착지 칸(대상 사거리 링 중 빈 칸)을 골라 함께 싣는다.
+ * ☠엔진이 심판이라 여기서 합법성을 다시 재지 않는다 — 거부되면 국면이 그대로라 false로 돌려준다.
+ */
+function dispatchEngageArt({ engine, calculator, dispatch, state, unit, art, target, zones }) {
+  const before = state();
+  const rangeMin = art.rangeMin ?? unit.weapon?.rangeMin ?? 1;
+  const rangeMax = art.rangeMax ?? unit.weapon?.rangeMax ?? 1;
+  if ((art.rewarp ?? 0) > 0) {
+    const map = before.map;
+    const taken = new Set(before.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * map.width + u.x));
+    // ★착지 칸은 **가장 안전한 칸**을 고른다 — 순간이동은 적진 한복판으로도 가므로 첫 합법 칸을 쓰면
+    //   그대로 죽는다. 인게임 정석도 회복 타일(砦: 회피 30·회복 10) 위로 내려서는 것이다.
+    const cands = [];
+    for (let y = Math.max(target.y - rangeMax, 0); y <= Math.min(target.y + rangeMax, map.height - 1); y++) {
+      for (let x = Math.max(target.x - rangeMax, 0); x <= Math.min(target.x + rangeMax, map.width - 1); x++) {
+        const d = Math.abs(x - target.x) + Math.abs(y - target.y);
+        if (d < rangeMin || d > rangeMax) continue;
+        if (taken.has(y * map.width + x)) continue;
+        const cell = map.terrain?.[y]?.[x];
+        if (cell?.notTarget === true) continue;
+        const threat = incoming(engine, calculator, before, unit, { x, y }, zones ?? []);
+        cands.push({ x, y, score: -threat.total * 10 + (cell?.avoid ?? 0) * 0.2 + (cell?.heal ?? 0) });
+      }
+    }
+    cands.sort((a, b) => b.score - a.score);
+    for (const c of cands) {
+      dispatch({ type: "engageAttack", unit: unit.id, target: target.id, x: c.x, y: c.y });
+      if (state() !== before) return true;
+    }
+    return false;
+  }
+  const d = Math.abs(unit.x - target.x) + Math.abs(unit.y - target.y);
+  if (d < rangeMin || d > rangeMax) return false;
+  dispatch({ type: "engageAttack", unit: unit.id, target: target.id });
+  return state() !== before;
 }
 
 export function playerPhase({ engine, calculator, dispatch, state, log }) {
@@ -190,19 +298,46 @@ export function playerPhase({ engine, calculator, dispatch, state, log }) {
     }
 
     const before = game;
-    const zones = threatZones(engine, game, enemies);
-    const heal = bestHeal(engine, game, actor, mine);
-    const atk = bestAttack(engine, calculator, game, actor, enemies, zones);
+    // ★인게이지 — 게이지가 만충이고 이번 턴에 싸울 수 있으면 먼저 발동한다(2026-08-18 사용자 지적:
+    //   "인게이지를 활용안하는듯하다"). **행동을 소모하지 않으므로**(CanEngageImpl 0x1A26F70 계약)
+    //   발동 후 그대로 이동·공격한다. ☠지속 턴이 유한하니 **싸울 수 있을 때만** 켠다 —
+    //   적이 (이동력 + 사거리) 안에 없으면 그냥 켜 두다가 빈 턴으로 흘려보낸다.
+    if (canEngageNow(game, actor, enemies)) {
+      dispatch({ type: "engage", unit: actor.id });
+    }
+    // 인게이지가 스탯·무기·스킬을 바꾼다 — 이후 평가는 **갱신된 국면**으로 한다.
+    const cur = state();
+    const self = cur.units.find((u) => u.id === actor.id) ?? actor;
+    const zones = threatZones(engine, cur, enemies);
+    // ★민가 방문 — 방문 칸에 설 수 있으면 우선한다(사용자 지적: "인접 민가에서 아이템을 얻어도").
+    //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
+    const visit = bestVisit(engine, cur, self);
+    const heal = bestHeal(engine, cur, self, mine);
+    const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
+    // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
+    const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
     // 다친 아군이 있으면 힐 우선 — 단 확실한 격파가 있으면 격파가 먼저다(적 화력 자체를 줄인다).
-    if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
+    if (visit !== undefined && (atk === undefined || !atk.fc.kill)) {
+      if (visit.x !== self.x || visit.y !== self.y) dispatch({ type: "move", unit: actor.id, x: visit.x, y: visit.y });
+      dispatch({ type: "visit", unit: actor.id });
+    } else if (heal !== undefined && (atk === undefined || !atk.fc.kill)) {
       if (heal.at.x !== actor.x || heal.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: heal.at.x, y: heal.at.y });
       dispatch({ type: "staff", unit: actor.id, target: heal.ally.id, staff: heal.staff });
+    } else if (item !== undefined && atk === undefined && self.hp < self.stats.hp * 0.7) {
+      dispatch({ type: "item", unit: actor.id, item: item.item });
     } else if (atk !== undefined) {
       if (atk.at.x !== actor.x || atk.at.y !== actor.y) dispatch({ type: "move", unit: actor.id, x: atk.at.x, y: atk.at.y });
-      dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
+      // ★인게이지 기술 — 인게이지 중이고 게이지가 기술 코스트를 감당하면 통상 공격 대신 기술을 쓴다.
+      //   리워프형(세리카 ワープライナ)은 착지 칸을 함께 실어야 한다(엔진이 좌표를 요구한다).
+      const art = self.engage?.engaging === true ? self.engageArt : undefined;
+      const usedArt =
+        art !== undefined && (self.engage?.count ?? 0) >= (art.cost ?? 0)
+          ? dispatchEngageArt({ engine, calculator, dispatch, state, unit: self, art, target: atk.foe, zones })
+          : false;
+      if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
-      const go = bestAdvance(engine, calculator, game, actor, enemies, zones);
+      const go = bestAdvance(engine, calculator, cur, self, enemies, zones);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
       }
