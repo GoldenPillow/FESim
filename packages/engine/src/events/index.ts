@@ -82,6 +82,15 @@ export function createEventedReducer(base: Reduce, session: EventSession): Reduc
       const r = session.acted(after, action.unit, terminal);
       after = settle({ ...r, state: { ...r.state, events: [...collected, ...r.events] } });
     }
+    /**
+     * ★`行動後フェイズ終了` — 이벤트가 이 변수를 세우면 **그 행동으로 페이즈가 끝난다**.
+     * m002: 1회전 뤼미에르 격파가 자군 재배치와 함께 이 변수를 세운다 — 안 지키면 나머지 유닛이
+     * 재배치된 자리에서 **한 번 더 움직인다**(2026-08-18 사용자 지적). 스크립트가 0으로 되돌린다.
+     */
+    if (after.outcome === undefined && after.variables?.["行動後フェイズ終了"] === 1) {
+      const closed = reduce(after, { type: "endPhase" }, rng);
+      return { ...closed, events: [...after.events, ...closed.events] };
+    }
     return after;
   };
 }

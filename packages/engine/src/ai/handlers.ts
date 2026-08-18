@@ -150,6 +150,17 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
   if (best.moveX !== actor.x || best.moveY !== actor.y) {
     actions.push({ type: "move", unit: actor.id, x: best.moveX, y: best.moveY });
   }
+  /**
+   * ★인게이지 중인 적은 **통상 공격 대신 기술을 쓴다** — 실기 앵커(2026-08-18 사용자 관측):
+   * m002 2회전 뤼미에르가 인게이지 상태로 H9(8,7)의 리월에게 닿으면 오버드라이브를 쓴다.
+   * ⚠근사 = **표적·발판 선택은 통상 공격 점수 그대로**다(`EG_Attack`(50)의 점수·도색 람다는 미판독).
+   * 리워프형(세리카류)은 착지 칸 선택이 그 람다에 있어 손대지 않는다 — 정직 결손으로 남긴다.
+   */
+  const art = actor.engage?.engaging === true ? actor.engageArt : undefined;
+  if (art !== undefined && (art.rewarp ?? 0) === 0 && (actor.engage?.count ?? 0) >= (art.cost ?? 0)) {
+    actions.push({ type: "engageAttack", unit: actor.id, target: best.target });
+    return { kind: "decide", actions };
+  }
   actions.push({ type: "attack", unit: actor.id, target: best.target, weapon: best.weapon });
   return { kind: "decide", actions };
 }

@@ -14,13 +14,32 @@
  * ★앞 몇 턴은 **오프닝 스크립트**가 소유할 수 있다(opening.mjs) — 사람이 적은 수순이 먼저 놓이고
  * 그 턴의 나머지 유닛만 이 휴리스틱이 둔다.
  */
-import { runOpeningTurn } from "./opening.mjs";
+import { openingAvoid, runOpeningTurn } from "./opening.mjs";
 
 /** 이 HP 비율 밑으로 떨어질 각오까지만 한다(그 이하 = 위험수로 보고 회피). */
 const RISK_FLOOR = 0.45;
 
 /** 전진 시 남겨 둘 여유(최대 HP 비율) — 증원·필살 한 방을 흘려보낼 몫. */
 const ADVANCE_MARGIN = 0.25;
+
+/**
+ * ★물몸은 더 보수적으로(2026-08-18 사용자 지시: "유난히 잘 죽는 캐릭터는 좀더 보수적으로").
+ * 판별 = 맷집(최대HP + 수비×2 + 마방)이 자군 중앙값의 85%에 못 미치는가 —
+ * 절대 수치가 아니라 **그 판의 상대치**라 챕터가 바뀌어도 기준이 따라 움직인다.
+ * 물몸은 전진 여유를 두 배 가까이 남기고, 확실한 격파가 아니면 적 페이즈에 반 이상을 남긴다.
+ */
+const FRAIL_MARGIN = 0.45;
+const FRAIL_AFTER = 0.35;
+
+const bulkOf = (u) => u.stats.hp + u.stats.def * 2 + u.stats.res;
+
+function frailSet(mine) {
+  const bulks = mine.map(bulkOf).sort((a, b) => a - b);
+  if (bulks.length === 0) return new Set();
+  const median = bulks[Math.floor(bulks.length / 2)];
+  return new Set(mine.filter((u) => bulkOf(u) < median * 0.85).map((u) => u.id));
+}
+
 
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
@@ -141,8 +160,12 @@ function bestItem(engine, game, unit, mine) {
   return best;
 }
 
-/** 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다. */
-function bestVisit(engine, game, unit) {
+/**
+ * 아직 안 쓴 민가 중 이번 턴에 설 수 있는 칸 — 방문은 행동을 소모하므로 격파가 있으면 뒤로 밀린다.
+ * ☠**위협을 본다**: 종전에는 도달만 보고 갔다가 m004 1턴에 리월이 민가 앞에서 죽었다(2026-08-18).
+ * 아이템 하나와 주인공의 목숨을 바꾸지 않는다 — 살아서 다음 턴에 열면 된다.
+ */
+function bestVisit(engine, calculator, game, unit, zones, frail = false) {
   const spots = (game.map.interactions ?? []).filter((i) => i.kind === "visit");
   if (spots.length === 0) return undefined;
   const taken = new Set(game.units.filter((u) => !u.dead && u.id !== unit.id).map((u) => u.y * game.map.width + u.x));
@@ -153,12 +176,13 @@ function bestVisit(engine, game, unit) {
     const k = y * game.map.width + x;
     if (taken.has(k) || !reach.has(k)) continue;
     if ((game.visited ?? []).some((v) => v.x === x && v.y === y)) continue; // 이미 연 민가
+    if (deadly(engine, calculator, game, unit, { x, y }, zones, frail)) continue;
     return { x, y };
   }
   return undefined;
 }
 
-function bestAttack(engine, calculator, game, unit, foes, zones) {
+function bestAttack(engine, calculator, game, unit, foes, zones, frail = false) {
   const weapons = engine.effectiveWeapons(unit) ?? (unit.weapon !== undefined ? [unit.weapon] : []);
   if (weapons.length === 0) return undefined;
   let best;
@@ -174,6 +198,8 @@ function bestAttack(engine, calculator, game, unit, foes, zones) {
         const relief = fc.kill ? (zones.find((z) => z.foe.id === foe.id)?.tiles.has(at.y * game.map.width + at.x) ? incoming(engine, calculator, game, unit, at, zones.filter((z) => z.foe.id === foe.id)).total : 0) : 0;
         const after = fc.selfHp - Math.max(threat.total - relief, 0);
         if (after <= 0) continue;
+        // 물몸은 "죽지만 않으면 간다"를 못 쓴다 — 한 방 더 맞을 몫을 남긴다.
+        if (frail && !fc.kill && after < unit.stats.hp * FRAIL_AFTER) continue;
         if (fc.selfHp < unit.stats.hp * RISK_FLOOR && !fc.kill) continue;
         const score =
           (fc.kill ? 1000 : 0) +
@@ -189,8 +215,18 @@ function bestAttack(engine, calculator, game, unit, foes, zones) {
   return best;
 }
 
-/** 회복 지팡이 — 가장 많이 잃은 아군을 사거리 안에서 회복. */
-function bestHeal(engine, game, unit, allies) {
+/**
+ * 그 칸에 서면 이번 적 페이즈에 죽는가 — 이동을 동반하는 비전투 행동(방문·회복)의 공용 게이트.
+ * ★공방의 안정 = "이득을 취하러 사지에 들어가지 않는다". 여유는 전진과 같은 몫(ADVANCE_MARGIN).
+ */
+function deadly(engine, calculator, game, unit, at, zones, frail = false) {
+  if (zones === undefined || zones.length === 0) return false;
+  const threat = incoming(engine, calculator, game, unit, at, zones);
+  return threat.total >= unit.hp - Math.floor(unit.stats.hp * (frail ? FRAIL_MARGIN : ADVANCE_MARGIN));
+}
+
+/** 회복 지팡이 — 가장 많이 잃은 아군을 사거리 안에서 회복. ☠술자도 사지에는 안 선다. */
+function bestHeal(engine, calculator, game, unit, allies, zones, frail = false) {
   const staves = (unit.staves ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.uses > 0 && s.rodType === 2);
   if (staves.length === 0) return undefined;
   let best;
@@ -202,6 +238,7 @@ function bestHeal(engine, game, unit, allies) {
         if (lost <= 0) continue;
         const range = dist(at, ally);
         if (range < s.rangeMin || range > s.rangeMax) continue;
+        if (deadly(engine, calculator, game, unit, at, zones, frail)) continue;
         const score = lost * 10 - range;
         if (best === undefined || score > best.score) best = { score, at, ally, staff: i };
       }
@@ -214,14 +251,16 @@ function bestHeal(engine, game, unit, allies) {
  * 전진 — 가장 가까운 적 쪽으로 붙되, **버틸 수 있는 칸**까지만 나간다.
  * 죽을 칸은 아예 후보에서 빼고, 남은 칸 중에서 (거리 ↓ · 예상 피해 ↓)로 고른다.
  */
-function bestAdvance(engine, calculator, game, unit, foes, zones) {
+function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = false, frail = false) {
   if (foes.length === 0) return undefined;
   let best;
   for (const at of reachable(engine, game, unit)) {
     const threat = incoming(engine, calculator, game, unit, at, zones);
     // ☠**여유를 남긴다**(2026-08-18 사용자 지적 "지나친 공격위치에 있는지도 확인").
     //   "죽지만 않으면 간다"로 두면 잔여 HP 1로 적진 앞에 서고, 증원 한 명이면 그대로 끝난다.
-    if (threat.total >= unit.hp - Math.floor(unit.stats.hp * ADVANCE_MARGIN)) continue;
+    // ★단 **교착이면 여유를 접는다** — 양쪽 다 대기만 하면 판이 안 끝난다(m002 61턴 미결 실측).
+    const margin = aggressive ? 0 : Math.floor(unit.stats.hp * (frail ? FRAIL_MARGIN : ADVANCE_MARGIN));
+    if (threat.total >= unit.hp - margin) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
     const score = -near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
@@ -288,7 +327,7 @@ function dispatchEngageArt({ engine, calculator, dispatch, state, unit, art, tar
   return state() !== before;
 }
 
-export function playerPhase({ engine, calculator, dispatch, state, log, opening, cid, openingVerbose }) {
+export function playerPhase({ engine, calculator, dispatch, state, log, opening, cid, openingVerbose, aggressive = false }) {
   // ★오프닝 스크립트가 먼저다 — 사람이 적은 정석 수순은 국소 최적으로는 안 나온다(design/opening_script.md).
   //   실패는 던진다(조용한 휴리스틱 강하 금지) — 잘못된 수순으로 만든 기보가 정본이 되면 안 된다.
   const owned =
@@ -302,11 +341,25 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     const mine = game.units.filter((u) => u.force === 0 && !u.dead);
     const foes = game.units.filter((u) => u.force !== 0 && !u.dead && game.map.alliance?.[u.force] !== game.map.alliance?.[0]);
     const enemies = foes.length > 0 ? foes : game.units.filter((u) => u.force === 1 && !u.dead);
-    const actor = mine.find((u) => !u.acted && !owned.has(u.id));
-    if (actor === undefined) {
+    // 오프닝이 이번 턴에 "건드리지 말라"고 한 유닛 — 표적에서만 뺀다(위협 계산에는 그대로 든다).
+    const avoid = openingAvoid(opening, game.turn);
+    const targets = avoid.size === 0 ? enemies : enemies.filter((f) => !avoid.has(f.pid));
+    // ★행동 순서 = **확실한 격파를 가진 유닛부터**(2026-08-18). 위협을 먼저 지우면 뒤에 두는 유닛의
+    //   피격 예상이 그만큼 줄어 물몸이 설 자리가 생긴다 — 배치 순서대로 두면 물몸이 먼저 나가 죽는다.
+    //   ☠적 AI는 정본을 따르지만 자군 정책은 그럴 의무가 없다(사용자 확정) — 여기서는 잘 두는 게 목적이다.
+    const ready = mine.filter((u) => !u.acted && !owned.has(u.id));
+    if (ready.length === 0) {
       dispatch({ type: "endPhase" });
       return;
     }
+    const preZones = threatZones(engine, game, enemies);
+    const preTargets = avoid.size === 0 ? enemies : enemies.filter((f) => !avoid.has(f.pid));
+    const killer = ready.find((u) => {
+      if (canEngageNow(game, u, enemies)) return false; // 발동은 국면을 바꾼다 — 예측으로 앞세우지 않는다
+      const best = bestAttack(engine, calculator, game, u, preTargets, preZones, frailSet(mine).has(u.id));
+      return best?.fc.kill === true;
+    });
+    const actor = killer ?? ready[0];
 
     const before = game;
     // ★인게이지 — 게이지가 만충이고 이번 턴에 싸울 수 있으면 먼저 발동한다(2026-08-18 사용자 지적:
@@ -322,9 +375,10 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     const zones = threatZones(engine, cur, enemies);
     // ★민가 방문 — 방문 칸에 설 수 있으면 우선한다(사용자 지적: "인접 민가에서 아이템을 얻어도").
     //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
-    const visit = bestVisit(engine, cur, self);
-    const heal = bestHeal(engine, cur, self, mine);
-    const atk = bestAttack(engine, calculator, cur, self, enemies, zones);
+    const frail = frailSet(mine).has(self.id);
+    const visit = bestVisit(engine, calculator, cur, self, zones, frail);
+    const heal = bestHeal(engine, calculator, cur, self, mine, zones, frail);
+    const atk = bestAttack(engine, calculator, cur, self, targets, zones, frail);
     // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
     const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
@@ -348,7 +402,7 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
           : false;
       if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
-      const go = bestAdvance(engine, calculator, cur, self, enemies, zones);
+      const go = bestAdvance(engine, calculator, cur, self, enemies, zones, aggressive, frail);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
       }

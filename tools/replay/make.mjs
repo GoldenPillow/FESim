@@ -111,7 +111,28 @@ try {
     // ☠커서 국면은 displayState가 소유한다 — store.game은 리플레이 모드에서 **초기 국면**이다
     //   (그걸 읽으면 경험치·레벨이 통째로 0인 로스터가 조용히 인계된다).
     const roster = engine.carryover(displayState(prevStore.getState()));
-    console.error(`carry: ${prevFile.chapter.cid} → ${cid} · 인계 ${Object.keys(roster).length}명`);
+    // ★임시 스케폴드(2026-08-18 사용자 지시) — 경험치 층이 실기 대조 전이라 사슬이 챕터 권장 레벨에
+    // 못 미친다(엔딩 평균 40 = chapterlist recommendedLevel의 종점). 인계 레벨이 **이 챕터의 배치 레벨보다
+    // 낮으면 레벨·스탯만 챕터 정본으로 되돌린다** — 소지품·스킬·엠블렘은 그대로 인계한다.
+    // ☠비계다: 경험치 산식이 실기와 맞으면 걷어낸다(장부 campaign.level-scaffold).
+    let scaffolded = 0;
+    for (const [pid, entry] of Object.entries(roster)) {
+      if (entry.removed === true) continue;
+      const seeded = props.units.find((u) => u.pid === pid);
+      if (seeded === undefined) continue;
+      const seedLevel = (seeded.levels?.[difficulty] ?? 1) + (seeded.internalLevel ?? 0);
+      const carried = (entry.level ?? 1) + (entry.internalLevel ?? 0);
+      if (carried >= seedLevel) continue;
+      delete entry.level;
+      delete entry.stats;
+      delete entry.internalLevel;
+      delete entry.growthAcc;
+      scaffolded += 1;
+    }
+    console.error(
+      `carry: ${prevFile.chapter.cid} → ${cid} · 인계 ${Object.keys(roster).length}명` +
+        (scaffolded > 0 ? ` · 레벨 스케폴드 ${scaffolded}명(챕터 배치 레벨로 복원)` : ""),
+    );
     return { units: roster };
   };
   // 공용 Lua = 브라우저가 /fe17/scripts/에서 fetch하는 것과 같은 파일(경로만 파일시스템).
@@ -148,6 +169,12 @@ try {
         dispatch({ type: "endPhase" });
         return;
       }
+      if (process.env.FESIM_AI_TRACE !== undefined) {
+        const u = before.units.find((x) => x.id === decision.unit);
+        if (u !== undefined && String(u.pid).includes(process.env.FESIM_AI_TRACE)) {
+          console.error("AITRACE", u.pid, "ai=", JSON.stringify(u.ai), "actions=", JSON.stringify(decision.actions));
+        }
+      }
       for (const action of decision.actions) dispatch(action);
       if (state() === before && decision.unit !== undefined) {
         memory = { ...memory, skipped: { ...memory.skipped, [decision.unit]: "엔진이 거부한 액션" } };
@@ -157,6 +184,9 @@ try {
   };
 
   try {
+  // ★교착 감시 — 양쪽 다 안 붙으면 판이 안 끝난다(정책은 여유를 남기고 적 AI는 게이트가 있다).
+  //   전투가 3턴간 없으면 그 뒤로는 여유를 접고 밀고 들어간다.
+  let lastCombatTurn = 0;
   for (let guard = 0; guard < maxTurns * 4; guard++) {
     const before = state();
     if (before.outcome !== undefined) break;
@@ -172,8 +202,10 @@ try {
         opening,
         cid,
         openingVerbose: openingCheck,
+        aggressive: before.turn - lastCombatTurn >= 3,
       });
     else enemyPhase();
+    if (state().units.some((u, i) => u.hp !== before.units[i]?.hp)) lastCombatTurn = state().turn;
     if (state() === before) {
       // 한 페이즈를 통째로 돌고도 국면이 그대로 = 진행 불가. 침묵 금지.
       deficits.push({ unit: "-", kind: "engine", reason: `페이즈가 진행되지 않았다(turn ${before.turn} phase ${before.phase})` });

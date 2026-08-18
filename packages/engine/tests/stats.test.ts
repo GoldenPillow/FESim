@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { deriveStats, grownLevels, type StatBlock } from "@fesim/engine";
 
 /**
- * 스탯 산출 모델 — 검증 근거: SerenesForest 공개 영입 스탯 36명 × 9스탯 전수 일치(2026-08-16 실측).
- * 공식: 스탯 = 직업Base + 인물Offset + floor(인물Grow% × L / 100 + 0.5)
- *       L = max(직업내부레벨 - 1, 0) + (표시레벨 - 1) + AutoGrowOffset(난이도)
+ * 스탯 산출 모델 — 검증 근거: SerenesForest 공개 영입 스탯 36명 × 9스탯 전수 일치(2026-08-16 실측)
+ * + IL2CPP 판독(`STATS_GROWTH.md` §2-4·§2-5, `Unit.AutoGrowCapability` 0x1A0B1B0).
+ * 공식: 스탯 = Clamp(직업Base + Clamp(성장분 + 인물Offset, -120, 120), 0, 상한)
+ *       성장분 = max(trunc((성장률 × n + 50) / 100), 0) · n = 표시레벨 + (상급직 ? 19 : 0) + AutoGrowOffset(적만) - 1
+ *       ☠성장률 소스 = **택일**: `person.Grow`가 전 0이면 `job.BaseGrow`(+난이도 델타), 아니면 `person.Grow`.
  * 반올림은 half-up — 파이썬 banker's rounding으로는 전수 일치가 깨진다(실측으로 배제됨).
  */
 const zero: StatBlock = { hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0 };
@@ -13,12 +15,19 @@ describe("성장 레벨 수", () => {
   it("기본 클래스 = 표시레벨 - 1", () => {
     expect(grownLevels(0, 5)).toBe(4);
   });
-  it("상급 클래스(내부 20) Lv1 = 19 + 0", () => {
-    expect(grownLevels(20, 1)).toBe(19);
+  /**
+   * 왜 위험한가: 종전 모델은 `job.InternalLevel - 1`을 성장 레벨로 썼다. 상급직 대부분이 20이라
+   * 자군 앵커는 우연히 맞았지만, **InternalLevel이 20이 아닌 상급직**(JID_M002_神竜ノ王 = 5)에서
+   * 성장분이 통째로 줄어든다 — 정본은 숫자가 아니라 `JobData.IsHigh`(Rank ≠ 0) 불리언이다.
+   */
+  it("상급 클래스(Rank≠0) Lv1 = 19 + 0 — InternalLevel 숫자가 아니라 Rank 불리언", () => {
+    expect(grownLevels(1, 1)).toBe(19);
+    expect(grownLevels(1, 5)).toBe(23);
   });
-  it("AutoGrowOffset은 레벨 수에 가산(음수 가능), 하한 0", () => {
-    expect(grownLevels(0, 5, -3)).toBe(1);
-    expect(grownLevels(0, 1, -3)).toBe(0);
+  it("AutoGrowOffset은 적(AssetForce=Enemy)에만 가산된다", () => {
+    expect(grownLevels(0, 5, -3, true)).toBe(1);
+    expect(grownLevels(0, 5, -3, false)).toBe(4);
+    expect(grownLevels(0, 1, -3, true)).toBe(0);
   });
 });
 
@@ -27,7 +36,7 @@ describe("deriveStats — 공개 실측 앵커", () => {
     // 앵커: 공개 영입 스탯 22/6/0/5/7/5/5/3/4 (HP/힘/마/기/속/행/수/마방/체)
     const s = deriveStats({
       jobBase: { hp: 22, str: 6, mag: 0, dex: 2, spd: 7, lck: 2, def: 5, res: 3, bld: 4 },
-      jobInternalLevel: 0,
+      jobRank: 0,
       personOffset: { ...zero, dex: 3, lck: 3 },
       personGrowth: { hp: 60, str: 45, mag: 20, dex: 40, spd: 50, lck: 25, def: 40, res: 25, bld: 10 },
       level: 1,
@@ -39,7 +48,7 @@ describe("deriveStats — 공개 실측 앵커", () => {
     // 앵커: 공개 영입 스탯 40/11/5/10/8/6/10/8/8 — half-up이 아니면 Str/Mag 등이 어긋난다
     const s = deriveStats({
       jobBase: { hp: 25, str: 8, mag: 2, dex: 10, spd: 8, lck: 3, def: 6, res: 3, bld: 7 },
-      jobInternalLevel: 20,
+      jobRank: 1,
       personOffset: { hp: 4, str: -2, mag: 1, dex: -5, spd: -7, lck: 1, def: -3, res: 1, bld: 0 },
       personGrowth: { hp: 60, str: 25, mag: 10, dex: 25, spd: 35, lck: 10, def: 35, res: 20, bld: 5 },
       level: 1,
@@ -50,7 +59,7 @@ describe("deriveStats — 공개 실측 앵커", () => {
   it("half-up 경계: 성장 50% × 1레벨 = +1 (banker's면 0)", () => {
     const s = deriveStats({
       jobBase: zero,
-      jobInternalLevel: 0,
+      jobRank: 0,
       personOffset: zero,
       personGrowth: { ...zero, str: 50 },
       level: 2,
@@ -61,7 +70,7 @@ describe("deriveStats — 공개 실측 앵커", () => {
   it("상한(cap) 지정 시 스탯을 자른다", () => {
     const s = deriveStats({
       jobBase: { ...zero, hp: 20 },
-      jobInternalLevel: 0,
+      jobRank: 0,
       personOffset: zero,
       personGrowth: { ...zero, hp: 100 },
       level: 50,
@@ -82,11 +91,87 @@ describe("스탯 하한", () => {
     const derived = deriveStats({
       jobBase: zero,
       personOffset: { ...zero, hp: -5, str: -5 },
-      personGrowth: zero,
-      jobInternalLevel: 0,
+      personGrowth: { ...zero, hp: 1 },
+      jobRank: 0,
       level: 1,
     });
     expect(derived.hp).toBe(1);
     expect(derived.str).toBe(0);
+  });
+});
+
+/**
+ * ★적 자동성장 — `person.Grow`가 전 0인 유닛(일반 적 1379행 + 일부 고유 적)은 성장률을 **직업**에서 받는다.
+ *
+ * 왜 위험한가: 이 갈래가 없으면 적이 통째로 약해진다. 실사례 = M002 보스 뤼미에르(루나틱)가
+ * HP 18·속도 0·수비 0으로 나와 **리월의 반격 한 번(11 × 추격)에 죽었다** — 실기는 속도 7이라
+ * 추격이 없고 수비 7이라 4밖에 안 들어간다(사용자 실기 관측 2026-08-18: "1회 공격뿐"). 그 한 칸이
+ * 챕터 흐름을 통째로 바꿨다(1회전이 2턴에 끝나 스타 러시 수순이 성립하지 않았다).
+ * 정본 = `Unit.AutoGrowCapability` 0x1A0B1B0 · `CalculateAutoGrowCapability` 0x1A0E0A0.
+ */
+describe("적 자동성장 — 성장률 택일(person.Grow 전 0 → job.BaseGrow)", () => {
+  const lumiere = (difficulty: "n" | "l") =>
+    deriveStats({
+      jobBase: { hp: 24, str: 8, mag: 1, dex: 4, spd: 8, lck: 3, def: 6, res: 5, bld: 7 },
+      jobRank: 1,
+      jobBaseGrow: { hp: 75, str: 45, mag: 15, dex: 45, spd: 50, lck: 35, def: 40, res: 20, bld: 15 },
+      personGrowth: zero,
+      personOffset:
+        difficulty === "n"
+          ? { hp: -9, str: -9, mag: 0, dex: -6, spd: -12, lck: -5, def: -9, res: -7, bld: -3 }
+          : { hp: -6, str: -8, mag: 1, dex: -4, spd: -13, lck: -4, def: -8, res: -6, bld: -2 },
+      autoGrowOffset: difficulty === "n" ? -3 : 0,
+      enemy: true,
+      level: 5,
+      cap: { hp: 68, str: 41, mag: 25, dex: 36, spd: 43, lck: 35, def: 35, res: 25, bld: 13 },
+    });
+
+  it("노멀 뤼미에르 = HP 30 · 힘 8 · 수비 5 (판독 문서 §1-12 대조값)", () => {
+    const s = lumiere("n");
+    expect([s.hp, s.str, s.def]).toEqual([30, 8, 5]);
+  });
+
+  it("★루나틱 뤼미에르 속도 7 — 리월(속도 7)이 추격하지 못한다(실기 관측)", () => {
+    const s = lumiere("l");
+    expect(s.spd).toBe(7);
+    expect(s.hp).toBe(35);
+    expect(s.def).toBe(7);
+  });
+
+  it("person.Grow가 비영이면 직업 성장률을 쓰지 않는다(자군 앵커 보존)", () => {
+    const s = deriveStats({
+      jobBase: { ...zero, str: 10 },
+      jobRank: 0,
+      jobBaseGrow: { ...zero, str: 100 },
+      personGrowth: { ...zero, str: 50 },
+      personOffset: zero,
+      level: 3,
+    });
+    expect(s.str).toBe(11); // 50% × 2레벨 = 1 (직업 100%였다면 +2)
+  });
+
+  it("난이도 델타(job.DiffGrow*)는 직업 성장률 갈래에서만 붙는다", () => {
+    const withDelta = deriveStats({
+      jobBase: zero,
+      jobRank: 0,
+      jobBaseGrow: { ...zero, str: 40 },
+      jobDiffGrow: { ...zero, str: 10 },
+      personGrowth: zero,
+      personOffset: zero,
+      enemy: true,
+      level: 3,
+    });
+    expect(withDelta.str).toBe(1); // (40+10)% × 2 = 1.0 → 1
+    const personPath = deriveStats({
+      jobBase: zero,
+      jobRank: 0,
+      jobBaseGrow: { ...zero, str: 40 },
+      jobDiffGrow: { ...zero, str: 100 },
+      personGrowth: { ...zero, str: 20 },
+      personOffset: zero,
+      enemy: true,
+      level: 3,
+    });
+    expect(personPath.str).toBe(0); // 20% × 2 = 0.4 → 0 (델타 미적용)
   });
 });

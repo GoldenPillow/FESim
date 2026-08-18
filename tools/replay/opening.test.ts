@@ -90,6 +90,13 @@ describe("resolveUnit — 대상 지정", () => {
     expect(got.id).toBe("u1");
   });
 
+  it("☠pick은 후보가 하나여도 거른다 — 못박은 칸과 다른 유닛이 조용히 통과하면 안 된다", () => {
+    const only = unit({ id: "u1", pid: "PID_SWORD", x: 6, y: 3 });
+    const game = gameWith([hero, only]);
+    expect(() => resolveUnit(game, { pid: "PID_SWORD", pick: { at: { x: 3, y: 6 } } }, hero)).toThrow(/대상 없음/);
+    expect(resolveUnit(game, { pid: "PID_SWORD", pick: { at: { x: 6, y: 3 } } }, hero).id).toBe("u1");
+  });
+
   it("죽은 유닛은 대상이 아니다", () => {
     const dead = unit({ id: "u1", pid: "PID_AXE", x: 6, y: 3, dead: true });
     expect(() => resolveUnit(gameWith([hero, dead]), { pid: "PID_AXE" }, hero)).toThrow(/대상 없음/);
@@ -167,8 +174,9 @@ describe("resolveStep — 수순 → 액션", () => {
   });
 
   it("engage·move는 행동을 소진하지 않는다(정책이 이어받는다)", () => {
+    const charged = { ...hero, engage: { count: 7, limit: 7, turnLimit: 3, turn: 0, engaging: false } };
+    expect(resolveStep(engine, gameWith([charged]), { unit: "PID_リュール", engage: true }).terminal).toBe(false);
     const game = gameWith([hero]);
-    expect(resolveStep(engine, game, { unit: "PID_リュール", engage: true }).terminal).toBe(false);
     const moved = resolveStep(engine, game, { unit: "PID_リュール", move: { to: { x: 5, y: 3 } } });
     expect(moved.terminal).toBe(false);
     expect(moved.actions).toEqual([{ type: "move", unit: "u0", x: 5, y: 3 }]);
@@ -241,6 +249,18 @@ describe("resolveStep — 수순 → 액션", () => {
     expect(() => resolveStep(engine, gameWith([engaged, foe]), { unit: "PID_リュール", art: { pid: "PID_AXE" } })).toThrow(
       /기공 부족/,
     );
+  });
+
+  /**
+   * 왜 위험한가: 엔진은 발동을 거부만 하고 **사유를 주지 않는다**. 검수 도구가 "엔진이 거부했다"만
+   * 되뇌면 사람은 기공인지 이미 발동 중인지 교환 탓인지 못 가린다 — m002 수순 검수에서 실제로 막혔다.
+   */
+  it("인게이지 발동 실패는 사유를 준다(기공·중복 발동)", () => {
+    const empty = { ...hero, engage: { count: 0, limit: 7, turnLimit: 3, turn: 0, engaging: false } };
+    expect(() => resolveStep(engine, gameWith([empty]), { unit: "PID_リュール", engage: true })).toThrow(/기공 미충전/);
+    const on = { ...hero, engage: { count: 7, limit: 7, turnLimit: 3, turn: 1, engaging: true } };
+    expect(() => resolveStep(engine, gameWith([on]), { unit: "PID_リュール", engage: true })).toThrow(/이미 인게이지 중/);
+    expect(() => resolveStep(engine, gameWith([hero]), { unit: "PID_リュール", engage: true })).toThrow(/엠블렘이 없다/);
   });
 
   it("자군이 아닌 유닛은 지시할 수 없다", () => {

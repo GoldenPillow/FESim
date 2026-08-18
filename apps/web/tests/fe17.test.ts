@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
 import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitStats } from "../src/lib/fe17";
@@ -165,26 +166,72 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
 });
 
 describe("인게이지 기술 선택 (MP1-4c) — emblemEngageArt", () => {
-  it("마르스 기본 = 기술 행 + SyncSids 전개(汎用設定·ダメージ３０％), 사거리 1-1", () => {
-    // 왜 위험한가: 흐름 변수(攻撃回数 7·명중 100·반격 몰수)는 전부 SyncSids의 汎用設定이 소유한다 —
-    // 전개가 빠지면 기술이 통상 전투 문법으로 돌아 타수·명중·반격이 전부 어긋난다.
+  it("마르스 기본 = SyncSids 전개(汎用設定·ダメージ３０％) **뒤에** 기술 행, 사거리 1-1", () => {
+    // 왜 위험한가: 흐름 변수(攻撃回数·명중 100·반격 몰수)는 SyncSids의 汎用設定이 기본값으로 `=` 대입한다 —
+    // ☠**순서가 값을 정한다**: 기술 행이 앞에 오면 汎用設定의 攻撃回数=1이 기술의 7(竜族 9)을 덮어
+    // 스타 러시가 1타로 나간다(2026-08-18 프롤로그 실측 — 4피해 1타로 마무리에 실패했다).
     const art = emblemEngageArt("GID_マルス", undefined, "ko");
     expect(art?.sid).toBe("SID_マルスエンゲージ技");
     const sids = art?.skills.map((r) => r.Sid);
-    expect(sids).toEqual(["SID_マルスエンゲージ技", "SID_エンゲージ技_汎用設定", "SID_ダメージ３０％"]);
+    expect(sids).toEqual(["SID_エンゲージ技_汎用設定", "SID_ダメージ３０％", "SID_マルスエンゲージ技"]);
     expect(art?.rangeMin).toBe(1);
     expect(art?.rangeMax).toBe(1);
     expect(art?.cost).toBe(0);
     expect(art?.weaponProhibit).toBe(1021); // 검(kind 1)만 허용 — 가정 비트 해석의 앵커 값
     // 사영 결손 정정 확인: 汎用設定의 Stand·기술 행의 Action이 슬림 사영에 실려야 필터가 돈다.
-    expect(art?.skills[1]?.Stand).toBe(1);
-    expect(art?.skills[0]?.Action).toBe(1);
+    expect(art?.skills[0]?.Stand).toBe(1); // 汎用設定
+    expect(art?.skills[2]?.Action).toBe(1); // 기술 행(맨 뒤 = 최종 대입)
+    expect(art?.skills[2]?.ActValues?.[0]).toBe("7"); // 攻撃回数 7 — 기본값 1을 이긴다
   });
 
   it("스타일 분기 — 竜族 직업이면 SID_マルスエンゲージ技_竜族(攻撃回数 9 변형)", () => {
     const art = emblemEngageArt("GID_マルス", "竜族スタイル", "ko");
     expect(art?.sid).toBe("SID_マルスエンゲージ技_竜族");
-    expect(art?.skills[0]?.ActValues?.[0]).toBe("9");
+    expect(art?.skills.at(-1)?.ActValues?.[0]).toBe("9");
+  });
+
+  /**
+   * ★특효의 원천은 **무기 EquipSids**다(레이피어 → 馬特効·鎧特効). 사영이 그 행을 안 실으면
+   * 엔진 쪽 특효 판정(efficacy.test.ts)이 아무리 맞아도 **판에서는 영영 안 걸린다** —
+   * m002 2회전의 소드나이트(기병 Attrs 2)가 그 자리다(2026-08-18 사용자 지적으로 점검).
+   */
+  it("마르스 인게이지 무기 = 레이피어 + 특효 스킬 사영(馬特効 2·鎧特効 4, 배율 3)", () => {
+    const weapons = emblemEngageWeapons("GID_マルス", "ko");
+    const rapier = weapons[0];
+    expect(rapier?.kind).toBe(1);
+    expect(rapier?.might).toBe(7);
+    const sids = rapier?.sids?.map((r) => r.Sid);
+    expect(sids).toEqual(["SID_馬特効", "SID_鎧特効"]);
+    const horse = rapier?.sids?.find((r) => r.Sid === "SID_馬特効");
+    expect([horse?.Efficacy, horse?.EfficacyValue]).toEqual([2, 3]);
+  });
+
+  it("특효 대상 판정용 attrs가 유닛에 실린다 — m002 소드나이트(기병) = 2", () => {
+    const units = boardPropsFor("m002", "ko").units;
+    const knights = units.filter((u) => u.attrs === 2);
+    expect(knights.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * ★사영 → 엔진 **끝까지** 특효가 걸리는지 — 두 층이 각각 맞아도 사이에서 끊기면 판에서는 안 걸린다.
+   * 레이피어(위력 7)로 기병(Attrs 2)을 치면 무기 위력만 ×3 = +14의 차이가 나야 한다.
+   */
+  it("레이피어 × 기병 = 무기 위력만 ×3 (사영 무기로 엔진 판정까지 관통)", async () => {
+    const { createCalculator, forecastSide, toCombatant } = await import("@fesim/engine");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+    const rapier = emblemEngageWeapons("GID_マルス", "ko")[0]!;
+    const map = { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } };
+    const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+    const a = { ...base, id: "a", force: 0, x: 0, y: 0, weapon: rapier };
+    const horse = { ...base, id: "h", force: 1, x: 1, y: 0, attrs: 2 };
+    const foot = { ...base, id: "f", force: 1, x: 2, y: 0, attrs: 1 };
+    const onHorse = forecastSide(calc, toCombatant(a, map), toCombatant(horse, map));
+    const onFoot = forecastSide(calc, toCombatant(a, map), toCombatant(foot, map));
+    expect(onFoot.damage).toBe(12); // 힘10 + 위력7 − 수5
+    expect(onHorse.damage).toBe(26); // 힘10 + 위력7×3 − 수5
   });
 
   it("에이리크 = 슬롯별 강제 무기([IID_無し, ジークムント] → [null, 창]) · 세리카 = rewarp 판별자", () => {

@@ -103,9 +103,10 @@
   align-items: center;
   justify-content: center;
   font: 600 clamp(8px, calc(var(--tile) * 0.22), 14px) / 1 ui-monospace, monospace;
-  /* 밝은 지형 위에서도 읽히게 — 색은 흰색 쪽, 대비는 그림자가 든다(색만 밝히면 초원 타일에서 사라진다). */
-  color: rgb(248 248 248 / 0.9);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  /* 회색으로 연하게(2026-08-18 사용자 재지정) — 좌표는 배경 정보다. 그림자는 얇게 남겨
+     밝은 지형에서 사라지지 않을 만큼만 대비를 준다. */
+  color: rgb(226 226 226 / 0.5);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
   pointer-events: none;
   user-select: none;
 }
@@ -963,34 +964,42 @@
   ☠행동 완료(acted)는 아이콘에 grayscale 필터가 이미 걸려 있다. 애니메이션 filter는 그 정적 선언을
   통째로 이기므로 **회색 유지본 키프레임을 따로 둔다**(안 그러면 인게이지 중엔 행동 완료가 안 보인다).
 */
+/* 두께 2px · 펄스 주기 1.5초(사용자 재지정 2026-08-18: 활성화가 잘 안 보인다).
+   drop-shadow를 1px·2px 두 겹으로 쌓아 실루엣을 두껍게 — 픽셀 아트라 블러 없이 오프셋만 쓴다. */
 .board .cell.engaging .icon,
 .board .cell.engaging .chip {
-  animation: engage-pulse 1100ms ease-in-out infinite;
+  animation: engage-pulse 1500ms ease-in-out infinite;
 }
 .board .cell.engaging.acted .icon,
 .board .cell.engaging.acted .chip {
-  animation: engage-pulse-dim 1100ms ease-in-out infinite;
+  animation: engage-pulse-dim 1500ms ease-in-out infinite;
 }
 @keyframes engage-pulse {
   0%,
   100% {
     filter: drop-shadow(1px 0 0 #4fb8ff) drop-shadow(-1px 0 0 #4fb8ff) drop-shadow(0 1px 0 #4fb8ff)
-      drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
+      drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(2px 0 0 #4fb8ff) drop-shadow(-2px 0 0 #4fb8ff)
+      drop-shadow(0 2px 0 #4fb8ff) drop-shadow(0 -2px 0 #4fb8ff) drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
   }
   50% {
-    filter: drop-shadow(1px 0 0 #9fe0ff) drop-shadow(-1px 0 0 #9fe0ff) drop-shadow(0 1px 0 #9fe0ff)
-      drop-shadow(0 -1px 0 #9fe0ff) drop-shadow(0 0 8px rgb(79 184 255 / 0.95));
+    filter: drop-shadow(1px 0 0 #b9e9ff) drop-shadow(-1px 0 0 #b9e9ff) drop-shadow(0 1px 0 #b9e9ff)
+      drop-shadow(0 -1px 0 #b9e9ff) drop-shadow(2px 0 0 #b9e9ff) drop-shadow(-2px 0 0 #b9e9ff)
+      drop-shadow(0 2px 0 #b9e9ff) drop-shadow(0 -2px 0 #b9e9ff) drop-shadow(0 0 10px rgb(79 184 255 / 1));
   }
 }
 @keyframes engage-pulse-dim {
   0%,
   100% {
     filter: grayscale(1) brightness(0.7) drop-shadow(1px 0 0 #4fb8ff) drop-shadow(-1px 0 0 #4fb8ff)
-      drop-shadow(0 1px 0 #4fb8ff) drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
+      drop-shadow(0 1px 0 #4fb8ff) drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(2px 0 0 #4fb8ff)
+      drop-shadow(-2px 0 0 #4fb8ff) drop-shadow(0 2px 0 #4fb8ff) drop-shadow(0 -2px 0 #4fb8ff)
+      drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
   }
   50% {
-    filter: grayscale(1) brightness(0.7) drop-shadow(1px 0 0 #9fe0ff) drop-shadow(-1px 0 0 #9fe0ff)
-      drop-shadow(0 1px 0 #9fe0ff) drop-shadow(0 -1px 0 #9fe0ff) drop-shadow(0 0 8px rgb(79 184 255 / 0.95));
+    filter: grayscale(1) brightness(0.7) drop-shadow(1px 0 0 #b9e9ff) drop-shadow(-1px 0 0 #b9e9ff)
+      drop-shadow(0 1px 0 #b9e9ff) drop-shadow(0 -1px 0 #b9e9ff) drop-shadow(2px 0 0 #b9e9ff)
+      drop-shadow(-2px 0 0 #b9e9ff) drop-shadow(0 2px 0 #b9e9ff) drop-shadow(0 -2px 0 #b9e9ff)
+      drop-shadow(0 0 10px rgb(79 184 255 / 1));
   }
 }
 

@@ -530,11 +530,18 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
   const job = jobs[unit.jid] as unknown as Record<string, unknown> | undefined;
   if (person === undefined || job === undefined) return undefined;
   const suffix = DIFF_SUFFIX[difficulty];
+  // ☠성장률은 **택일**이다(person.Grow 전 0 → job.BaseGrow + 난이도 델타). 일반 적 1379행이 전 0이라
+  //   이 갈래가 없으면 적이 통째로 약해진다 — M002 보스가 반격 한 번에 죽던 실사례(2026-08-18).
+  const diffGrow = { n: "DiffGrowNormal.", h: "DiffGrowHard.", l: "DiffGrowLunatic." }[difficulty];
   return deriveStats({
     jobBase: statBlock(job, "Base."),
-    jobInternalLevel: Number(job["InternalLevel"] ?? 0),
+    jobRank: Number(job["Rank"] ?? 0),
     personOffset: statBlock(person, `Offset${suffix}.`),
     personGrowth: statBlock(person, "Grow."),
+    jobBaseGrow: statBlock(job, "BaseGrow."),
+    jobDiffGrow: statBlock(job, diffGrow),
+    // AutoGrowOffset은 `person.AssetForce == Enemy(1)`일 때만 성장 레벨 수에 든다.
+    enemy: Number(person["AssetForce"] ?? 0) === 1,
     level: unitLevel(unit, difficulty),
     autoGrowOffset: Number(person[`AutoGrowOffset${suffix}`] ?? 0),
     cap: statCap(job, person),
@@ -1074,7 +1081,10 @@ export const emblemEngageArt = (gid: string, styleName: string | undefined, loca
   const variant = field === undefined ? undefined : (skills[baseSid] as Record<string, unknown>)[field];
   const sid = typeof variant === "string" && skills[variant] !== undefined ? variant : baseSid;
   const row = skills[sid] as Record<string, unknown>;
-  const rows = [sid, ...((row["SyncSids"] as string[] | undefined) ?? [])]
+  // ☠순서가 값을 정한다 — `SID_エンゲージ技_汎用設定`이 攻撃回数=1 같은 **기본값**을 `=`로 대입하므로
+  //   기술 자신의 행이 **뒤에** 와야 한다(마르스 스타 러시 = 7타, 竜族 변형 9타). 앞에 두면 1타로 깎여
+  //   프롤로그 마무리가 4피해 1타로 나갔다(2026-08-18 실측).
+  const rows = [...((row["SyncSids"] as string[] | undefined) ?? []), sid]
     .map(slimSkill)
     .filter((r): r is SkillRow => r !== undefined);
   const equipIids = (row["EquipIids"] as string[] | undefined) ?? [];
