@@ -353,9 +353,14 @@ export function evaluateCause(
     case AC.flagTrue:
     case AC.flagFalse: {
       // `GameVariable` 딕셔너리 조회 — Lua 이벤트가 세우는 플래그. 엔진은 state.variables가 정본.
+      // ☠dispos는 `FLAG_` 접두사를 붙여 적고 Lua는 안 붙인다(`FLAG_ルミエル出撃イベント_済` ↔
+      //   `VariableSet("ルミエル出撃イベント_済", 1)`) — 원문 그대로 찾으면 **영영 안 맞아** 그 유닛이
+      //   통째로 잠든다(m002 2회전 뤼미에르가 인게이지만 하고 안 움직였다, 2026-08-18 실측).
+      //   전 챕터 dispos의 플래그 16건이 모두 `FLAG_` 접두 + 같은 이름의 Lua 변수 쌍이다.
       const key = ctx.args[0];
       if (key === undefined) return undefined;
-      const value = ctx.state.variables?.[key];
+      const vars = ctx.state.variables;
+      const value = vars?.[key] ?? (key.startsWith("FLAG_") ? vars?.[key.slice(5)] : undefined);
       const truthy = value !== undefined && value !== 0 && value !== "";
       return opcode === AC.flagTrue ? truthy : !truthy;
     }

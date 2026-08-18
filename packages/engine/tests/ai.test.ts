@@ -41,6 +41,7 @@ import {
   movePowerOf,
   rodInterferenceTo,
   targetFilter,
+  attackTo,
   type HandlerContext,
   parseMoveLimit,
   parsePos,
@@ -57,7 +58,7 @@ import {
 const data: CalculatorData = JSON.parse(
   readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8"),
 );
-void createCalculator(data);
+const calc = createCalculator(data);
 
 const baseStats: StatBlock = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
 
@@ -394,6 +395,59 @@ describe("MV_Idle · Guard 게이트 (H_handlers §3·§4)", () => {
       turn: 1, phase: 1, map: flatMap(10, 10), units: [guard], events: [],
     } as unknown as GameState;
     expect(guardTo({ unit: guard, state, rng: { next: () => 1 } } as unknown as HandlerContext)).toEqual({ kind: "none" });
+  });
+});
+
+/**
+ * ☠dispos는 플래그를 `FLAG_` 접두사로 적고 Lua는 안 붙인다 — 원문 그대로 찾으면 영영 안 맞는다.
+ * 왜 위험한가: 게이트가 안 열리면 그 유닛이 **통째로 잠든다**. m002 2회전 뤼미에르는 스크립트가
+ * 인게이지까지 켜 줬는데도 제자리에서 한 번도 움직이지 않았다(2026-08-18 실측) — 결손으로도 안 잡힌다.
+ */
+/**
+ * ★인게이지 중인 적은 통상 공격이 아니라 **기술**을 쓴다 — 실기 앵커(2026-08-18 사용자 관측:
+ * m002 2회전 뤼미에르가 인게이지 상태로 H9(8,7)의 리월에게 닿으면 오버드라이브를 쓴다).
+ * 왜 위험한가: 기술은 타수·배율이 통상 공격과 딴판이라, 안 쓰면 적턴 위협이 통째로 과소평가된다
+ * (플레이어가 "버티면 된다"고 오판한다). ⚠표적·발판 선택은 통상 점수 그대로(EG_Attack 람다 미판독).
+ */
+describe("적 인게이지 기술 사용 (AttackTo 커밋)", () => {
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const art = { sid: "SID_シグルドエンゲージ技", name: "오버드라이브", skills: [], cost: 0, rangeMin: 1, rangeMax: 1 };
+  const run = (engaging: boolean) => {
+    const boss = unit({
+      id: "b", force: 1, x: 0, y: 0, weapon: sword, weapons: [sword], movePoints: 1,
+      engage: { count: 7, limit: 7, turnLimit: 3, turn: 0, engaging },
+      engageArt: art,
+    });
+    const prey = unit({ id: "p", force: 0, x: 1, y: 0, weapon: sword, weapons: [sword] });
+    const state = { turn: 1, phase: 1, map: flatMap(4, 4), units: [boss, prey], events: [] } as unknown as GameState;
+    return attackTo({ unit: boss, state, calc, rng: { next: () => 1 }, args: [], targeted: {}, think: 0 } as unknown as HandlerContext, ACT.attackDefault);
+  };
+
+  it("인게이지 중이면 engageAttack으로 커밋 · 아니면 통상 attack", () => {
+    const on = run(true);
+    expect(on.kind).toBe("decide");
+    expect(on.kind === "decide" && on.actions.some((a) => a.type === "engageAttack")).toBe(true);
+    const off = run(false);
+    expect(off.kind === "decide" && off.actions.some((a) => a.type === "attack")).toBe(true);
+  });
+});
+
+describe("AC_FlagTrue — 플래그 이름 접두사", () => {
+  const ask = (key: string, variables: Record<string, number>) =>
+    evaluateCause(AC.flagTrue, undefined, undefined, {
+      state: { turn: 1, phase: 1, map: flatMap(4, 4), units: [], events: [], variables } as unknown as GameState,
+      unit: unit({ id: "a", force: 1, x: 0, y: 0 }),
+      args: [key],
+    });
+
+  it("dispos의 FLAG_ 접두사를 벗겨 Lua 변수명과 맞춘다", () => {
+    expect(ask("FLAG_ルミエル出撃イベント_済", { "ルミエル出撃イベント_済": 1 })).toBe(true);
+    expect(ask("FLAG_ルミエル出撃イベント_済", { "ルミエル出撃イベント_済": 0 })).toBe(false);
+    expect(ask("FLAG_ボス行動開始", {})).toBe(false);
+  });
+
+  it("접두사 없는 원문 이름도 그대로 찾는다(우선)", () => {
+    expect(ask("ドアオープン_済", { "ドアオープン_済": 1 })).toBe(true);
   });
 });
 

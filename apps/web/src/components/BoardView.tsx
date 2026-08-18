@@ -68,6 +68,12 @@ export interface StrikeSummary {
   id: string;
   /** 자리 = 맞은 쪽 기준: 자군 왼편 · 적/우군 오른편. */
   anchor: "left" | "right";
+  /**
+   * 맞은 칸 — ☠**죽은 유닛은 units에서 사라지므로** 좌표를 여기 붙잡아 둔다.
+   * 안 그러면 **마지막 일격의 대미지만 안 보인다**(2026-08-18 사용자 지적: 사망도 같은 식으로 표시).
+   */
+  x: number;
+  y: number;
   rows: readonly StrikeRow[];
 }
 
@@ -424,8 +430,8 @@ export default function BoardView({
         {strikes !== undefined && strikes.length > 0 && (
           <div className="layer strikes">
             {strikes.map((s) => {
-              const u = units.find((x) => x.id === s.id);
-              if (u === undefined) return null;
+              // 죽은 유닛은 units에 없다 — 그때는 요약이 들고 있는 칸에 그대로 세운다(잔상과 같은 자리).
+              const u = units.find((x) => x.id === s.id) ?? { x: s.x, y: s.y };
               return (
                 <span
                   key={s.id}

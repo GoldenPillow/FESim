@@ -396,15 +396,18 @@ export function runOpeningTurn({ engine, dispatch, state, opening, cid, log, ver
     try {
       plan = resolveStep(engine, before, step);
     } catch (e) {
-      // ★`optional` = "제거 실패시 추가공격"류 — **대상이 이미 없을 때만** 조용히 건너뛴다.
-      //   ☠그 밖의 실패(사거리·도달·기공)는 여전히 던진다: 수순이 안 선 것을 넘기면 안 된다.
-      if (step.optional === true && /대상 없음/.test(e.message)) {
-        if (verbose === true) log?.(`  ${where}: 생략(대상 없음 — optional)`);
+      // ★`optional` = "이 수가 **이번 턴에 안 서면 건너뛴다**"(제거 실패시 추가공격 · 적이 아직 안 붙었을 때).
+      //   ☠문법·소유 오류는 여전히 던진다 — 오타나 잘못된 유닛 지정을 넘기면 수순이 조용히 사라진다.
+      const skippable = /대상 없음|사거리 밖|도달 불가|기공 미충전|이미 인게이지 중|인게이지 중이 아니다|이미 행동을 마쳤다|방문 가능한 민가가 없다|칸에 이번 턴 도달 불가/;
+      if (step.optional === true && skippable.test(e.message)) {
+        if (verbose === true) log?.(`  ${where}: 생략(optional — ${e.message})`);
         continue;
       }
       throw new OpeningError(`${where}: ${e.message}`);
     }
     if (verbose === true) log?.(`  ${where}: ${label(plan.self)} ${plan.note}`);
+    // 이미 그 칸에 서 있는 이동처럼 **낼 액션이 없는 수**는 무동작이 정답이다(거부가 아니다).
+    if (plan.actions.length === 0) continue;
     for (const a of plan.actions) dispatch(a);
     if (state() === before) {
       throw new OpeningError(`${where}: ${label(plan.self)} ${plan.note} — 엔진이 거부했다`);

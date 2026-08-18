@@ -763,12 +763,18 @@ export default function BoardIsland(props: BoardProps) {
       if (list === undefined) rows.set(e.defender, [row]);
       else list.push(row);
     }
-    return [...rows].map(([id, list]) => ({
-      id,
-      // 자리 = 맞은 쪽 기준. 자군은 왼편, 그 밖(적·우군)은 오른편.
-      anchor: posOf(id)?.force === 0 ? ("left" as const) : ("right" as const),
-      rows: list,
-    }));
+    return [...rows].map(([id, list]) => {
+      const at = posOf(id);
+      return {
+        id,
+        // 자리 = 맞은 쪽 기준. 자군은 왼편, 그 밖(적·우군)은 오른편.
+        anchor: at?.force === 0 ? ("left" as const) : ("right" as const),
+        // ☠죽은 유닛은 다음 프레임에 사라진다 — 좌표를 지금 붙잡아야 **마지막 일격**이 보인다.
+        x: at?.x ?? 0,
+        y: at?.y ?? 0,
+        rows: list,
+      };
+    });
   };
 
   /**

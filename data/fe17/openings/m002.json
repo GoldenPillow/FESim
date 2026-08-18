@@ -1,6 +1,6 @@
 {
   "cid": "m002",
-  "note": "사용자 지시 2026-08-18 — 1턴 도끼병 제거(리월 왼쪽 · 반드레 아래 · 못 잡으면 크랑 왼쪽 아래) · 2턴 궁병 제거 · 3턴 인게이지 후 뤼미에르에게 스타 러시",
+  "note": "사용자 지시 2026-08-18 — 1턴 도끼병 제거(리월 왼쪽·반드레 아래·크랑 왼쪽아래) · 2턴 궁병 제거 · 3턴 인게이지 + 스타 러시(1회전 뤼미에르). 2회전 = 紋章氣(8,4)를 밟아 만충 → 인게이지 후 **그 자리 대기**(리월 생존) → 다음 턴 스타 러시 + 반드레 추가타로 격파. ☠승리조건은 뤼미에르 격파뿐이라 나머지는 무시해도 된다. 2회전 = 紋章氣(8,4)에서 만충 → 인게이지 → 출격 구역(z≥6) 가장자리에서 반드레를 미끼로 함께 버틴다(뤼미에르 공격 AI = AI_AT_Person 'PID_ヴァンドレ' — 반드레만 노린다) → 붙는 턴에 스타 러시 + 반드레 추가타. ★스피드런 수순이라 경험치가 모자라진다 — 상시 권장은 아니다(사용자 주의).",
   "turns": [
     {
       "turn": 1,
@@ -84,6 +84,552 @@
               "nearestTo": "PID_リュール"
             }
           }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 4
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 4
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 4
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "steps": [
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "engage": true
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "art": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "attack": {
+            "pid": "PID_M002_ルミエル"
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "move": {
+            "to": {
+              "x": 8,
+              "y": 6
+            }
+          }
+        },
+        {
+          "unit": "PID_リュール",
+          "optional": true,
+          "wait": true
+        },
+        {
+          "unit": "PID_ヴァンドレ",
+          "optional": true,
+          "wait": true
         }
       ]
     }
