@@ -10,7 +10,11 @@
  *  2. 확실한 격파 > 브레이크(반격 몰수) > 순대미지 순으로 점수.
  *  3. 힐러는 다친 아군이 있으면 먼저 회복(경험치·생존 둘 다 이득).
  *  4. 칠 것이 없으면 가장 가까운 적 쪽으로 전진하되, 적 사거리 안으로 혼자 들어가지 않는다.
+ *
+ * ★앞 몇 턴은 **오프닝 스크립트**가 소유할 수 있다(opening.mjs) — 사람이 적은 수순이 먼저 놓이고
+ * 그 턴의 나머지 유닛만 이 휴리스틱이 둔다.
  */
+import { runOpeningTurn } from "./opening.mjs";
 
 /** 이 HP 비율 밑으로 떨어질 각오까지만 한다(그 이하 = 위험수로 보고 회피). */
 const RISK_FLOOR = 0.45;
@@ -284,14 +288,21 @@ function dispatchEngageArt({ engine, calculator, dispatch, state, unit, art, tar
   return state() !== before;
 }
 
-export function playerPhase({ engine, calculator, dispatch, state, log }) {
+export function playerPhase({ engine, calculator, dispatch, state, log, opening, cid, openingVerbose }) {
+  // ★오프닝 스크립트가 먼저다 — 사람이 적은 정석 수순은 국소 최적으로는 안 나온다(design/opening_script.md).
+  //   실패는 던진다(조용한 휴리스틱 강하 금지) — 잘못된 수순으로 만든 기보가 정본이 되면 안 된다.
+  const owned =
+    opening === undefined
+      ? new Set()
+      : runOpeningTurn({ engine, dispatch, state, opening, cid, log, verbose: openingVerbose });
+
   for (let guard = 0; guard < 300; guard++) {
     const game = state();
     if (game.outcome !== undefined || game.phase !== 0) return;
     const mine = game.units.filter((u) => u.force === 0 && !u.dead);
     const foes = game.units.filter((u) => u.force !== 0 && !u.dead && game.map.alliance?.[u.force] !== game.map.alliance?.[0]);
     const enemies = foes.length > 0 ? foes : game.units.filter((u) => u.force === 1 && !u.dead);
-    const actor = mine.find((u) => !u.acted);
+    const actor = mine.find((u) => !u.acted && !owned.has(u.id));
     if (actor === undefined) {
       dispatch({ type: "endPhase" });
       return;

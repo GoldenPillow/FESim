@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|promote|link:put|perf|size
+# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|opening|promote|link:put|perf|size
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -114,8 +114,15 @@ case "$cmd" in
   replay)   shift
             # 챕터 기보 생성 — 헤드리스 완주 후 data/fe17/replays/<cid>.eph.json (= 맵의 기본 기보).
             # ☠승리·자군 무손실·검증 통과가 아니면 실패로 끝난다(리포트의 verified/playerLost 확인).
-            [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>]"; exit 2; }
+            [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>] [--no-opening]"; exit 2; }
             node tools/replay/make.mjs "$@" ;;
+  opening)  shift
+            # 오프닝 수순 검수 — 사람이 적은 수순(data/fe17/openings/<cid>.json)이 우리 국면에서
+            # 무엇을 가리키는지 출력한다. ☠기보는 쓰지 않는다(해석 확인 전용, design/opening_script.md §4).
+            [ "${1:-}" = "check" ] || { echo "usage: ./dev opening check <cid> [--seed <정수>] [--carry <앞 기보>]"; exit 2; }
+            shift
+            [ $# -ge 1 ] || { echo "usage: ./dev opening check <cid> [--seed <정수>] [--carry <앞 기보>]"; exit 2; }
+            node tools/replay/make.mjs "$@" --opening-check ;;
   link:put) shift
             # 공유 링크 수동 등재(발급 API는 M4). 키 = id 그대로 · 값 = .eph 원문(@fesim/api 계약).
             [ $# -ge 2 ] || { echo "usage: ./dev link:put <id> <eph.json> [--local]"; exit 2; }
@@ -156,5 +163,5 @@ case "$cmd" in
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|opening check <cid>|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

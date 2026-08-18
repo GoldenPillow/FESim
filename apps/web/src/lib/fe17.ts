@@ -921,8 +921,12 @@ export interface BoardProps {
     commons?: string[];
     /** 스크립트가 부르는 SID 행 사영(UnitSetPrivateSkill용). */
     skills: Record<string, SkillRow>;
-    /** 스크립트가 부르는 GID 사영(UnitSetGodUnit 패치 — 기술(art)은 미배선·발현 시 흡수). */
-    gods: Record<string, { engage: EngageState; engageWeapons?: BoardWeaponProp[] }>;
+    /**
+     * 스크립트가 부르는 GID 사영(UnitSetGodUnit 패치).
+     * arts = 인게이지 기술의 **스타일 분기 해소본**("" = 스타일 무관 기본, 그 외 = StyleName 키).
+     * ☠스크립트가 반지를 주는 유닛(m004 세리카→세리누)은 dispos에 gid가 없어 기술이 여기서만 온다.
+     */
+    gods: Record<string, { engage: EngageState; engageWeapons?: BoardWeaponProp[]; arts?: Record<string, EngageArt> }>;
     /**
      * 스크립트가 부르는 TID 사영(TerrainSet·TerrainSetOne — 런타임 지형 교체).
      * ☠클라이언트엔 terrain 표가 없다 — 챕터 Lua 폐포(챕터 + common*)의 "TID_..." 전수를 여기 굳힌다.
@@ -1080,8 +1084,11 @@ export const emblemEngageArt = (gid: string, styleName: string | undefined, loca
     name: namedOr(skills, locale, sid),
     skills: rows,
     ...(weapons.length > 0 ? { weapons } : {}),
-    ...(typeof row["RangeI"] === "number" ? { rangeMin: row["RangeI"] as number } : {}),
-    ...(typeof row["RangeO"] === "number" ? { rangeMax: row["RangeO"] as number } : {}),
+    // ☠RangeI/RangeO = 0은 "사거리 0"이 아니라 **미지정**이다 — 엔진 계약(`art.rangeMin ?? 무기.rangeMin`)이
+    //   그 자리를 무기 사거리에 넘긴다. 0을 그대로 실으면 0~0이 되어 기술이 영영 못 나간다
+    //   (세리카 ワープライナ·아이크·베레트·헥토르·카밀라·미카야 = 전부 0. 마르스류는 1~1로 명시).
+    ...(typeof row["RangeI"] === "number" && (row["RangeI"] as number) > 0 ? { rangeMin: row["RangeI"] as number } : {}),
+    ...(typeof row["RangeO"] === "number" && (row["RangeO"] as number) > 0 ? { rangeMax: row["RangeO"] as number } : {}),
     cost: Number(row["Cost"] ?? 0),
     ...(Number(row["Rewarp"] ?? 0) > 0 ? { rewarp: Number(row["Rewarp"]) } : {}),
     ...(row["WeaponProhibit"] !== undefined ? { weaponProhibit: Number(row["WeaponProhibit"]) } : {}),
@@ -1436,7 +1443,19 @@ export function boardProps(
         const engage = engageStateFor(m[1]);
         if (engage === undefined) continue;
         const engageWeapons = emblemEngageWeapons(m[1], locale);
-        gods[m[1]] = { engage, ...(engageWeapons.length > 0 ? { engageWeapons } : {}) };
+        // 기술은 스타일로 갈린다(STYLE_SKILL_FIELD) — 받을 유닛을 모르므로 **이 챕터에 실재하는 스타일만**
+        // 해소해 싣는다(기본과 같은 결과는 싣지 않는다 = 종별 선형).
+        const baseArt = emblemEngageArt(m[1], undefined, locale);
+        const arts: Record<string, EngageArt> = baseArt === undefined ? {} : { "": baseArt };
+        for (const style of new Set(units.map((u) => u.style).filter((v): v is string => v !== undefined))) {
+          const art = emblemEngageArt(m[1], style, locale);
+          if (art !== undefined && art.sid !== baseArt?.sid) arts[style] = art;
+        }
+        gods[m[1]] = {
+          engage,
+          ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
+          ...(Object.keys(arts).length > 0 ? { arts } : {}),
+        };
         gidsUsed.add(m[1]);
       }
       // 아이템 사영 — 폐포 = 챕터 + common*(공용 헬퍼가 상자·민가 지급을 소유한다).

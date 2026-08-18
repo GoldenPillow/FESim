@@ -45,12 +45,19 @@ export function eventWiringFor(
             display: { color: row.color, name: row.name },
           };
         },
-        godUnit: (_unit, gid) => {
+        godUnit: (unit, gid) => {
           const god = script.gods[gid];
           if (god === undefined) return undefined;
-          // 기술(engageArt)·인게이지 스킬 세트는 미배선(발현 시 흡수) — 게이지·엠블렘 무기까지 사영.
+          // 기술 = 받는 유닛의 스타일로 고른다(m004 세리카→세리누 ワープライナ). 인게이지 스킬 세트는
+          // 여전히 미배선(유닛별 산출이라 GID 사영에 안 실린다 — 발현 시 흡수).
           // gid를 함께 실어야 배지가 교체를 따라간다(해제 = patch null → 필드 삭제).
-          return { gid, engage: { ...god.engage }, ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}) };
+          const engageArt = god.arts?.[unit.style ?? ""] ?? god.arts?.[""];
+          return {
+            gid,
+            engage: { ...god.engage },
+            ...(god.engageWeapons !== undefined ? { engageWeapons: god.engageWeapons } : {}),
+            ...(engageArt !== undefined ? { engageArt } : {}),
+          };
         },
       };
       const session = mod.createEventSession({ sources, chapter: script.chapter, host });
