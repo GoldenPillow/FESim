@@ -14,6 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { OpeningError, loadOpening } from "./opening.mjs";
 import { playerPhase } from "./policy.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -39,7 +40,7 @@ const mulberry32 = (seed) => {
 const args = process.argv.slice(2);
 const cid = args.find((a) => !a.startsWith("--"));
 if (cid === undefined) {
-  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>]");
+  console.error("usage: node tools/replay/make.mjs <cid> [--difficulty l] [--locale ko] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>] [--no-opening] [--opening-check]");
   process.exit(2);
 }
 const flag = (name, fallback) => {
@@ -56,6 +57,10 @@ const locale = flag("locale", "ko");
 const seedArg = flag("seed", undefined);
 const maxTurns = Number(flag("max-turns", "40"));
 const outPath = resolve(ROOT, flag("out", `data/fe17/replays/${cid}.eph.json`));
+// 오프닝 스크립트(design/opening_script.md) — 사람이 적은 정석 수순. `--no-opening`은 휴리스틱만 돌려
+// 수순의 효과를 대조하는 스위치고, `--opening-check`는 해석 결과만 보고 **파일을 쓰지 않는다**(수순 검수).
+const openingCheck = args.includes("--opening-check");
+const opening = args.includes("--no-opening") ? undefined : loadOpening(ROOT, cid);
 const liveRng = { next: (bound) => Math.floor(Math.random() * bound) };
 const seed = seedArg === undefined ? undefined : Number(seedArg);
 const playerRng = seed === undefined ? liveRng : mulberry32(seed);
@@ -151,17 +156,38 @@ try {
     deficits.push({ unit: "-", kind: "engine", reason: "적턴 자동이 수렴하지 않았다(1000 액션 초과)" });
   };
 
+  try {
   for (let guard = 0; guard < maxTurns * 4; guard++) {
     const before = state();
     if (before.outcome !== undefined) break;
     if (before.turn > maxTurns) break;
-    if (before.phase === 0) playerPhase({ store, engine, calculator, dispatch, state, log: (m) => console.error(m) });
+    if (before.phase === 0)
+      playerPhase({
+        store,
+        engine,
+        calculator,
+        dispatch,
+        state,
+        log: (m) => console.error(m),
+        opening,
+        cid,
+        openingVerbose: openingCheck,
+      });
     else enemyPhase();
     if (state() === before) {
       // 한 페이즈를 통째로 돌고도 국면이 그대로 = 진행 불가. 침묵 금지.
       deficits.push({ unit: "-", kind: "engine", reason: `페이즈가 진행되지 않았다(turn ${before.turn} phase ${before.phase})` });
       break;
     }
+  }
+  } catch (e) {
+    // ☠오프닝이 어긋나면 **기보를 쓰지 않는다**(설계 §6-A) — 잘못된 수순의 산물이 정본이 되면
+    //   그 뒤 사슬 전체가 그 위에 쌓인다. 사유만 남기고 실패로 끝낸다.
+    if (!(e instanceof OpeningError)) throw e;
+    console.error(`☠ ${e.message}`);
+    process.exitCode = 1;
+    await server.close();
+    process.exit(1);
   }
 
   const final = state();
@@ -170,14 +196,16 @@ try {
     author: "FESim 기보 생성기",
     created: new Date().toISOString(),
   });
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, JSON.stringify(file));
+  if (!openingCheck) {
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, JSON.stringify(file));
+  }
 
   const nameOf = (u) => props.units[Number(String(u.id).slice(1))]?.name ?? u.id;
 
   // ★왕복 검증 — 쓴 파일을 **웹과 같은 경로로** 되읽는다: parseEphemeris → 리플레이 스토어 생성.
   //   여기서 걸리면 브라우저에서도 그대로 걸린다(파싱 거부 또는 "기록 열람 모드" 배지).
-  const reloaded = parseEph(readFileSync(outPath, "utf-8"));
+  const reloaded = parseEph(openingCheck ? JSON.stringify(file) : readFileSync(outPath, "utf-8"));
   const check = createBoardStore(props, { file: reloaded }, reloaded.setup, wiring);
   const session = check.getState().replay;
   const replayed = check.getState().replay.timeline;
@@ -209,7 +237,7 @@ try {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 8),
     ),
-    out: outPath,
+    out: openingCheck ? "(opening check — 미기록)" : outPath,
   };
   console.log(JSON.stringify(report, null, 2));
   for (const d of deficits.slice(0, 10)) console.error(`  결손 ${d.unit}: ${d.reason}`);

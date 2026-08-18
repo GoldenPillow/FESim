@@ -3,6 +3,7 @@ packages:
   - packages/*
   - workers/*
   - tools/doccheck
+  - tools/replay
 allowBuilds:
   esbuild: true
   sharp: true

@@ -1,5 +1,5 @@
 import type { Tile, UnitState } from "@fesim/engine";
-import { colLabel, coordLabel, gridCol, gridRow, tileKey, tileShade } from "../lib/grid";
+import { colLabel, coordLabel, gridCol, gridRow, rawCoord, rowLabel, tileKey, tileShade } from "../lib/grid";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -63,24 +63,25 @@ export interface BoardFx {
   ghosts?: readonly { id: string; x: number; y: number }[];
 }
 
-/** 한 유닛 옆에 붙는 타격 표 — 그 전투에서 이 유닛이 낀 타격이 시간순 한 줄씩. */
+/** 한 유닛 옆에 붙는 타격 표 — ★**맞은 유닛**에만 선다(때린 쪽엔 안 선다, 2026-08-18 사용자 지정). */
 export interface StrikeSummary {
   id: string;
-  /** 표를 세울 쪽 — ☠**상대의 반대편**이다: 둘 다 같은 쪽에 세우면 두 표가 서로를 덮는다. */
+  /** 자리 = 맞은 쪽 기준: 자군 왼편 · 적/우군 오른편. */
   anchor: "left" | "right";
   rows: readonly StrikeRow[];
 }
 
 /**
- * 타격 한 줄 — 왼쪽 = 쓰인 무기 + **받은** 대미지 · 오른쪽 = **준** 대미지(사용자 지정 배치).
- * 한 타격에서 이 유닛은 때리거나 맞거나 둘 중 하나라 `side`가 어느 칸에 수치가 서는지를 정한다.
+ * 타격 한 줄 — 무기 + (필살이면 CRIT 카드) + 대미지. 다단 히트는 합치지 않고 줄로 나눈다.
+ * 색 = **누가 때렸나**: `byPlayer`면 무기 파랑, 아니면 빨강. 대미지 수치는 언제나 빨강(맞은 값이다).
  * 라벨(kind·무기명)은 로케일 소관이라 산출측(BoardIsland)이 이미 번역해서 넘긴다.
  */
 export interface StrikeRow {
   weapon?: string;
   /** 체인·반격·추격 표시. 본공격은 붙이지 않는다(줄 수만으로 읽힌다). */
   kind?: string;
-  side: "taken" | "dealt";
+  /** 때린 쪽이 자군인가 — 무기 글자 색. */
+  byPlayer: boolean;
   miss: boolean;
   crit: boolean;
   damage: number;
@@ -135,7 +136,7 @@ export default function BoardView({
       <div className="rail rail-y">
         {Array.from({ length: height }, (_, y) => (
           <span key={y} style={{ gridRow: row(y) }}>
-            {y}
+            {rowLabel(y)}
           </span>
         ))}
       </div>
@@ -152,7 +153,7 @@ export default function BoardView({
                   className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
                     .filter(Boolean)
                     .join(" ")}
-                  title={`${coordLabel(x, y)} ${tile.name}`}
+                  title={`${coordLabel(x, y)} · ${rawCoord(x, y)} ${tile.name}`}
                   style={{
                     gridColumn: col(x),
                     gridRow: row(y),
@@ -308,6 +309,7 @@ export default function BoardView({
               u.id === selectedId && "sel",
               u.id === targetId && "tgt",
               u.acted && "acted",
+              u.engage?.engaging === true && "engaging",
               nudge !== undefined && "nudge",
               hit && "hit",
             ]
@@ -347,9 +349,8 @@ export default function BoardView({
                     <i style={{ width: `${Math.min(Math.max(u.exp, 0), 100)}%` }} />
                   </span>
                 )}
-                {/* 인게이지 발동 = 테두리 푸른 점멸. ☠연출이 아니라 **상태 표시**라 모드 무관 상시(사용자 확정).
-                    링을 실제 자식으로 두는 이유 = ::before(선택)·::after(피격)가 이미 차 있다. */}
-                {u.engage?.engaging === true && <i className="engring" aria-hidden="true" />}
+                {/* 인게이지 발동 = **도트 외곽선 + 펄스**(2026-08-18 사용자 지정 — 사각 링을 걷어냈다).
+                    스프라이트 실루엣을 따라야 하므로 별도 요소가 아니라 아이콘 자체의 filter가 소유한다. */}
                 {u.engage !== undefined && (
                   <span className="god" title={`${u.engage.count} / ${u.engage.limit}`}>
                     {godFace !== undefined && <img src={godFace} alt="" width="32" height="32" loading="lazy" decoding="async" />}
@@ -435,12 +436,13 @@ export default function BoardView({
                     {s.rows.map((r, i) => (
                       <span key={i} className="srow">
                         <span className="sl">
-                          {r.weapon !== undefined && <i className="sw">{r.weapon}</i>}
+                          {r.weapon !== undefined && <i className={r.byPlayer ? "sw ours" : "sw foe"}>{r.weapon}</i>}
                           {r.kind !== undefined && <i className="sk">{r.kind}</i>}
-                          {r.side === "taken" && <b className={dmgClass(r)}>{r.miss ? "MISS" : r.damage}</b>}
+                          {/* 필살 = 별도 카드(노랑) — 수치 색만 바꾸면 다단 히트 속에서 안 읽힌다(사용자 지정). */}
+                          {r.crit && !r.miss && <i className="scrit">CRIT</i>}
                         </span>
                         <span className="sr">
-                          {r.side === "dealt" && <b className={dmgClass(r)}>{r.miss ? "MISS" : r.damage}</b>}
+                          <b className={dmgClass(r)}>{r.miss ? "MISS" : r.damage}</b>
                         </span>
                       </span>
                     ))}
@@ -457,8 +459,8 @@ export default function BoardView({
   );
 }
 
-/** miss = 화이트 · crit = 노란색 · 그 외 대미지 = 레드(사용자 지정). */
-const dmgClass = (r: StrikeRow): string => (r.miss ? "miss" : r.crit ? "crit" : "dmg");
+/** miss = 화이트 · 그 외 대미지 = 레드(필살은 색이 아니라 CRIT 카드로 표시한다 — 사용자 지정). */
+const dmgClass = (r: StrikeRow): string => (r.miss ? "miss" : "dmg");
 
 /**
  * 상대 반대편이 기본 — 둘 다 같은 쪽이면 두 표가 서로를 덮는다.

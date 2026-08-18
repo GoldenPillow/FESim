@@ -116,6 +116,12 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)(yaml@2.9.0)
 
+  tools/replay:
+    devDependencies:
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)(yaml@2.9.0)
+
   workers/api:
     dependencies:
       '@fesim/shared':

@@ -92,7 +92,7 @@
   position: relative;
 }
 /*
-  칸마다 인게임 좌표(X,Z) — 흐린 회색. 대화·스크립트·판독 문서가 같은 수로 말하기 위한 표시다.
+  칸마다 화면 좌표(C3 = 세로 C · 가로 3) — 흰색에 가깝게. 인게임 (X,Z) 원문은 툴팁이 함께 싣는다.
   ☠타일 배율에서 떼어낸다: 큰 맵의 기본 줌은 타일 24px대라 비례 폰트는 못 읽는다(전투 요약과 같은 처방).
   작은 줌에서는 아예 감춘다 — 읽히지 않는 글자는 노이즈다.
 */
@@ -102,8 +102,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 500 clamp(7px, calc(var(--tile) * 0.19), 12px) / 1 ui-monospace, monospace;
-  color: rgb(40 40 40 / 0.82);
+  font: 600 clamp(8px, calc(var(--tile) * 0.22), 14px) / 1 ui-monospace, monospace;
+  /* 밝은 지형 위에서도 읽히게 — 색은 흰색 쪽, 대비는 그림자가 든다(색만 밝히면 초원 타일에서 사라진다). */
+  color: rgb(248 248 248 / 0.9);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   pointer-events: none;
   user-select: none;
 }
@@ -955,40 +957,52 @@
 }
 
 /*
-  인게이지 발동 — 테두리 푸른 점멸. ☠**상태 표시**라 모드 무관 상시다(사용자 확정):
-  발동 중인 동안 계속 뛰고, 연출 타이머(1~2초)와 무관하다.
-  ::before(선택 링)·::after(피격 링)가 이미 차 있어 실제 자식 요소로 둔다.
+  인게이지 발동 — **도트(스프라이트) 외곽선 + 펄스**(2026-08-18 사용자 지정: 사각 링 폐기).
+  ☠**상태 표시**라 모드 무관 상시다: 발동 중인 동안 계속 뛰고 연출 타이머와 무관하다.
+  외곽선은 실루엣을 따라야 하므로 drop-shadow 4방향(블러 0) — 픽셀 아트라 1px이 곧 한 도트다.
+  ☠행동 완료(acted)는 아이콘에 grayscale 필터가 이미 걸려 있다. 애니메이션 filter는 그 정적 선언을
+  통째로 이기므로 **회색 유지본 키프레임을 따로 둔다**(안 그러면 인게이지 중엔 행동 완료가 안 보인다).
 */
-.board .cell .engring {
-  position: absolute;
-  inset: 2%;
-  border-radius: 5px;
-  border: 2px solid #4fb8ff;
-  box-shadow:
-    0 0 10px rgb(79 184 255 / 0.85),
-    inset 0 0 6px rgb(79 184 255 / 0.45);
-  pointer-events: none;
-  animation: engage-blink 900ms ease-in-out infinite;
+.board .cell.engaging .icon,
+.board .cell.engaging .chip {
+  animation: engage-pulse 1100ms ease-in-out infinite;
 }
-@keyframes engage-blink {
+.board .cell.engaging.acted .icon,
+.board .cell.engaging.acted .chip {
+  animation: engage-pulse-dim 1100ms ease-in-out infinite;
+}
+@keyframes engage-pulse {
   0%,
   100% {
-    opacity: 1;
+    filter: drop-shadow(1px 0 0 #4fb8ff) drop-shadow(-1px 0 0 #4fb8ff) drop-shadow(0 1px 0 #4fb8ff)
+      drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
   }
   50% {
-    opacity: 0.2;
+    filter: drop-shadow(1px 0 0 #9fe0ff) drop-shadow(-1px 0 0 #9fe0ff) drop-shadow(0 1px 0 #9fe0ff)
+      drop-shadow(0 -1px 0 #9fe0ff) drop-shadow(0 0 8px rgb(79 184 255 / 0.95));
+  }
+}
+@keyframes engage-pulse-dim {
+  0%,
+  100% {
+    filter: grayscale(1) brightness(0.7) drop-shadow(1px 0 0 #4fb8ff) drop-shadow(-1px 0 0 #4fb8ff)
+      drop-shadow(0 1px 0 #4fb8ff) drop-shadow(0 -1px 0 #4fb8ff) drop-shadow(0 0 2px rgb(79 184 255 / 0.35));
+  }
+  50% {
+    filter: grayscale(1) brightness(0.7) drop-shadow(1px 0 0 #9fe0ff) drop-shadow(-1px 0 0 #9fe0ff)
+      drop-shadow(0 1px 0 #9fe0ff) drop-shadow(0 -1px 0 #9fe0ff) drop-shadow(0 0 8px rgb(79 184 255 / 0.95));
   }
 }
 
 /*
-  문장사 배지 — 반지 장착 유닛의 왼쪽 위. 크기 = 타일의 34%(사용자 선택: 스프라이트 머리 왼쪽에
-  살짝 겹치되 유닛이 묻히지 않는 선). 게이지는 배지 바로 아래 초소형 숫자 = 현재/최대 카운트.
+  문장사 배지 — 반지 장착 유닛의 왼쪽 위. 크기 = 타일의 51%(2026-08-18 사용자 지정 = 종전 34%의 1.5배).
+  게이지는 배지 바로 아래 초소형 숫자 = 현재/최대 카운트.
 */
 .board .cell .god {
   position: absolute;
   top: -2%;
   left: -4%;
-  width: calc(var(--tile) * 0.34);
+  width: calc(var(--tile) * 0.51);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -997,7 +1011,7 @@
 }
 .board .cell .god img {
   width: 100%;
-  height: calc(var(--tile) * 0.34);
+  height: calc(var(--tile) * 0.51);
   max-width: none;
   border-radius: 50%;
   /* facethumb 원본은 136x74 가로 크롭 — 세로를 다 쓰고 좌우만 잘라야 얼굴이 온전하다. */
@@ -1020,8 +1034,10 @@
 }
 
 /*
-  전투 타격 요약 — 전투에 낀 유닛 옆 작은 표. ★수명이 연출과 다르다(다음 행동까지, 사용자 확정)라
-  fx 타이머가 아니라 별도 상태가 소유한다. miss 화이트 · crit 노랑 · 대미지 레드(사용자 지정).
+  전투 타격 요약 — ★**맞은 유닛** 옆 작은 표(2026-08-18 사용자 지정: 때린 쪽엔 안 세운다).
+  자군 왼편 · 적/우군 오른편 · 무기 = 자군의 손이면 파랑, 상대의 손이면 빨강 · 대미지는 언제나 빨강 ·
+  필살은 노란 CRIT 카드 · 빗나감은 흰 MISS. ★수명이 연출과 다르다(다음 행동까지, 사용자 확정)라
+  fx 타이머가 아니라 별도 상태가 소유한다.
 */
 .board .layer.strikes {
   z-index: 7;
@@ -1068,7 +1084,35 @@
 }
 .board .strike .sw {
   font-style: normal;
-  color: rgb(255 255 255 / 0.62);
+}
+/* 무기 색 = 누구의 손인가(자군 파랑 · 상대 빨강) — 자리(좌/우)는 누가 맞았나를 이미 말한다. */
+.board .strike .sw.ours {
+  color: #6fb6ff;
+}
+.board .strike .sw.foe {
+  color: #e2635c;
+}
+/* 예보 대미지 방향 — 주는 쪽 › 파랑 · 받는 쪽 ‹ 빨강(사용자 지정: 화살표 + 색 이중 표기). */
+.forecast .fc-dmg.out {
+  color: #6fb6ff;
+}
+.forecast .fc-dmg.in {
+  color: #e2635c;
+}
+.forecast .fc-dir {
+  font-style: normal;
+  font-weight: 700;
+  margin-right: 2px;
+}
+.board .strike .scrit {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: #201a00;
+  background: #ffd23e;
 }
 .board .strike .sk {
   font-style: normal;
