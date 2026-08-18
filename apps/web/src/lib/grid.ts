@@ -8,19 +8,28 @@ export const FLIP_Y = true;
 export const tileKey = (x: number, y: number): string => `${x},${y}`;
 
 /**
- * ★좌표 표기 정본 = **인게임 좌표 `(X, Z)` 그대로**(2026-08-18 사용자 확정).
+ * ★화면 좌표 표기 = **좌하단 기준 · 가로 1,2,3… · 세로 A,B,C…**(2026-08-18 사용자 지정).
+ * 표기 순서는 세로(글자) → 가로(숫자) = `C3`(해전 게임 관례 — 세로가 글자면 글자를 먼저 읽는다).
+ * 26줄을 넘으면 `AA`·`AB`로 잇는다(최대 맵 32줄).
  *
- * 게임은 플레이어에게 좌표를 보여주지 않지만, **게임 자신은 좌표로 말한다** —
- * 맵 스크립트가 `UnitMovePos(pid, 5, 4)`·`pos(7,4)`·`EventEntryVisit(fn, 7, 4)`로 지시하고
- * dispos가 `DisposX`/`DisposY`로 배치하며 IL2CPP가 `x | z<<5`로 색인한다. 그 (X, Z)가 유일한 내부 정본이고
- * 우리 격자는 그것과 1:1이다(전 54챕터 지형 대조 불일치 0). ⇒ 대화·문서·화면이 **같은 수로 말한다**.
- *
- * ☠종전의 체스식 `A1`(가로 A,B,C · 세로 1부터)은 폐기한다 — 우리만 쓰는 표기라
- * 스크립트·판독 문서와 대조할 때마다 머릿속 변환이 필요했다(그 변환이 곧 오독의 자리다).
+ * ☠**인게임 좌표 (X, Z)는 버리지 않는다** — 맵 스크립트(`UnitMovePos(pid, 5, 4)`)·dispos·IL2CPP 색인이
+ * 전부 그 수로 말하므로, 판독 문서와 대조하는 자리에서는 그것이 유일한 정본이다.
+ * 그래서 **칸에는 이 표기, 툴팁에는 둘 다**(`C3 · (2,2)`) 싣는다 — 변환을 머리로 하지 않게 한다.
  * 화면 방향은 그대로다: 데이터 (0,0) = 화면 좌하단.
  */
-export const colLabel = (x: number): string => String(x);
-export const coordLabel = (x: number, y: number): string => `${x},${y}`;
+export const colLabel = (x: number): string => String(x + 1);
+export const rowLabel = (y: number): string => {
+  let n = y;
+  let out = "";
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+};
+export const coordLabel = (x: number, y: number): string => `${rowLabel(y)}${colLabel(x)}`;
+/** 인게임 좌표 원문 — 스크립트·판독 문서와 대조하는 자리(툴팁·개발 로그)에서 쓴다. */
+export const rawCoord = (x: number, y: number): string => `(${x},${y})`;
 
 /** CSS Grid 1-based 라인 번호. SVG 좌표는 (gridCol(x) - 0.5, gridRow(y) - 0.5)가 타일 중심. */
 export const gridCol = (width: number, x: number): number => (FLIP_X ? width - x : x + 1);

@@ -1,6 +1,7 @@
 ---
 import type { ChapterData } from "@fesim/shared";
 import { unitsFor, forceStyle } from "../lib/fe17";
+import { coordLabel, rawCoord } from "../lib/grid";
 import { UI, type Locale } from "../lib/i18n";
 
 interface Props {
@@ -62,8 +63,8 @@ const sections = [
                       {t.level} <b class="ru-lv">{u.level}</b>
                       <b class="ru-exp" />
                     </span>
-                    <span class="block opacity-70 ru-pos">
-                      {u.unit.x}, {u.unit.y}
+                    <span class="block opacity-70 ru-pos" title={rawCoord(u.unit.x, u.unit.y)}>
+                      {coordLabel(u.unit.x, u.unit.y)}
                     </span>
                   </span>
                 </summary>

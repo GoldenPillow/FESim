@@ -1,5 +1,5 @@
 import type { Tile, UnitState } from "@fesim/engine";
-import { colLabel, coordLabel, gridCol, gridRow, tileKey, tileShade } from "../lib/grid";
+import { colLabel, coordLabel, gridCol, gridRow, rawCoord, rowLabel, tileKey, tileShade } from "../lib/grid";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -135,7 +135,7 @@ export default function BoardView({
       <div className="rail rail-y">
         {Array.from({ length: height }, (_, y) => (
           <span key={y} style={{ gridRow: row(y) }}>
-            {y}
+            {rowLabel(y)}
           </span>
         ))}
       </div>
@@ -152,7 +152,7 @@ export default function BoardView({
                   className={["tile", tile.blocked && "blocked", byTile.has(tileKey(x, y)) && "has-unit"]
                     .filter(Boolean)
                     .join(" ")}
-                  title={`${coordLabel(x, y)} ${tile.name}`}
+                  title={`${coordLabel(x, y)} · ${rawCoord(x, y)} ${tile.name}`}
                   style={{
                     gridColumn: col(x),
                     gridRow: row(y),
@@ -308,6 +308,7 @@ export default function BoardView({
               u.id === selectedId && "sel",
               u.id === targetId && "tgt",
               u.acted && "acted",
+              u.engage?.engaging === true && "engaging",
               nudge !== undefined && "nudge",
               hit && "hit",
             ]
@@ -347,9 +348,8 @@ export default function BoardView({
                     <i style={{ width: `${Math.min(Math.max(u.exp, 0), 100)}%` }} />
                   </span>
                 )}
-                {/* 인게이지 발동 = 테두리 푸른 점멸. ☠연출이 아니라 **상태 표시**라 모드 무관 상시(사용자 확정).
-                    링을 실제 자식으로 두는 이유 = ::before(선택)·::after(피격)가 이미 차 있다. */}
-                {u.engage?.engaging === true && <i className="engring" aria-hidden="true" />}
+                {/* 인게이지 발동 = **도트 외곽선 + 펄스**(2026-08-18 사용자 지정 — 사각 링을 걷어냈다).
+                    스프라이트 실루엣을 따라야 하므로 별도 요소가 아니라 아이콘 자체의 filter가 소유한다. */}
                 {u.engage !== undefined && (
                   <span className="god" title={`${u.engage.count} / ${u.engage.limit}`}>
                     {godFace !== undefined && <img src={godFace} alt="" width="32" height="32" loading="lazy" decoding="async" />}

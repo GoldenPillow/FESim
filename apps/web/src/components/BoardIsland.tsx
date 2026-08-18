@@ -37,7 +37,7 @@ import {
   type UnitState,
 } from "@fesim/engine";
 import { parseEphemeris, serializeEphemeris, type EphemerisFile } from "@fesim/shared";
-import { tileKey } from "../lib/grid";
+import { coordLabel, rawCoord, tileKey } from "../lib/grid";
 import type { BoardProps, Difficulty } from "../lib/fe17";
 import { defaultReplayPath, scriptPath, visibleObjects, visibleStructures } from "../lib/boards";
 import {
@@ -242,7 +242,10 @@ export default function BoardIsland(props: BoardProps) {
       // 경험치는 자군만 쌓인다 — 0이면 빈 칸으로 둬서 카드가 조용하다.
       if (exp !== null) exp.textContent = u.force === 0 && u.exp > 0 ? `+${u.exp}` : "";
       const pos = card.querySelector(".ru-pos");
-      if (pos !== null) pos.textContent = u.dead ? "—" : `${u.x}, ${u.y}`;
+      if (pos !== null) {
+        pos.textContent = u.dead ? "—" : coordLabel(u.x, u.y);
+        if (!u.dead) pos.setAttribute("title", rawCoord(u.x, u.y));
+      }
     }
   }, [game]);
 
