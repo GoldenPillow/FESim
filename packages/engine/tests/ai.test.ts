@@ -368,10 +368,32 @@ describe("MV_Idle · Guard 게이트 (H_handlers §3·§4)", () => {
     expect(guardTo({ unit: plain } as unknown as HandlerContext)).toEqual({ kind: "none" });
   });
 
-  it("☠자격이 있으면 가드 위치 규칙이 미판독이라 정직 결손", () => {
-    const guard = unit({ id: "g", force: 1, x: 0, y: 0, style: "気功スタイル" });
-    const r = guardTo({ unit: guard } as unknown as HandlerContext);
-    expect(r.kind).toBe("deficit");
+  it("자격이 있으면 지킬 아군의 인접칸으로 이동 + 가드 — GetSidePosition 판독 배선", () => {
+    // 왜 위험한가: 이 위치 규칙 하나가 미판독이던 동안 전 54챕터 AI 결손의 **78%**(671건 중 524건)를
+    // 혼자 만들었다(2026-08-18 MP7 B4). 정본 = GetSidePosition(0x195FC80) — 대상 인접 1칸만 훑어
+    // ((100-이동코스트)<<4)+지형점수 최대를 고르고, 동점은 AI.IsRandom() 코인플립.
+    const guard = unit({ id: "g", force: 1, x: 0, y: 0, style: "気功スタイル", movePoints: 4 });
+    const ally = unit({ id: "a", force: 1, x: 4, y: 0 });
+    const state = {
+      turn: 1, phase: 1, map: flatMap(10, 10), units: [guard, ally], events: [],
+    } as unknown as GameState;
+    // 코인플립을 항상 "앞 후보 유지"로 고정 = 열거 순서(z 내림·x 오름)의 첫 최고점이 남는다.
+    const r = guardTo({ unit: guard, state, rng: { next: () => 1 } } as unknown as HandlerContext);
+    expect(r.kind).toBe("decide");
+    const actions = (r as { actions: { type: string; x?: number; y?: number }[] }).actions;
+    expect(actions.at(-1)).toEqual({ type: "guard", unit: "g" });
+    const move = actions[0] as { type: string; x: number; y: number };
+    expect(move.type).toBe("move");
+    // 이동한 칸은 아군과 정확히 인접해야 한다(거리 1).
+    expect(Math.abs(move.x - ally.x) + Math.abs(move.y - ally.y)).toBe(1);
+  });
+
+  it("지킬 아군이 하나도 없으면 None — 결손이 아니다", () => {
+    const guard = unit({ id: "g", force: 1, x: 0, y: 0, style: "気功スタイル", movePoints: 4 });
+    const state = {
+      turn: 1, phase: 1, map: flatMap(10, 10), units: [guard], events: [],
+    } as unknown as GameState;
+    expect(guardTo({ unit: guard, state, rng: { next: () => 1 } } as unknown as HandlerContext)).toEqual({ kind: "none" });
   });
 });
 

@@ -205,20 +205,50 @@ B4 재측정(선행 — 지금 숫자가 거짓이라 우선순위 판단이 안
 
 계열별 = 외전(s) 98.14% · 본편(m) 95.93% · 신룡(g) 95.68% · 엔게이지(e) 93.99%.
 
-### 3A-1. 결손 671건의 정체 — **미판독 함수 하나가 78%다**
+### 3A-1. 결손 671건의 정체 — **미판독 함수 하나가 78%였다** → 판독·배선 완료
 
-| 건수 | 원인 |
-|---|---|
-| **524 (78%)** | ★`AIThink.GetSidePosition`(0x195FC80) 미판독 — 가드 위치 규칙. `HealToAttack` 200 · `Attack` 165 · `Enchant` 51 · `AttackToHeal` 42 · `Heal` 22 · `Interference` 16 · `AttackToHealForceOnly` 12 외 |
-| 74 | 옵코드 62 `AI_MI_Village` 미구현 |
-| 16 | 옵코드 50 `AI_AT_EngageAttack` |
-| 13 | 옵코드 89 `AI_MV_Hero` |
-| 12 | 옵코드 120 `AI_AT_EngageCSYell` |
-| 11 | 옵코드 97 `AI_MV_NearestFriend` |
-| 나머지 | `HealMindToTerrain` 게이트 · 엔진(페이즈 미진행·1000액션 초과) |
+| 건수 | 원인 | 상태 |
+|---|---|---|
+| **524 (78%)** | `AIThink.GetSidePosition`(0x195FC80) 가드 위치 규칙 | ★**2026-08-18 판독·배선 완료** |
+| 74 | 옵코드 62 `AI_MI_Village` | 잔여 최대 |
+| 15 | 옵코드 50 `AI_AT_EngageAttack` | 잔여 |
+| 12 | 옵코드 120 `AI_AT_EngageCSYell` | 잔여 |
+| 8 | 옵코드 89 `AI_MV_Hero` | 잔여 |
+| 12 | `HealMindToTerrain` 게이트(Hc_Terrain) 미판독 | 잔여 |
 
-⇒ **B 트랙 우선순위 확정**: `GetSidePosition` 판독 1건이 결손의 **78%**를 지운다. 그다음이 `AI_MI_Village`.
-착수 지점 = `MapFor.RangeFunction` + 람다 `<GetSidePosition>b__0`(0x28EBD10) — 범위 열거 후 선택 규칙.
+#### 판독 결과 (정본 = `~/fesim_data/extracted/il2cpp/AI_ENGINE.md` §10)
+
+`GetSidePosition(actor, x, z)` = **대상 좌표의 거리 1 인접칸만** 훑어(`MapFor.EachRange(x,z,1,1)`) 최선 1칸 선택.
+
+```
+cost = (sbyte)AIDeploy.MoveImage[x|z<<5];  if (cost < 0) 기각      // 도달 불가
+if (MapImage.MoveImage[x|z<<5] != 0) 기각                          // 이미 유닛이 선 칸
+if (IsMoveOver(actor, x, z)) 기각                                  // 겹침이동 마커(위임 전용) — 미모델이라 항상 false
+score = ((100 - cost) << 4) + GetTerrainScore(actor, x, z)         // §5-A-3 비-nearest 식과 동일
+채택 = score >= best · 동점이면 AI.IsRandom() 50% 코인플립
+```
+
+`GuardTo`는 `MapFor.EachSelfForceUnit`으로 **같은 진영 전수**를 돌며 아군마다 위 칸을 구하고,
+**그 칸의 점수를 그대로 아군 점수로** 쓴다(별도 항 없음). 결과는 `MapMind.X/Z` = 이동 목적지.
+후보 아군 게이트 = 생존(HP>0, 단 HP 스톡 보유면 통과) · 맵 영역 안 · 지형이 `IsNotTarget` 아님.
+⚠미배선 = `ally[0xF0][0x38] & 0x4D0` 상태 마스크(대응 필드 없음) · `Caution`/`AttackTarget` 위협 평가(부분 판독).
+
+#### 효과 (같은 시드 42, 전 54챕터 재측정)
+
+| | 판독 전 | 판독 후 |
+|---|---|---|
+| 자동화율 | 95.98% | **98.88%** |
+| 결손 유닛 | 126 | **35** |
+| 결손 건수 | 671 | **260** |
+| 결손 0 챕터 | 24 / 54 | **42 / 54** |
+
+☠**중간 함정 기록**: 핸들러가 `kind: "actions"`를 반환했는데 정본 타입은 `"decide"`다. 인터프리터가
+모르는 kind라 **결손만 사라지고 행동은 안 나갔고**, 한 번 98.98%로 잘못 측정됐다. 타입 검사가 잡았다.
+☠`pnpm exec tsc --noEmit -p packages/engine`은 **조용히 아무것도 안 한다**(패키지 스크립트 `pnpm typecheck`를 쓸 것) ·
+`./dev gate | tail`은 파이프라인 종료코드가 `tail`의 것이라 `&&`가 **항상 통과**한다.
+
+⇒ 잔여 결손의 새 얼굴 = `HealMindToTerrain` 게이트(90건, 가드가 열리며 드러났다) · `AI_MI_Village`(74) ·
+`AI_MV_Hero`(44). 다음 우선순위는 이 셋.
 
 ### 3A-2. 1차 측정을 막았던 9챕터 — 전건 복구 (2026-08-18)
 
