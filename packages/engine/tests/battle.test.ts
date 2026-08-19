@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { CalculatorData, SupportsTable } from "@fesim/shared";
 import {
+  battlePlan,
   canBreak,
+  chainAttackers,
+  chainNumbers,
   createCalculator,
   createReducer,
   forecastSide,
@@ -335,6 +338,33 @@ describe("전투 해결", () => {
     const next = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
     expect(next.units.find((u) => u.id === "e")!.hp).toBe(23);
     expect(next.events.filter((ev) => ev.type === "strike" && ev.kind === "chain").length).toBe(1);
+  });
+
+  it("체인어택 예상 수치(chainAttackers+chainNumbers) = 리듀서가 실제로 내는 체인 타격", () => {
+    // 왜 위험한가: 체인 대미지는 `battlePlan` 오더 목록에 **없다**(리듀서가 따로 굴린다).
+    // 그래서 오더 목록만 더해 위협을 재는 소비처(기보 정책 incoming)는 연계 스타일 적이 옆에 있을 때
+    // 받는 대미지를 통째로 못 본다 — 정책은 잔여 HP 1까지 허용하므로 그 몫이 곧 사망인데
+    // 예보에도 결손 목록에도 안 잡힌다(실측: m003 시드 13·7에서 뤼에르가 정확히 이 몫으로 죽었다).
+    // 층이 갈리는 자리라 각 층만 보는 테스트로는 영원히 안 잡힌다 ⇒ 여기서 양끝을 묶는다.
+    const enemyStats = { hp: 25, str: 8, mag: 0, dex: 4, spd: 10, lck: 0, def: 100, res: 0, bld: 5 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+      unit({ id: "b", force: 0, x: 1, y: 1, weapon: sword, style: "連携スタイル" }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemyStats, hp: 25, weapon: sword }),
+    ]);
+    const at = s.units.find((u) => u.id === "a")!;
+    const de = s.units.find((u) => u.id === "e")!;
+    const backups = chainAttackers(at, de, s.units);
+    expect(backups.map((u) => u.id)).toEqual(["b"]);
+    const defenderC = { ...toCombatant(de, s.map, s.units, supportEffects), initiator: false };
+    const predicted = chainNumbers(calc, toCombatant(backups[0], s.map, s.units, supportEffects), defenderC);
+
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, alwaysHit);
+    const chain = next.events.find((ev) => ev.type === "strike" && ev.kind === "chain") as {
+      damage: number;
+    };
+    expect(predicted.damage).toBe(2);
+    expect(chain.damage).toBe(predicted.damage);
   });
 
   it("체인어택 경험치 = 실제 체인 참가 수만큼 가산 (정본 チェインアタック基本値 * チェインアタック回数)", () => {
@@ -885,5 +915,252 @@ describe("고정 성장 — GrowMode.Fixed 누적기", () => {
     consumed = 0;
     reduce({ ...s, growMode: "random" }, { type: "attack", unit: "a", target: "e" }, rng);
     expect(consumed).toBeGreaterThan(fixedConsumed);
+  });
+});
+
+/**
+ * 手番回数 오더 큐 — 고정 5단(attack/counter/followUp/counterFollowUp)을 정본 구조로 바꾼 층.
+ * 정본 = `CalcNormalBattle`(0x246B580)이 8슬롯 교대 큐 [0,1,0,1,…]를 만들고, 슬롯마다
+ * `min(手番回数, 4) > 그 측 総手番回数`면 실행하고 **끝난 뒤** 総手番回数를 +1 한다(PopOrder 0x19B6F48).
+ * 실물 데이터(skills.json)를 그대로 먹인다 — 수기 이식 금지 규약.
+ */
+const skillTable = JSON.parse(
+  readFileSync(new URL("../../../data/fe17/tables/skills.json", import.meta.url), "utf-8"),
+) as Record<string, SkillRow>;
+
+/**
+ * 웹 사영(fe17.ts slimSkill)과 **같은 규약**으로 GiveSids를 행으로 해소한다.
+ * ☠엔진에는 스킬 표가 없다(행은 유닛이 들고 다닌다) — 이 해소를 빼먹으면 부여층이 SID 문자열만 받고
+ *   아무것도 못 붙여 신속이 조용히 죽는다(배선 전 상태가 정확히 그것이었다).
+ */
+const skillRow = (sid: string, depth = 0): SkillRow => {
+  const row = skillTable[sid];
+  const gives = depth < 3 ? (row.GiveSids ?? []).map((given) => skillRow(given, depth + 1)) : [];
+  return gives.length > 0 ? { ...row, Gives: gives } : row;
+};
+
+/** 명중은 하되 필살은 안 나는 롤(필살률 0이면 필살 롤 자체를 안 굴린다 — 리플레이 계약). */
+const counting = (): RandomSource & { used: number } => {
+  const src = { used: 0, next: () => { src.used += 1; return 9999; } };
+  return src;
+};
+const kindsOf = (s: GameState): string[] =>
+  s.events.filter((ev) => ev.type === "strike").map((ev) => (ev.type === "strike" ? ev.kind : ""));
+const damagesOf = (s: GameState): number[] =>
+  s.events.filter((ev) => ev.type === "strike").map((ev) => (ev.type === "strike" ? ev.damage : -1));
+
+describe("手番回数 오더 큐 + 전투 로컬 부여층(신속)", () => {
+  /**
+   * ★호환 불변식. 왜 위험한가: 手番回数 스킬이 안 걸리는 판에서 순서나 롤 소비가 한 칸이라도 밀리면
+   * `data/fe17/replays/*.eph.json` 5종이 **전부** 낡은 기록이 된다(verify의 deepEqual이 통째로 깨진다).
+   * 오더 큐는 그 판에서 옛 고정 5단과 **완전히 같은** 수열을 내야 한다.
+   */
+  it("신속이 없으면 순서·롤 소비가 종전과 같다 (공격측 추격 / 방어측 추격)", () => {
+    const fast = { ...sword, might: 1 };
+    const offFollow = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: fast, stats: { ...baseStats, spd: 20 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: fast, stats: { ...baseStats, spd: 1 } }),
+    ]);
+    const rngA = counting();
+    expect(kindsOf(reduce(offFollow, { type: "attack", unit: "a", target: "e" }, rngA)))
+      .toEqual(["attack", "counter", "followUp"]);
+    expect(rngA.used).toBe(3); // 명중 롤 3회 · 필살률 0이라 필살 롤 미소모
+
+    const defFollow = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: fast, stats: { ...baseStats, spd: 1 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: fast, stats: { ...baseStats, spd: 20 } }),
+    ]);
+    const rngB = counting();
+    expect(kindsOf(reduce(defFollow, { type: "attack", unit: "a", target: "e" }, rngB)))
+      .toEqual(["attack", "counter", "counterFollowUp"]);
+    expect(rngB.used).toBe(3);
+  });
+
+  /**
+   * ★실기 앵커(뤼에르 인게이지 + 레이피어, 사용자 스크린샷 2026-08-19 = `8 + 4`).
+   * 왜 위험한가: 이 사슬은 네 층(어휘·오더 큐·Timing 게이트·부여층) 중 **하나만 빠져도**
+   * 오류 없이 종전과 똑같은 산출을 낸다 — 조용한 실패의 교과서다. 추가타의 자리(반격 뒤)와
+   * 배율(정확히 절반)을 동시에 박아 둬야 어느 층이 빠졌는지 이 테스트 하나가 가리킨다.
+   */
+  it("신속: 手番回数 2 · 추격 없음 → [attack, counter, followUp]이고 추가타가 정확히 절반이다", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "followUp"]);
+    const [first, , extra] = damagesOf(next);
+    expect(extra).toBe(first / 2);
+    expect(first).toBe(10); // 攻撃力 15 - 相手の防御力 5
+  });
+
+  /**
+   * 왜 위험한가: 50% 조건은 `総手番回数 == 手番回数 - 1`이라 **오더마다 관측값이 0,1,2…로 올라가야만**
+   * 마지막 한 번에서 참이 된다. 증가를 오더 시작에 두면 영원히 거짓이 되고(추가타가 전부 100%),
+   * 手番回数를 오더마다 다시 굴리면 신속이 매 오더 +1 되어 발산한다 — 둘 다 오류 없이 조용하다.
+   */
+  it("추격 + 신속(手番回数 3) → 마지막 오더 하나만 절반이다", () => {
+    const fast = { ...sword, might: 1 };
+    const s = state([
+      unit({
+        id: "a", force: 0, x: 0, y: 0, weapon: fast,
+        stats: { ...baseStats, spd: 20, str: 40 },
+        skills: [skillRow("SID_カウンター")],
+      }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: fast, hp: 200, stats: { ...baseStats, hp: 200, spd: 1 } }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "followUp", "extra"]);
+    const dmg = damagesOf(next);
+    expect(dmg[0]).toBe(36); // 41 - 5
+    expect(dmg[2]).toBe(36);
+    expect(dmg[3]).toBe(18); // 마지막 오더만 威力 * 0.5
+  });
+
+  /**
+   * 왜 위험한가: `SID_カウンター`는 Stand 0(주도권 무관)이라 **맞는 쪽에서도** 발동한다.
+   * 고정 5단에서는 방어측이 2회 치는 국면 자체를 표현할 수 없었다 — 오더 큐가 아니면 잡히지 않는 결손이다.
+   */
+  it("방어측 신속: 공격측 1회 · 방어측 2회 → [attack, counter, counterFollowUp]이고 반격 추가타가 절반", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "counterFollowUp"]);
+    const dmg = damagesOf(next);
+    expect(dmg[2]).toBe(dmg[1] / 2);
+  });
+
+  /**
+   * ☠왜 위험한가: 전투 로컬 부여(Cycle 0)가 유닛 상태로 새면 `SID_神速発動済み` 래치가 따라다녀
+   * **다음 전투부터 신속이 조용히 죽는다**(오류도 경고도 없다). 정본은 매 전투 셋업의 SetUnitSkill이
+   * 스킬 배열을 통째로 갈아엎어 이월이 불가능하다 — 그 성질을 두 전투 연속으로 박제한다.
+   */
+  it("부여가 전투 밖으로 안 샌다 — 다음 전투도 같은 8+4를 낸다 · 유닛 스킬은 불변", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, hp: 200, stats: { ...baseStats, hp: 200 } }),
+    ]);
+    const first = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    const sids = first.units[0].skills?.map((row) => row.Sid);
+    expect(sids).toEqual(["SID_カウンター"]);
+
+    const again = { ...first, units: first.units.map((u) => (u.id === "a" ? { ...u, acted: false } : u)) };
+    const second = reduce(again, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(damagesOf(second)).toEqual(damagesOf(first));
+    expect(kindsOf(second)).toEqual(["attack", "counter", "followUp"]);
+  });
+
+  /**
+   * 왜 위험한가: 실기 앵커의 주체(뤼에르 = 神竜ノ子 = 竜族スタイル)가 실제로 드는 행은 `SID_カウンター`가
+   * 아니라 **`SID_カウンター_竜族`**이다(사영의 스타일 분기는 별건 = skills.style-variant).
+   * 분기 행은 GiveSids가 3개로 늘고 그중 둘이 우리에게 없는 훅(Timing 12 回復)을 쓴다 —
+   * 그것들이 섞여도 手番回数·威力 산출이 본체와 **완전히 같아야** 앵커 해석이 유지된다.
+   */
+  it("스타일 분기(SID_カウンター_竜族)도 같은 8 + 4를 낸다", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター_竜族")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "followUp"]);
+    const [first, , extra] = damagesOf(next);
+    expect(extra).toBe(first / 2);
+  });
+
+  /**
+   * ☠**결손 박제**(2026-08-19 MP8 G4 실측). `SID_カウンター_竜族`이 딸고 오는
+   * `SID_カウンター_竜族効果`(Timing 12 HitAffect · `回復 + min(相手のHP, 相手のダメージ)` ·
+   * 조건 `HP < MaxHP && HP > 0`)는 **부여는 되는데 소비처가 없다** — 엔진에 Timing 11/12 훅이 없고
+   * `回復`를 조회하는 자리가 한 곳도 없다.
+   *
+   * 왜 위험한가: 대미지는 앵커(8 + 4)와 맞아떨어지므로 **이 결손만 오류도 경고도 없이 잠든다**.
+   * 실기라면 추가타 4만큼 흡수해 HP가 오르는데 우리는 그대로다(m002 앵커 국면의 뤼에르 14/23 = 조건 참).
+   * 부여가 실제로 일어나는 것까지 함께 박아 둬야 "훅만 없다"와 "부여도 죽었다"를 구분할 수 있다.
+   * ★제거 조건 = Timing 11/12 훅 + `回復` 질의 지점이 서면 이 테스트가 레드가 된다 — 그때 기대값을
+   * 흡수 후 HP로 바꾸고 장부 skills.style-variant의 잔여 1건을 지운다.
+   */
+  it("☠결손: 竜族 신속의 HP 흡수(Timing 12 回復)는 무발현이다 — 부여는 되는데 훅이 없다", () => {
+    const s = state([
+      unit({
+        id: "a", force: 0, x: 0, y: 0, weapon: sword, hp: 20,
+        stats: { ...baseStats, hp: 30 },
+        skills: [skillRow("SID_カウンター_竜族")],
+      }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, hp: 200, stats: { ...baseStats, hp: 200 } }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    const me = next.units.find((u) => u.id === "a")!;
+    // 이 국면은 반격을 받는다 ⇒ HP가 MaxHP 미달로 유지되므로 조건 `HP < MaxHP`는 실제로 참이다.
+    expect(me.hp).toBeLessThan(me.stats.hp);
+    expect(damagesOf(next)[2]).toBe(damagesOf(next)[0] / 2); // 추가타는 살아 있다(대미지 층은 정상)
+    expect(me.hp).toBe(20 - damagesOf(next)[1]); // 흡수가 있었다면 여기에 min(相手のHP, 추가타)가 더해진다
+  });
+
+  /**
+   * 왜 위험한가: 브레이크는 "몇 번째 手番인지 보지 않는다"(CalcAttack 0x2471840~은 매 타격마다 평가).
+   * `kind === "attack"` 한정이면 본공격이 빗나가고 추격이 명중한 국면에서 반격이 그대로 나가
+   * 상성 유리의 이득이 통째로 사라진다.
+   */
+  it("본공격이 빗나가고 추격이 명중해도 브레이크가 선다", () => {
+    const fast = { ...sword, hit: 60 };
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: fast, stats: { ...baseStats, spd: 20 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: axe, stats: { ...baseStats, spd: 1 } }),
+    ]);
+    // 본공격 빗나감(9999) → 반격 명중 → 추격 명중(0)
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, seq(9999, 0, 0));
+    const strikes = next.events.filter((ev) => ev.type === "strike");
+    expect(strikes.map((ev) => (ev.type === "strike" ? ev.hit : false))).toEqual([false, true, true]);
+    expect(next.events.some((ev) => ev.type === "break")).toBe(true);
+  });
+});
+
+/**
+ * ★층이 갈리는 경계 — "이 전투가 실제로 어떤 타격을 몇 번 내는가"를 계산하는 자리는 하나여야 한다.
+ * 리듀서·예보 패널·AI·기보 정책이 각자 근사하던 것을 공용 순수 함수 `battlePlan`으로 모은 층이다.
+ *
+ * 왜 위험했나: 예보는 `damage x battleTimes`를 그렸다 — 신속 판에서 예보 10, 실제 15.
+ * 방향이 "격파한다" 쪽이라 확정타로 읽고 지르면 적이 산다(경고 표시 없음).
+ * 같은 과대가 AI 표적 평가·기보 정책에도 있어 **생성 기보의 수 선택까지** 오염됐다.
+ */
+describe("오더 목록 공용 함수(battlePlan) — 층 관통", () => {
+  const combatants = (s: GameState) => ({
+    a: toCombatant(s.units[0], s.map, s.units),
+    e: toCombatant(s.units[1], s.map, s.units),
+  });
+
+  it("신속 판: 오더 목록의 kind·대미지열이 리듀서 타격열과 같다", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword }),
+    ]);
+    const { a, e } = combatants(s);
+    const orders = [...battlePlan(calc, a, e).orders];
+    expect(orders.map((o) => o.kind)).toEqual(["attack", "counter", "followUp"]);
+    expect(orders.map((o) => o.damage)).toEqual([10, 10, 5]); // 마지막 오더만 威力 * 0.5
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(orders.map((o) => o.kind));
+    expect(damagesOf(next)).toEqual(orders.map((o) => o.damage));
+  });
+
+  /**
+   * ☠`相手の手番回数`를 고치는 교차 행(SID_剣殺し·SID_不意打ち 계열)은 상대 쪽 flow가 env에 있어야 산다.
+   * 종전 `battleTimesOf`는 self의 flow만 채우고 상대는 비워 둬 조건이 미지 식별자로 **던졌고**,
+   * `makeSkillModifier`의 catch가 통째로 삼켰다 — 예보만 조용히 다른 手番回数를 봤다.
+   */
+  it("相手の手番回数 교차 행(SID_剣殺し)이 예보에서도 산다", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, stats: { ...baseStats, spd: 20 } }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, skills: [skillRow("SID_剣殺し")] }),
+    ]);
+    const { a, e } = combatants(s);
+    // 剣 상대에게 걸리는 행 = 자기 手番回数 2 대입 + **상대 手番回数를 1로 상한**.
+    // 공속차 10이라 剣殺し가 없으면 [2, 1]이 나온다 — 교차 행이 죽으면 그 값이 그대로 새어 나온다.
+    expect(battlePlan(calc, a, e).battleTimes).toEqual([1, 2]);
+    expect(forecastSide(calc, { ...a, initiator: true }, { ...e, initiator: false }).battleTimes).toBe(1);
+    expect(kindsOf(reduce(s, { type: "attack", unit: "a", target: "e" }, counting())))
+      .toEqual(["attack", "counter", "counterFollowUp"]);
   });
 });

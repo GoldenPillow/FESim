@@ -20,7 +20,20 @@ export type StatKey = (typeof STAT_KEYS)[number];
 
 export type Difficulty = "n" | "h" | "l";
 
-export type StrikeKind = "attack" | "counter" | "followUp" | "counterFollowUp" | "chain";
+/**
+ * 타격 종별 = **오더 인덱스의 라벨**이다(手番回数 오더 큐 — CalcNormalBattle 0x246B580의 8슬롯 교대).
+ * 공격측 오더 0·1 = attack·followUp · 방어측 오더 0·1 = counter·counterFollowUp ·
+ * ☠오더 2 이상(신속·割込み·相性激化가 겹칠 때)은 extra·counterExtra — 이름을 늘리지 않고 여기서 멈춘다.
+ * 옛 5이름과의 사상이 오더 0·1에서 그대로라 手番回数 <= 2인 판의 기보는 이름이 안 바뀐다(호환 불변식).
+ */
+export type StrikeKind =
+  | "attack"
+  | "counter"
+  | "followUp"
+  | "counterFollowUp"
+  | "extra"
+  | "counterExtra"
+  | "chain";
 
 /** 전투 계산용 무기 수치 — 원 소유는 engine/formula/combat이었으나 setup 스냅숏이 담게 되며 이사. */
 export interface CombatantWeapon {
@@ -31,6 +44,8 @@ export interface CombatantWeapon {
   avoid?: number;
   dodge?: number;
   magic?: boolean;
+  /** items.json Kind — 조건식 `武器の種類` 어휘의 원천(1 剣 … 9 特殊). 전투 스냅숏은 항상 채운다. */
+  kind?: number;
   /**
    * 특효 배율(武器特効) — 평시 1. ☠발동 시 값은 2가 아니라 **3**이다(`SID_邪竜特効`만 2).
    * 정본(BattleDetail.CalcAttack 0x1E744E8~): 공격자 스킬의 `Efficacy` 마스크 ∩ (대상 person|job `Attrs`)
@@ -70,6 +85,14 @@ export interface BattleWeapon extends CombatantWeapon {
 export interface SkillRow {
   Sid: string;
   Timing?: number;
+  /**
+   * 부여 스킬의 수명 축(SkillData.Cycle +0xA0) — **0(None)이면 전투 로컬**이다.
+   * 정본 AddGiveScene(0x246E0C0)이 0에서만 BattleInfoSide.m_MaskSkill(전투 사본)에 직접 넣고,
+   * 0이 아니면 씬에만 적어 뒀다가 CommitSkill(0x2478070)이 전투 후 유닛에 영속화한다.
+   */
+  Cycle?: number;
+  /** 실행 순서 키의 최상위 필드(HitSkill.SortKey = (Order << 18) + (Action << 10) + Index). 음수 있음(SID_切り返し = -10). */
+  Order?: number;
   /** 발동 필터 — 이 전투를 건 쪽에서만(1) / 걸린 쪽에서만(2) / 무관(0). */
   Stand?: number;
   /** 발동 필터 — 이번 타격에서 때리는 쪽만(1) / 맞는 쪽만(2) / 무관(0). */
@@ -79,6 +102,13 @@ export interface SkillRow {
   ActOperations?: string[];
   ActValues?: string[];
   GiveSids?: string[];
+  /**
+   * GiveSids를 실행 가능한 행으로 해소한 것 — 정본 `SkillData.GiveSkills`(+0x238)도 이미 해소된 목록이다.
+   * ☠엔진에는 스킬 표가 없다(행은 유닛이 들고 다닌다) — 사영이 여기 넣어 주지 않으면 부여층이
+   *   SID 문자열만 받고 아무것도 못 붙인다(조용한 실패). 사영 = apps/web/src/lib/fe17.ts slimSkill.
+   */
+  Gives?: readonly SkillRow[];
+  /** 부여 대상 — 0 상대 · 1 자기 · 2 체인 · 3 주변 · 4 댄스. 전투 디스패처는 0·1·2만 처리한다(0x246A520). */
   GiveTarget?: number;
   /** 強さ — 스킬 종별 범용 수치. ☠재이동 거리 아님(그건 Removable — 값 2·3이 우연히 일치했을 뿐). */
   Power?: number;

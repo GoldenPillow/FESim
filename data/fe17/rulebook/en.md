@@ -1,4 +1,4 @@
-# FESim Rulebook — fe17 / fe17-13
+# FESim Rulebook — fe17 / fe17-14
 
 ☠**Generated document.** `./dev rulebook` extracts it from code — hand edits are lost on regeneration.
 
@@ -9,7 +9,7 @@
   "coordinates": "인게임 (X, Z) — 좌하단 원점. 표기 정본 = apps/web/src/lib/grid.ts coordLabel",
   "phases": "force 오름차순 순환(0 자군 · 1 적군 · 2 우군). 한 바퀴 = 1턴",
   "activation": "유닛당 이동 1회 + 행동 1회. 행동이 재이동 창을 연다(moved 해제)",
-  "ruleVersion": "fe17-13"
+  "ruleVersion": "fe17-14"
 }
 ```
 
@@ -420,7 +420,7 @@
 ```json
 {
   "constants": {
-    "RULE_VERSION": "fe17-13",
+    "RULE_VERSION": "fe17-14",
     "INIT_SPIN": 20,
     "BAD_STATE": {
       "silence": 32,
@@ -527,7 +527,7 @@
 
 ```json
 {
-  "note": "絆 레벨마다 붙는 싱크로(상시)·인게이지(발동 중) 패시브 전수. wired=false는 데이터는 있는데 엔진이 읽지 않는다는 뜻이다 — ActName이 calculator 공식 이름과 일치할 때만 질의되기 때문이다.",
+  "note": "絆 레벨마다 붙는 싱크로(상시)·인게이지(발동 중) 패시브 전수. wired=false는 데이터는 있는데 엔진이 읽지 않는다는 뜻이다 — ActName이 질의되는 값 이름과 일치하거나 소비 필드를 들었을 때만 산다. unreadCondIdents가 붙은 행은 배선은 됐지만 조건식이 미지 식별자로 던져 **한 번도 발동하지 못한다**.",
   "emblems": [
     {
       "gid": "GID_マルス",
@@ -542,7 +542,8 @@
               "act": [
                 "回避値+15 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -550,7 +551,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -558,7 +560,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -566,12 +569,18 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_メディウス特効",
               "name": "SID_メディウス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -582,9 +591,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             },
             {
@@ -594,6 +605,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -609,7 +621,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -620,7 +633,15 @@
               "sid": "SID_ブレイク時追撃",
               "name": "몰아붙이기",
               "condition": "攻撃結果(ブレイク) && スキル所持(\"追撃不可\") == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "ブレイク",
+                "攻撃結果()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -633,7 +654,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -646,7 +668,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -661,8 +684,12 @@
               ],
               "condition": "HP*100 <= MaxHP*20",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -676,7 +703,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -691,8 +719,12 @@
               ],
               "condition": "HP*100 <= MaxHP*30",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -706,7 +738,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -719,7 +752,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -732,7 +766,8 @@
               "act": [
                 "回避値+30 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -745,7 +780,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -760,8 +796,12 @@
               ],
               "condition": "HP*100 <= MaxHP*40",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -775,7 +815,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -791,7 +832,11 @@
             {
               "sid": "SID_再移動",
               "name": "재이동",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             },
             {
               "sid": "SID_技＋１",
@@ -799,7 +844,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -807,7 +853,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_体格＋１",
@@ -815,7 +862,8 @@
               "enhance": [
                 "Phys+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_移動＋１",
@@ -823,12 +871,18 @@
               "enhance": [
                 "Move+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ロプトウス特効",
               "name": "SID_ロプトウス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -838,7 +892,14 @@
               "enhance": [
                 "Move+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill",
+                "HorseSkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -847,6 +908,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -862,7 +924,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -876,7 +939,12 @@
                 "攻撃力+min( 移動距離, 10 )"
               ],
               "condition": "移動距離 > 0 && 総行動回数 == 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "移動距離",
+                "総行動回数"
+              ]
             }
           ]
         },
@@ -889,7 +957,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -899,7 +968,11 @@
             {
               "sid": "SID_猛進",
               "name": "맹진",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         },
@@ -912,7 +985,8 @@
               "enhance": [
                 "Phys+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -925,7 +999,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -935,7 +1010,11 @@
             {
               "sid": "SID_再移動＋",
               "name": "재이동+",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             }
           ]
         },
@@ -948,7 +1027,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -961,7 +1041,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -975,7 +1056,12 @@
                 "攻撃力+移動距離"
               ],
               "condition": "移動距離 > 0 && 総行動回数 == 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "移動距離",
+                "総行動回数"
+              ]
             }
           ]
         },
@@ -988,7 +1074,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1001,7 +1088,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -1020,7 +1108,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_異形リベンジ",
@@ -1029,9 +1118,12 @@
                 "相手のダメージ=ダメージ*0.1"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 10 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             },
             {
@@ -1040,7 +1132,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -1048,19 +1141,32 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ドーマ特効",
               "name": "SID_ドーマ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_重唱",
               "name": "중창",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "DragonSkill",
+                "MagicSkill",
+                "WeaponProhibit"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -1069,6 +1175,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -1084,7 +1191,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1100,6 +1208,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -1115,7 +1224,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1128,7 +1238,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1138,7 +1249,8 @@
             {
               "sid": "SID_大好物",
               "name": "가장 좋아하는 음식",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1152,9 +1264,12 @@
                 "相手のダメージ=ダメージ*0.3"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 4 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             }
           ]
@@ -1168,7 +1283,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1181,7 +1297,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1197,6 +1314,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -1212,7 +1330,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1226,9 +1345,12 @@
                 "相手のダメージ=ダメージ*0.5"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 2 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             }
           ]
@@ -1242,7 +1364,8 @@
               "enhance": [
                 "Magic+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -1261,7 +1384,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -1269,7 +1393,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -1277,24 +1402,42 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_杖使い",
               "name": "지팡이 숙련",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             },
             {
               "sid": "SID_アスタルテ特効",
               "name": "SID_アスタルテ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_増幅",
               "name": "증폭",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "PranaSkill",
+                "RangeTarget",
+                "RangeAdd",
+                "RangeExtend"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -1303,6 +1446,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -1318,7 +1462,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1333,7 +1478,11 @@
               ],
               "condition": "武器の種類 == 杖 && 相手の回復 > 0 && HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
+                "回復"
+              ],
+              "unreadCondIdents": [
                 "回復"
               ]
             }
@@ -1348,7 +1497,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1358,7 +1508,11 @@
             {
               "sid": "SID_サイレス無効",
               "name": "사일런스 가드",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         },
@@ -1371,7 +1525,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1384,7 +1539,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1394,7 +1550,11 @@
             {
               "sid": "SID_杖使い＋",
               "name": "지팡이 숙련+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ]
         },
@@ -1407,7 +1567,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1420,7 +1581,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1433,7 +1595,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1443,7 +1606,11 @@
             {
               "sid": "SID_杖使い＋＋",
               "name": "지팡이 숙련++",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ]
         },
@@ -1456,7 +1623,8 @@
               "enhance": [
                 "Mdef+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -1475,13 +1643,15 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_踏ん張り",
               "name": "분발",
               "condition": "HP*100 >= (MaxHP * 30)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_ＨＰ＋５",
@@ -1489,7 +1659,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -1497,19 +1668,33 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_イドゥン特効",
               "name": "SID_イドゥン特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_超越",
               "name": "초월",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "BadState",
+                "EnhanceLevel"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -1518,6 +1703,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -1533,7 +1719,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1543,7 +1730,13 @@
             {
               "sid": "SID_踏み込み",
               "name": "진입",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "MoveSelf",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -1556,7 +1749,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1569,7 +1763,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1580,7 +1775,8 @@
               "sid": "SID_踏ん張り＋",
               "name": "분발+",
               "condition": "HP*100 >= (MaxHP * 20)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1593,7 +1789,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1606,7 +1803,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1617,7 +1815,8 @@
               "sid": "SID_踏ん張り＋＋",
               "name": "분발++",
               "condition": "HP*100 >= (MaxHP * 10)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1630,7 +1829,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1643,7 +1843,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1656,7 +1857,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1667,7 +1869,8 @@
               "sid": "SID_踏ん張り＋＋＋",
               "name": "분발+++",
               "condition": "HP >= 2",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1680,7 +1883,8 @@
               "enhance": [
                 "Str+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -1699,7 +1903,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_武器相性激化",
@@ -1708,9 +1913,11 @@
                 "相手の威力-3"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             },
             {
@@ -1719,7 +1926,8 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -1727,19 +1935,33 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ベルド特効",
               "name": "SID_ベルド特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_順応",
               "name": "즉응",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "HeavySkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -1748,6 +1970,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -1761,7 +1984,8 @@
               "sid": "SID_待ち伏せ",
               "name": "매복",
               "condition": "HP*100 <= MaxHP * 25 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1774,7 +1998,8 @@
               "enhance": [
                 "Phys+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1788,9 +2013,11 @@
                 "相手の威力-5"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             }
           ]
@@ -1804,7 +2031,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1815,7 +2043,8 @@
               "sid": "SID_待ち伏せ＋",
               "name": "매복+",
               "condition": "HP*100 <= MaxHP * 50 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1828,7 +2057,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1841,7 +2071,8 @@
               "enhance": [
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1855,9 +2086,11 @@
                 "相手の威力-7"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             }
           ]
@@ -1871,7 +2104,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1882,7 +2116,8 @@
               "sid": "SID_待ち伏せ＋＋",
               "name": "매복++",
               "condition": "HP*100 <= MaxHP * 75 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -1895,7 +2130,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -1914,7 +2150,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -1922,7 +2159,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -1930,17 +2168,27 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_絆の力",
               "name": "듀얼 어택",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_ギムレー特効",
               "name": "SID_ギムレー特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -1948,7 +2196,18 @@
               "sid": "SID_絆盾",
               "name": "인연 방패",
               "condition": "スキル確率(80)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -1957,6 +2216,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -1972,7 +2232,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -1983,7 +2244,11 @@
               "sid": "SID_デュアルアシスト",
               "name": "듀얼 어시스트",
               "condition": "スキル所持(\"チェインアタック許可\") && 武器の種類 > 0 && スキル確率(35)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+              ]
             }
           ]
         },
@@ -1996,7 +2261,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2009,7 +2275,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2022,7 +2289,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2035,7 +2303,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2049,7 +2318,11 @@
                 "回避値+隣接支援合計値 * 5"
               ],
               "condition": "周囲の味方数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ]
             }
           ]
         },
@@ -2062,7 +2335,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2075,7 +2349,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2088,7 +2363,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2099,7 +2375,11 @@
               "sid": "SID_デュアルアシスト＋",
               "name": "듀얼 어시스트+",
               "condition": "スキル所持(\"チェインアタック許可\") && 武器の種類 > 0 && スキル確率(70)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+              ]
             }
           ]
         },
@@ -2112,7 +2392,8 @@
               "enhance": [
                 "Tech+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -2131,13 +2412,18 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_攻め立て",
               "name": "연속 공격",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 9",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             },
             {
               "sid": "SID_技＋１",
@@ -2145,7 +2431,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -2153,19 +2440,31 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ネルガル特効",
               "name": "SID_ネルガル特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_残像",
               "name": "잔상",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "FlySkill",
+                "VisionCount"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -2174,6 +2473,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -2189,7 +2489,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2200,7 +2501,14 @@
               "sid": "SID_速さの吸収",
               "name": "속도 흡수",
               "condition": "相手の生存 == 0 && スキル所持( \"速さの増強＋１０\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -2213,7 +2521,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2226,7 +2535,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2239,7 +2549,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2252,7 +2563,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2263,7 +2575,11 @@
               "sid": "SID_攻め立て＋",
               "name": "연속 공격+",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 7",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             }
           ]
         },
@@ -2276,7 +2592,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2289,7 +2606,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2302,7 +2620,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2313,7 +2632,11 @@
               "sid": "SID_攻め立て＋＋",
               "name": "연속 공격++",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 5",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             }
           ]
         },
@@ -2326,7 +2649,8 @@
               "enhance": [
                 "Quick+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -2345,7 +2669,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_破壊",
@@ -2353,15 +2678,17 @@
               "act": [
                 "相手のダメージ=相手のHP"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_勇将",
               "name": "용장",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_力＋１",
@@ -2369,7 +2696,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋３",
@@ -2377,12 +2705,18 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_アシュナード特効",
               "name": "SID_アシュナード特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -2392,7 +2726,12 @@
               "act": [
                 "回避値*0"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -2401,6 +2740,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -2416,7 +2756,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2426,7 +2767,13 @@
             {
               "sid": "SID_引き戻し",
               "name": "데려오기",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "MoveTarget",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -2439,7 +2786,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2452,7 +2800,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2465,7 +2814,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2478,7 +2828,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2492,7 +2843,8 @@
                 "必殺値+min(MaxHP - HP, 30)"
               ],
               "condition": "HP < MaxHP",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2505,7 +2857,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2518,7 +2871,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2531,7 +2885,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2541,7 +2896,11 @@
             {
               "sid": "SID_勇将＋",
               "name": "용장+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -2554,7 +2913,8 @@
               "enhance": [
                 "Def+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -2573,7 +2933,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_天刻の拍動",
@@ -2583,8 +2944,14 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 30 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             },
             {
@@ -2593,7 +2960,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -2601,19 +2969,36 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ネメシス特効",
               "name": "SID_ネメシス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_先生",
               "name": "지도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -2622,6 +3007,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -2637,7 +3023,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2647,7 +3034,12 @@
             {
               "sid": "SID_師の導き",
               "name": "스승의 인도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -2660,7 +3052,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2673,7 +3066,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2686,7 +3080,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2699,7 +3094,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2710,7 +3106,15 @@
               "sid": "SID_拾得",
               "name": "습득",
               "condition": "スキル確率( 幸運 )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -2723,7 +3127,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2736,7 +3141,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2749,7 +3155,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2764,8 +3171,14 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 50 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             }
           ]
@@ -2779,7 +3192,8 @@
               "enhance": [
                 "Luck+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -2798,7 +3212,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -2806,7 +3221,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -2814,17 +3230,34 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_竜脈",
               "name": "용맥",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_ハイドラ特効",
               "name": "SID_ハイドラ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -2832,7 +3265,16 @@
               "sid": "SID_呪縛",
               "name": "주박",
               "condition": "生存",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "CovertSkill",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -2841,6 +3283,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -2856,7 +3299,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2871,8 +3315,13 @@
               ],
               "condition": "相手のHP < 相手のMaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
               ]
             }
           ]
@@ -2886,7 +3335,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2899,7 +3349,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2910,7 +3361,14 @@
               "sid": "SID_竜呪",
               "name": "용의 저주",
               "condition": "生存 && 相手の生存",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -2923,7 +3381,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2936,7 +3395,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2951,8 +3411,13 @@
               ],
               "condition": "相手の立場 == 援護",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
+              ],
+              "unreadCondIdents": [
+                "立場",
+                "援護"
               ]
             }
           ]
@@ -2966,7 +3431,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2979,7 +3445,8 @@
               "enhance": [
                 "Hp+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -2992,7 +3459,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3007,8 +3475,13 @@
               ],
               "condition": "相手のHP < 相手のMaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
               ]
             }
           ]
@@ -3022,7 +3495,8 @@
               "enhance": [
                 "Hp+15"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -3038,7 +3512,8 @@
             {
               "sid": "SID_オルタネイト",
               "name": "얼터네이트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_月の腕輪",
@@ -3047,7 +3522,12 @@
                 "威力+相手の守備 * 0.2"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_幸運＋２",
@@ -3055,7 +3535,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -3063,7 +3544,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -3071,24 +3553,41 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_フォデス特効",
               "name": "SID_フォデス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             },
             {
               "sid": "SID_月輪",
               "name": "MSID_Moon",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "ChangeSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_双聖",
               "name": "쌍성",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -3097,6 +3596,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -3112,7 +3612,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3125,9 +3626,11 @@
               "act": [
                 "相手の威力-3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -3141,7 +3644,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3154,7 +3658,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3167,7 +3672,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3180,7 +3686,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3194,7 +3701,12 @@
                 "威力+相手の守備 * 0.3"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             }
           ]
         },
@@ -3207,7 +3719,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3220,7 +3733,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3233,7 +3747,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3246,9 +3761,11 @@
               "act": [
                 "相手の威力-5"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -3262,7 +3779,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -3278,7 +3796,8 @@
             {
               "sid": "SID_オルタネイト",
               "name": "얼터네이트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_月の腕輪",
@@ -3287,7 +3806,12 @@
                 "威力+相手の守備 * 0.2"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_幸運＋２",
@@ -3295,7 +3819,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -3303,7 +3828,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -3311,24 +3837,41 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_フォデス特効",
               "name": "SID_フォデス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             },
             {
               "sid": "SID_月輪",
               "name": "MSID_Moon",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "ChangeSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_双聖",
               "name": "쌍성",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -3337,6 +3880,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -3352,7 +3896,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3365,9 +3910,11 @@
               "act": [
                 "相手の威力-3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -3381,7 +3928,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3394,7 +3942,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3407,7 +3956,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3420,7 +3970,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3434,7 +3985,12 @@
                 "威力+相手の守備 * 0.3"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             }
           ]
         },
@@ -3447,7 +4003,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3460,7 +4017,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3473,7 +4031,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3486,9 +4045,11 @@
               "act": [
                 "相手の威力-5"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -3502,7 +4063,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -3521,7 +4083,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -3529,7 +4092,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -3537,19 +4101,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_リュール邪竜特効",
               "name": "사룡 유효",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_以心",
               "name": "이심",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -3558,6 +4139,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -3573,13 +4155,23 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_絆を繋薙くもの",
               "name": "인연을 잇는 자",
               "condition": "相手の神将レベル != 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "神将レベル"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "SyncSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_速さ＋２",
@@ -3587,7 +4179,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3600,7 +4193,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１０",
@@ -3608,7 +4202,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3619,7 +4214,16 @@
               "sid": "SID_絆を繋薙くもの＋",
               "name": "인연을 잇는 자+",
               "condition": "相手の神将レベル != 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "神将レベル"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "SyncSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_速さ＋３",
@@ -3627,7 +4231,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋３",
@@ -3635,7 +4240,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１２",
@@ -3643,7 +4249,8 @@
               "enhance": [
                 "Hp+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋４",
@@ -3651,12 +4258,17 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_神竜の加護",
               "name": "신룡의 가호",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "EfficacyIgnore"
+              ]
             },
             {
               "sid": "SID_守備＋４",
@@ -3664,7 +4276,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１５",
@@ -3672,7 +4285,8 @@
               "enhance": [
                 "Hp+15"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -3686,7 +4300,8 @@
                 "必殺値+行動済みの味方数 * 2",
                 "必殺回避+行動済みの味方数 * 2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -3705,7 +4320,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_移動＋１",
@@ -3713,12 +4329,17 @@
               "enhance": [
                 "Move+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_再移動",
               "name": "재이동",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             }
           ],
           "engaged": [
@@ -3728,7 +4349,14 @@
               "enhance": [
                 "Move+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill",
+                "HorseSkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -3744,7 +4372,11 @@
             {
               "sid": "SID_絆の力",
               "name": "듀얼 어택",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         }
@@ -3764,23 +4396,34 @@
                 "相手の威力-5"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             },
             {
               "sid": "SID_待ち伏せ＋",
               "name": "매복+",
               "condition": "HP*100 <= MaxHP * 50 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_順応",
               "name": "즉응",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "HeavySkill",
+                "FlySkill"
+              ]
             }
           ]
         }
@@ -3801,21 +4444,43 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 30 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             },
             {
               "sid": "SID_師の導き",
               "name": "스승의 인도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_先生",
               "name": "지도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             }
           ]
         }
@@ -3832,14 +4497,24 @@
               "sid": "SID_攻め立て＋",
               "name": "연속 공격+",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 7",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_残像",
               "name": "잔상",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "FlySkill",
+                "VisionCount"
+              ]
             }
           ]
         }
@@ -3860,8 +4535,12 @@
               ],
               "condition": "HP*100 <= MaxHP*30",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ],
@@ -3873,9 +4552,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             }
           ]
@@ -3892,7 +4573,11 @@
             {
               "sid": "SID_再移動",
               "name": "재이동",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             }
           ],
           "engaged": [
@@ -3902,7 +4587,11 @@
               "enhance": [
                 "Move+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "BadState"
+              ]
             }
           ]
         }
@@ -3924,6 +4613,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -3942,14 +4632,24 @@
             {
               "sid": "SID_杖使い＋",
               "name": "지팡이 숙련+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_増幅_闇",
               "name": "증폭(어둠)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RangeTarget",
+                "RangeAdd",
+                "RangeExtend"
+              ]
             }
           ]
         }
@@ -3966,14 +4666,20 @@
               "sid": "SID_踏ん張り＋",
               "name": "분발+",
               "condition": "HP*100 >= (MaxHP * 20)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_超越_闇",
               "name": "초월(어둠)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadState",
+                "EnhanceLevel"
+              ]
             }
           ]
         }
@@ -3993,23 +4699,34 @@
                 "相手の威力-5"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             },
             {
               "sid": "SID_待ち伏せ＋",
               "name": "매복+",
               "condition": "HP*100 <= MaxHP * 50 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_順応",
               "name": "즉응",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "HeavySkill",
+                "FlySkill"
+              ]
             }
           ]
         }
@@ -4030,8 +4747,14 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 50 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             }
           ],
@@ -4039,7 +4762,18 @@
             {
               "sid": "SID_先生",
               "name": "지도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             }
           ]
         }
@@ -4058,7 +4792,8 @@
               "act": [
                 "回避値+30 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不屈＋",
@@ -4068,8 +4803,12 @@
               ],
               "condition": "HP*100 <= MaxHP*30",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ],
@@ -4081,9 +4820,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             }
           ]
@@ -4095,7 +4836,15 @@
               "sid": "SID_ブレイク時追撃",
               "name": "몰아붙이기",
               "condition": "攻撃結果(ブレイク) && スキル所持(\"追撃不可\") == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "ブレイク",
+                "攻撃結果()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         }
@@ -4111,7 +4860,11 @@
             {
               "sid": "SID_再移動＋",
               "name": "재이동+",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             },
             {
               "sid": "SID_助走＋",
@@ -4120,7 +4873,12 @@
                 "攻撃力+移動距離"
               ],
               "condition": "移動距離 > 0 && 総行動回数 == 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "移動距離",
+                "総行動回数"
+              ]
             }
           ],
           "engaged": [
@@ -4130,7 +4888,14 @@
               "enhance": [
                 "Move+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill",
+                "HorseSkill",
+                "BadState"
+              ]
             }
           ]
         },
@@ -4140,7 +4905,11 @@
             {
               "sid": "SID_猛進",
               "name": "맹진",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         }
@@ -4162,6 +4931,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -4171,7 +4941,14 @@
             {
               "sid": "SID_重唱",
               "name": "중창",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "DragonSkill",
+                "MagicSkill",
+                "WeaponProhibit"
+              ]
             }
           ]
         }
@@ -4187,14 +4964,24 @@
             {
               "sid": "SID_杖使い",
               "name": "지팡이 숙련",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_増幅_闇",
               "name": "증폭(어둠)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RangeTarget",
+                "RangeAdd",
+                "RangeExtend"
+              ]
             }
           ]
         }
@@ -4211,14 +4998,20 @@
               "sid": "SID_踏ん張り＋",
               "name": "분발+",
               "condition": "HP*100 >= (MaxHP * 20)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_超越_闇",
               "name": "초월(어둠)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadState",
+                "EnhanceLevel"
+              ]
             }
           ]
         }
@@ -4238,23 +5031,34 @@
                 "相手の威力-5"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             },
             {
               "sid": "SID_待ち伏せ＋",
               "name": "매복+",
               "condition": "HP*100 <= MaxHP * 50 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_順応",
               "name": "즉응",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "HeavySkill",
+                "FlySkill"
+              ]
             }
           ]
         }
@@ -4270,14 +5074,26 @@
             {
               "sid": "SID_杖使い",
               "name": "지팡이 숙련",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_増幅",
               "name": "증폭",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "PranaSkill",
+                "RangeTarget",
+                "RangeAdd",
+                "RangeExtend"
+              ]
             }
           ]
         },
@@ -4287,7 +5103,11 @@
             {
               "sid": "SID_サイレス無効",
               "name": "사일런스 가드",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         }
@@ -4304,14 +5124,20 @@
               "sid": "SID_踏ん張り＋＋",
               "name": "분발++",
               "condition": "HP*100 >= (MaxHP * 10)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
             {
               "sid": "SID_超越_闇",
               "name": "초월(어둠)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadState",
+                "EnhanceLevel"
+              ]
             }
           ]
         }
@@ -4333,6 +5159,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -4349,9 +5176,12 @@
                 "相手のダメージ=ダメージ*0.5"
               ],
               "condition": "相手のユニット属性(異形属性) == 0 && HP > ダメージ && ダメージ >= 2 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             }
           ],
@@ -4359,7 +5189,14 @@
             {
               "sid": "SID_重唱",
               "name": "중창",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "DragonSkill",
+                "MagicSkill",
+                "WeaponProhibit"
+              ]
             }
           ]
         }
@@ -4378,7 +5215,8 @@
               "act": [
                 "回避値+30 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不屈＋＋",
@@ -4388,15 +5226,27 @@
               ],
               "condition": "HP*100 <= MaxHP*40",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             },
             {
               "sid": "SID_ブレイク時追撃",
               "name": "몰아붙이기",
               "condition": "攻撃結果(ブレイク) && スキル所持(\"追撃不可\") == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "ブレイク",
+                "攻撃結果()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
@@ -4407,9 +5257,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             }
           ]
@@ -4429,7 +5281,8 @@
               "act": [
                 "回避値+30 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不屈＋＋",
@@ -4439,8 +5292,12 @@
               ],
               "condition": "HP*100 <= MaxHP*40",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ],
@@ -4452,9 +5309,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             }
           ]
@@ -4474,7 +5333,8 @@
               "act": [
                 "回避値+15 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -4482,7 +5342,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -4490,7 +5351,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -4498,12 +5360,18 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_メディウス特効",
               "name": "SID_メディウス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -4514,9 +5382,11 @@
                 "手番回数+1"
               ],
               "condition": "手番回数 > 0 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill"
               ]
             },
             {
@@ -4526,6 +5396,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -4541,7 +5412,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4552,7 +5424,15 @@
               "sid": "SID_ブレイク時追撃",
               "name": "몰아붙이기",
               "condition": "攻撃結果(ブレイク) && スキル所持(\"追撃不可\") == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "ブレイク",
+                "攻撃結果()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -4565,7 +5445,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4578,7 +5459,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4593,8 +5475,12 @@
               ],
               "condition": "HP*100 <= MaxHP*20",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -4608,7 +5494,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4623,8 +5510,12 @@
               ],
               "condition": "HP*100 <= MaxHP*30",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -4638,7 +5529,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4651,7 +5543,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4664,7 +5557,8 @@
               "act": [
                 "回避値+30 + 速さ * 0.25"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4677,7 +5571,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4692,8 +5587,12 @@
               ],
               "condition": "HP*100 <= MaxHP*40",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "BadState"
               ]
             }
           ]
@@ -4707,7 +5606,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -4723,7 +5623,11 @@
             {
               "sid": "SID_再移動",
               "name": "재이동",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             },
             {
               "sid": "SID_技＋１",
@@ -4731,7 +5635,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -4739,7 +5644,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_体格＋１",
@@ -4747,7 +5653,8 @@
               "enhance": [
                 "Phys+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_移動＋１",
@@ -4755,12 +5662,18 @@
               "enhance": [
                 "Move+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ロプトウス特効",
               "name": "SID_ロプトウス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -4770,7 +5683,14 @@
               "enhance": [
                 "Move+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "CovertSkill",
+                "DragonSkill",
+                "HorseSkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -4779,6 +5699,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -4794,7 +5715,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4808,7 +5730,12 @@
                 "攻撃力+min( 移動距離, 10 )"
               ],
               "condition": "移動距離 > 0 && 総行動回数 == 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "移動距離",
+                "総行動回数"
+              ]
             }
           ]
         },
@@ -4821,7 +5748,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4831,7 +5759,11 @@
             {
               "sid": "SID_猛進",
               "name": "맹진",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         },
@@ -4844,7 +5776,8 @@
               "enhance": [
                 "Phys+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4857,7 +5790,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4867,7 +5801,11 @@
             {
               "sid": "SID_再移動＋",
               "name": "재이동+",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Removable"
+              ]
             }
           ]
         },
@@ -4880,7 +5818,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4893,7 +5832,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4907,7 +5847,12 @@
                 "攻撃力+移動距離"
               ],
               "condition": "移動距離 > 0 && 総行動回数 == 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "移動距離",
+                "総行動回数"
+              ]
             }
           ]
         },
@@ -4920,7 +5865,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -4933,7 +5879,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -4952,7 +5899,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_異形リベンジ",
@@ -4961,9 +5909,12 @@
                 "相手のダメージ=ダメージ*0.1"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 10 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             },
             {
@@ -4972,7 +5923,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -4980,19 +5932,32 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ドーマ特効",
               "name": "SID_ドーマ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_重唱",
               "name": "중창",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "DragonSkill",
+                "MagicSkill",
+                "WeaponProhibit"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -5001,6 +5966,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -5016,7 +5982,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5032,6 +5999,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -5047,7 +6015,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5060,7 +6029,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5070,7 +6040,8 @@
             {
               "sid": "SID_大好物",
               "name": "가장 좋아하는 음식",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5084,9 +6055,12 @@
                 "相手のダメージ=ダメージ*0.3"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 4 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             }
           ]
@@ -5100,7 +6074,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5113,7 +6088,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5129,6 +6105,7 @@
               ],
               "condition": "手番回数 > 0 && 武器の種類 == 魔道書 && HP > 1",
               "wired": true,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -5144,7 +6121,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5158,9 +6136,12 @@
                 "相手のダメージ=ダメージ*0.5"
               ],
               "condition": "相手のユニット属性(異形属性) && HP > ダメージ && ダメージ >= 2 && ( 相手の攻撃属性 == 魔法属性 && ( スキル所持( \"マジックシールド\" ) || スキル所持( \"EN_魔防の薬_効果\" ) ) ) == 0 && ( 相手の攻撃属性 == 物理属性 && スキル所持( \"EN_守備の薬_効果\" ) ) == 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "異形属性",
+                "ユニット属性()",
+                "ダメージ"
               ]
             }
           ]
@@ -5174,7 +6155,8 @@
               "enhance": [
                 "Magic+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -5193,7 +6175,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -5201,7 +6184,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -5209,24 +6193,42 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_杖使い",
               "name": "지팡이 숙련",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             },
             {
               "sid": "SID_アスタルテ特効",
               "name": "SID_アスタルテ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_増幅",
               "name": "증폭",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "PranaSkill",
+                "RangeTarget",
+                "RangeAdd",
+                "RangeExtend"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -5235,6 +6237,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -5250,7 +6253,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5265,7 +6269,11 @@
               ],
               "condition": "武器の種類 == 杖 && 相手の回復 > 0 && HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
+                "回復"
+              ],
+              "unreadCondIdents": [
                 "回復"
               ]
             }
@@ -5280,7 +6288,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5290,7 +6299,11 @@
             {
               "sid": "SID_サイレス無効",
               "name": "사일런스 가드",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "BadIgnore"
+              ]
             }
           ]
         },
@@ -5303,7 +6316,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5316,7 +6330,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5326,7 +6341,11 @@
             {
               "sid": "SID_杖使い＋",
               "name": "지팡이 숙련+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ]
         },
@@ -5339,7 +6358,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5352,7 +6372,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5365,7 +6386,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5375,7 +6397,11 @@
             {
               "sid": "SID_杖使い＋＋",
               "name": "지팡이 숙련++",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "WeaponLevel.Rod"
+              ]
             }
           ]
         },
@@ -5388,7 +6414,8 @@
               "enhance": [
                 "Mdef+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -5407,13 +6434,15 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_踏ん張り",
               "name": "분발",
               "condition": "HP*100 >= (MaxHP * 30)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_ＨＰ＋５",
@@ -5421,7 +6450,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -5429,19 +6459,33 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_イドゥン特効",
               "name": "SID_イドゥン特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_超越",
               "name": "초월",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "BadState",
+                "EnhanceLevel"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -5450,6 +6494,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -5465,7 +6510,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5475,7 +6521,13 @@
             {
               "sid": "SID_踏み込み",
               "name": "진입",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "MoveSelf",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -5488,7 +6540,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5501,7 +6554,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5512,7 +6566,8 @@
               "sid": "SID_踏ん張り＋",
               "name": "분발+",
               "condition": "HP*100 >= (MaxHP * 20)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5525,7 +6580,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5538,7 +6594,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5549,7 +6606,8 @@
               "sid": "SID_踏ん張り＋＋",
               "name": "분발++",
               "condition": "HP*100 >= (MaxHP * 10)",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5562,7 +6620,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5575,7 +6634,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5588,7 +6648,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5599,7 +6660,8 @@
               "sid": "SID_踏ん張り＋＋＋",
               "name": "분발+++",
               "condition": "HP >= 2",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5612,7 +6674,8 @@
               "enhance": [
                 "Str+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -5631,7 +6694,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_武器相性激化",
@@ -5640,9 +6704,11 @@
                 "相手の威力-3"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             },
             {
@@ -5651,7 +6717,8 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -5659,19 +6726,33 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ベルド特効",
               "name": "SID_ベルド特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_順応",
               "name": "즉응",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "HeavySkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -5680,6 +6761,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -5693,7 +6775,8 @@
               "sid": "SID_待ち伏せ",
               "name": "매복",
               "condition": "HP*100 <= MaxHP * 25 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5706,7 +6789,8 @@
               "enhance": [
                 "Phys+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5720,9 +6804,11 @@
                 "相手の威力-5"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             }
           ]
@@ -5736,7 +6822,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5747,7 +6834,8 @@
               "sid": "SID_待ち伏せ＋",
               "name": "매복+",
               "condition": "HP*100 <= MaxHP * 50 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5760,7 +6848,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5773,7 +6862,8 @@
               "enhance": [
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5787,9 +6877,11 @@
                 "相手の威力-7"
               ],
               "condition": "武器相性 == 有利",
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "武器相性",
+                "有利"
               ]
             }
           ]
@@ -5803,7 +6895,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5814,7 +6907,8 @@
               "sid": "SID_待ち伏せ＋＋",
               "name": "매복++",
               "condition": "HP*100 <= MaxHP * 75 && 手番回数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -5827,7 +6921,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -5846,7 +6941,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -5854,7 +6950,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -5862,17 +6959,27 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_絆の力",
               "name": "듀얼 어택",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_ギムレー特効",
               "name": "SID_ギムレー特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -5880,7 +6987,18 @@
               "sid": "SID_絆盾",
               "name": "인연 방패",
               "condition": "スキル確率(80)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -5889,6 +7007,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -5904,7 +7023,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5915,7 +7035,11 @@
               "sid": "SID_デュアルアシスト",
               "name": "듀얼 어시스트",
               "condition": "スキル所持(\"チェインアタック許可\") && 武器の種類 > 0 && スキル確率(35)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+              ]
             }
           ]
         },
@@ -5928,7 +7052,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5941,7 +7066,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5954,7 +7080,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5967,7 +7094,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -5981,7 +7109,11 @@
                 "回避値+隣接支援合計値 * 5"
               ],
               "condition": "周囲の味方数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ]
             }
           ]
         },
@@ -5994,7 +7126,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6007,7 +7140,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6020,7 +7154,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6031,7 +7166,11 @@
               "sid": "SID_デュアルアシスト＋",
               "name": "듀얼 어시스트+",
               "condition": "スキル所持(\"チェインアタック許可\") && 武器の種類 > 0 && スキル確率(70)",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+              ]
             }
           ]
         },
@@ -6044,7 +7183,8 @@
               "enhance": [
                 "Tech+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -6063,13 +7203,18 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_攻め立て",
               "name": "연속 공격",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 9",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             },
             {
               "sid": "SID_技＋１",
@@ -6077,7 +7222,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -6085,19 +7231,31 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ネルガル特効",
               "name": "SID_ネルガル特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_残像",
               "name": "잔상",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "FlySkill",
+                "VisionCount"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -6106,6 +7264,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -6121,7 +7280,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6132,7 +7292,14 @@
               "sid": "SID_速さの吸収",
               "name": "속도 흡수",
               "condition": "相手の生存 == 0 && スキル所持( \"速さの増強＋１０\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -6145,7 +7312,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6158,7 +7326,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6171,7 +7340,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6184,7 +7354,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6195,7 +7366,11 @@
               "sid": "SID_攻め立て＋",
               "name": "연속 공격+",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 7",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             }
           ]
         },
@@ -6208,7 +7383,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6221,7 +7397,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6234,7 +7411,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6245,7 +7423,11 @@
               "sid": "SID_攻め立て＋＋",
               "name": "연속 공격++",
               "condition": "スキル所持( \"追撃不可\" ) == 0 && 総手番回数 == 0 &&  (攻撃速度 - 相手の攻撃速度) >= 5",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "攻撃速度"
+              ]
             }
           ]
         },
@@ -6258,7 +7440,8 @@
               "enhance": [
                 "Quick+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -6277,7 +7460,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_破壊",
@@ -6285,15 +7469,17 @@
               "act": [
                 "相手のダメージ=相手のHP"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_勇将",
               "name": "용장",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_力＋１",
@@ -6301,7 +7487,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋３",
@@ -6309,12 +7496,18 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_アシュナード特効",
               "name": "SID_アシュナード特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -6324,7 +7517,12 @@
               "act": [
                 "回避値*0"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -6333,6 +7531,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -6348,7 +7547,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6358,7 +7558,13 @@
             {
               "sid": "SID_引き戻し",
               "name": "데려오기",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "MoveTarget",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -6371,7 +7577,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6384,7 +7591,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6397,7 +7605,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6410,7 +7619,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6424,7 +7634,8 @@
                 "必殺値+min(MaxHP - HP, 30)"
               ],
               "condition": "HP < MaxHP",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6437,7 +7648,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6450,7 +7662,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6463,7 +7676,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6473,7 +7687,11 @@
             {
               "sid": "SID_勇将＋",
               "name": "용장+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -6486,7 +7704,8 @@
               "enhance": [
                 "Def+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -6505,7 +7724,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_天刻の拍動",
@@ -6515,8 +7735,14 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 30 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             },
             {
@@ -6525,7 +7751,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -6533,19 +7760,36 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ネメシス特効",
               "name": "SID_ネメシス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_先生",
               "name": "지도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -6554,6 +7798,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -6569,7 +7814,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6579,7 +7825,12 @@
             {
               "sid": "SID_師の導き",
               "name": "스승의 인도",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -6592,7 +7843,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6605,7 +7857,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6618,7 +7871,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6631,7 +7885,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6642,7 +7897,15 @@
               "sid": "SID_拾得",
               "name": "습득",
               "condition": "スキル確率( 幸運 )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -6655,7 +7918,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6668,7 +7932,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6681,7 +7946,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6696,8 +7962,14 @@
               ],
               "condition": "攻撃結果 == ミス && 神将スキル確率( 50 + 幸運 )",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "攻撃結果"
+              ],
+              "unreadCondIdents": [
+                "攻撃結果",
+                "ミス",
+                "神将スキル確率()"
               ]
             }
           ]
@@ -6711,7 +7983,8 @@
               "enhance": [
                 "Luck+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -6730,7 +8003,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -6738,7 +8012,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -6746,17 +8021,34 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_竜脈",
               "name": "용맥",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_ハイドラ特効",
               "name": "SID_ハイドラ特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             }
           ],
           "engaged": [
@@ -6764,7 +8056,16 @@
               "sid": "SID_呪縛",
               "name": "주박",
               "condition": "生存",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "CovertSkill",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -6773,6 +8074,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -6788,7 +8090,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6803,8 +8106,13 @@
               ],
               "condition": "相手のHP < 相手のMaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
               ]
             }
           ]
@@ -6818,7 +8126,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6831,7 +8140,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6842,7 +8152,14 @@
               "sid": "SID_竜呪",
               "name": "용의 저주",
               "condition": "生存 && 相手の生存",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "生存"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -6855,7 +8172,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6868,7 +8186,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6883,8 +8202,13 @@
               ],
               "condition": "相手の立場 == 援護",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
+              ],
+              "unreadCondIdents": [
+                "立場",
+                "援護"
               ]
             }
           ]
@@ -6898,7 +8222,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6911,7 +8236,8 @@
               "enhance": [
                 "Hp+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6924,7 +8250,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -6939,8 +8266,13 @@
               ],
               "condition": "相手のHP < 相手のMaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadFields": [
+                "RangeI",
+                "RangeO"
               ]
             }
           ]
@@ -6954,7 +8286,8 @@
               "enhance": [
                 "Hp+15"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -6970,7 +8303,8 @@
             {
               "sid": "SID_オルタネイト",
               "name": "얼터네이트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_月の腕輪",
@@ -6979,7 +8313,12 @@
                 "威力+相手の守備 * 0.2"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_幸運＋２",
@@ -6987,7 +8326,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -6995,7 +8335,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -7003,24 +8344,41 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_フォデス特効",
               "name": "SID_フォデス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             },
             {
               "sid": "SID_月輪",
               "name": "MSID_Moon",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "ChangeSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_双聖",
               "name": "쌍성",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -7029,6 +8387,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -7044,7 +8403,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7057,9 +8417,11 @@
               "act": [
                 "相手の威力-3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -7073,7 +8435,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7086,7 +8449,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7099,7 +8463,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7112,7 +8477,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7126,7 +8492,12 @@
                 "威力+相手の守備 * 0.3"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             }
           ]
         },
@@ -7139,7 +8510,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7152,7 +8524,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7165,7 +8538,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7178,9 +8552,11 @@
               "act": [
                 "相手の威力-5"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -7194,7 +8570,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -7210,7 +8587,8 @@
             {
               "sid": "SID_オルタネイト",
               "name": "얼터네이트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_月の腕輪",
@@ -7219,7 +8597,12 @@
                 "威力+相手の守備 * 0.2"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_幸運＋２",
@@ -7227,7 +8610,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -7235,7 +8619,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -7243,24 +8628,41 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_フォデス特効",
               "name": "SID_フォデス特効",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "Efficacy",
+                "EfficacyValue"
+              ]
             },
             {
               "sid": "SID_月輪",
               "name": "MSID_Moon",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "ChangeSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_双聖",
               "name": "쌍성",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -7269,6 +8671,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -7284,7 +8687,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7297,9 +8701,11 @@
               "act": [
                 "相手の威力-3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -7313,7 +8719,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7326,7 +8733,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7339,7 +8747,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7352,7 +8761,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7366,7 +8776,12 @@
                 "威力+相手の守備 * 0.3"
               ],
               "condition": "攻撃属性 == 物理属性",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
+              ]
             }
           ]
         },
@@ -7379,7 +8794,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7392,7 +8808,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7405,7 +8822,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7418,9 +8836,11 @@
               "act": [
                 "相手の威力-5"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "相手の威力"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "ChangeSids"
               ]
             }
           ]
@@ -7434,7 +8854,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -7453,7 +8874,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -7461,7 +8883,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -7469,19 +8892,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_リュール邪竜特効",
               "name": "사룡 유효",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_以心",
               "name": "이심",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -7490,6 +8930,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -7505,13 +8946,23 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_絆を繋薙くもの",
               "name": "인연을 잇는 자",
               "condition": "相手の神将レベル != 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "神将レベル"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "SyncSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_速さ＋２",
@@ -7519,7 +8970,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7532,7 +8984,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１０",
@@ -7540,7 +8993,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7551,7 +9005,16 @@
               "sid": "SID_絆を繋薙くもの＋",
               "name": "인연을 잇는 자+",
               "condition": "相手の神将レベル != 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "神将レベル"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "SyncSids",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_速さ＋３",
@@ -7559,7 +9022,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋３",
@@ -7567,7 +9031,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１２",
@@ -7575,7 +9040,8 @@
               "enhance": [
                 "Hp+12"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋４",
@@ -7583,12 +9049,17 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_神竜の加護",
               "name": "신룡의 가호",
-              "wired": false
+              "wired": true,
+              "deficit": false,
+              "consumedFields": [
+                "EfficacyIgnore"
+              ]
             },
             {
               "sid": "SID_守備＋４",
@@ -7596,7 +9067,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋１５",
@@ -7604,7 +9076,8 @@
               "enhance": [
                 "Hp+15"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7618,7 +9091,8 @@
                 "必殺値+行動済みの味方数 * 2",
                 "必殺回避+行動済みの味方数 * 2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -7637,7 +9111,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -7645,7 +9120,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -7653,24 +9129,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -7679,6 +9167,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -7694,7 +9183,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7708,6 +9198,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -7723,7 +9214,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7736,7 +9228,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7749,7 +9242,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7763,7 +9257,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -7776,7 +9278,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7789,7 +9292,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7803,7 +9307,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -7816,7 +9328,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7829,7 +9342,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -7848,7 +9362,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -7856,7 +9371,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -7864,24 +9380,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -7890,6 +9418,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -7905,7 +9434,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7919,6 +9449,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -7934,7 +9465,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7947,7 +9479,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7960,7 +9493,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -7974,7 +9508,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -7987,7 +9529,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8000,7 +9543,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8014,7 +9558,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -8027,7 +9579,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8040,7 +9593,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -8059,7 +9613,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -8067,7 +9622,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -8075,24 +9631,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -8101,6 +9669,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -8116,7 +9685,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8130,6 +9700,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -8145,7 +9716,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8158,7 +9730,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8171,7 +9744,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8185,7 +9759,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -8198,7 +9780,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8211,7 +9794,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8225,7 +9809,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -8238,7 +9830,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8251,7 +9844,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -8270,7 +9864,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -8278,7 +9873,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -8286,17 +9882,24 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_星玉の加護",
               "name": "성옥의 가호",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "Work",
+                "WorkValue"
+              ]
             },
             {
               "sid": "SID_チキ装備中",
               "name": "SID_チキ装備中",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
@@ -8314,7 +9917,13 @@
                 "Mdef+5",
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "MagicSkill",
+                "HeavySkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -8323,6 +9932,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -8338,7 +9948,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8349,7 +9960,15 @@
               "sid": "SID_地玉の加護",
               "name": "토옥의 가호",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -8362,7 +9981,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8375,7 +9995,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8390,6 +10011,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -8405,7 +10027,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8419,10 +10042,8 @@
                 "相手の必殺率*0.5"
               ],
               "condition": "相手の手番回数 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の必殺率"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8435,7 +10056,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8448,7 +10070,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8463,6 +10086,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -8478,7 +10102,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8489,7 +10114,15 @@
               "sid": "SID_地玉の加護＋",
               "name": "토옥의 가호+",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -8502,7 +10135,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8515,7 +10149,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8530,6 +10165,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -8551,7 +10187,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -8559,7 +10196,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_体格＋１",
@@ -8567,7 +10205,8 @@
               "enhance": [
                 "Phys+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切り返し",
@@ -8576,10 +10215,8 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*80 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
@@ -8590,10 +10227,13 @@
                 "守備*1.3",
                 "魔防*1.3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "守備",
-                "魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "FlySkill"
               ]
             },
             {
@@ -8603,6 +10243,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -8618,7 +10259,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8628,7 +10270,11 @@
             {
               "sid": "SID_適応能力",
               "name": "적응 능력",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -8641,7 +10287,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8654,7 +10301,8 @@
               "enhance": [
                 "Phys+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8668,7 +10316,8 @@
                 "威力+min(武器の重さ - 体格, 5)"
               ],
               "condition": "攻撃属性 == 物理属性 && 武器の重さ > 体格 && 手番回数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8681,7 +10330,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8696,8 +10346,12 @@
               ],
               "condition": "HP == MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "GiveSids"
               ]
             }
           ]
@@ -8711,7 +10365,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8724,7 +10379,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8738,10 +10394,8 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*60 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8754,7 +10408,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8767,7 +10422,8 @@
               "enhance": [
                 "Def+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8777,7 +10433,11 @@
             {
               "sid": "SID_適応能力＋",
               "name": "적응 능력+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         }
@@ -8796,7 +10456,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -8804,7 +10465,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -8812,7 +10474,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_血讐",
@@ -8821,14 +10484,23 @@
                 "攻撃力+( MaxHP - HP ) * 0.3"
               ],
               "condition": "( ( MaxHP - HP ) * 30 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
             {
               "sid": "SID_契約",
               "name": "계약",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "RangeI",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -8837,6 +10509,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -8852,7 +10525,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8863,7 +10537,11 @@
               "sid": "SID_異界の力",
               "name": "이계의 힘",
               "condition": "スキル所持( \"異界の力_科\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -8876,7 +10554,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8889,7 +10568,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8900,7 +10580,16 @@
               "sid": "SID_限界突破",
               "name": "한계 돌파",
               "condition": "( ( 相手のレベル + cond( 相手の兵種ランク == 上級職, 20, 0 ) ) > ( レベル + cond( 兵種ランク == 上級職, 20, 0 ) ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "レベル",
+                "兵種ランク",
+                "上級職"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -8913,7 +10602,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8926,7 +10616,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8936,7 +10627,8 @@
             {
               "sid": "SID_SPコンバート",
               "name": "SP 컨버트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -8949,7 +10641,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8962,7 +10655,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8976,7 +10670,8 @@
                 "攻撃力+( MaxHP - HP ) * 0.5"
               ],
               "condition": "( ( MaxHP - HP ) * 50 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -8989,7 +10684,8 @@
               "enhance": [
                 "Magic+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -9008,7 +10704,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -9016,7 +10713,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -9024,12 +10722,19 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_囮指名",
               "name": "미끼 지명",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
@@ -9040,9 +10745,13 @@
                 "相手の魔防*0.8"
               ],
               "condition": "武器の種類 == 魔道書",
-              "wired": false,
-              "unreadActNames": [
-                "相手の魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "DragonSkill",
+                "MagicSkill",
+                "PranaSkill"
               ]
             },
             {
@@ -9052,6 +10761,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -9067,7 +10777,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9080,7 +10791,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9090,7 +10802,11 @@
             {
               "sid": "SID_理魔法＋",
               "name": "이론의 진수",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -9103,7 +10819,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9116,7 +10833,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9130,9 +10848,11 @@
                 "相手のダメージ+5"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             }
           ]
@@ -9146,7 +10866,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9157,7 +10878,14 @@
               "sid": "SID_復帰阻止",
               "name": "복귀 저지",
               "condition": "武器の種類 == 魔道書 && 相手のスキル所持(\"気絶\") && 相手のスキル所持(\"気絶継続\") == 0 && スキル確率( min( max( 速さ - 相手の速さ, 0 ) * 5, 50 ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -9170,7 +10898,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9183,7 +10912,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9197,9 +10927,11 @@
                 "相手のダメージ+7"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             }
           ]
@@ -9213,7 +10945,8 @@
               "enhance": [
                 "Mdef+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -9232,7 +10965,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -9240,7 +10974,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋３",
@@ -9248,12 +10983,24 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_竜脈・異",
               "name": "용맥·암",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             }
           ],
           "engaged": [
@@ -9263,7 +11010,14 @@
               "enhance": [
                 "Move+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "FlySkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -9272,6 +11026,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -9287,7 +11042,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9300,7 +11056,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9315,8 +11072,14 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             }
           ]
@@ -9330,7 +11093,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9341,7 +11105,11 @@
               "sid": "SID_デトックス",
               "name": "디톡스",
               "condition": "スキル所持(\"毒\") || スキル所持(\"猛毒\") || スキル所持(\"劇毒\")",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RemoveSids"
+              ]
             }
           ]
         },
@@ -9354,7 +11122,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9369,8 +11138,16 @@
               ],
               "condition": "配置除去可能",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadCondIdents": [
+                "配置除去可能"
+              ],
+              "unreadFields": [
+                "OverlapRange",
+                "OverlapTerrain"
               ]
             }
           ]
@@ -9384,7 +11161,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9397,7 +11175,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9410,7 +11189,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9425,8 +11205,14 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             }
           ]
@@ -9440,7 +11226,8 @@
               "enhance": [
                 "Quick+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -9459,7 +11246,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -9467,7 +11255,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -9475,7 +11264,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不意打ち",
@@ -9484,10 +11274,8 @@
                 "相手の手番回数=0"
               ],
               "condition": "地形回避 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
@@ -9497,7 +11285,15 @@
               "enhance": [
                 "Magic+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -9506,6 +11302,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -9521,7 +11318,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9534,7 +11332,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9544,7 +11343,13 @@
             {
               "sid": "SID_七色の叫び",
               "name": "무지개색 외침",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -9557,7 +11362,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9571,9 +11377,11 @@
                 "相手のダメージ*4 / 3"
               ],
               "condition": "攻撃結果(必殺) && 攻撃属性 == 物理属性",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "必殺",
+                "攻撃結果()"
               ]
             }
           ]
@@ -9587,7 +11395,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9600,7 +11409,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9610,7 +11420,11 @@
             {
               "sid": "SID_カリスマ",
               "name": "카리스마",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -9623,7 +11437,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9636,7 +11451,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9646,7 +11462,13 @@
             {
               "sid": "SID_七色の叫び＋",
               "name": "무지개색 외침+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -9659,7 +11481,8 @@
               "enhance": [
                 "Tech+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -9678,7 +11501,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -9686,7 +11510,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -9694,7 +11519,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不意打ち",
@@ -9703,10 +11529,8 @@
                 "相手の手番回数=0"
               ],
               "condition": "地形回避 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
@@ -9716,7 +11540,15 @@
               "enhance": [
                 "Magic+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -9725,6 +11557,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -9740,7 +11573,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9753,7 +11587,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9763,7 +11598,13 @@
             {
               "sid": "SID_七色の叫び",
               "name": "무지개색 외침",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -9776,7 +11617,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9790,9 +11632,11 @@
                 "相手のダメージ*4 / 3"
               ],
               "condition": "攻撃結果(必殺) && 攻撃属性 == 物理属性",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "必殺",
+                "攻撃結果()"
               ]
             }
           ]
@@ -9806,7 +11650,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9819,7 +11664,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9829,7 +11675,11 @@
             {
               "sid": "SID_カリスマ",
               "name": "카리스마",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -9842,7 +11692,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9855,7 +11706,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -9865,7 +11717,13 @@
             {
               "sid": "SID_七色の叫び＋",
               "name": "무지개색 외침+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -9878,7 +11736,8 @@
               "enhance": [
                 "Tech+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -9899,6 +11758,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -9907,7 +11767,15 @@
               "sid": "SID_地玉の加護",
               "name": "토옥의 가호",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
@@ -9925,7 +11793,13 @@
                 "Mdef+5",
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "MagicSkill",
+                "HeavySkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -9945,15 +11819,17 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*80 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_適応能力",
               "name": "적응 능력",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_角の睨み",
@@ -9963,8 +11839,12 @@
               ],
               "condition": "HP == MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "GiveSids"
               ]
             }
           ],
@@ -9976,10 +11856,13 @@
                 "守備*1.3",
                 "魔防*1.3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "守備",
-                "魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "FlySkill"
               ]
             }
           ]
@@ -10000,26 +11883,48 @@
                 "攻撃力+( MaxHP - HP ) * 0.3"
               ],
               "condition": "( ( MaxHP - HP ) * 30 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_限界突破",
               "name": "한계 돌파",
               "condition": "( ( 相手のレベル + cond( 相手の兵種ランク == 上級職, 20, 0 ) ) > ( レベル + cond( 兵種ランク == 上級職, 20, 0 ) ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "レベル",
+                "兵種ランク",
+                "上級職"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             },
             {
               "sid": "SID_異界の力",
               "name": "이계의 힘",
               "condition": "スキル所持( \"異界の力_科\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_契約",
               "name": "계약",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         }
@@ -10035,7 +11940,11 @@
             {
               "sid": "SID_理魔法＋",
               "name": "이론의 진수",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_慧眼",
@@ -10044,9 +11953,11 @@
                 "相手のダメージ+5"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             }
           ],
@@ -10058,7 +11969,14 @@
                 "HP=HP"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
+                "HP"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ],
+              "identityActNames": [
                 "HP"
               ]
             }
@@ -10076,7 +11994,18 @@
             {
               "sid": "SID_竜脈・異",
               "name": "용맥·암",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_後始末",
@@ -10086,15 +12015,25 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             },
             {
               "sid": "SID_デトックス",
               "name": "디톡스",
               "condition": "スキル所持(\"毒\") || スキル所持(\"猛毒\") || スキル所持(\"劇毒\")",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RemoveSids"
+              ]
             }
           ],
           "engaged": [
@@ -10104,7 +12043,14 @@
               "enhance": [
                 "Move+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "FlySkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -10124,10 +12070,8 @@
                 "相手の手番回数=0"
               ],
               "condition": "地形回避 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力まかせ",
@@ -10136,15 +12080,21 @@
                 "相手のダメージ*4 / 3"
               ],
               "condition": "攻撃結果(必殺) && 攻撃属性 == 物理属性",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "必殺",
+                "攻撃結果()"
               ]
             },
             {
               "sid": "SID_カリスマ",
               "name": "카리스마",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
@@ -10154,7 +12104,15 @@
               "enhance": [
                 "Magic+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -10174,15 +12132,17 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*60 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_適応能力",
               "name": "적응 능력",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_重撃",
@@ -10191,7 +12151,8 @@
                 "威力+min(武器の重さ - 体格, 5)"
               ],
               "condition": "攻撃属性 == 物理属性 && 武器の重さ > 体格 && 手番回数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_角の睨み",
@@ -10201,8 +12162,12 @@
               ],
               "condition": "HP == MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "GiveSids"
               ]
             }
           ],
@@ -10214,10 +12179,13 @@
                 "守備*1.3",
                 "魔防*1.3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "守備",
-                "魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "FlySkill"
               ]
             }
           ]
@@ -10238,26 +12206,48 @@
                 "攻撃力+( MaxHP - HP ) * 0.3"
               ],
               "condition": "( ( MaxHP - HP ) * 30 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_限界突破",
               "name": "한계 돌파",
               "condition": "( ( 相手のレベル + cond( 相手の兵種ランク == 上級職, 20, 0 ) ) > ( レベル + cond( 兵種ランク == 上級職, 20, 0 ) ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "レベル",
+                "兵種ランク",
+                "上級職"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             },
             {
               "sid": "SID_異界の力",
               "name": "이계의 힘",
               "condition": "スキル所持( \"異界の力_科\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_契約",
               "name": "계약",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         }
@@ -10277,10 +12267,8 @@
                 "相手の必殺率*0.5"
               ],
               "condition": "相手の手番回数 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の必殺率"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_命玉の加護＋＋",
@@ -10290,6 +12278,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -10298,7 +12287,15 @@
               "sid": "SID_地玉の加護＋",
               "name": "토옥의 가호+",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
@@ -10316,7 +12313,13 @@
                 "Mdef+5",
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "MagicSkill",
+                "HeavySkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -10336,15 +12339,17 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*60 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_適応能力",
               "name": "적응 능력",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_重撃",
@@ -10353,7 +12358,8 @@
                 "威力+min(武器の重さ - 体格, 5)"
               ],
               "condition": "攻撃属性 == 物理属性 && 武器の重さ > 体格 && 手番回数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_角の睨み",
@@ -10363,8 +12369,12 @@
               ],
               "condition": "HP == MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "GiveSids"
               ]
             }
           ],
@@ -10376,10 +12386,13 @@
                 "守備*1.3",
                 "魔防*1.3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "守備",
-                "魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "FlySkill"
               ]
             }
           ]
@@ -10400,26 +12413,48 @@
                 "攻撃力+( MaxHP - HP ) * 0.5"
               ],
               "condition": "( ( MaxHP - HP ) * 50 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_限界突破",
               "name": "한계 돌파",
               "condition": "( ( 相手のレベル + cond( 相手の兵種ランク == 上級職, 20, 0 ) ) > ( レベル + cond( 兵種ランク == 上級職, 20, 0 ) ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "レベル",
+                "兵種ランク",
+                "上級職"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             },
             {
               "sid": "SID_異界の力",
               "name": "이계의 힘",
               "condition": "スキル所持( \"異界の力_科\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_契約",
               "name": "계약",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         }
@@ -10435,7 +12470,11 @@
             {
               "sid": "SID_理魔法＋",
               "name": "이론의 진수",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             },
             {
               "sid": "SID_慧眼＋",
@@ -10444,16 +12483,25 @@
                 "相手のダメージ+7"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             },
             {
               "sid": "SID_復帰阻止",
               "name": "복귀 저지",
               "condition": "武器の種類 == 魔道書 && 相手のスキル所持(\"気絶\") && 相手のスキル所持(\"気絶継続\") == 0 && スキル確率( min( max( 速さ - 相手の速さ, 0 ) * 5, 50 ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
@@ -10464,7 +12512,14 @@
                 "HP=HP"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
+                "HP"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ],
+              "identityActNames": [
                 "HP"
               ]
             }
@@ -10482,7 +12537,18 @@
             {
               "sid": "SID_竜脈・異",
               "name": "용맥·암",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             },
             {
               "sid": "SID_後始末＋",
@@ -10492,15 +12558,25 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             },
             {
               "sid": "SID_デトックス",
               "name": "디톡스",
               "condition": "スキル所持(\"毒\") || スキル所持(\"猛毒\") || スキル所持(\"劇毒\")",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RemoveSids"
+              ]
             },
             {
               "sid": "SID_地脈吸収",
@@ -10510,8 +12586,16 @@
               ],
               "condition": "配置除去可能",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadCondIdents": [
+                "配置除去可能"
+              ],
+              "unreadFields": [
+                "OverlapRange",
+                "OverlapTerrain"
               ]
             }
           ],
@@ -10522,7 +12606,14 @@
               "enhance": [
                 "Move+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "FlySkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -10542,10 +12633,8 @@
                 "相手の手番回数=0"
               ],
               "condition": "地形回避 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力まかせ",
@@ -10554,15 +12643,21 @@
                 "相手のダメージ*4 / 3"
               ],
               "condition": "攻撃結果(必殺) && 攻撃属性 == 物理属性",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "必殺",
+                "攻撃結果()"
               ]
             },
             {
               "sid": "SID_カリスマ",
               "name": "카리스마",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ],
           "engaged": [
@@ -10572,7 +12667,15 @@
               "enhance": [
                 "Magic+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "BadState"
+              ]
             }
           ]
         }
@@ -10588,12 +12691,17 @@
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_武器シンクロ",
@@ -10602,14 +12710,28 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             }
           ]
         }
@@ -10625,12 +12747,17 @@
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_武器シンクロ",
@@ -10639,14 +12766,28 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             }
           ]
         }
@@ -10662,12 +12803,17 @@
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             },
             {
               "sid": "SID_武器シンクロ",
@@ -10676,14 +12822,28 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             }
           ]
         }
@@ -10702,7 +12862,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -10710,7 +12871,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -10718,24 +12880,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -10744,6 +12918,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -10759,7 +12934,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10773,6 +12949,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -10788,7 +12965,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10801,7 +12979,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10814,7 +12993,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10828,7 +13008,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -10841,7 +13029,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10854,7 +13043,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10868,7 +13058,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -10881,7 +13079,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10894,7 +13093,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -10913,7 +13113,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -10921,7 +13122,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -10929,24 +13131,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -10955,6 +13169,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -10970,7 +13185,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -10984,6 +13200,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -10999,7 +13216,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11012,7 +13230,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11025,7 +13244,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11039,7 +13259,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -11052,7 +13280,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11065,7 +13294,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11079,7 +13309,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -11092,7 +13330,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11105,7 +13344,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -11124,7 +13364,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -11132,7 +13373,8 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -11140,24 +13382,36 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切磋琢磨",
               "name": "절차탁마",
-              "wired": false
+              "wired": false,
+              "deficit": true
             },
             {
               "sid": "SID_計略",
               "name": "계략",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "ChangeSids"
+              ]
             }
           ],
           "engaged": [
             {
               "sid": "SID_戦技",
               "name": "전투 기술",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CovertSkill",
+                "DragonSkill"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -11166,6 +13420,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -11181,7 +13436,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11195,6 +13451,7 @@
                 "取得経験*1.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "取得経験"
               ]
@@ -11210,7 +13467,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11223,7 +13481,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11236,7 +13495,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11250,7 +13510,15 @@
                 "攻撃力+5"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -11263,7 +13531,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11276,7 +13545,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11290,7 +13560,15 @@
                 "攻撃力+7"
               ],
               "condition": "エンゲージ中 || ( スキル所持(\"チキ装備中\") == 0 && 武器の種類 == 紋章士の得意武器 ) || ( スキル所持(\"チキ装備中\") == 1 && スキル所持(\"追加アイテム1\") == 1 )",
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "エンゲージ中",
+                "紋章士の得意武器"
+              ],
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -11303,7 +13581,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11316,7 +13595,8 @@
               "enhance": [
                 "Str+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -11335,7 +13615,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_守備＋１",
@@ -11343,7 +13624,8 @@
               "enhance": [
                 "Def+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -11351,17 +13633,24 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_星玉の加護",
               "name": "성옥의 가호",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "Work",
+                "WorkValue"
+              ]
             },
             {
               "sid": "SID_チキ装備中",
               "name": "SID_チキ装備中",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ],
           "engaged": [
@@ -11379,7 +13668,13 @@
                 "Mdef+5",
                 "Phys+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "MagicSkill",
+                "HeavySkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -11388,6 +13683,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -11403,7 +13699,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11414,7 +13711,15 @@
               "sid": "SID_地玉の加護",
               "name": "토옥의 가호",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -11427,7 +13732,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11440,7 +13746,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11455,6 +13762,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -11470,7 +13778,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11484,10 +13793,8 @@
                 "相手の必殺率*0.5"
               ],
               "condition": "相手の手番回数 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の必殺率"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11500,7 +13807,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11513,7 +13821,8 @@
               "enhance": [
                 "Hp+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11528,6 +13837,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -11543,7 +13853,8 @@
               "enhance": [
                 "Luck+8"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11554,7 +13865,15 @@
               "sid": "SID_地玉の加護＋",
               "name": "토옥의 가호+",
               "condition": "周囲の味方数 > 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "周囲の味方数"
+              ],
+              "unreadFields": [
+                "GiveSids",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -11567,7 +13886,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11580,7 +13900,8 @@
               "enhance": [
                 "Luck+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11595,6 +13916,7 @@
               ],
               "condition": "HP < MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
               ]
@@ -11616,7 +13938,8 @@
               "enhance": [
                 "Def+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -11624,7 +13947,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_体格＋１",
@@ -11632,7 +13956,8 @@
               "enhance": [
                 "Phys+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_切り返し",
@@ -11641,10 +13966,8 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*80 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
@@ -11655,10 +13978,13 @@
                 "守備*1.3",
                 "魔防*1.3"
               ],
-              "wired": false,
-              "unreadActNames": [
-                "守備",
-                "魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "FlySkill"
               ]
             },
             {
@@ -11668,6 +13994,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -11683,7 +14010,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11693,7 +14021,11 @@
             {
               "sid": "SID_適応能力",
               "name": "적응 능력",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -11706,7 +14038,8 @@
               "enhance": [
                 "Def+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11719,7 +14052,8 @@
               "enhance": [
                 "Phys+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11733,7 +14067,8 @@
                 "威力+min(武器の重さ - 体格, 5)"
               ],
               "condition": "攻撃属性 == 物理属性 && 武器の重さ > 体格 && 手番回数 > 0",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11746,7 +14081,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11761,8 +14097,12 @@
               ],
               "condition": "HP == MaxHP",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadFields": [
+                "GiveSids"
               ]
             }
           ]
@@ -11776,7 +14116,8 @@
               "enhance": [
                 "Def+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11789,7 +14130,8 @@
               "enhance": [
                 "Str+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11803,10 +14145,8 @@
                 "手番回数=2"
               ],
               "condition": "( HP*100 >= MaxHP*60 ) && 手番回数 == 1 && スキル所持(\"追撃不可\") == 0",
-              "wired": false,
-              "unreadActNames": [
-                "手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11819,7 +14159,8 @@
               "enhance": [
                 "Phys+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11832,7 +14173,8 @@
               "enhance": [
                 "Def+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11842,7 +14184,11 @@
             {
               "sid": "SID_適応能力＋",
               "name": "적응 능력+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         }
@@ -11861,7 +14207,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -11869,7 +14216,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_幸運＋２",
@@ -11877,7 +14225,8 @@
               "enhance": [
                 "Luck+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_血讐",
@@ -11886,14 +14235,23 @@
                 "攻撃力+( MaxHP - HP ) * 0.3"
               ],
               "condition": "( ( MaxHP - HP ) * 30 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
             {
               "sid": "SID_契約",
               "name": "계약",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "RangeI",
+                "RangeO"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -11902,6 +14260,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -11917,7 +14276,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11928,7 +14288,11 @@
               "sid": "SID_異界の力",
               "name": "이계의 힘",
               "condition": "スキル所持( \"異界の力_科\" ) == 0",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -11941,7 +14305,8 @@
               "enhance": [
                 "Luck+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11954,7 +14319,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11965,7 +14331,16 @@
               "sid": "SID_限界突破",
               "name": "한계 돌파",
               "condition": "( ( 相手のレベル + cond( 相手の兵種ランク == 上級職, 20, 0 ) ) > ( レベル + cond( 兵種ランク == 上級職, 20, 0 ) ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "レベル",
+                "兵種ランク",
+                "上級職"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -11978,7 +14353,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -11991,7 +14367,8 @@
               "enhance": [
                 "Luck+6"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12001,7 +14378,8 @@
             {
               "sid": "SID_SPコンバート",
               "name": "SP 컨버트",
-              "wired": false
+              "wired": false,
+              "deficit": true
             }
           ]
         },
@@ -12014,7 +14392,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12027,7 +14406,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12041,7 +14421,8 @@
                 "攻撃力+( MaxHP - HP ) * 0.5"
               ],
               "condition": "( ( MaxHP - HP ) * 50 ) >= 100",
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12054,7 +14435,8 @@
               "enhance": [
                 "Magic+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -12073,7 +14455,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔力＋１",
@@ -12081,7 +14464,8 @@
               "enhance": [
                 "Magic+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_技＋１",
@@ -12089,12 +14473,19 @@
               "enhance": [
                 "Tech+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_囮指名",
               "name": "미끼 지명",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ],
           "engaged": [
@@ -12105,9 +14496,13 @@
                 "相手の魔防*0.8"
               ],
               "condition": "武器の種類 == 魔道書",
-              "wired": false,
-              "unreadActNames": [
-                "相手の魔防"
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "DragonSkill",
+                "MagicSkill",
+                "PranaSkill"
               ]
             },
             {
@@ -12117,6 +14512,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -12132,7 +14528,8 @@
               "enhance": [
                 "Magic+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12145,7 +14542,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12155,7 +14553,11 @@
             {
               "sid": "SID_理魔法＋",
               "name": "이론의 진수",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids"
+              ]
             }
           ]
         },
@@ -12168,7 +14570,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12181,7 +14584,8 @@
               "enhance": [
                 "Magic+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12195,9 +14599,11 @@
                 "相手のダメージ+5"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             }
           ]
@@ -12211,7 +14617,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12222,7 +14629,14 @@
               "sid": "SID_復帰阻止",
               "name": "복귀 저지",
               "condition": "武器の種類 == 魔道書 && 相手のスキル所持(\"気絶\") && 相手のスキル所持(\"気絶継続\") == 0 && スキル確率( min( max( 速さ - 相手の速さ, 0 ) * 5, 50 ) )",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadCondIdents": [
+                "スキル確率()"
+              ],
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -12235,7 +14649,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12248,7 +14663,8 @@
               "enhance": [
                 "Magic+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12262,9 +14678,11 @@
                 "相手のダメージ+7"
               ],
               "condition": "攻撃結果( 特効 ) ",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "特効",
+                "攻撃結果()"
               ]
             }
           ]
@@ -12278,7 +14696,8 @@
               "enhance": [
                 "Mdef+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -12297,7 +14716,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_魔防＋１",
@@ -12305,7 +14725,8 @@
               "enhance": [
                 "Mdef+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_ＨＰ＋３",
@@ -12313,12 +14734,24 @@
               "enhance": [
                 "Hp+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_竜脈・異",
               "name": "용맥·암",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "MagicSkill",
+                "HorseSkill",
+                "HeavySkill",
+                "PranaSkill",
+                "FlySkill"
+              ]
             }
           ],
           "engaged": [
@@ -12328,7 +14761,14 @@
               "enhance": [
                 "Move+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "DragonSkill",
+                "HorseSkill",
+                "FlySkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -12337,6 +14777,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -12352,7 +14793,8 @@
               "enhance": [
                 "Mdef+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12365,7 +14807,8 @@
               "enhance": [
                 "Hp+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12380,8 +14823,14 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             }
           ]
@@ -12395,7 +14844,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12406,7 +14856,11 @@
               "sid": "SID_デトックス",
               "name": "디톡스",
               "condition": "スキル所持(\"毒\") || スキル所持(\"猛毒\") || スキル所持(\"劇毒\")",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "RemoveSids"
+              ]
             }
           ]
         },
@@ -12419,7 +14873,8 @@
               "enhance": [
                 "Mdef+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12434,8 +14889,16 @@
               ],
               "condition": "配置除去可能",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "HP"
+              ],
+              "unreadCondIdents": [
+                "配置除去可能"
+              ],
+              "unreadFields": [
+                "OverlapRange",
+                "OverlapTerrain"
               ]
             }
           ]
@@ -12449,7 +14912,8 @@
               "enhance": [
                 "Hp+7"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12462,7 +14926,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12475,7 +14940,8 @@
               "enhance": [
                 "Mdef+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12490,8 +14956,14 @@
               ],
               "condition": "生存 && 相手のHP > 0 && 総攻撃結果(必殺)",
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "相手のHP"
+              ],
+              "unreadCondIdents": [
+                "生存",
+                "必殺",
+                "総攻撃結果()"
               ]
             }
           ]
@@ -12505,7 +14977,8 @@
               "enhance": [
                 "Quick+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
@@ -12524,7 +14997,8 @@
               "enhance": [
                 "Tech+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_速さ＋１",
@@ -12532,7 +15006,8 @@
               "enhance": [
                 "Quick+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_力＋１",
@@ -12540,7 +15015,8 @@
               "enhance": [
                 "Str+1"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             },
             {
               "sid": "SID_不意打ち",
@@ -12549,10 +15025,8 @@
                 "相手の手番回数=0"
               ],
               "condition": "地形回避 > 0",
-              "wired": false,
-              "unreadActNames": [
-                "相手の手番回数"
-              ]
+              "wired": true,
+              "deficit": false
             }
           ],
           "engaged": [
@@ -12562,7 +15036,15 @@
               "enhance": [
                 "Magic+10"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": true,
+              "unreadFields": [
+                "SyncSids",
+                "CooperationSkill",
+                "CovertSkill",
+                "DragonSkill",
+                "BadState"
+              ]
             },
             {
               "sid": "SID_敵エンゲージ技ダメージ軽減",
@@ -12571,6 +15053,7 @@
                 "ダメージ-ダメージ * 0.2"
               ],
               "wired": false,
+              "deficit": true,
               "unreadActNames": [
                 "ダメージ"
               ]
@@ -12586,7 +15069,8 @@
               "enhance": [
                 "Quick+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12599,7 +15083,8 @@
               "enhance": [
                 "Str+2"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12609,7 +15094,13 @@
             {
               "sid": "SID_七色の叫び",
               "name": "무지개색 외침",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -12622,7 +15113,8 @@
               "enhance": [
                 "Tech+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12636,9 +15128,11 @@
                 "相手のダメージ*4 / 3"
               ],
               "condition": "攻撃結果(必殺) && 攻撃属性 == 物理属性",
-              "wired": false,
-              "unreadActNames": [
-                "相手のダメージ"
+              "wired": true,
+              "deficit": true,
+              "unreadCondIdents": [
+                "必殺",
+                "攻撃結果()"
               ]
             }
           ]
@@ -12652,7 +15146,8 @@
               "enhance": [
                 "Quick+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12665,7 +15160,8 @@
               "enhance": [
                 "Str+3"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12675,7 +15171,11 @@
             {
               "sid": "SID_カリスマ",
               "name": "카리스마",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids"
+              ]
             }
           ]
         },
@@ -12688,7 +15188,8 @@
               "enhance": [
                 "Tech+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12701,7 +15202,8 @@
               "enhance": [
                 "Quick+4"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         },
@@ -12711,7 +15213,13 @@
             {
               "sid": "SID_七色の叫び＋",
               "name": "무지개색 외침+",
-              "wired": false
+              "wired": false,
+              "deficit": true,
+              "unreadFields": [
+                "GiveSids",
+                "RangeI",
+                "RangeO"
+              ]
             }
           ]
         },
@@ -12724,14 +15232,16 @@
               "enhance": [
                 "Tech+5"
               ],
-              "wired": true
+              "wired": true,
+              "deficit": false
             }
           ]
         }
       ]
     }
   ],
-  "unwiredCount": 166,
+  "unwiredCount": 419,
+  "unwiredSidCount": 116,
   "unwired": [
     {
       "gid": "GID_マルス",
@@ -12739,9 +15249,11 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
-      "unreadActNames": [
-        "手番回数"
-      ]
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_マルス",
@@ -12755,12 +15267,29 @@
     },
     {
       "gid": "GID_マルス",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_ブレイク時追撃",
+      "name": "몰아붙이기",
+      "unreadCondIdents": [
+        "ブレイク",
+        "攻撃結果()"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_マルス",
       "bond": 7,
       "kind": "synchro",
       "sid": "SID_不屈",
       "name": "불굴",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -12771,6 +15300,9 @@
       "name": "불굴+",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -12781,7 +15313,24 @@
       "name": "불굴++",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
+    },
+    {
+      "gid": "GID_シグルド",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_迅走",
+      "name": "질주",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill",
+        "HorseSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_シグルド",
@@ -12794,13 +15343,63 @@
       ]
     },
     {
+      "gid": "GID_シグルド",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_助走",
+      "name": "도움닫기",
+      "unreadCondIdents": [
+        "移動距離",
+        "総行動回数"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_シグルド",
+      "bond": 7,
+      "kind": "synchro",
+      "sid": "SID_猛進",
+      "name": "맹진",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_シグルド",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_助走＋",
+      "name": "도움닫기+",
+      "unreadCondIdents": [
+        "移動距離",
+        "総行動回数"
+      ],
+      "partial": true
+    },
+    {
       "gid": "GID_セリカ",
       "bond": 1,
       "kind": "synchro",
       "sid": "SID_異形リベンジ",
       "name": "이형 리벤지",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_セリカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_重唱",
+      "name": "중창",
+      "unreadFields": [
+        "GiveSids",
+        "DragonSkill",
+        "MagicSkill",
+        "WeaponProhibit"
       ]
     },
     {
@@ -12815,13 +15414,45 @@
     },
     {
       "gid": "GID_セリカ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法",
+      "name": "공명의 흑마법",
+      "unreadActNames": [
+        "HP"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_セリカ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_大好物",
+      "name": "가장 좋아하는 음식"
+    },
+    {
+      "gid": "GID_セリカ",
       "bond": 12,
       "kind": "synchro",
       "sid": "SID_異形リベンジ＋",
       "name": "이형 리벤지+",
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_セリカ",
+      "bond": 16,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法＋",
+      "name": "공명의 흑마법+",
       "unreadActNames": [
-        "相手のダメージ"
-      ]
+        "HP"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_セリカ",
@@ -12829,8 +15460,35 @@
       "kind": "synchro",
       "sid": "SID_異形リベンジ＋＋",
       "name": "이형 리벤지++",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_ミカヤ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_杖使い",
+      "name": "지팡이 숙련",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_ミカヤ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_増幅",
+      "name": "증폭",
+      "unreadFields": [
+        "DragonSkill",
+        "PranaSkill",
+        "RangeTarget",
+        "RangeAdd",
+        "RangeExtend"
       ]
     },
     {
@@ -12851,6 +15509,60 @@
       "name": "치유의 울림",
       "unreadActNames": [
         "回復"
+      ],
+      "unreadCondIdents": [
+        "回復"
+      ]
+    },
+    {
+      "gid": "GID_ミカヤ",
+      "bond": 7,
+      "kind": "synchro",
+      "sid": "SID_サイレス無効",
+      "name": "사일런스 가드",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_ミカヤ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_杖使い＋",
+      "name": "지팡이 숙련+",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_ミカヤ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_杖使い＋＋",
+      "name": "지팡이 숙련++",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_ロイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り",
+      "name": "분발"
+    },
+    {
+      "gid": "GID_ロイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_超越",
+      "name": "초월",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "BadState",
+        "EnhanceLevel"
       ]
     },
     {
@@ -12864,13 +15576,62 @@
       ]
     },
     {
+      "gid": "GID_ロイ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_踏み込み",
+      "name": "진입",
+      "unreadFields": [
+        "MoveSelf",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_ロイ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋",
+      "name": "분발+"
+    },
+    {
+      "gid": "GID_ロイ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋＋",
+      "name": "분발++"
+    },
+    {
+      "gid": "GID_ロイ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋＋＋",
+      "name": "분발+++"
+    },
+    {
       "gid": "GID_リーフ",
       "bond": 1,
       "kind": "synchro",
       "sid": "SID_武器相性激化",
       "name": "급소 회피",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_リーフ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_順応",
+      "name": "즉응",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "HeavySkill",
+        "FlySkill"
       ]
     },
     {
@@ -12885,13 +15646,29 @@
     },
     {
       "gid": "GID_リーフ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ",
+      "name": "매복"
+    },
+    {
+      "gid": "GID_リーフ",
       "bond": 7,
       "kind": "synchro",
       "sid": "SID_武器相性激化＋",
       "name": "급소 회피+",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_リーフ",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋",
+      "name": "매복+"
     },
     {
       "gid": "GID_リーフ",
@@ -12899,8 +15676,44 @@
       "kind": "synchro",
       "sid": "SID_武器相性激化＋＋",
       "name": "급소 회피++",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_リーフ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋＋",
+      "name": "매복++"
+    },
+    {
+      "gid": "GID_ルキナ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_絆の力",
+      "name": "듀얼 어택",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_ルキナ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_絆盾",
+      "name": "인연 방패",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -12914,6 +15727,59 @@
       ]
     },
     {
+      "gid": "GID_ルキナ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_デュアルアシスト",
+      "name": "듀얼 어시스트",
+      "unreadCondIdents": [
+        "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+      ]
+    },
+    {
+      "gid": "GID_ルキナ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_デュアルサポート",
+      "name": "듀얼 서포트",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_ルキナ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_デュアルアシスト＋",
+      "name": "듀얼 어시스트+",
+      "unreadCondIdents": [
+        "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+      ]
+    },
+    {
+      "gid": "GID_リン",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_攻め立て",
+      "name": "연속 공격",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
+      "gid": "GID_リン",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_残像",
+      "name": "잔상",
+      "unreadFields": [
+        "DragonSkill",
+        "FlySkill",
+        "VisionCount"
+      ]
+    },
+    {
       "gid": "GID_リン",
       "bond": 1,
       "kind": "engaged",
@@ -12924,14 +15790,59 @@
       ]
     },
     {
+      "gid": "GID_リン",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_速さの吸収",
+      "name": "속도 흡수",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_リン",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_攻め立て＋",
+      "name": "연속 공격+",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
+      "gid": "GID_リン",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_攻め立て＋＋",
+      "name": "연속 공격++",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
       "gid": "GID_アイク",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_破壊",
-      "name": "파괴",
-      "unreadActNames": [
-        "相手のダメージ"
+      "sid": "SID_勇将",
+      "name": "용장",
+      "unreadFields": [
+        "SyncSids"
       ]
+    },
+    {
+      "gid": "GID_アイク",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_アイクエンゲージスキル",
+      "name": "부동",
+      "unreadFields": [
+        "SyncSids",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_アイク",
@@ -12941,6 +15852,28 @@
       "name": "SID_敵エンゲージ技ダメージ軽減",
       "unreadActNames": [
         "ダメージ"
+      ]
+    },
+    {
+      "gid": "GID_アイク",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_引き戻し",
+      "name": "데려오기",
+      "unreadFields": [
+        "MoveTarget",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_アイク",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_勇将＋",
+      "name": "용장+",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -12951,6 +15884,28 @@
       "name": "천각의 박동",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_ベレト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_先生",
+      "name": "지도",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -12965,12 +15920,74 @@
     },
     {
       "gid": "GID_ベレト",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_師の導き",
+      "name": "스승의 인도",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_ベレト",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_拾得",
+      "name": "습득",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_ベレト",
       "bond": 18,
       "kind": "synchro",
       "sid": "SID_天刻の拍動＋",
       "name": "천각의 박동+",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_カムイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈",
+      "name": "용맥",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
+      ]
+    },
+    {
+      "gid": "GID_カムイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_呪縛",
+      "name": "주박",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "CovertSkill",
+        "RangeO"
       ]
     },
     {
@@ -12991,6 +16008,23 @@
       "name": "스킨십",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_カムイ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_竜呪",
+      "name": "용의 저주",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -13001,6 +16035,10 @@
       "name": "방진",
       "unreadActNames": [
         "ダメージ"
+      ],
+      "unreadCondIdents": [
+        "立場",
+        "援護"
       ]
     },
     {
@@ -13011,6 +16049,52 @@
       "name": "스킨십+",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_オルタネイト",
+      "name": "얼터네이트"
+    },
+    {
+      "gid": "GID_エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪",
+      "name": "달의 팔찌",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月輪",
+      "name": "MSID_Moon",
+      "unreadFields": [
+        "GiveSids",
+        "ChangeSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_エイリーク",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_双聖",
+      "name": "쌍성",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13029,9 +16113,23 @@
       "kind": "synchro",
       "sid": "SID_優風",
       "name": "우풍",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エイリーク",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪＋",
+      "name": "달의 팔찌+",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_エイリーク",
@@ -13039,8 +16137,52 @@
       "kind": "synchro",
       "sid": "SID_優風＋",
       "name": "우풍+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_オルタネイト",
+      "name": "얼터네이트"
+    },
+    {
+      "gid": "GID_エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪",
+      "name": "달의 팔찌",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月輪",
+      "name": "MSID_Moon",
+      "unreadFields": [
+        "GiveSids",
+        "ChangeSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_エフラム",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_双聖",
+      "name": "쌍성",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13059,9 +16201,23 @@
       "kind": "synchro",
       "sid": "SID_優風",
       "name": "우풍",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エフラム",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪＋",
+      "name": "달의 팔찌+",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_エフラム",
@@ -13069,8 +16225,38 @@
       "kind": "synchro",
       "sid": "SID_優風＋",
       "name": "우풍+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_リュール",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_リュール邪竜特効",
+      "name": "사룡 유효",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_リュール",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_以心",
+      "name": "이심",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13084,13 +16270,90 @@
       ]
     },
     {
+      "gid": "GID_リュール",
+      "bond": 5,
+      "kind": "synchro",
+      "sid": "SID_絆を繋薙くもの",
+      "name": "인연을 잇는 자",
+      "unreadCondIdents": [
+        "神将レベル"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "SyncSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_リュール",
+      "bond": 20,
+      "kind": "synchro",
+      "sid": "SID_絆を繋薙くもの＋",
+      "name": "인연을 잇는 자+",
+      "unreadCondIdents": [
+        "神将レベル"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "SyncSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_M002_シグルド",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_迅走",
+      "name": "질주",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill",
+        "HorseSkill",
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M007_敵ルキナ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_絆の力",
+      "name": "듀얼 어택",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
       "gid": "GID_M008_敵リーフ",
       "bond": 1,
       "kind": "synchro",
       "sid": "SID_武器相性激化＋",
       "name": "급소 회피+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M008_敵リーフ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋",
+      "name": "매복+"
+    },
+    {
+      "gid": "GID_M008_敵リーフ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_順応",
+      "name": "즉응",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "HeavySkill",
+        "FlySkill"
       ]
     },
     {
@@ -13101,6 +16364,61 @@
       "name": "천각의 박동",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_M010_敵ベレト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_師の導き",
+      "name": "스승의 인도",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_M010_敵ベレト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_先生",
+      "name": "지도",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
+      ]
+    },
+    {
+      "gid": "GID_M010_敵リン",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_攻め立て＋",
+      "name": "연속 공격+",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
+      "gid": "GID_M010_敵リン",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_残像",
+      "name": "잔상",
+      "unreadFields": [
+        "DragonSkill",
+        "FlySkill",
+        "VisionCount"
       ]
     },
     {
@@ -13111,6 +16429,9 @@
       "name": "불굴+",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -13119,8 +16440,72 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M011_敵シグルド",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_迅走_闇",
+      "name": "질주(어둠)",
+      "unreadFields": [
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M011_敵セリカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法＋",
+      "name": "공명의 흑마법+",
       "unreadActNames": [
-        "手番回数"
+        "HP"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M011_敵ミカヤ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_杖使い＋",
+      "name": "지팡이 숙련+",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_M011_敵ミカヤ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_増幅_闇",
+      "name": "증폭(어둠)",
+      "unreadFields": [
+        "RangeTarget",
+        "RangeAdd",
+        "RangeExtend"
+      ]
+    },
+    {
+      "gid": "GID_M011_敵ロイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋",
+      "name": "분발+"
+    },
+    {
+      "gid": "GID_M011_敵ロイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_超越_闇",
+      "name": "초월(어둠)",
+      "unreadFields": [
+        "BadState",
+        "EnhanceLevel"
       ]
     },
     {
@@ -13129,8 +16514,31 @@
       "kind": "synchro",
       "sid": "SID_武器相性激化＋",
       "name": "급소 회피+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M011_敵リーフ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋",
+      "name": "매복+"
+    },
+    {
+      "gid": "GID_M011_敵リーフ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_順応",
+      "name": "즉응",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "HeavySkill",
+        "FlySkill"
       ]
     },
     {
@@ -13141,6 +16549,28 @@
       "name": "천각의 박동+",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_M014_敵ベレト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_先生",
+      "name": "지도",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13151,6 +16581,9 @@
       "name": "불굴+",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -13159,8 +16592,124 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M017_敵マルス",
+      "bond": 2,
+      "kind": "synchro",
+      "sid": "SID_ブレイク時追撃",
+      "name": "몰아붙이기",
+      "unreadCondIdents": [
+        "ブレイク",
+        "攻撃結果()"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_M017_敵シグルド",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_助走＋",
+      "name": "도움닫기+",
+      "unreadCondIdents": [
+        "移動距離",
+        "総行動回数"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M017_敵シグルド",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_迅走",
+      "name": "질주",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill",
+        "HorseSkill",
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M017_敵シグルド",
+      "bond": 2,
+      "kind": "synchro",
+      "sid": "SID_猛進",
+      "name": "맹진",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_M017_敵セリカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法＋",
+      "name": "공명의 흑마법+",
       "unreadActNames": [
-        "手番回数"
+        "HP"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M017_敵セリカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_重唱",
+      "name": "중창",
+      "unreadFields": [
+        "GiveSids",
+        "DragonSkill",
+        "MagicSkill",
+        "WeaponProhibit"
+      ]
+    },
+    {
+      "gid": "GID_M017_敵ミカヤ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_杖使い",
+      "name": "지팡이 숙련",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_M017_敵ミカヤ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_増幅_闇",
+      "name": "증폭(어둠)",
+      "unreadFields": [
+        "RangeTarget",
+        "RangeAdd",
+        "RangeExtend"
+      ]
+    },
+    {
+      "gid": "GID_M017_敵ロイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋",
+      "name": "분발+"
+    },
+    {
+      "gid": "GID_M017_敵ロイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_超越_闇",
+      "name": "초월(어둠)",
+      "unreadFields": [
+        "BadState",
+        "EnhanceLevel"
       ]
     },
     {
@@ -13169,9 +16718,95 @@
       "kind": "synchro",
       "sid": "SID_武器相性激化＋",
       "name": "급소 회피+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M017_敵リーフ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋",
+      "name": "매복+"
+    },
+    {
+      "gid": "GID_M017_敵リーフ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_順応",
+      "name": "즉응",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "HeavySkill",
+        "FlySkill"
       ]
+    },
+    {
+      "gid": "GID_M019_敵ミカヤ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_杖使い",
+      "name": "지팡이 숙련",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_M019_敵ミカヤ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_増幅",
+      "name": "증폭",
+      "unreadFields": [
+        "DragonSkill",
+        "PranaSkill",
+        "RangeTarget",
+        "RangeAdd",
+        "RangeExtend"
+      ]
+    },
+    {
+      "gid": "GID_M019_敵ミカヤ",
+      "bond": 2,
+      "kind": "synchro",
+      "sid": "SID_サイレス無効",
+      "name": "사일런스 가드",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_M019_敵ロイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋＋",
+      "name": "분발++"
+    },
+    {
+      "gid": "GID_M019_敵ロイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_超越_闇",
+      "name": "초월(어둠)",
+      "unreadFields": [
+        "BadState",
+        "EnhanceLevel"
+      ]
+    },
+    {
+      "gid": "GID_M020_敵セリカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法＋",
+      "name": "공명의 흑마법+",
+      "unreadActNames": [
+        "HP"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_M020_敵セリカ",
@@ -13179,8 +16814,24 @@
       "kind": "synchro",
       "sid": "SID_異形リベンジ＋＋_闇",
       "name": "리벤지",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_M020_敵セリカ",
+      "bond": 2,
+      "kind": "engaged",
+      "sid": "SID_重唱",
+      "name": "중창",
+      "unreadFields": [
+        "GiveSids",
+        "DragonSkill",
+        "MagicSkill",
+        "WeaponProhibit"
       ]
     },
     {
@@ -13191,6 +16842,23 @@
       "name": "불굴++",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
+      ]
+    },
+    {
+      "gid": "GID_M021_敵マルス",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_ブレイク時追撃",
+      "name": "몰아붙이기",
+      "unreadCondIdents": [
+        "ブレイク",
+        "攻撃結果()"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -13199,9 +16867,11 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
-      "unreadActNames": [
-        "手番回数"
-      ]
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_M024_敵マルス",
@@ -13211,6 +16881,9 @@
       "name": "불굴++",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -13219,9 +16892,11 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
-      "unreadActNames": [
-        "手番回数"
-      ]
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手マルス",
@@ -13229,9 +16904,11 @@
       "kind": "engaged",
       "sid": "SID_カウンター",
       "name": "신속",
-      "unreadActNames": [
-        "手番回数"
-      ]
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手マルス",
@@ -13245,12 +16922,29 @@
     },
     {
       "gid": "GID_相手マルス",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_ブレイク時追撃",
+      "name": "몰아붙이기",
+      "unreadCondIdents": [
+        "ブレイク",
+        "攻撃結果()"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_相手マルス",
       "bond": 7,
       "kind": "synchro",
       "sid": "SID_不屈",
       "name": "불굴",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -13261,6 +16955,9 @@
       "name": "불굴+",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
     },
     {
@@ -13271,7 +16968,24 @@
       "name": "불굴++",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "BadState"
       ]
+    },
+    {
+      "gid": "GID_相手シグルド",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_迅走",
+      "name": "질주",
+      "unreadFields": [
+        "CovertSkill",
+        "DragonSkill",
+        "HorseSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手シグルド",
@@ -13284,13 +16998,63 @@
       ]
     },
     {
+      "gid": "GID_相手シグルド",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_助走",
+      "name": "도움닫기",
+      "unreadCondIdents": [
+        "移動距離",
+        "総行動回数"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手シグルド",
+      "bond": 7,
+      "kind": "synchro",
+      "sid": "SID_猛進",
+      "name": "맹진",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_相手シグルド",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_助走＋",
+      "name": "도움닫기+",
+      "unreadCondIdents": [
+        "移動距離",
+        "総行動回数"
+      ],
+      "partial": true
+    },
+    {
       "gid": "GID_相手セリカ",
       "bond": 1,
       "kind": "synchro",
       "sid": "SID_異形リベンジ",
       "name": "이형 리벤지",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手セリカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_重唱",
+      "name": "중창",
+      "unreadFields": [
+        "GiveSids",
+        "DragonSkill",
+        "MagicSkill",
+        "WeaponProhibit"
       ]
     },
     {
@@ -13305,13 +17069,45 @@
     },
     {
       "gid": "GID_相手セリカ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法",
+      "name": "공명의 흑마법",
+      "unreadActNames": [
+        "HP"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手セリカ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_大好物",
+      "name": "가장 좋아하는 음식"
+    },
+    {
+      "gid": "GID_相手セリカ",
       "bond": 12,
       "kind": "synchro",
       "sid": "SID_異形リベンジ＋",
       "name": "이형 리벤지+",
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手セリカ",
+      "bond": 16,
+      "kind": "synchro",
+      "sid": "SID_共鳴の黒魔法＋",
+      "name": "공명의 흑마법+",
       "unreadActNames": [
-        "相手のダメージ"
-      ]
+        "HP"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手セリカ",
@@ -13319,8 +17115,35 @@
       "kind": "synchro",
       "sid": "SID_異形リベンジ＋＋",
       "name": "이형 리벤지++",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "異形属性",
+        "ユニット属性()",
+        "ダメージ"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手ミカヤ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_杖使い",
+      "name": "지팡이 숙련",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_相手ミカヤ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_増幅",
+      "name": "증폭",
+      "unreadFields": [
+        "DragonSkill",
+        "PranaSkill",
+        "RangeTarget",
+        "RangeAdd",
+        "RangeExtend"
       ]
     },
     {
@@ -13341,6 +17164,60 @@
       "name": "치유의 울림",
       "unreadActNames": [
         "回復"
+      ],
+      "unreadCondIdents": [
+        "回復"
+      ]
+    },
+    {
+      "gid": "GID_相手ミカヤ",
+      "bond": 7,
+      "kind": "synchro",
+      "sid": "SID_サイレス無効",
+      "name": "사일런스 가드",
+      "unreadFields": [
+        "BadIgnore"
+      ]
+    },
+    {
+      "gid": "GID_相手ミカヤ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_杖使い＋",
+      "name": "지팡이 숙련+",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_相手ミカヤ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_杖使い＋＋",
+      "name": "지팡이 숙련++",
+      "unreadFields": [
+        "WeaponLevel.Rod"
+      ]
+    },
+    {
+      "gid": "GID_相手ロイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り",
+      "name": "분발"
+    },
+    {
+      "gid": "GID_相手ロイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_超越",
+      "name": "초월",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "BadState",
+        "EnhanceLevel"
       ]
     },
     {
@@ -13354,13 +17231,62 @@
       ]
     },
     {
+      "gid": "GID_相手ロイ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_踏み込み",
+      "name": "진입",
+      "unreadFields": [
+        "MoveSelf",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手ロイ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋",
+      "name": "분발+"
+    },
+    {
+      "gid": "GID_相手ロイ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋＋",
+      "name": "분발++"
+    },
+    {
+      "gid": "GID_相手ロイ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_踏ん張り＋＋＋",
+      "name": "분발+++"
+    },
+    {
       "gid": "GID_相手リーフ",
       "bond": 1,
       "kind": "synchro",
       "sid": "SID_武器相性激化",
       "name": "급소 회피",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手リーフ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_順応",
+      "name": "즉응",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "HeavySkill",
+        "FlySkill"
       ]
     },
     {
@@ -13375,13 +17301,29 @@
     },
     {
       "gid": "GID_相手リーフ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ",
+      "name": "매복"
+    },
+    {
+      "gid": "GID_相手リーフ",
       "bond": 7,
       "kind": "synchro",
       "sid": "SID_武器相性激化＋",
       "name": "급소 회피+",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手リーフ",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋",
+      "name": "매복+"
     },
     {
       "gid": "GID_相手リーフ",
@@ -13389,8 +17331,44 @@
       "kind": "synchro",
       "sid": "SID_武器相性激化＋＋",
       "name": "급소 회피++",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadCondIdents": [
+        "武器相性",
+        "有利"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手リーフ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_待ち伏せ＋＋",
+      "name": "매복++"
+    },
+    {
+      "gid": "GID_相手ルキナ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_絆の力",
+      "name": "듀얼 어택",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ルキナ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_絆盾",
+      "name": "인연 방패",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13404,6 +17382,59 @@
       ]
     },
     {
+      "gid": "GID_相手ルキナ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_デュアルアシスト",
+      "name": "듀얼 어시스트",
+      "unreadCondIdents": [
+        "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+      ]
+    },
+    {
+      "gid": "GID_相手ルキナ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_デュアルサポート",
+      "name": "듀얼 서포트",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手ルキナ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_デュアルアシスト＋",
+      "name": "듀얼 어시스트+",
+      "unreadCondIdents": [
+        "수식 평가 실패: \"剣\"는 심볼이라 연산 >에 쓸 수 없다 (미정의 변수일 가능성)"
+      ]
+    },
+    {
+      "gid": "GID_相手リン",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_攻め立て",
+      "name": "연속 공격",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
+      "gid": "GID_相手リン",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_残像",
+      "name": "잔상",
+      "unreadFields": [
+        "DragonSkill",
+        "FlySkill",
+        "VisionCount"
+      ]
+    },
+    {
       "gid": "GID_相手リン",
       "bond": 1,
       "kind": "engaged",
@@ -13414,14 +17445,59 @@
       ]
     },
     {
+      "gid": "GID_相手リン",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_速さの吸収",
+      "name": "속도 흡수",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_相手リン",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_攻め立て＋",
+      "name": "연속 공격+",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
+      "gid": "GID_相手リン",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_攻め立て＋＋",
+      "name": "연속 공격++",
+      "unreadCondIdents": [
+        "攻撃速度"
+      ]
+    },
+    {
       "gid": "GID_相手アイク",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_破壊",
-      "name": "파괴",
-      "unreadActNames": [
-        "相手のダメージ"
+      "sid": "SID_勇将",
+      "name": "용장",
+      "unreadFields": [
+        "SyncSids"
       ]
+    },
+    {
+      "gid": "GID_相手アイク",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_アイクエンゲージスキル",
+      "name": "부동",
+      "unreadFields": [
+        "SyncSids",
+        "DragonSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手アイク",
@@ -13431,6 +17507,28 @@
       "name": "SID_敵エンゲージ技ダメージ軽減",
       "unreadActNames": [
         "ダメージ"
+      ]
+    },
+    {
+      "gid": "GID_相手アイク",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_引き戻し",
+      "name": "데려오기",
+      "unreadFields": [
+        "MoveTarget",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手アイク",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_勇将＋",
+      "name": "용장+",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -13441,6 +17539,28 @@
       "name": "천각의 박동",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_相手ベレト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_先生",
+      "name": "지도",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13455,12 +17575,74 @@
     },
     {
       "gid": "GID_相手ベレト",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_師の導き",
+      "name": "스승의 인도",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手ベレト",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_拾得",
+      "name": "습득",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手ベレト",
       "bond": 18,
       "kind": "synchro",
       "sid": "SID_天刻の拍動＋",
       "name": "천각의 박동+",
       "unreadActNames": [
         "攻撃結果"
+      ],
+      "unreadCondIdents": [
+        "攻撃結果",
+        "ミス",
+        "神将スキル確率()"
+      ]
+    },
+    {
+      "gid": "GID_相手カムイ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈",
+      "name": "용맥",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
+      ]
+    },
+    {
+      "gid": "GID_相手カムイ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_呪縛",
+      "name": "주박",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "CovertSkill",
+        "RangeO"
       ]
     },
     {
@@ -13481,6 +17663,23 @@
       "name": "스킨십",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手カムイ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_竜呪",
+      "name": "용의 저주",
+      "unreadCondIdents": [
+        "生存"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -13491,6 +17690,10 @@
       "name": "방진",
       "unreadActNames": [
         "ダメージ"
+      ],
+      "unreadCondIdents": [
+        "立場",
+        "援護"
       ]
     },
     {
@@ -13501,6 +17704,52 @@
       "name": "스킨십+",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadFields": [
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_オルタネイト",
+      "name": "얼터네이트"
+    },
+    {
+      "gid": "GID_相手エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪",
+      "name": "달의 팔찌",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エイリーク",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月輪",
+      "name": "MSID_Moon",
+      "unreadFields": [
+        "GiveSids",
+        "ChangeSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手エイリーク",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_双聖",
+      "name": "쌍성",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13519,9 +17768,23 @@
       "kind": "synchro",
       "sid": "SID_優風",
       "name": "우풍",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エイリーク",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪＋",
+      "name": "달의 팔찌+",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手エイリーク",
@@ -13529,8 +17792,52 @@
       "kind": "synchro",
       "sid": "SID_優風＋",
       "name": "우풍+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_オルタネイト",
+      "name": "얼터네이트"
+    },
+    {
+      "gid": "GID_相手エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪",
+      "name": "달의 팔찌",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エフラム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_月輪",
+      "name": "MSID_Moon",
+      "unreadFields": [
+        "GiveSids",
+        "ChangeSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手エフラム",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_双聖",
+      "name": "쌍성",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13549,9 +17856,23 @@
       "kind": "synchro",
       "sid": "SID_優風",
       "name": "우풍",
-      "unreadActNames": [
-        "相手の威力"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エフラム",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_月の腕輪＋",
+      "name": "달의 팔찌+",
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手エフラム",
@@ -13559,8 +17880,38 @@
       "kind": "synchro",
       "sid": "SID_優風＋",
       "name": "우풍+",
-      "unreadActNames": [
-        "相手の威力"
+      "unreadFields": [
+        "SyncSids",
+        "ChangeSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手リュール",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_リュール邪竜特効",
+      "name": "사룡 유효",
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手リュール",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_以心",
+      "name": "이심",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13574,6 +17925,65 @@
       ]
     },
     {
+      "gid": "GID_相手リュール",
+      "bond": 5,
+      "kind": "synchro",
+      "sid": "SID_絆を繋薙くもの",
+      "name": "인연을 잇는 자",
+      "unreadCondIdents": [
+        "神将レベル"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "SyncSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手リュール",
+      "bond": 20,
+      "kind": "synchro",
+      "sid": "SID_絆を繋薙くもの＋",
+      "name": "인연을 잇는 자+",
+      "unreadCondIdents": [
+        "神将レベル"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "SyncSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_エーデルガルト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
       "gid": "GID_エーデルガルト",
       "bond": 1,
       "kind": "engaged",
@@ -13591,6 +18001,65 @@
       "name": "혈통",
       "unreadActNames": [
         "取得経験"
+      ]
+    },
+    {
+      "gid": "GID_エーデルガルト",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_エーデルガルト",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_ディミトリ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
       ]
     },
     {
@@ -13614,6 +18083,65 @@
       ]
     },
     {
+      "gid": "GID_ディミトリ",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_ディミトリ",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_クロード",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
       "gid": "GID_クロード",
       "bond": 1,
       "kind": "engaged",
@@ -13632,6 +18160,67 @@
       "unreadActNames": [
         "取得経験"
       ]
+    },
+    {
+      "gid": "GID_クロード",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_クロード",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_星玉の加護",
+      "name": "성옥의 가호",
+      "unreadFields": [
+        "Work",
+        "WorkValue"
+      ]
+    },
+    {
+      "gid": "GID_チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_チキ装備中",
+      "name": "SID_チキ装備中"
+    },
+    {
+      "gid": "GID_チキ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_竜化",
+      "name": "용화",
+      "unreadFields": [
+        "MagicSkill",
+        "HeavySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_チキ",
@@ -13641,6 +18230,20 @@
       "name": "SID_敵エンゲージ技ダメージ軽減",
       "unreadActNames": [
         "ダメージ"
+      ]
+    },
+    {
+      "gid": "GID_チキ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護",
+      "name": "토옥의 가호",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13655,22 +18258,26 @@
     },
     {
       "gid": "GID_チキ",
-      "bond": 10,
-      "kind": "synchro",
-      "sid": "SID_光玉の加護",
-      "name": "광옥의 가호",
-      "unreadActNames": [
-        "相手の必殺率"
-      ]
-    },
-    {
-      "gid": "GID_チキ",
       "bond": 14,
       "kind": "synchro",
       "sid": "SID_命玉の加護＋",
       "name": "명옥의 가호+",
       "unreadActNames": [
         "HP"
+      ]
+    },
+    {
+      "gid": "GID_チキ",
+      "bond": 16,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護＋",
+      "name": "토옥의 가호+",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -13686,23 +18293,16 @@
     {
       "gid": "GID_ヘクトル",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_切り返し",
-      "name": "받아치기",
-      "unreadActNames": [
-        "手番回数"
-      ]
-    },
-    {
-      "gid": "GID_ヘクトル",
-      "bond": 1,
       "kind": "engaged",
       "sid": "SID_鉄壁",
       "name": "철벽",
-      "unreadActNames": [
-        "守備",
-        "魔防"
-      ]
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "FlySkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_ヘクトル",
@@ -13716,22 +18316,49 @@
     },
     {
       "gid": "GID_ヘクトル",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_適応能力",
+      "name": "적응 능력",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_ヘクトル",
       "bond": 12,
       "kind": "synchro",
       "sid": "SID_角の睨み",
       "name": "모퉁이 견제",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
       "gid": "GID_ヘクトル",
-      "bond": 16,
+      "bond": 19,
       "kind": "synchro",
-      "sid": "SID_切り返し＋",
-      "name": "받아치기+",
-      "unreadActNames": [
-        "手番回数"
+      "sid": "SID_適応能力＋",
+      "name": "적응 능력+",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_ヴェロニカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_契約",
+      "name": "계약",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "RangeI",
+        "RangeO"
       ]
     },
     {
@@ -13745,14 +18372,62 @@
       ]
     },
     {
+      "gid": "GID_ヴェロニカ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_異界の力",
+      "name": "이계의 힘",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_ヴェロニカ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_限界突破",
+      "name": "한계 돌파",
+      "unreadCondIdents": [
+        "レベル",
+        "兵種ランク",
+        "上級職"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_ヴェロニカ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_SPコンバート",
+      "name": "SP 컨버트"
+    },
+    {
+      "gid": "GID_セネリオ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_囮指名",
+      "name": "미끼 지명",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
       "gid": "GID_セネリオ",
       "bond": 1,
       "kind": "engaged",
       "sid": "SID_陽光",
       "name": "양광",
-      "unreadActNames": [
-        "相手の魔防"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "DragonSkill",
+        "MagicSkill",
+        "PranaSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_セネリオ",
@@ -13766,12 +18441,37 @@
     },
     {
       "gid": "GID_セネリオ",
+      "bond": 4,
+      "kind": "synchro",
+      "sid": "SID_理魔法＋",
+      "name": "이론의 진수",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_セネリオ",
       "bond": 9,
       "kind": "synchro",
       "sid": "SID_慧眼",
       "name": "혜안",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_セネリオ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_復帰阻止",
+      "name": "복귀 저지",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -13780,9 +18480,42 @@
       "kind": "synchro",
       "sid": "SID_慧眼＋",
       "name": "혜안+",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_カミラ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈・異",
+      "name": "용맥·암",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
+    },
+    {
+      "gid": "GID_カミラ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_天駆",
+      "name": "천구",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "FlySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_カミラ",
@@ -13802,6 +18535,21 @@
       "name": "마무리",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
+      ]
+    },
+    {
+      "gid": "GID_カミラ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_デトックス",
+      "name": "디톡스",
+      "unreadFields": [
+        "RemoveSids"
       ]
     },
     {
@@ -13812,6 +18560,13 @@
       "name": "지맥 흡수",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadCondIdents": [
+        "配置除去可能"
+      ],
+      "unreadFields": [
+        "OverlapRange",
+        "OverlapTerrain"
       ]
     },
     {
@@ -13822,17 +18577,27 @@
       "name": "마무리+",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
       ]
     },
     {
       "gid": "GID_クロム",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_不意打ち",
-      "name": "기습",
-      "unreadActNames": [
-        "相手の手番回数"
-      ]
+      "kind": "engaged",
+      "sid": "SID_半身",
+      "name": "반신",
+      "unreadFields": [
+        "SyncSids",
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_クロム",
@@ -13846,23 +18611,64 @@
     },
     {
       "gid": "GID_クロム",
+      "bond": 4,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び",
+      "name": "무지개색 외침",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_クロム",
       "bond": 8,
       "kind": "synchro",
       "sid": "SID_力まかせ",
       "name": "전력투구",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "必殺",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_クロム",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_カリスマ",
+      "name": "카리스마",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_クロム",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び＋",
+      "name": "무지개색 외침+",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
       ]
     },
     {
       "gid": "GID_ルフレ",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_不意打ち",
-      "name": "기습",
-      "unreadActNames": [
-        "相手の手番回数"
-      ]
+      "kind": "engaged",
+      "sid": "SID_半身",
+      "name": "반신",
+      "unreadFields": [
+        "SyncSids",
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_ルフレ",
@@ -13876,12 +18682,48 @@
     },
     {
       "gid": "GID_ルフレ",
+      "bond": 4,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び",
+      "name": "무지개색 외침",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_ルフレ",
       "bond": 8,
       "kind": "synchro",
       "sid": "SID_力まかせ",
       "name": "전력투구",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "必殺",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_ルフレ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_カリスマ",
+      "name": "카리스마",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_ルフレ",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び＋",
+      "name": "무지개색 외침+",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
       ]
     },
     {
@@ -13895,13 +18737,40 @@
       ]
     },
     {
+      "gid": "GID_E001_敵チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護",
+      "name": "토옥의 가호",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_E001_敵チキ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_竜化",
+      "name": "용화",
+      "unreadFields": [
+        "MagicSkill",
+        "HeavySkill",
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
       "gid": "GID_E002_敵ヘクトル",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_切り返し",
-      "name": "받아치기",
-      "unreadActNames": [
-        "手番回数"
+      "sid": "SID_適応能力",
+      "name": "적응 능력",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -13912,6 +18781,9 @@
       "name": "모퉁이 견제",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -13920,9 +18792,61 @@
       "kind": "engaged",
       "sid": "SID_鉄壁",
       "name": "철벽",
-      "unreadActNames": [
-        "守備",
-        "魔防"
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "FlySkill"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E003_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_限界突破",
+      "name": "한계 돌파",
+      "unreadCondIdents": [
+        "レベル",
+        "兵種ランク",
+        "上級職"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E003_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_異界の力",
+      "name": "이계의 힘",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E003_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_契約",
+      "name": "계약",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_E004_敵セネリオ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_理魔法＋",
+      "name": "이론의 진수",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -13931,9 +18855,11 @@
       "kind": "synchro",
       "sid": "SID_慧眼",
       "name": "혜안",
-      "unreadActNames": [
-        "相手のダメージ"
-      ]
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_E004_敵セネリオ",
@@ -13943,6 +18869,29 @@
       "name": "양광",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "identityActNames": [
+        "HP"
+      ]
+    },
+    {
+      "gid": "GID_E004_敵カミラ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈・異",
+      "name": "용맥·암",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -13953,17 +18902,36 @@
       "name": "마무리",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
       ]
     },
     {
-      "gid": "GID_E005_敵クロム",
+      "gid": "GID_E004_敵カミラ",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_不意打ち",
-      "name": "기습",
-      "unreadActNames": [
-        "相手の手番回数"
+      "sid": "SID_デトックス",
+      "name": "디톡스",
+      "unreadFields": [
+        "RemoveSids"
       ]
+    },
+    {
+      "gid": "GID_E004_敵カミラ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_天駆",
+      "name": "천구",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "FlySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_E005_敵クロム",
@@ -13971,18 +18939,45 @@
       "kind": "synchro",
       "sid": "SID_力まかせ",
       "name": "전력투구",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "必殺",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E005_敵クロム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_カリスマ",
+      "name": "카리스마",
+      "unreadFields": [
+        "GiveSids"
       ]
+    },
+    {
+      "gid": "GID_E005_敵クロム",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_半身",
+      "name": "반신",
+      "unreadFields": [
+        "SyncSids",
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_E005_敵ヘクトル",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_切り返し＋",
-      "name": "받아치기+",
-      "unreadActNames": [
-        "手番回数"
+      "sid": "SID_適応能力",
+      "name": "적응 능력",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -13993,6 +18988,9 @@
       "name": "모퉁이 견제",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -14001,19 +18999,51 @@
       "kind": "engaged",
       "sid": "SID_鉄壁",
       "name": "철벽",
-      "unreadActNames": [
-        "守備",
-        "魔防"
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "FlySkill"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E005_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_限界突破",
+      "name": "한계 돌파",
+      "unreadCondIdents": [
+        "レベル",
+        "兵種ランク",
+        "上級職"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
-      "gid": "GID_E006_敵チキ",
+      "gid": "GID_E005_敵ヴェロニカ",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_光玉の加護",
-      "name": "광옥의 가호",
-      "unreadActNames": [
-        "相手の必殺率"
+      "sid": "SID_異界の力",
+      "name": "이계의 힘",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E005_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_契約",
+      "name": "계약",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "RangeI",
+        "RangeO"
       ]
     },
     {
@@ -14027,13 +19057,40 @@
       ]
     },
     {
+      "gid": "GID_E006_敵チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護＋",
+      "name": "토옥의 가호+",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵チキ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_竜化",
+      "name": "용화",
+      "unreadFields": [
+        "MagicSkill",
+        "HeavySkill",
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
       "gid": "GID_E006_敵ヘクトル",
       "bond": 1,
       "kind": "synchro",
-      "sid": "SID_切り返し＋",
-      "name": "받아치기+",
-      "unreadActNames": [
-        "手番回数"
+      "sid": "SID_適応能力",
+      "name": "적응 능력",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -14044,6 +19101,9 @@
       "name": "모퉁이 견제",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -14052,9 +19112,61 @@
       "kind": "engaged",
       "sid": "SID_鉄壁",
       "name": "철벽",
-      "unreadActNames": [
-        "守備",
-        "魔防"
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "FlySkill"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_限界突破",
+      "name": "한계 돌파",
+      "unreadCondIdents": [
+        "レベル",
+        "兵種ランク",
+        "上級職"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_異界の力",
+      "name": "이계의 힘",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵ヴェロニカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_契約",
+      "name": "계약",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵セネリオ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_理魔法＋",
+      "name": "이론의 진수",
+      "unreadFields": [
+        "SyncSids"
       ]
     },
     {
@@ -14063,8 +19175,23 @@
       "kind": "synchro",
       "sid": "SID_慧眼＋",
       "name": "혜안+",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵セネリオ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_復帰阻止",
+      "name": "복귀 저지",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -14075,6 +19202,29 @@
       "name": "양광",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "identityActNames": [
+        "HP"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵カミラ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈・異",
+      "name": "용맥·암",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
     },
     {
@@ -14085,6 +19235,21 @@
       "name": "마무리+",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵カミラ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_デトックス",
+      "name": "디톡스",
+      "unreadFields": [
+        "RemoveSids"
       ]
     },
     {
@@ -14095,17 +19260,28 @@
       "name": "지맥 흡수",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadCondIdents": [
+        "配置除去可能"
+      ],
+      "unreadFields": [
+        "OverlapRange",
+        "OverlapTerrain"
       ]
     },
     {
-      "gid": "GID_E006_敵クロム",
+      "gid": "GID_E006_敵カミラ",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_不意打ち",
-      "name": "기습",
-      "unreadActNames": [
-        "相手の手番回数"
-      ]
+      "kind": "engaged",
+      "sid": "SID_天駆",
+      "name": "천구",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "FlySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_E006_敵クロム",
@@ -14113,8 +19289,196 @@
       "kind": "synchro",
       "sid": "SID_力まかせ",
       "name": "전력투구",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "必殺",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵クロム",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_カリスマ",
+      "name": "카리스마",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵クロム",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_半身",
+      "name": "반신",
+      "unreadFields": [
+        "SyncSids",
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "BadState"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_E006_敵エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵エーデルガルト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_E006_敵ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵ディミトリ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_E006_敵クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_E006_敵クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_E006_敵クロード",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
+      "gid": "GID_相手エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_相手エーデルガルト",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_相手エーデルガルト",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
       ]
     },
     {
@@ -14138,6 +19502,65 @@
       ]
     },
     {
+      "gid": "GID_相手エーデルガルト",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手エーデルガルト",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_相手ディミトリ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ディミトリ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
+      ]
+    },
+    {
       "gid": "GID_相手ディミトリ",
       "bond": 1,
       "kind": "engaged",
@@ -14155,6 +19578,65 @@
       "name": "혈통",
       "unreadActNames": [
         "取得経験"
+      ]
+    },
+    {
+      "gid": "GID_相手ディミトリ",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手ディミトリ",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_切磋琢磨",
+      "name": "절차탁마"
+    },
+    {
+      "gid": "GID_相手クロード",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_計略",
+      "name": "계략",
+      "unreadFields": [
+        "ChangeSids"
+      ]
+    },
+    {
+      "gid": "GID_相手クロード",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_戦技",
+      "name": "전투 기술",
+      "unreadFields": [
+        "SyncSids",
+        "CovertSkill",
+        "DragonSkill"
       ]
     },
     {
@@ -14176,6 +19658,67 @@
       "unreadActNames": [
         "取得経験"
       ]
+    },
+    {
+      "gid": "GID_相手クロード",
+      "bond": 12,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ",
+      "name": "무기 싱크로",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手クロード",
+      "bond": 17,
+      "kind": "synchro",
+      "sid": "SID_武器シンクロ＋",
+      "name": "무기 싱크로+",
+      "unreadCondIdents": [
+        "エンゲージ中",
+        "紋章士の得意武器"
+      ],
+      "unreadFields": [
+        "SyncSids"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_星玉の加護",
+      "name": "성옥의 가호",
+      "unreadFields": [
+        "Work",
+        "WorkValue"
+      ]
+    },
+    {
+      "gid": "GID_相手チキ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_チキ装備中",
+      "name": "SID_チキ装備中"
+    },
+    {
+      "gid": "GID_相手チキ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_竜化",
+      "name": "용화",
+      "unreadFields": [
+        "MagicSkill",
+        "HeavySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手チキ",
@@ -14185,6 +19728,20 @@
       "name": "SID_敵エンゲージ技ダメージ軽減",
       "unreadActNames": [
         "ダメージ"
+      ]
+    },
+    {
+      "gid": "GID_相手チキ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護",
+      "name": "토옥의 가호",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -14199,22 +19756,26 @@
     },
     {
       "gid": "GID_相手チキ",
-      "bond": 10,
-      "kind": "synchro",
-      "sid": "SID_光玉の加護",
-      "name": "광옥의 가호",
-      "unreadActNames": [
-        "相手の必殺率"
-      ]
-    },
-    {
-      "gid": "GID_相手チキ",
       "bond": 14,
       "kind": "synchro",
       "sid": "SID_命玉の加護＋",
       "name": "명옥의 가호+",
       "unreadActNames": [
         "HP"
+      ]
+    },
+    {
+      "gid": "GID_相手チキ",
+      "bond": 16,
+      "kind": "synchro",
+      "sid": "SID_地玉の加護＋",
+      "name": "토옥의 가호+",
+      "unreadCondIdents": [
+        "周囲の味方数"
+      ],
+      "unreadFields": [
+        "GiveSids",
+        "RangeO"
       ]
     },
     {
@@ -14230,23 +19791,16 @@
     {
       "gid": "GID_相手ヘクトル",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_切り返し",
-      "name": "받아치기",
-      "unreadActNames": [
-        "手番回数"
-      ]
-    },
-    {
-      "gid": "GID_相手ヘクトル",
-      "bond": 1,
       "kind": "engaged",
       "sid": "SID_鉄壁",
       "name": "철벽",
-      "unreadActNames": [
-        "守備",
-        "魔防"
-      ]
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "FlySkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手ヘクトル",
@@ -14260,22 +19814,49 @@
     },
     {
       "gid": "GID_相手ヘクトル",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_適応能力",
+      "name": "적응 능력",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ヘクトル",
       "bond": 12,
       "kind": "synchro",
       "sid": "SID_角の睨み",
       "name": "모퉁이 견제",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
       "gid": "GID_相手ヘクトル",
-      "bond": 16,
+      "bond": 19,
       "kind": "synchro",
-      "sid": "SID_切り返し＋",
-      "name": "받아치기+",
-      "unreadActNames": [
-        "手番回数"
+      "sid": "SID_適応能力＋",
+      "name": "적응 능력+",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ヴェロニカ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_契約",
+      "name": "계약",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "RangeI",
+        "RangeO"
       ]
     },
     {
@@ -14289,14 +19870,62 @@
       ]
     },
     {
+      "gid": "GID_相手ヴェロニカ",
+      "bond": 3,
+      "kind": "synchro",
+      "sid": "SID_異界の力",
+      "name": "이계의 힘",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ヴェロニカ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_限界突破",
+      "name": "한계 돌파",
+      "unreadCondIdents": [
+        "レベル",
+        "兵種ランク",
+        "上級職"
+      ],
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_相手ヴェロニカ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_SPコンバート",
+      "name": "SP 컨버트"
+    },
+    {
+      "gid": "GID_相手セネリオ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_囮指名",
+      "name": "미끼 지명",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
       "gid": "GID_相手セネリオ",
       "bond": 1,
       "kind": "engaged",
       "sid": "SID_陽光",
       "name": "양광",
-      "unreadActNames": [
-        "相手の魔防"
-      ]
+      "unreadFields": [
+        "SyncSids",
+        "DragonSkill",
+        "MagicSkill",
+        "PranaSkill"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手セネリオ",
@@ -14310,12 +19939,37 @@
     },
     {
       "gid": "GID_相手セネリオ",
+      "bond": 4,
+      "kind": "synchro",
+      "sid": "SID_理魔法＋",
+      "name": "이론의 진수",
+      "unreadFields": [
+        "SyncSids"
+      ]
+    },
+    {
+      "gid": "GID_相手セネリオ",
       "bond": 9,
       "kind": "synchro",
       "sid": "SID_慧眼",
       "name": "혜안",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手セネリオ",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_復帰阻止",
+      "name": "복귀 저지",
+      "unreadCondIdents": [
+        "スキル確率()"
+      ],
+      "unreadFields": [
+        "GiveSids"
       ]
     },
     {
@@ -14324,9 +19978,42 @@
       "kind": "synchro",
       "sid": "SID_慧眼＋",
       "name": "혜안+",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "特効",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手カミラ",
+      "bond": 1,
+      "kind": "synchro",
+      "sid": "SID_竜脈・異",
+      "name": "용맥·암",
+      "unreadFields": [
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "MagicSkill",
+        "HorseSkill",
+        "HeavySkill",
+        "PranaSkill",
+        "FlySkill"
       ]
+    },
+    {
+      "gid": "GID_相手カミラ",
+      "bond": 1,
+      "kind": "engaged",
+      "sid": "SID_天駆",
+      "name": "천구",
+      "unreadFields": [
+        "DragonSkill",
+        "HorseSkill",
+        "FlySkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手カミラ",
@@ -14346,6 +20033,21 @@
       "name": "마무리",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
+      ]
+    },
+    {
+      "gid": "GID_相手カミラ",
+      "bond": 8,
+      "kind": "synchro",
+      "sid": "SID_デトックス",
+      "name": "디톡스",
+      "unreadFields": [
+        "RemoveSids"
       ]
     },
     {
@@ -14356,6 +20058,13 @@
       "name": "지맥 흡수",
       "unreadActNames": [
         "HP"
+      ],
+      "unreadCondIdents": [
+        "配置除去可能"
+      ],
+      "unreadFields": [
+        "OverlapRange",
+        "OverlapTerrain"
       ]
     },
     {
@@ -14366,17 +20075,27 @@
       "name": "마무리+",
       "unreadActNames": [
         "相手のHP"
+      ],
+      "unreadCondIdents": [
+        "生存",
+        "必殺",
+        "総攻撃結果()"
       ]
     },
     {
       "gid": "GID_相手クロム",
       "bond": 1,
-      "kind": "synchro",
-      "sid": "SID_不意打ち",
-      "name": "기습",
-      "unreadActNames": [
-        "相手の手番回数"
-      ]
+      "kind": "engaged",
+      "sid": "SID_半身",
+      "name": "반신",
+      "unreadFields": [
+        "SyncSids",
+        "CooperationSkill",
+        "CovertSkill",
+        "DragonSkill",
+        "BadState"
+      ],
+      "partial": true
     },
     {
       "gid": "GID_相手クロム",
@@ -14390,17 +20109,289 @@
     },
     {
       "gid": "GID_相手クロム",
+      "bond": 4,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び",
+      "name": "무지개색 외침",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
+      ]
+    },
+    {
+      "gid": "GID_相手クロム",
       "bond": 8,
       "kind": "synchro",
       "sid": "SID_力まかせ",
       "name": "전력투구",
-      "unreadActNames": [
-        "相手のダメージ"
+      "unreadCondIdents": [
+        "必殺",
+        "攻撃結果()"
+      ],
+      "partial": true
+    },
+    {
+      "gid": "GID_相手クロム",
+      "bond": 13,
+      "kind": "synchro",
+      "sid": "SID_カリスマ",
+      "name": "카리스마",
+      "unreadFields": [
+        "GiveSids"
+      ]
+    },
+    {
+      "gid": "GID_相手クロム",
+      "bond": 18,
+      "kind": "synchro",
+      "sid": "SID_七色の叫び＋",
+      "name": "무지개색 외침+",
+      "unreadFields": [
+        "GiveSids",
+        "RangeI",
+        "RangeO"
       ]
     }
   ],
-  "outOfScopeCount": 82,
-  "outOfScopeNote": "효과 필드(EnhanceValue·ActNames)가 없어 이 기준으로는 판정할 수 없는 스킬 수. 특효 마스크·GiveSids 등 다른 경로로 작동하며, 결손이라는 뜻이 아니다."
+  "wiredSidCount": 76,
+  "criteria": {
+    "queriedNames": [
+      "エンゲージガードダメージ",
+      "エンチャント基本値",
+      "エンチャント経験",
+      "エンチャント経験計算",
+      "チェインアタック命中率",
+      "チェインアタック命中率計算",
+      "チェインアタック威力",
+      "チェインアタック威力計算",
+      "チェインアタック必殺率",
+      "チェインアタック必殺率計算",
+      "チェインアタック経験値",
+      "チェインガードダメージ",
+      "チェインガード基本値",
+      "チェインガード経験",
+      "チェインガード経験計算",
+      "チェインガード補助レベル差減衰値",
+      "ブレイク時後キャン発動位置",
+      "ユニット攻撃力",
+      "ユニット攻撃力計算",
+      "ユニット防御力",
+      "ユニット防御力計算",
+      "レベル差",
+      "内部レベル",
+      "内部レベル計算",
+      "割込み威力",
+      "割込み威力計算",
+      "召喚基本値",
+      "召喚経験",
+      "召喚経験計算",
+      "命中値",
+      "命中値計算",
+      "命中率",
+      "命中率計算",
+      "回避値",
+      "回避値計算",
+      "妨害杖命中値",
+      "妨害杖命中値計算",
+      "妨害杖回避値",
+      "妨害杖回避値計算",
+      "威力",
+      "威力計算",
+      "後キャン発動位置",
+      "必殺値",
+      "必殺値計算",
+      "必殺回避",
+      "必殺回避計算",
+      "必殺率",
+      "必殺率計算",
+      "戦闘基本値",
+      "戦闘最低保証値",
+      "戦闘減衰値",
+      "戦闘経験",
+      "戦闘経験値",
+      "戦闘経験計算",
+      "手番回数",
+      "撃破基本値",
+      "撃破最低保証値",
+      "撃破経験",
+      "撃破経験値",
+      "撃破経験計算",
+      "攻撃力",
+      "攻撃力計算",
+      "攻撃回数",
+      "攻撃速度",
+      "攻撃速度計算",
+      "杖減衰値",
+      "杖経験",
+      "杖経験計算",
+      "杖補助レベル差減衰値",
+      "相性補正",
+      "相手のエンゲージガードダメージ",
+      "相手のエンチャント基本値",
+      "相手のエンチャント経験",
+      "相手のエンチャント経験計算",
+      "相手のダメージ",
+      "相手のチェインアタック命中率",
+      "相手のチェインアタック命中率計算",
+      "相手のチェインアタック威力",
+      "相手のチェインアタック威力計算",
+      "相手のチェインアタック必殺率",
+      "相手のチェインアタック必殺率計算",
+      "相手のチェインアタック経験値",
+      "相手のチェインガードダメージ",
+      "相手のチェインガード基本値",
+      "相手のチェインガード経験",
+      "相手のチェインガード経験計算",
+      "相手のチェインガード補助レベル差減衰値",
+      "相手のブレイク時後キャン発動位置",
+      "相手のユニット攻撃力",
+      "相手のユニット攻撃力計算",
+      "相手のユニット防御力",
+      "相手のユニット防御力計算",
+      "相手のレベル差",
+      "相手の内部レベル",
+      "相手の内部レベル計算",
+      "相手の割込み威力",
+      "相手の割込み威力計算",
+      "相手の召喚基本値",
+      "相手の召喚経験",
+      "相手の召喚経験計算",
+      "相手の命中値",
+      "相手の命中値計算",
+      "相手の命中率",
+      "相手の命中率計算",
+      "相手の回避値",
+      "相手の回避値計算",
+      "相手の妨害杖命中値",
+      "相手の妨害杖命中値計算",
+      "相手の妨害杖回避値",
+      "相手の妨害杖回避値計算",
+      "相手の威力",
+      "相手の威力計算",
+      "相手の後キャン発動位置",
+      "相手の必殺値",
+      "相手の必殺値計算",
+      "相手の必殺回避",
+      "相手の必殺回避計算",
+      "相手の必殺率",
+      "相手の必殺率計算",
+      "相手の戦闘基本値",
+      "相手の戦闘最低保証値",
+      "相手の戦闘減衰値",
+      "相手の戦闘経験",
+      "相手の戦闘経験値",
+      "相手の戦闘経験計算",
+      "相手の手番回数",
+      "相手の撃破基本値",
+      "相手の撃破最低保証値",
+      "相手の撃破経験",
+      "相手の撃破経験値",
+      "相手の撃破経験計算",
+      "相手の攻撃力",
+      "相手の攻撃力計算",
+      "相手の攻撃速度",
+      "相手の攻撃速度計算",
+      "相手の杖減衰値",
+      "相手の杖経験",
+      "相手の杖経験計算",
+      "相手の杖補助レベル差減衰値",
+      "相手の相性補正",
+      "相手の素早い動作速度",
+      "相手の踊り基本値",
+      "相手の踊り経験",
+      "相手の踊り経験計算",
+      "相手の踊り補助レベル差減衰値",
+      "相手の追撃条件",
+      "相手の重い動作速度",
+      "相手の間合い判断値",
+      "相手の防御力",
+      "相手の防御力計算",
+      "素早い動作速度",
+      "踊り基本値",
+      "踊り経験",
+      "踊り経験計算",
+      "踊り補助レベル差減衰値",
+      "追撃条件",
+      "重い動作速度",
+      "間合い判断値",
+      "防御力",
+      "防御力計算"
+    ],
+    "consumedFields": [
+      "Efficacy",
+      "EfficacyValue",
+      "EfficacyIgnore",
+      "Removable"
+    ],
+    "unreadFields": [
+      "SyncSids",
+      "ChangeSids",
+      "RemoveSids",
+      "CooperationSkill",
+      "CovertSkill",
+      "DragonSkill",
+      "MagicSkill",
+      "HorseSkill",
+      "HeavySkill",
+      "PranaSkill",
+      "FlySkill",
+      "WeaponLevel.None",
+      "WeaponLevel.Sword",
+      "WeaponLevel.Lance",
+      "WeaponLevel.Axe",
+      "WeaponLevel.Bow",
+      "WeaponLevel.Dagger",
+      "WeaponLevel.Magic",
+      "WeaponLevel.Rod",
+      "WeaponLevel.Fist",
+      "WeaponLevel.Special",
+      "BadState",
+      "BadIgnore",
+      "WeaponProhibit",
+      "VisionCount",
+      "EnhanceLevel",
+      "Work",
+      "WorkValue",
+      "ZocType",
+      "Rewarp",
+      "MoveSelf",
+      "MoveTarget",
+      "RangeTarget",
+      "RangeI",
+      "RangeO",
+      "RangeAdd",
+      "RangeExtend",
+      "OverlapRange",
+      "OverlapTerrain",
+      "AroundName"
+    ],
+    "giveTimings": [
+      3,
+      4,
+      5,
+      6
+    ],
+    "giveTargets": [
+      0,
+      1
+    ],
+    "hookedNames": [
+      "力",
+      "地形回避",
+      "守備",
+      "手番回数",
+      "武器の重さ",
+      "武器攻撃力",
+      "相手の地形回避",
+      "相手の守備",
+      "相手の手番回数",
+      "相手の武器特効",
+      "相手の魔防",
+      "魔防"
+    ],
+    "note": "☠결손 판정 = 소비자가 실재하는가. unreadActNames = 질의되지 않는 값 이름 · unreadFields = 읽는 쪽이 없는 필드 · unreadActNames·unreadFields 둘 다 없는데 등재됐다면 효과 필드 자체가 없다(다른 층 소유 = 그 층이 미배선). partial=true는 같은 행의 일부만 사는 자리다. identityActNames = 항등식 Act 행(`HP = HP`) — 그 행은 무해하나 실효 페이로드가 SyncSids 쪽에 있고 그 전개가 미배선이면 결손이다(SID_陽光_闇 = 흡혈 50%가 SID_陽光_回復에 있다). hookedNames = combatEnv lookup 훅이 무는 이름(엔진에 직접 물어본 값) — 원시 스탯이 여기 산다. ☠HP·MaxHP는 훅이 값을 고쳐도 **유닛 HP로 커밋되지 않아** 제외했다(회복·흡혈·자해는 여전히 결손이다). giveTargets = 전투층이 받아 주는 GiveTarget(0 Target·1 Self) — 2 Chain·3 Around·4 Dance는 그릇이 없다."
+  }
 }
 ```
 
@@ -14433,6 +20424,7 @@
         "무기 지정 공격(weapon 인덱스): 지정 무기로 판정·장비하고, 사거리 심판도 그 무기 기준",
         "빗나감 = 데미지 0, 필살 = 3배 (롤 소비: 명중 → 명중시 필살)",
         "체인어택: 연계 스타일 아군이 사거리 안이면 협공 (위력 = floor(max(MaxHP*0.1, 1)), 명중 80)",
+        "체인어택 예상 수치(chainAttackers+chainNumbers) = 리듀서가 실제로 내는 체인 타격",
         "체인어택 경험치 = 실제 체인 참가 수만큼 가산 (정본 チェインアタック基本値 * チェインアタック回数)",
         "범용 브레이크 무효 스킬도 면역 (SID_ブレイク無効·_効果 — 41 인물 LunaticSids 실재)",
         "성장률 100 초과: 확정 가산 + 잔여 1롤 (105% = +1 확정, 잔여 5%)",
@@ -14465,7 +20457,17 @@
         "이월 누적기가 있으면 그것이 초기값을 대체한다(재생·인계 복원 통로)",
         "성장률 250이면 한 레벨에 2 오른다(누적 500 → 255 클램프 → +2, 잔여 55)",
         "상한에 닿은 스탯은 누적조차 하지 않는다(게이트가 루프 진입 전 1회)",
-        "난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)"
+        "난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)",
+        "신속이 없으면 순서·롤 소비가 종전과 같다 (공격측 추격 / 방어측 추격)",
+        "신속: 手番回数 2 · 추격 없음 → [attack, counter, followUp]이고 추가타가 정확히 절반이다",
+        "추격 + 신속(手番回数 3) → 마지막 오더 하나만 절반이다",
+        "방어측 신속: 공격측 1회 · 방어측 2회 → [attack, counter, counterFollowUp]이고 반격 추가타가 절반",
+        "부여가 전투 밖으로 안 샌다 — 다음 전투도 같은 8+4를 낸다 · 유닛 스킬은 불변",
+        "스타일 분기(SID_カウンター_竜族)도 같은 8 + 4를 낸다",
+        "☠결손: 竜族 신속의 HP 흡수(Timing 12 回復)는 무발현이다 — 부여는 되는데 훅이 없다",
+        "본공격이 빗나가고 추격이 명중해도 브레이크가 선다",
+        "신속 판: 오더 목록의 kind·대미지열이 리듀서 타격열과 같다",
+        "相手の手番回数 교차 행(SID_剣殺し)이 예보에서도 산다"
       ]
     },
     {
@@ -14494,6 +20496,7 @@
       "cases": [
         "전투 1회 = 타격 수만큼 양측 충전(공격 1 · 방어 1), charge 이벤트 절대값",
         "추격이 붙으면 3충전 — 타격 3회(공격·반격·추격)",
+        "실행되지 않은 오더는 세지 않는다 — 본공격으로 격파하면 추격분이 안 찬다",
         "반격이 없으면 1충전 — 사거리 밖 상대는 때리기만 한다",
         "인게이지 중인 유닛은 충전되지 않는다 · 만충도 그대로",
         "지팡이 사용도 술자 +1 (전투 계산기 경로 — 가정, 실측 대조 대상)",
@@ -14632,7 +20635,9 @@
         "주소 ↔ 커서 왕복, 범위 밖은 클램프",
         "attack.weapon 장비 전환을 events 경로에서도 복원한다",
         "재생 국면이 라이브 국면과 같다(phase·turn·활성화 플래그)",
-        "재생 뒤 새 진영의 유닛이 실제로 행동할 수 있다(거부되지 않는다)"
+        "재생 뒤 새 진영의 유닛이 실제로 행동할 수 있다(거부되지 않는다)",
+        "wait이 페이즈를 닫아도 새 진영의 acted가 풀린다",
+        "move가 마지막 진영에서 페이즈를 닫으면 턴이 넘어간다"
       ]
     },
     {
@@ -14754,11 +20759,11 @@
 ```json
 {
   "statusCount": {
-    "anchored": 49,
-    "implemented": 28,
-    "absent": 61,
+    "anchored": 50,
+    "implemented": 31,
+    "absent": 57,
     "deferred": 11,
-    "assumed": 19
+    "assumed": 21
   },
   "note": "☠status가 anchored가 아닌 항목은 '여기는 실기와 다를 수 있다'는 뜻이다",
   "entries": [
@@ -15093,7 +21098,7 @@
         "ko": "스킬 실행 순서(SortKey 정렬)"
       },
       "status": "absent",
-      "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §4·SEQUENCE_BREAK.md): 스킬 실행 순서 = HitSkill.SortKey(RVA 0x19B60F0)의 (Timing<<18) + (Order<<11) + 행인덱스 오름차순 · 순서가 결과를 바꾸는 곳은 순차·매회 절삭인 ダメージ/回復 계열뿐이고(威力 계열은 3레지스터 합성이라 순서 무관 — skills.act-values) 그래서 SID_チェインアタック威力軽減(Order=95) 같은 후단 보정의 자리가 이 키로 정해진다 · 엔진 미배선(Timing 11/12 훅 부재라 아직 발현 없음) · SkillData.Priority(+0x94)는 SortKey에 들어가지 않는다(용도 = skills.duplicate-priority)"
+      "evidence": "★☠산식 정정(2026-08-19 MP8 G1, _mp8/G1_port_surface.md V-2 — 이 장부가 오류의 출처였다): HitSkill.SortKey(RVA 0x19B60F0)는 **(Order << 18) + (Action << 10) + SkillData.Index**다(0x19b60f0 직접 디스어셈 = `ldr w10,[x0,#0x18]`(Action) `lsl #0xa` · `ldrsb w9,[x8,#0x9c]`(sbyte Order) `lsl #18` · `ldr w8,[x8,#0x10]`(StructBase.Index)). 최상위 키는 **Order**이고 Timing은 들어가지 않는다 — 종전 표기 (Timing<<18)+(Order<<11)+행인덱스는 **다른 물건**(SkillData.SortKey +0x288, SkillArray.Sort 0x2484130 소비)이었고, 그 식이 사실이었다면 Timing 3인 SID_追撃不可가 Timing 4인 SID_カウンター보다 먼저 와서 결론이 뒤집혔다 · ☠★**가정 철회(2026-08-19 MP8 2단계-B)** — 종전 이 장부와 skills.ts는 `makeSkillModifier`가 Order 오름차순으로 정렬한다고 적었으나 **정본에 그 경로의 정렬이 없다**: 스킬을 적용하는 `CalcActiveSkill`(0x246D7C0)은 마스크 리스트를 **삽입 순서 그대로** 돌고, Order(0x9C)를 소비하는 자리는 정렬 삽입하는 `HitSkillPool` 경로(Timing 12 HitAffect)뿐이다(_mp8/G1_giveskill_layer.md §1-1). 우리는 Timing 11/12 훅 자체가 없어 **Order를 소비하는 자리가 아예 없다** ⇒ status absent. 근거로 들던 예도 데이터가 반증한다 — SID_切り返し(Order -10)와 SID_追撃不可(Order 50)는 **둘 다 Timing 3**이고 상호작용은 정렬이 아니라 切り返し의 Condition `スキル所持(\"追撃不可\") == 0`가 건다(skills.json 실물) · ★대체 배선 = 정렬 키를 **Timing 오름차순**으로 바꿨다(같은 Timing 안은 삽입 순서 = 안정 정렬). 이유는 정본이 타이밍마다 패스를 따로 돌리는데(CalcBranch → CalcActiveSkill) `combatEnv`가 BATTLE_TIMINGS 전 구간을 한 목록으로 접기 때문이다 — Order 정렬 시절엔 같은 국면에서 접힌 층이 1, 패스를 실제로 도는 층(battleTimesOf)이 2를 내 **층이 갈려 있었다**(skills.test.ts \"Timing 정렬\" 관통 테스트가 이 일치를 박제한다) · ⚠남은 미확인 1건 = `Unit.UpdateState`(0x1A0C730)가 마스크 리스트를 Order로 재배열하는지(SkillArray.Update 0x2481130·AddImpl 0x2484780에는 정렬이 없음을 확인) — 재배열이 사실이면 삽입 순서 전제가 흔들린다 · ★제거 조건 = Timing 11/12 훅을 열 때 HitSkillPool을 (Order << 18) + (Action << 10) + Index 정렬로 세운다. 그때 `SkillData.Index`가 사영에 없어 배열 위치로 대체해야 하고(정본은 Index 1023 초과 시 Action 자리로 번지는데 그 자릿수 번짐은 재현하지 않는다) 웹 사영의 `Order` 필드(fe17.ts SKILL_ROW_FIELDS)가 그때 다시 쓰인다 · 종전 근거: 스킬 실행 순서(il2cpp/DAMAGE.md §4·SEQUENCE_BREAK.md) · 순서가 결과를 바꾸는 곳은 순차·매회 절삭인 ダメージ/回復 계열뿐이고(威力 계열은 3레지스터 합성이라 순서 무관 — skills.act-values) 그래서 SID_チェインアタック威力軽減(Order=95) 같은 후단 보정의 자리가 이 키로 정해진다 · 엔진 미배선(Timing 11/12 훅 부재라 아직 발현 없음) · SkillData.Priority(+0x94)는 SortKey에 들어가지 않는다(용도 = skills.duplicate-priority)"
     },
     {
       "id": "combat.rng-source",
@@ -15120,7 +21125,7 @@
         "ko": "예보·AI 시뮬은 결정론(난수 우회)"
       },
       "status": "anchored",
-      "evidence": "★IL2CPP 코드 확정(2026-08-17) — BattleMath는 확률 판정을 델리게이트 슬롯(s_CurrentProbability100/Hit)으로 들고, PushSimulation/PopSimulation이 _IsProbabilityTrue(ratio>0)/_IsProbabilityFalse로 스왑한다(SetSimulation RVA 0x1E8D2E0, s_Simulationed 카운터로 중첩 관리) · 호출처 2곳 = BattleInfo.CalcParam(전투 예보)·BattleCalculator.CalcSimulation(AI 시뮬, PushRandomSeed/PopRandomSeed로 RNG 상태까지 저장·복원해 실난수열을 소모하지 않음) · 시사 = 예보는 '명중률 0 초과면 명중'인 결정론 경로 · 난이도·모드별 확률 분기는 없음(바인딩 후보 4종뿐)"
+      "evidence": "★IL2CPP 코드 확정(2026-08-17) — BattleMath는 확률 판정을 델리게이트 슬롯(s_CurrentProbability100/Hit)으로 들고, PushSimulation/PopSimulation이 _IsProbabilityTrue(ratio>0)/_IsProbabilityFalse로 스왑한다(SetSimulation RVA 0x1E8D2E0, s_Simulationed 카운터로 중첩 관리) · 호출처 2곳 = BattleInfo.CalcParam(전투 예보)·BattleCalculator.CalcSimulation(AI 시뮬, PushRandomSeed/PopRandomSeed로 RNG 상태까지 저장·복원해 실난수열을 소모하지 않음) · 시사 = 예보는 '명중률 0 초과면 명중'인 결정론 경로 · 난이도·모드별 확률 분기는 없음(바인딩 후보 4종뿐) · ★적용 범위 확인(2026-08-20): 스왑되는 것은 **확률 판정뿐**이고 전투 자체는 통째로 돈다 — CalcSimulation → CalcBranch → CalcNormalBattle → CalcOrders → CalcChainAttack까지 타고 맵 예보는 그 결과 HP를 읽는다 ⇒ **예보 HP에는 체인어택 몫이 포함된다**(상세·주소 = combat.chain-attack)"
     },
     {
       "id": "combat.follow-up",
@@ -15129,7 +21134,7 @@
         "ko": "추격 판정 = calculator 공식"
       },
       "status": "anchored",
-      "evidence": "corpus.test.ts 예보 일치 · 追撃条件 원문 = 攻撃速度差 >= 5(gaps/A §2-2) · ★IL2CPP 실행부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8): CalcBattleTimesImpl(RVA 0x1E88840, 판정부 0x1E88B6C)이 CalculatorManager로 追撃条件을 평가해 手番回数 = (참 ? 2 : 1)로 대입하고 최종 min(그 값, 장비 잔여 내구)를 적용한다 — 임계 5는 코드 상수가 아니라 calculator.xml 소유(엔진 구조 정합) · ⚠단서 = 식이 읽는 攻撃速度는 BattleParam(ContinuousCommand)이라 0..999 클램프를 통과한 값이다(RATES §6) — 음수 공속이 0으로 잘리므로 초중량 무기에서 엔진과 갈린다(클램프 미배선분 = skills.act-values 잔여)"
+      "evidence": "corpus.test.ts 예보 일치 · 追撃条件 원문 = 攻撃速度差 >= 5(gaps/A §2-2) · ★IL2CPP 실행부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8): CalcBattleTimesImpl(RVA 0x1E88840, 판정부 0x1E88B6C)이 CalculatorManager로 追撃条件을 평가해 手番回数 = (참 ? 2 : 1)로 대입하고 최종 min(그 값, 장비 잔여 내구)를 적용한다 — 임계 5는 코드 상수가 아니라 calculator.xml 소유(엔진 구조 정합) · ⚠단서 = 식이 읽는 攻撃速度는 BattleParam(ContinuousCommand)이라 0..999 클램프를 통과한 값이다(RATES §6) — 음수 공속이 0으로 잘리므로 초중량 무기에서 엔진과 갈린다(클램프 미배선분 = skills.act-values 잔여) · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): 추격은 이제 독립 판정이 아니라 **手番回数 기저값**이다(combat.turn-count) — `追撃条件`이 참이면 2를 넣고 그 위에 스킬 패스가 얹힌다"
     },
     {
       "id": "combat.followup-durability-cap",
@@ -15138,7 +21143,7 @@
         "ko": "추격의 잔여 내구 상한"
       },
       "status": "absent",
-      "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8·§3): CalcBattleTimesImpl 최종 단계가 min(追撃条件 ? 2 : 1, UnitItem.Endurance)를 취한다(RVA 0x1E88BBC) — **잔여 내구 1이면 공속차가 5 이상이어도 추격이 없다** · 엔진은 내구 개념이 없어 미발현(선행 = 무기 내구 모델)"
+      "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-8·§3): CalcBattleTimesImpl 최종 단계가 min(追撃条件 ? 2 : 1, UnitItem.Endurance)를 취한다(RVA 0x1E88BBC) — **잔여 내구 1이면 공속차가 5 이상이어도 추격이 없다** · 엔진은 내구 개념이 없어 미발현(선행 = 무기 내구 모델) · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): 오더 큐 배선 때 재확인 — `BattleWeapon`(packages/shared/src/battle.ts)에 내구 필드가 없다(`uses`는 StaffItem·ConsumableItem 전용) ⇒ **추측으로 채우지 않고 그 항을 뺐다**. ★제거 조건 = 무기 내구 모델이 서면 formula/combat.ts `baseBattleTimes` 반환에 `Math.min(base, 잔여 내구)`를 넣는다(코드 주석에도 같은 문구)"
     },
     {
       "id": "combat.counter-range-gate",
@@ -15156,7 +21161,7 @@
         "ko": "割込み(가로채기) 오더 — 브레이크 시 추격"
       },
       "status": "absent",
-      "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-12·RATES_FORMULA.md §6): 유일 주체 = SID_ブレイク時追撃(SkillData Flag InterruptOrder, Timing=13 AttackEnd, Condition 攻撃結果(ブレイク)) — CalcInterruptOrder(RVA 0x24700B0)가 手番回数를 +1 한 뒤 CalcOrder 1회를 추가 실행한다(0x2470190) · 위력식은 통상과 동일 = SimplePowerParam.Calculate(0x19B7DC8)가 Status.Interrupting 게이트로 割込み威力計算을 고르는데 그 식이 威力計算과 같다 ⇒ gaps/A §7-4 '割込み 주체 불명' 해소, **결손은 수치가 아니라 순서 층뿐**(선행 = 오더 큐 재작성)"
+      "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-12·RATES_FORMULA.md §6): 유일 주체 = SID_ブレイク時追撃(SkillData Flag InterruptOrder, Timing=13 AttackEnd, Condition 攻撃結果(ブレイク)) — CalcInterruptOrder(RVA 0x24700B0)가 手番回数를 +1 한 뒤 CalcOrder 1회를 추가 실행한다(0x2470190) · 위력식은 통상과 동일 = SimplePowerParam.Calculate(0x19B7DC8)가 Status.Interrupting 게이트로 割込み威力計算을 고르는데 그 식이 威力計算과 같다 ⇒ gaps/A §7-4 '割込み 주체 불명' 해소, **결손은 수치가 아니라 순서 층뿐**(선행 = 오더 큐 재작성) · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): 오더 큐가 섰으므로 선행 조건은 해소됐다 — 남은 것은 Timing 13 훅과 시퀀스 **중간 삽입**(기존 롤 짝이 어긋난다 = 별건 커밋)"
     },
     {
       "id": "combat.chain-attack-accuracy",
@@ -15192,7 +21197,7 @@
         "ko": "타격 횟수(攻撃回数 2 이상)"
       },
       "status": "absent",
-      "evidence": "攻撃回数 = 1턴당 타격 수 · SID_助太刀/半身_竜族 = 2 · 엔게이지 기술 4~9(gaps/A §0-2) — 엔진은 1 고정 · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-5): 攻撃回数 = BattleDetail.AttackCount(BaseParams[2])이고 CalcAction(RVA 0x2470D60)이 1..AttackCount 회 CalcAttack을 반복한다(그 위 계층이 行動回数만큼 CalcAction 반복) · 훅 = AttackCountCommand·ActionCountCommand(skills.flow-hooks) = 어휘 결손이 아니라 전투 해결층 상태 결손"
+      "evidence": "攻撃回数 = 1턴당 타격 수 · SID_助太刀/半身_竜族 = 2 · 엔게이지 기술 4~9(gaps/A §0-2) — 엔진은 1 고정 · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-5): 攻撃回数 = BattleDetail.AttackCount(BaseParams[2])이고 CalcAction(RVA 0x2470D60)이 1..AttackCount 회 CalcAttack을 반복한다(그 위 계층이 行動回数만큼 CalcAction 반복) · 훅 = AttackCountCommand·ActionCountCommand(skills.flow-hooks) = 어휘 결손이 아니라 전투 해결층 상태 결손 · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): 오더 큐가 서면서 **오더 안의 행동·타격 루프 자리**가 생겼다(현행은 오더당 1타 고정) — 인게이지 충전도 그때 CalcAction 상당 위치로 옮겨야 한다"
     },
     {
       "id": "combat.turn-count",
@@ -15200,8 +21205,8 @@
         "en": "Engagement turn count model",
         "ko": "手番回数(교전 턴 수) 모델"
       },
-      "status": "absent",
-      "evidence": "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약 · 3회차 재확인: skill.xml SID_切り返し가 Condition=手番回数==1 게이트 하에 手番回数=2를 직접 대입 — 추격이 手番回数 스칼라 대입으로 구현됨을 실물로 확인(gaps/N §3-4, 제안 id combat.followup-representation 병합) · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-4·2-8): 手番回数 = BattleInfoSide.BattleTimes(+0xB0), 상한 4 — CalcOrders(side)(RVA 0x246FA50, 게이트 0x246FAEC)가 min(BattleTimes,4) <= TotalOrder로 실행을 끊는다. 추격 = 2 · 브레이크 = 0 · 割込み = +1 · 카운터 증가 지점은 SeparatorScope.Dispose(RVA 0x19B6E60)"
+      "status": "implemented",
+      "evidence": "手番回数 = 측당 교전 턴 수(0=반격 없음·2=추격) · SID_追撃不可 = min(手番回数,1)(gaps/A §0-2) — 엔진은 boolean followUp 축약 · 3회차 재확인: skill.xml SID_切り返し가 Condition=手番回数==1 게이트 하에 手番回数=2를 직접 대입 — 추격이 手番回数 스칼라 대입으로 구현됨을 실물로 확인(gaps/N §3-4, 제안 id combat.followup-representation 병합) · ★IL2CPP 실체 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-4·2-8): 手番回数 = BattleInfoSide.BattleTimes(+0xB0), 상한 4 — CalcOrders(side)(RVA 0x246FA50, 게이트 0x246FAEC)가 min(BattleTimes,4) <= TotalOrder로 실행을 끊는다. 추격 = 2 · 브레이크 = 0 · 割込み = +1 · 카운터 증가 지점은 SeparatorScope.Dispose(RVA 0x19B6E60) · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): boolean followUp 축약을 스칼라로 승격했다 — `SideForecast.battleTimes`(이름까지 바꾼 이유 = `if (f.followUp)`가 값 1에서도 참이라 조용히 통과한다) · 산출 = 기저(追撃条件 ? 2 : 1) → Timing 3 → 4 → 5 패스(양측 교대) · 실행 = battle.ts가 8슬롯 교대 큐를 돌며 `min(手番回数,4) > 그 측 総手番回数`면 실행하고 **끝난 뒤** 総手番回数를 +1 · 오더 인덱스 → StrikeKind 사상(0·1은 옛 이름 그대로, 2 이상 = extra·counterExtra)이라 手番回数 <= 2인 판의 기보는 불변 · 미배선 잔여 = 잔여 내구 캡(combat.followup-durability-cap)·割込み(combat.interrupt-order)·순서 변경 플래그(combat.order-flow-skills) · ☠★**`SideForecast.battleTimes`는 '실제로 몇 번 치는가'가 아니다**(2026-08-19 2단계-B 명시): 정본 `CalcBattleTimesImpl`(0x1E888E0~0x1E88AE0)은 장비 무기 없음·杖 장비(Status.Rod)·사거리 불충족(UnitUtil.IsAttackRange)·Flags.IgnoreRevenge·EngageCharge·Stun 계열에서 手番回数를 **0**으로 떨어뜨리는데 우리 `baseBattleTimes`는 `追撃条件 ? 2 : 1`이라 **항상 1 이상**이다. 실행 결과가 지금 같은 이유는 리듀서의 반격 게이트(canCounter)가 슬롯을 대신 닫기 때문이지 이 값이 맞아서가 아니다 ⇒ 이 수를 그대로 곱해 잔여 HP를 그리면 과대다. 실제 타격은 `battlePlan().orders`가 소유한다 · ★제거 조건 = 그 게이트들을 `baseBattleTimes` 안으로 옮겨(반격 게이트와 한 자리로) 0을 돌려주게 되면 코드 주석과 이 문단을 함께 지운다(게이트 전수 = combat.counter-range-gate)"
     },
     {
       "id": "combat.order-flow-skills",
@@ -15210,7 +21215,7 @@
         "ko": "순서 변경 흐름 스킬(待ち伏せ 등)"
       },
       "status": "absent",
-      "evidence": "SID_待ち伏せ(HP<=25%)·SID_攻め立て(総手番回数==0) = ActNames 없는 흐름 스킬 — 실행부 소유(gaps/A §0-2) · ★IL2CPP 기전 3종 전부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-13): 待ち伏せ/攻め立て = SkillData.Flags.SwapOrder → CalcOrders가 다음 두 오더 슬롯을 스왑(0x246BD18) · スマッシュ = Flags.ForceLateOrder → CalcNormalBattle이 오더 큐를 1,1,1,1,0,0,0,0으로 구성(0x246B914, IsLateOrder RVA 0x246BA50) · SID_ブレイク時追撃 = Flags.InterruptOrder(별건 = combat.interrupt-order) · ⇒ 순서 변경은 전부 **오더 큐 재배치**이지 개별 타격 삽입이 아니다 = 엔진의 고정 5단 축약으로는 표현 불가(오더 큐 재작성 선행)"
+      "evidence": "SID_待ち伏せ(HP<=25%)·SID_攻め立て(総手番回数==0) = ActNames 없는 흐름 스킬 — 실행부 소유(gaps/A §0-2) · ★IL2CPP 기전 3종 전부 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-13): 待ち伏せ/攻め立て = SkillData.Flags.SwapOrder → CalcOrders가 다음 두 오더 슬롯을 스왑(0x246BD18) · スマッシュ = Flags.ForceLateOrder → CalcNormalBattle이 오더 큐를 1,1,1,1,0,0,0,0으로 구성(0x246B914, IsLateOrder RVA 0x246BA50) · SID_ブレイク時追撃 = Flags.InterruptOrder(별건 = combat.interrupt-order) · ⇒ 순서 변경은 전부 **오더 큐 재배치**이지 개별 타격 삽입이 아니다 = 엔진의 고정 5단 축약으로는 표현 불가(오더 큐 재작성 선행) · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): **선행 해소** — 8슬롯 교대 큐가 섰다(battle.ts). 남은 것은 SwapOrder·ForceLateOrder 플래그 소비뿐이고, 둘 다 기존 롤의 짝을 어긋내므로 별건 커밋이어야 한다"
     },
     {
       "id": "combat.advantage",
@@ -15237,7 +21242,7 @@
         "ko": "브레이크: 상성 유리+명중 = 반격 몰수"
       },
       "status": "implemented",
-      "evidence": "battle.test.ts · ★IL2CPP 조건 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-6): CalcAttack(0x2471840~) 안에서 **매 타격마다** 평가 — 명중 + 확정 대미지 1 이상 + current.SideType==Offense + reverse.SideType==Defense + CanBreakable(RVA 0x1E89CC8, 상성표) + 미브레이크. 효과의 실체는 '반격 불가'가 아니라 SID_気絶(States.Stun) 부여 → CalcBattleTimesImpl이 手番回数 0을 반환하는 것(combat.break-recovery) · ☠엔진 미배선 2건 = (a) 브레이크 판정을 kind==='attack'으로 한정해 **추격 타격에서 성립하지 않는다**(코드는 몇 번째 手番인지 보지 않는다 — 본공격 빗나가고 추격이 명중해도 브레이크) (b) 페이즈 종료 해제가 nextForce 유닛에만 걸린다(3군 맵 과대) — 둘 다 SEQUENCE_BREAK §4 F2·F3"
+      "evidence": "battle.test.ts · ★IL2CPP 조건 확정(5.0.0, 2026-08-17, il2cpp/SEQUENCE_BREAK.md §2-6): CalcAttack(0x2471840~) 안에서 **매 타격마다** 평가 — 명중 + 확정 대미지 1 이상 + current.SideType==Offense + reverse.SideType==Defense + CanBreakable(RVA 0x1E89CC8, 상성표) + 미브레이크. 효과의 실체는 '반격 불가'가 아니라 SID_気絶(States.Stun) 부여 → CalcBattleTimesImpl이 手番回数 0을 반환하는 것(combat.break-recovery) · ☠엔진 미배선 2건 = (a) 브레이크 판정을 kind==='attack'으로 한정해 **추격 타격에서 성립하지 않는다** (b) 페이즈 종료 해제가 nextForce 유닛에만 걸린다(3군 맵 과대) — 둘 다 SEQUENCE_BREAK §4 F2·F3 · ★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_battletimes_order.md·G1_giveskill_layer.md)): **(a) 해소** — 오더 큐 배선과 함께 kind 한정을 걷어내고 개시측 여부(`from === attacker`)로만 판정한다(체인은 ChainOffense 사이드라 자동 제외). ☠판정이 바뀌는 변경이다 = 본공격이 빗나가고 추격이 명중한 국면에서 이제 브레이크가 선다(battle.test.ts 박제) · (b)는 그대로 결손"
     },
     {
       "id": "combat.break-immunity",
@@ -15264,7 +21269,7 @@
         "ko": "체인어택(연계 스타일·사거리 내 협공)"
       },
       "status": "anchored",
-      "evidence": "수치 = calculator · battle.test.ts · ★IL2CPP 코드로 가정 2건 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §3·SEQUENCE_BREAK.md §2-10): 위력 = 통상 파이프라인을 타되 13단계 식만 max(相手のMaxHP*0.1, 1)로 바뀌고(SimplePowerParam.Calculate 0x19B7D88, Status.ChainAttack 분기) Clamp(0,999) 뒤 fcvtzs로 절사 = **floor 가정이 옳았다**(하한 0 클램프라 trunc=floor) · 순서 = 오더 큐 실행 직전 1회이고 전투당 1회(BattleInfo.Flags.ChainAttacked) — 엔진 정정 완료 · 명중 80 고정·필살 0 고정이라 필살 3배는 발생하지 않는다 · ⚠미확정 = 참가 자격의 정본(ForceChainAttack/JoinChainAttack 반영은 BattleInfo 구성 단계 소유) — 엔진은 '연계 스타일 + 자기 무기 사거리'로 근사"
+      "evidence": "수치 = calculator · battle.test.ts · ★IL2CPP 코드로 가정 2건 종결(5.0.0, 2026-08-17, il2cpp/DAMAGE.md §3·SEQUENCE_BREAK.md §2-10): 위력 = 통상 파이프라인을 타되 13단계 식만 max(相手のMaxHP*0.1, 1)로 바뀌고(SimplePowerParam.Calculate 0x19B7D88, Status.ChainAttack 분기) Clamp(0,999) 뒤 fcvtzs로 절사 = **floor 가정이 옳았다**(하한 0 클램프라 trunc=floor) · 순서 = 오더 큐 실행 직전 1회이고 전투당 1회(BattleInfo.Flags.ChainAttacked) — 엔진 정정 완료 · 명중 80 고정·필살 0 고정이라 필살 3배는 발생하지 않는다 · ⚠미확정 = 참가 자격의 정본(ForceChainAttack/JoinChainAttack 반영은 BattleInfo 구성 단계 소유) — 엔진은 '연계 스타일 + 자기 무기 사거리'로 근사 · ★**예보도 체인을 뺀다는 말은 틀렸다**(2026-08-20 IL2CPP 호출 사슬 전건 직접 확인): 맵 예보 `MapUIGauge.CalcBattleInfoForNormal`(0x2025920)이 `BattleInfo.CalcSimple` 뒤 `BattleCalculator.CalcSimulation`(0x246D610)을 부르고 그 결과 `BattleInfoSide.NowHp`(get_NowHp 0x1E8B360, 방어측 index 1)를 읽는다. CalcSimulation이 거는 것은 `PushRandomSeed` + `PushSimulation`(확률 델리게이트를 명중=참·필살=거짓으로 스왑 — combat.forecast-determinism)뿐이고, 그 안에서 `CalcBranch`(0x24697E0) → `CalcNormalBattle`(0x246B580) → `CalcOrders`(0x246BC30) → `CalcChainAttack`(0x246F690)까지 **전투를 통째로 돌린다** ⇒ 인게임 예보 HP에는 체인 몫이 이미 들어 있다 · 엔진 배선(2026-08-20) = 예보 패널·재생 예보가 `chainNumbers`로 체인 몫을 얹고 `체인 xN -D` 태그를 띄운다(실측 = m003 step131 `체인 x1 -2`, HP 23 → 12 · 기보 attack 스텝 138 중 예보 가정(전탄 명중·무필살) 안 117건의 잔여 HP 불일치가 8 → 0) · ☠종전 `formula/combat.ts` battlePlan 주석의 *\"체인은 난수에 의존해 순수하지 않다\"*는 사실이 아니어서 철회했다 — 경계는 순수성이 아니라 **입력**(주변 유닛 목록)이다"
     },
     {
       "id": "combat.chain-guard",
@@ -15683,11 +21688,11 @@
     {
       "id": "skills.timing-filter",
       "label": {
-        "en": "Skill activation filters (Stand/Action/Timing/Order)",
-        "ko": "스킬 발동 필터(Stand/Action/Timing/Order) 준수"
+        "en": "Skill activation filters (Stand/Action/Timing)",
+        "ko": "스킬 발동 필터(Stand/Action/Timing) 준수"
       },
       "status": "anchored",
-      "evidence": "★IL2CPP 코드 확정(2026-08-17) — BattleInfoSide.IsEnableSkill이 네 필드를 전부 게이트로 소비한다. Stand(0x78, Stands: None0/Offence1/Defence2)는 m_SideType(BattleSide.Type: Offense0/Defense1)과 대조 = **전투 주도권**(0x1E8CDFC~0x1E8CE24, Stand!=None이면 상대 실재도 추가 확인, ChainOffense2~7은 Offence 판정에서 탈락) · Action(0x7c)은 CalcActiveSkill이 때리는 쪽에 1·맞는 쪽에 2를 넘겨 대조 = **이번 타격의 역할**(0x2469FC0~) · Timing은 파이프라인 단계 셀렉터(27종 열거, HitBefore=10은 CalcAttack이 타격마다 연다) · Order는 HitSkill.SortKey(0x19B60F0)의 정렬 키 · 평가 순서 = Flag → Timing → Action → Stand → Target → Condition/Cycle. ☠앞선 '실기로 Stand 게이트 기각' 판정은 **오독이었고 철회한다** — 그 실측(선공 예보 vs 피격 예보 적 명중 동일)은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 간파 코퍼스도 동일 구조). 엔진 배선 = skills.ts passesFilter + Combatant.initiator/striking, battle.ts가 전투 주도권 고정·타격 역할 반전으로 주입 · ☠사영 결손 정정(2026-08-17 4c): 웹 슬림 사영(fe17.ts slimSkill)이 Stand·Action·Power를 떨어뜨려 웹 경로에선 필터·재이동 거리가 무장전이었다(현행 변환 맵 전수 무발현 확인 = 잠복) — SKILL_ROW_FIELDS 편입으로 해소 · 미확정 = Timing=Always류가 이 게이트를 우회하는 별도 경로(SkillArray 비트마스크) 유무 · 상세 = extracted/il2cpp/STATUS_FILTER.md"
+      "evidence": "★IL2CPP 코드 확정(2026-08-17) — BattleInfoSide.IsEnableSkill이 네 필드를 전부 게이트로 소비한다. Stand(0x78, Stands: None0/Offence1/Defence2)는 m_SideType(BattleSide.Type: Offense0/Defense1)과 대조 = **전투 주도권**(0x1E8CDFC~0x1E8CE24, Stand!=None이면 상대 실재도 추가 확인, ChainOffense2~7은 Offence 판정에서 탈락) · Action(0x7c)은 CalcActiveSkill이 때리는 쪽에 1·맞는 쪽에 2를 넘겨 대조 = **이번 타격의 역할**(0x2469FC0~) · Timing은 파이프라인 단계 셀렉터(27종 열거, HitBefore=10은 CalcAttack이 타격마다 연다) · ☠Order(0x9C)는 이 게이트의 축이 아니다 — `HitSkill.SortKey`(0x19B60F0)의 정렬 키이고 그 정렬은 다른 경로가 쓴다(아래 미소비 항) · 평가 순서 = Flag → Timing → Action → Stand → Target → Condition/Cycle. ☠앞선 '실기로 Stand 게이트 기각' 판정은 **오독이었고 철회한다** — 그 실측(선공 예보 vs 피격 예보 적 명중 동일)은 같은 전투의 공격행·반격행이라 Stand가 양쪽 다 참이었다(M003 간파 코퍼스도 동일 구조). 엔진 배선 = skills.ts passesFilter + Combatant.initiator/striking, battle.ts가 전투 주도권 고정·타격 역할 반전으로 주입 · ☠사영 결손 정정(2026-08-17 4c): 웹 슬림 사영(fe17.ts slimSkill)이 Stand·Action·Power를 떨어뜨려 웹 경로에선 필터·재이동 거리가 무장전이었다(현행 변환 맵 전수 무발현 확인 = 잠복) — SKILL_ROW_FIELDS 편입으로 해소 · 미확정 = Timing=Always류가 이 게이트를 우회하는 별도 경로(SkillArray 비트마스크) 유무 · 상세 = extracted/il2cpp/STATUS_FILTER.md · ★Timing 1차 배선(2026-08-19 MP8 G1 — ☠종전 이 문구는 'Timing·Order 1차 배선'이었으나 Order는 안 걸었다): passesFilter에 `BattleRole.timings`(미지정 = 무검사 = 기존 호출부 현행 동작)를 열고 combatEnv만 BATTLE_TIMINGS(1 Always·2~16 BattleBefore~BattleEnd)를 건다 — 전투 밖 층(0 None·17~18·24~27)이 전투 계산에 섞이는 것을 막는다 · ☠★**Order는 이 경로에서 미소비다 — 가정 철회**(2026-08-19 MP8 2단계-B, 별건 `combat.skill-sort-key` status absent): 종전 이 항목은 *'Order는 makeSkillModifier 정렬로'*라 적었으나 정본 `CalcActiveSkill`(0x246D7C0)은 마스크 리스트를 **삽입 순서 그대로** 돌고 Order를 읽는 자리는 `HitSkillPool`(Timing 12 HitAffect)뿐인데 우리는 그 훅 자체가 없다. 엔진의 실제 정렬 키는 **Timing 오름차순**이다(`packages/engine/src/skills.ts:284` — 같은 Timing 안은 삽입 순서). 해제 조건 = Timing 11/12 훅을 열어 HitSkillPool을 세울 때 · ☠단계 셀렉터로서의 Timing(어느 훅이 어느 단계에 열리는가)은 여전히 미배선 = 구간 게이트일 뿐이다"
     },
     {
       "id": "skills.opponent-act",
@@ -15695,8 +21700,8 @@
         "en": "Opponent-side value modifiers",
         "ko": "상대측 계산값 보정(相手の~ ActName)"
       },
-      "status": "absent",
-      "evidence": "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건 · ★IL2CPP로 배선 방법까지 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-5·§4): 相手の는 특수 규칙이 아니라 **훅의 이중 등록**이다 — GameCalculator.AddCommandWithReverse<T>가 훅 121종 전부를 정방향/Reverse 두 벌로 등록하고 Reverse()(RVA 0x22791B0)가 m_Index=1·Header='相手の'만 세운다. Get/Set/Add/Scale(RVA 0x2278AD0·0x2278C20·0x2279010·0x2279160)이 그 인덱스로 obj1/obj2 대상만 스왑한다 ⇒ **부호 반전이 아님이 코드로 확정**(문자 그대로 해석 지지가 방증에서 확정으로) · 배선 = 접두 제거 + 대상측 전환 1줄, 선행 없음 · ★부분 배선(2026-08-17 4c): 인게이지 기술의 相手のダメージ 대입 경로만(makeSkillModifier 자기참조 오버레이 — 相手の~ 이름은 상대 env 쪽에 현재값을 노출) — 일반 전투의 훅 이중 등록은 여전히 미배선"
+      "status": "assumed",
+      "evidence": "14종 — 자기 modify 훅에 영원히 미매칭(skills.ts makeSkillModifier가 ActNames 정확 일치 비교, gaps/G) · 시점 기준 방증 = 독 실측(보유자 관점 '상대' 위력 +1이 문자 그대로 적용, 2026-08-17) — gaps/A §7-1 부호 문제에 문자 그대로 해석 지지 1건 · 3회차 덤프 논증으로 보강(gaps/B §7 [3회차 2026-08-17]): Action=2 코호트 52행 전수가 피격측이고 개발자 명명이 효과를 말하는 アイクエンゲージスキル_ダメージ50%減(받는 대미지 50% 감소)이 '相手の威力*0.5'로 구현 → 相手の~ = 보유자가 받는 값, 반전 아님 · 보강: SID_祈り(Action=2) 조건식 'HP <= ダメージ'가 같은 문맥의 ダメージ = 보유자가 받는 대미지임을 증언 · 코호트 전수 검사는 engine/tests/statusPoison.test.ts가 실행으로 고정(어휘 밖 ActName 등장 시 레드) · 이 훅이 combat.status-effects(독) 배선의 선행 조건 · ★IL2CPP로 배선 방법까지 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §2-5·§4): 相手の는 특수 규칙이 아니라 **훅의 이중 등록**이다 — GameCalculator.AddCommandWithReverse<T>가 훅 121종 전부를 정방향/Reverse 두 벌로 등록하고 Reverse()(RVA 0x22791B0)가 m_Index=1·Header='相手の'만 세운다. Get/Set/Add/Scale(RVA 0x2278AD0·0x2278C20·0x2279010·0x2279160)이 그 인덱스로 obj1/obj2 대상만 스왑한다 ⇒ **부호 반전이 아님이 코드로 확정**(문자 그대로 해석 지지가 방증에서 확정으로) · 배선 = 접두 제거 + 대상측 전환 1줄, 선행 없음 · ★부분 배선(2026-08-17 4c): 인게이지 기술의 相手のダメージ 대입 경로만(makeSkillModifier 자기참조 오버레이 — 相手の~ 이름은 상대 env 쪽에 현재값을 노출) — 일반 전투의 훅 이중 등록은 **배선 완료**(2026-08-19 MP8 G1): combatEnv가 상대 스킬을 `CrossSkills`로 같은 합성에 넘기고 makeSkillModifier가 ActName `相手の`+값이름 행만 소환한다(skills.test.ts \"교차측 소환\") · ☠**상대의 자기 이름 행은 넣지 않는다** — 그쪽은 이미 opponent env 경유로 공식 유도값에 도달하므로(SID_金剛の構え 守備+6 → 威力 11 → 5 실측) 다시 넣으면 이중 적용이다 · 회수 = 기보 m001~m004에 실린 SID_神竜の結束_被ダメ軽減(相手の威力 -1)이 발현 시작 · ⚠잔여 = 조건식이 공식 유도값(ダメージ·攻撃速度 등)을 못 본다(condEnv가 계산기를 거치지 않는 순정 env다)"
     },
     {
       "id": "skills.raw-stat-act",
@@ -15704,8 +21709,8 @@
         "en": "Raw-stat ActNames bypass hooks",
         "ko": "원시 스탯 ActName(힘·마력 등 직접 보정)"
       },
-      "status": "absent",
-      "evidence": "11종 — vars 즉시 반환 경로라 훅 미도달(gaps/G) · ★IL2CPP로 층 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 훅은 실재하되(UnitCalculator의 Str/Magic/Tech/Quick/Luuk/Def/Mdef/Phys Command) **BattleParam 층이 아니다** — 원시 스탯은 BattleDetail.Capability(int)에 대한 즉시 read-modify-write(GameCalculatorCommand.Add/ScaleImpl 기본구현 RVA 0x2278840·0x2278900 = SetImpl(GetImpl ± * v))라 **순서 의존이고 3레지스터 누산기가 아니다** · ⇒ 배선 시 skills.act-values의 (base+add)*scale 규칙과 **분리 필수**(같은 규칙을 적용하면 반대로 틀린다)"
+      "status": "assumed",
+      "evidence": "11종 — vars 즉시 반환 경로라 훅 미도달(gaps/G) · ★IL2CPP로 층 정정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 훅은 실재하되(UnitCalculator의 Str/Magic/Tech/Quick/Luuk/Def/Mdef/Phys Command) **BattleParam 층이 아니다** — 원시 스탯은 BattleDetail.Capability(int)에 대한 즉시 read-modify-write(GameCalculatorCommand.Add/ScaleImpl 기본구현 RVA 0x2278840·0x2278900 = SetImpl(GetImpl ± * v))라 **순서 의존이고 3레지스터 누산기가 아니다** · ⇒ 배선 시 skills.act-values의 (base+add)*scale 규칙과 **분리 필수**(같은 규칙을 적용하면 반대로 틀린다) · ★배선 완료(2026-08-19 MP8 G1): combatEnv의 반환 env가 `lookup`에서 numeric vars에 modify를 걸어 훅을 연결한다 — 보정자 자신의 env는 훅 없는 순정(baseEnv)이라 재귀하지 않고, PARAM_LIMIT 밖이라 즉시 경로(순차·클램프 없음)가 그대로 적용된다(skills.test.ts \"원시 스탯 보정\" — SID_鉄壁 守備 4 → 5.2) · ☠동반 게이트 = BattleRole.timings(BATTLE_TIMINGS 1~16). 이것 없이 HP를 열면 SID_回復(Timing 0 `HP < MaxHP` → +5)·SID_命玉の加護(Timing 25)가 예보마다 발동해 결손보다 나쁜 과대적용이 된다 · ⚠미배선 = `攻撃属性`(심볼 대입 SID_攻撃属性弱点変化)은 숫자가 아니라 훅을 안 탄다"
     },
     {
       "id": "skills.sync-sids",
@@ -15723,16 +21728,25 @@
         "ko": "미지 조건 식별자 = 미적용 강하"
       },
       "status": "assumed",
-      "evidence": "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter · ★2026-08-17 IL2CPP 대조 후 **의도적 유지**(il2cpp/SKILL_ENGINE §5-2): 게임은 미지 식별자를 0으로 치환해 식을 계속 평가하고(CalculatorManager.GetValueImpl 0x298F760) Condition 부재는 참이다(0x248E2E0). 그러나 **게임에는 미지 식별자가 없다**(165종 전부 구현) — 그 0 치환은 '없는 변수'용 안전망이지 '어휘 결손'용이 아니다. 우리 결손에 0을 넣으면 `武器の種類 == 剣`이 `0==0`으로 참이 되어 **과대 발동**한다. 결손이 남아 있는 동안은 과소(미적용)가 안전하므로 현행 유지하고, 어휘를 채울 때마다 이 강하가 자연 소멸하게 둔다 · Condition 부재 = 참은 현행도 동일"
+      "evidence": "미지 함수·식별자 모두 미적용 강하 통일(skills.test.ts — gaps/FIX_NOTES F5) · Condition 식별자 실측 165종(래치 파생 69 제외 실결손 12계열)·미지 함수 신규 2(comp·アイテム)(gaps/I) · 발동 필터 축은 별건 = skills.timing-filter · ★2026-08-17 IL2CPP 대조 후 **의도적 유지**(il2cpp/SKILL_ENGINE §5-2): 게임은 미지 식별자를 0으로 치환해 식을 계속 평가하고(CalculatorManager.GetValueImpl 0x298F760) Condition 부재는 참이다(0x248E2E0). 그러나 **게임에는 미지 식별자가 없다**(165종 전부 구현) — 그 0 치환은 '없는 변수'용 안전망이지 '어휘 결손'용이 아니다. 우리 결손에 0을 넣으면 `武器の種類 == 剣`이 `0==0`으로 참이 되어 **과대 발동**한다. 결손이 남아 있는 동안은 과소(미적용)가 안전하므로 현행 유지하고, 어휘를 채울 때마다 이 강하가 자연 소멸하게 둔다 · Condition 부재 = 참은 현행도 동일 · ★어휘 1차 충전 실측(2026-08-19 MP8 G1, 배선 전/후 프로브): Condition 보유 416행 중 평가 성공이 **46 → 182**(흐름 문맥 주입 시 215)로, 던지던 370행이 234행(문맥 주입 201행)으로 줄었다. 채운 것 = 手番回数·総手番回数·武器の種類·スキル所持()/相手のスキル所持() · 남은 상위 미지 = 生存 46(전부 Timing 18 = 전투 후 층, 지금 열면 과대적용) · ダメージ 28 · 回復 9 · 立場 7 · 杖の種類 5 · スキル確率 26(난수 주입 선행)"
+    },
+    {
+      "id": "skills.give-sids-battle-local",
+      "label": {
+        "en": "Battle-local granted skills (Cycle 0)",
+        "ko": "전투 로컬 부여(Cycle 0 — 신속 사슬)"
+      },
+      "status": "implemented",
+      "evidence": "★2단계 배선(2026-08-19 MP8 G1, _mp8/G1_giveskill_layer.md)): Cycle 한 필드가 수명을 가른다 — `AddGiveScene`(RVA 0x246E0C0)이 **Cycle == 0에서만** 대상 사이드의 `m_MaskSkill`(전투 사본)에 직접 Add하고(씬 Kind 5 GiveDirect), Cycle != 0이면 씬에만 적어 뒀다가 `CommitSkill`(0x2478070) → `Unit.AddGiveSkill`이 전투 **후** 유닛에 영속화한다(별건 = skills.give-sids) · 부여 시점 = 그 스킬이 자기 Timing에서 조건을 만족한 직후(패스 끝이 아니다 — CalcActiveSkill 0x246D7C0이 스킬마다 AddGivesScene을 부른다)라 **같은 전투의 뒤 Timing이 방금 붙은 행을 본다**(신속이 성립하는 기구 = Timing 4에서 붙인 `SID_カウンター_ダメージ５０％`를 Timing 6이 본다) · 엔진 배선 = skills.ts `resolveGives`(Cycle 0 필터) + battle.ts 전투 로컬 사이드(리듀서 지역 객체 = 수명으로 스코프를 강제, 유닛 상태로 새는 경로가 코드에 없다) + `スキル所持()`가 그 로컬 집합을 본다 · 사영은 `GiveSids`(문자열)를 `Gives`(행)로 해소해 실어 보낸다(fe17.ts slimSkill — 엔진에 스킬 표가 없어 안 실으면 조용히 무발현) · ☠미배선 = GiveTarget 2 Chain(데이터 6행, 전부 Timing 5 — 체인 참가자를 전투 사이드로 모델링해야 받을 그릇이 생긴다) · GiveCondition(+0x2B8, 데이터 2행) · FindIgnoreSkill 면역 게이트(0x246DE90)"
     },
     {
       "id": "skills.give-sids",
       "label": {
-        "en": "Granted skills (GiveSids)",
-        "ko": "스킬 부여 체계(GiveSids — 몰아붙이기 등)"
+        "en": "Granted skills persisting after battle (GiveSids)",
+        "ko": "전투 후 영속 부여(GiveSids — Cycle != 0)"
       },
       "status": "deferred",
-      "evidence": "정식화 완료 — 186행·3단 구조(부여자→효과→発動済み 래치)·GiveTarget 0~4·Life/Cycle(gaps/C §1) · 구현은 부여층 선행(§0 미룸) · ★IL2CPP 경로·수명 전량 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 경로 = MapSkill.TryAddGiveSkill(RVA 0x1F50A20, GiveTarget +0xB0 대조) → Unit.AddGiveSkill(RVA 0x1A5D430/0x1A5D4E0) → Unit.AddPrivateSkill(RVA 0x1A37990) → m_PrivateSkill(+0x100) · 수명 = UpdateAgingImpl(RVA 0x2487F60)이 해당 Cycle 도래마다 age+1 하고 Life > age+1이면 존속, 아니면 RebirthSkill(+0x250) 교체 또는 RemoveAt(0x24882A8) · Life는 Cycle이 PhaseBefore/PhaseAfter면 3배(OnBuild 0x248AB64, PhaseCycle=3) · ☠잔여 = GiveTarget 5값별 대상 선정 호출부"
+      "evidence": "전투 로컬(Cycle 0) 경로는 분리 등재 = skills.give-sids-battle-local(2026-08-19 배선 완료) — 여기 남은 것은 **Cycle != 0 영속층**이다 · 정식화 완료 — 186행·3단 구조(부여자→효과→発動済み 래치)·GiveTarget 0~4·Life/Cycle(gaps/C §1) · 구현은 부여층 선행(§0 미룸) · ★IL2CPP 경로·수명 전량 확정(5.0.0, 2026-08-17, il2cpp/SKILL_ENGINE.md §4): 경로 = MapSkill.TryAddGiveSkill(RVA 0x1F50A20, GiveTarget +0xB0 대조) → Unit.AddGiveSkill(RVA 0x1A5D430/0x1A5D4E0) → Unit.AddPrivateSkill(RVA 0x1A37990) → m_PrivateSkill(+0x100) · 수명 = UpdateAgingImpl(RVA 0x2487F60)이 해당 Cycle 도래마다 age+1 하고 Life > age+1이면 존속, 아니면 RebirthSkill(+0x250) 교체 또는 RemoveAt(0x24882A8) · Life는 Cycle이 PhaseBefore/PhaseAfter면 3배(OnBuild 0x248AB64, PhaseCycle=3) · ☠잔여 = GiveTarget 5값별 대상 선정 호출부"
     },
     {
       "id": "skills.aura-give",
@@ -15749,8 +21763,8 @@
         "en": "Style-variant skill branches",
         "ko": "스타일 분기 스킬(병종별 변형)"
       },
-      "status": "absent",
-      "evidence": "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5) · ★IL2CPP 범위 확장(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6·SKILL_ENGINE.md §2-8): 인게이지 기술도 같은 경로를 탄다 — GetEngageAttack(RVA 0x2341640)이 최종 단계에서 SkillData.m_StyleSkills[job.Style]로 치환(0x2341A6C) ⇒ 스타일 분기는 스킬·기술 공통 층 · ★기술 경로만 배선(2026-08-17 4c — emblemEngageArt가 StyleName→8필드 분기, fe17.test.ts 竜族 변형) ☠일반 스킬(EngagedSkills 내 カウンター 등 49건)의 스타일 분기는 여전히 미배선"
+      "status": "implemented",
+      "evidence": "CooperationSkill~DragonSkill 8필드 49건 — M003 실측 신속 = SID_カウンター_竜族(gaps/C §7-5) · ★IL2CPP 범위 확장(5.0.0, 2026-08-17, il2cpp/EMBLEM_ENGAGE.md §6·SKILL_ENGINE.md §2-8): 인게이지 기술도 같은 경로를 탄다 — GetEngageAttack(RVA 0x2341640)이 최종 단계에서 SkillData.m_StyleSkills[job.Style]로 치환(0x2341A6C) ⇒ 스타일 분기는 스킬·기술 공통 층 · ★기술 경로만 배선(2026-08-17 4c — emblemEngageArt가 StyleName→8필드 분기, fe17.test.ts 竜族 변형) (종전 '일반 스킬 49건의 스타일 분기는 여전히 미배선'은 아래 3단계-A로 **해소** — 이 문장은 폐기했다) · ★엔진 쪽 계약 확인(2026-08-19 MP8 G1 2단계): 분기된 행을 **그대로 받아도** 동작한다 — `SID_カウンター_竜族`은 GiveSids가 3개로 늘지만 手番回数 +1·威力 * 0.5 산출이 본체와 동일하다(battle.test.ts 박제). ★배선 완료(2026-08-19 MP8 G1 3단계-A) — 사영이 `styleVariantSid`(GetStyleSkill 0x248D920) 한 곳에서 스타일 행을 고르고 `unitSkillRows`·`unitSynchroSkillRows`·`unitEngagedSkillRows`·`emblemEngageArt`가 그것을 공유한다. ☠같은 결손의 두 번째 층도 함께 막았다 — `script.gods`(Lua 부여 엠블렘)는 받을 유닛을 모르는 자리라 분기를 못 걸고 있었고(`迅走` +5 vs `SID_迅走_竜族` +6), 치환표(원본 Sid → 변형 행, 갈리는 스타일만)를 실어 eventWiring이 `unit.style`로 고르게 했다 · ★관통 앵커(2026-08-19 MP8 G4) = m002 뤼에르(竜族スタイル) 인게이지·레이피어 대미지 **8 + 4** — 사용자 실기 관측과 일치(mp8 §10-6). ☠**잔여 1건** = 그때 딸려 오는 `SID_カウンター_竜族効果`(Timing 12 HitAffect · `回復 + min(相手のHP, 相手のダメージ)` · 조건 `HP < MaxHP`)는 부여는 되는데 소비처가 없다 — 앵커 국면의 뤼에르 14/23은 실기라면 4를 흡수해 18이 되어야 하는데 우리 산출은 14 그대로다. 제거 조건 = Timing 11/12 훅 + `回復`·`ダメージ` 질의 지점(§combat 계열과 같은 선행)"
     },
     {
       "id": "skills.orphan-sids",
@@ -16192,6 +22206,15 @@
       },
       "status": "assumed",
       "evidence": "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §5·§9-4): 표적 평가 = uint32 비트필드의 사전식 비교이고 **AI_BattleRate 3값(Rush/Attack/Chariness)이 비트 레이아웃을 통째로 바꾼다**(AIBattleSimulator.CalculateScore RVA 0x1928570) · 격파 확률이 최상위 비트 = 절대 우선 · 동점이면 Random.System 50% 코인플립(난수 주입 설계 직결 — combat.rng-source의 System 스트림) · 지형 스코어 가중치·가드 3분기(GuardTo RVA 0x194CF60)도 확정 · ☠params.xml AI 가드 3상수(0.3/0.5/0.4)와 CalculateScore의 즉치 0.3/0.5/0.7은 **무관**하다(후자는 하드코딩, GameParam 호출 없음) · 선행 = turn.enemy-ai · ★이식(2026-08-18, MP4): engine ai/score.ts battleScore(3레이아웃 정수 비트필드)·killProbability(명중 결과 재귀, MaxSceneTimes 4)·expectationScoreNormalize(바닥 1·bit폭 포화) + ai/attack.ts getAttackScore·betterAttack(파레토 5단 → 스코어 → 50% 코인플립). ai.test.ts 스코어 6건 · ☠**assumed 사유**: 명중 분포를 엔진 forecastSide로 근사한다(경감 Prevent·스킬 발동 Skill/SkillCritical·기습·연속공격은 엔진 미모델링 = 확률 0) · ★유인(Decoy) 하드 게이트 = **배선 완료**(2026-08-19 MP8 A1, ATTACK_PRIORITY.md §1 S1) — `betterAttack` 맨 앞 즉시 return + AttackHigh 저확률 기각 면제(rejectsLowKill) · ☠단 상태를 **거는 경로가 없다**(부여 = SID_囮指名, GiveSids 부여층 미배선)라 현행 데이터에서 미발현 · 탄 적합성(S2)·AI 커맨드 좌표(S5) 비교자 미모델링 — S5는 ai.json 141루틴에 Code=3/Mind=8이 **0건**이라 미발현 · ★S4 밀치기 비교자는 정본과 완전 일치하나 입력(BlowRatio)이 상수 0이라 **사문화**(선행 = skill ActName 추출) · 연계 기대 데미지(m_ChainAttackExpectation)는 0(인원수만 위치 스코어에 반영) · ★`AC_InterferenceRange` 자격 아이템이 **코드 확정**으로 승격(2026-08-18): 종전 '근사'로 남겼던 `RodType == 3`이 `GetRangeBit`(0x2C29C00) 판독으로 `Kind == Rod(7) && RodType == Interference(3)`임이 확인됐다 — 독립 판독 2건이 같은 결론에 도달(ai_engine_src/L_ac_interference.md + K_interference_escape.md)"
+    },
+    {
+      "id": "ai.order-multiplier",
+      "label": {
+        "en": "Per-order damage multipliers in AI target scoring",
+        "ko": "AI 표적 평가의 오더별 배율 반영"
+      },
+      "status": "anchored",
+      "evidence": "★**판정 = 재현이라 결손이 아니다**(2026-08-20 IL2CPP 직접 판독으로 종전 `deferred` 대기 자리를 닫는다). 정본 `AIBattleSimulator`는 **오더를 아예 돌지 않는다** — `Calculate`(RVA 0x1927680, 0x1927680..0x19278E0 152명령 전수)의 호출은 CalculateBattleInfo → CalculateIndication → CalculateChainAttackIndication → CalculateKillProbabilityWithoutInterference뿐이고 `CalcBranch`·`CalcOrders`(0x246BC30)·`CalcSimulation`은 **한 번도 안 부른다** · `m_aIndication`(+0x38)은 ctor가 `mov w1,#2`로 잡는 **2칸 배열**(진영 2개 = `BattleSideOf` 0 / `Df` 1)이고, `CalculateIndication(side)`(0x1927B50)은 `m_aIndication[side]` 하나를 Clear한 뒤 `BattleDetail.SimplePower`(0x1E76830)·`SimpleHit`(0x1E76860)·`SimpleCritical`(0x1E76890)을 **각 1회** 읽어 `Indication.m_Power`(+0x10) 한 값에 넣는다(루프 없음) · 반복은 `CalculateScore`(0x1928570)가 `m_OffenseBattleTimes = Mathf.Min(BattleInfoSide.BattleTimes(+0xB0), 4)`(0x19286FC~0x1928728, `MaxSceneTimes = 4`)만큼 돌린다 ⇒ **측당 Power 한 값 × 手番回数**가 정본 구조다. ☠정본은 `BattleInfoSide.TotalOrder`(+0xB4)를 들고 있으면서도 AI 스코어에는 **안 쓴다** — 오더 배율을 접는 것이 정본 자신의 근사다 · 엔진 대응 = `ai/attack.ts` `indicationsOf`(측당 첫 오더만 취해 `power` 한 값 + `battleTimes` 곱) + `ai/score.ts` `killProbability` 반복 = 같은 구조 ⇒ 신속 판에서 AI 기대치가 실제보다 큰 것(20 vs 15)은 **정본을 그대로 옮긴 결과**다 · ⚠근사 1건 = 우리 `power`는 **첫 오더의 산출값**이고 정본은 오더 문맥 없는 `SimplePower`다. 현행 데이터에서는 값이 같다 — Timing 6(OrderStart) 패스에서 `威力`를 곱하는 행은 `SID_カウンター_ダメージ５０％` 하나뿐이고 그 조건 `総手番回数 == 手番回数 - 1`은 **마지막 오더에서만** 참이다(`総手番回数 == 0`을 조건으로 든 7종은 전부 Timing 7·11·15 = 오더 패스 밖) · ★재개 조건 = Timing 6 패스에 **첫 오더를 건드리는 `威力` 행**이 생기거나, 정본이 오더별로 Power를 다시 세우는 반례(HitSkillPool Timing 12 경로가 SimplePower를 갱신하는 사례)가 실측·판독으로 나올 때 · 같은 뿌리의 예보·리듀서 과대는 이미 수리됐다(decisions 2026-08-20 오더 큐 관통)"
     },
     {
       "id": "ai.attack-position",

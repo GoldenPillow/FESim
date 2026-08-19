@@ -76,7 +76,7 @@ const LABELS: BoardProps["labels"] = {
   },
   warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "",
   replayOn: "", replayOff: "", unitTurn: "", prevUnit: "", nextUnit: "", nextTurn: "",
-  logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
+  logTags: { chain: "", counter: "", follow: "", extra: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
 };
 
 /** 6x6 평지, 자군 u0(1,1) · 적군 u1(2,1) 인접 — 이동·대기·공격·페이즈 종료가 전부 합법인 최소 판. */

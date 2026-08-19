@@ -14,11 +14,18 @@ import type {
 } from "@fesim/shared";
 import type { AiSnapshot } from "./ai/types.js";
 import type { Calculator } from "./formula/calculator.js";
-import { combatEnv, forecastSide, type Combatant } from "./formula/combat.js";
+import {
+  battlePlan,
+  chainNumbers,
+  combatEnv,
+  forecastSide,
+  plainCombatEnv,
+  type Combatant,
+} from "./formula/combat.js";
 import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
 import { IMPASSABLE, movementRange, type MoveType } from "./range.js";
-import { makeSkillModifier, type SkillRow } from "./skills.js";
+import { makeSkillModifier, type SkillGive, type SkillRow } from "./skills.js";
 import { STAT_KEYS, type StatBlock } from "./stats.js";
 
 /**
@@ -1072,7 +1079,12 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         const self = { ...toCombatant(u, state.map, units, supportEffects, state.terrainPatches), initiator: true, striking: true };
         const env = combatEnv(self);
         const atk = Math.trunc(Math.min(Math.max(calc.eval("攻撃力計算", env) as number, 0), 999));
-        const flow = makeSkillModifier(effectiveSkills(u) ?? [], env, { initiator: true, striking: true });
+        // ☠보정자의 env는 **순정**이어야 한다 — 위 `env`(combatEnv)는 lookup에 modify가 걸려 있어
+        //   넘기면 보정자가 자기 결과를 다시 입력으로 먹는다.
+        const flow = makeSkillModifier(effectiveSkills(u) ?? [], plainCombatEnv(self), {
+          initiator: true,
+          striking: true,
+        });
         const strikes = Math.max(Math.trunc(flow("攻撃回数", 1)), 1);
         let hp = target.hp;
         for (let i = 0; i < strikes && hp > 0; i++) {
@@ -1131,9 +1143,15 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         // 스킬 발동 필터: 전투를 건 쪽(Stand)은 전투 내내 고정이고, 때리는 쪽(Action)은 타격마다 뒤집힌다.
         const attackerC = { ...toCombatant(attacker, state.map, units, supportEffects, state.terrainPatches), initiator: true };
         const defenderC = { ...toCombatant(defender, state.map, units, supportEffects, state.terrainPatches), initiator: false };
-        const striking = (c: Combatant, value: boolean): Combatant => ({ ...c, striking: value });
-        const atkF = forecastSide(calc, striking(attackerC, true), striking(defenderC, false));
-        const defF = forecastSide(calc, striking(defenderC, true), striking(attackerC, false));
+        // 반격 자격(사거리·브레이크·생존)은 매 슬롯 게이트다 — 정본도 手番回数를 0으로 떨구거나
+        // Status.Breaked로 슬롯을 통째로 탈락시킨다(CalcOrders 0x246FB6C). ☠브레이크는 **타격 도중에** 서므로
+        // 오더 목록이 슬롯을 열기 직전에 이 클로저에 묻는다(그래서 목록이 지연 열거다).
+        const canCounter = () =>
+          !defender.dead && !defender.broken && inWeaponRange(defender, distance);
+        // ★오더 목록 = 엔진 공용 순수 함수(formula/combat.ts battlePlan)가 단독으로 소유한다 —
+        //   예보 패널·AI·기보 정책이 **같은 목록**을 본다. 전투 로컬 부여(Cycle 0)도 그 안에서만 살아
+        //   UnitState로 샐 길이 코드에 없다.
+        const plan = battlePlan(calc, attackerC, defenderC, { counter: canCounter });
 
         // 체인가드: 대상을 지키는 스탠스 유닛 — 본공격·추격만 치환(체인어택은 무효 — CalcChainGuardSide).
         // ☠**전투당 유닛 1회**다 — 성립하는 순간 `Status.ChainGuarded`(0x2471740)가 새겨져 다음 타격
@@ -1175,7 +1193,10 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           to.hp = Math.max(to.hp - damage, 0);
           events.push({ type: "strike", attacker: from.id, defender: to.id, kind, hit, crit, damage, hpAfter: to.hp });
           // 브레이크 조건(코드 확정) = 명중 + 확정 대미지 1 이상 + 개시측(반격·체인으로는 발생하지 않는다).
-          if (hit && damage >= 1 && kind === "attack" && from === attacker && canBreak(from, to)) {
+          // ★몇 번째 手番인지 보지 않는다 — 정본 CalcAttack(0x2471840~)은 **매 타격마다** 평가한다.
+          //   그래서 본공격이 빗나가고 추격이 명중해도 브레이크가 선다(종전 kind === "attack" 한정은 결손이었다).
+          //   체인은 `from === attacker`가 걸러 준다(체인 사이드는 ChainOffense 2~25로 Offense 0이 아니다).
+          if (hit && damage >= 1 && from === attacker && canBreak(from, to)) {
             to.broken = true;
             events.push({ type: "break", unit: to.id });
           }
@@ -1189,42 +1210,30 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         // (코드 확정: CommitUnit 0x2477B70 · ResetPhaseEnd 0x1A19EF0, SID_気絶 Cycle=3=PhaseAfter).
         // kr 원문 "한 번 전투를 하거나 다음 턴이 되기 전까지"가 정확히 이 둘이다 — 아래가 (A)에 해당한다.
         const defenderEnteredBroken = defender.broken;
-        const chainNumbers = (backup: UnitState) => {
-          const env = combatEnv(toCombatant(backup, state.map, units, supportEffects, state.terrainPatches), defenderC);
-          return {
-            damage: Math.floor(calc.eval("チェインアタック威力計算", env) as number),
-            hitRate: calc.eval("チェインアタック命中率計算", env) as number,
-            critRate: calc.eval("チェインアタック必殺率計算", env) as number,
-          };
-        };
         // 체인어택은 공격측 첫 오더 슬롯 직전 = 본공격보다 먼저다(코드 확정 — 종전 '본공격 뒤'는 가정이었다).
-        for (const backup of chainUnits) strike(backup, defender, "chain", chainNumbers(backup));
-        // 타격 수 = 인게이지 충전량(공격·반격·추격 각 1). 체인은 세지 않는다(Status 4|8 필터).
-        let strikes = 0;
-        strike(attacker, defender, "attack", atkF);
-        strikes += 1;
-        const canCounter = () =>
-          !defender.dead && !defender.broken && inWeaponRange(defender, distance);
-        if (canCounter()) {
-          strike(defender, attacker, "counter", defF);
-          strikes += 1;
+        for (const backup of chainUnits) {
+          const backupC = toCombatant(backup, state.map, units, supportEffects, state.terrainPatches);
+          strike(backup, defender, "chain", chainNumbers(calc, backupC, defenderC));
         }
-        if (atkF.followUp) {
-          strike(attacker, defender, "followUp", atkF);
-          strikes += 1;
-        }
-        if (defF.followUp && canCounter()) {
-          strike(defender, attacker, "counterFollowUp", defF);
-          strikes += 1;
+
+        // 인게이지 충전량 = **실행된 오더 수**. ☠종전은 실행되지 않은 타격도 셌다(본공격으로 죽였는데 추격분 +1) —
+        //   정본 AddEngageCount는 CalcAction 진입부라 게이트를 통과한 오더에서만 돈다(0x2470d94).
+        let orders = 0;
+        for (const order of plan.orders) {
+          if (attacker.dead || defender.dead) break;
+          const from = order.side === 0 ? attacker : defender;
+          const to = order.side === 0 ? defender : attacker;
+          strike(from, to, order.kind, order);
+          orders += 1;
         }
         if (defenderEnteredBroken && !defender.dead) {
           defender.broken = false;
           events.push({ type: "breakRelease", unit: defender.id });
         }
 
-        // 인게이지 충전 = 양측 모두 **타격 수만큼** (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
-        chargeEngage(attacker, events, strikes);
-        chargeEngage(defender, events, strikes);
+        // 인게이지 충전 = 양측 모두 **실행된 오더 수만큼** (체인 참가자는 제외 — Status 4|8 필터 코드 확정).
+        chargeEngage(attacker, events, orders);
+        chargeEngage(defender, events, orders);
 
         attacker.acted = true;
         attacker.moved = false; // 행동이 재이동(시구르드) 창을 연다
@@ -1546,7 +1555,8 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
           };
           // 흐름 변수는 汎用設定(SyncSids)이 데이터로 소유한다: 攻撃回数·手番回数·相手の手番回数.
           // 기본값 1은 통상 전투의 문법 — 汎用設定이 없으면 1타·반격 허용으로 강하한다.
-          const flowEnv = combatEnv({ ...attackerC, skills: undefined }, defenderC);
+          // ☠순정 env(훅 없는 것) — makeSkillModifier의 계약이다.
+          const flowEnv = plainCombatEnv({ ...attackerC, skills: undefined }, defenderC);
           const flow = makeSkillModifier(artSkills, flowEnv, { initiator: true, striking: true });
           const strikesPerTurn = Math.max(Math.trunc(flow("攻撃回数", 1)), 0);
           const turns = Math.max(Math.trunc(flow("手番回数", 1)), 0);

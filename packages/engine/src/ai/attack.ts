@@ -22,7 +22,7 @@ import {
   type UnitState,
 } from "../battle.js";
 import type { Calculator } from "../formula/calculator.js";
-import { forecastSide } from "../formula/combat.js";
+import { battlePlan } from "../formula/combat.js";
 import { movementRange } from "../range.js";
 import {
   BLOW_SCORE,
@@ -117,33 +117,45 @@ function relocated(state: GameState, actor: UnitState, x: number, y: number): { 
   return { moved, units: state.units.map((u) => (u.id === actor.id ? moved : u)) };
 }
 
-/** 전투 1회의 명중 분포 — 엔진의 forecastSide를 그대로 쓴다(☠중복 구현 금지). */
-function indicationOf(
+/**
+ * 전투 한 판의 **양측** 명중 분포 — 엔진 공용 오더 목록(battlePlan)을 그대로 쓴다(☠중복 구현 금지).
+ * ☠종전엔 측마다 `forecastSide`를 따로 불러 (1) 상대 flow가 비어 `相手の手番回数` 교차 행이 죽고
+ *   (2) 반격측을 `striking: false`로 봐 Action 게이트가 뒤집혀 있었다 — 표적 평가가 조용히 어긋났다.
+ * `m_Power`는 정본도 라운드당 하나뿐이라 **그 측 첫 오더**의 값을 쓴다(오더별 배율은 목록이 안다).
+ */
+function indicationsOf(
   ctx: AttackContext,
   self: UnitState,
   foe: UnitState,
   units: readonly UnitState[],
-  canAct: boolean,
-): Indication {
-  if (!canAct) {
-    return { power: 0, miss: 1, hit: 0, critical: 0, actionCount: 1, battleTimes: 0 };
-  }
+  counterable: boolean,
+): { offense: Indication; defense: Indication } {
   const map = ctx.state.map;
   const patches = ctx.state.terrainPatches;
-  const a = { ...toCombatant(self, map, units, ctx.supportEffects, patches), initiator: true, striking: true };
-  const b = { ...toCombatant(foe, map, units, ctx.supportEffects, patches), initiator: false, striking: false };
-  const f = forecastSide(ctx.calc, a, b);
-  // 명중 롤 → 명중 시에만 필살 롤(엔진 계약) → 필살은 명중의 부분집합이다.
-  const hit = Math.min(Math.max(f.hitRate, 0), 100) / 100;
-  const crit = Math.min(Math.max(f.critRate, 0), 100) / 100;
-  return {
-    power: f.damage,
-    miss: 1 - hit,
-    hit: hit * (1 - crit),
-    critical: hit * crit,
-    actionCount: 1,
-    battleTimes: f.followUp ? 2 : 1,
-  };
+  const a = toCombatant(self, map, units, ctx.supportEffects, patches);
+  const b = toCombatant(foe, map, units, ctx.supportEffects, patches);
+  const plan = battlePlan(ctx.calc, a, b, { counter: () => counterable });
+  const idle = (): Indication => ({ power: 0, miss: 1, hit: 0, critical: 0, actionCount: 1, battleTimes: 0 });
+  const out = { offense: idle(), defense: idle() };
+  const seen = [false, false];
+  for (const order of plan.orders) {
+    if (seen[order.side]) continue;
+    seen[order.side] = true;
+    // 명중 롤 → 명중 시에만 필살 롤(엔진 계약) → 필살은 명중의 부분집합이다.
+    const hit = Math.min(Math.max(order.hitRate, 0), 100) / 100;
+    const crit = Math.min(Math.max(order.critRate, 0), 100) / 100;
+    const ind: Indication = {
+      power: order.damage,
+      miss: 1 - hit,
+      hit: hit * (1 - crit),
+      critical: hit * crit,
+      actionCount: 1,
+      battleTimes: plan.battleTimes[order.side],
+    };
+    if (order.side === 0) out.offense = ind;
+    else out.defense = ind;
+  }
+  return out;
 }
 
 const distanceOf = (ax: number, ay: number, bx: number, by: number): number =>
@@ -265,9 +277,8 @@ export function getAttackScore(
     const armed: UnitState = { ...moved, weapon };
     const armedUnits = units.map((u) => (u.id === armed.id ? armed : u));
     const d = distanceOf(pos.attackX, pos.attackY, target.x, target.y);
-    const offense = indicationOf(ctx, armed, target, armedUnits, true);
     // 반격 = 대상이 브레이크되지 않았고 자기 무기 사거리 안일 때만.
-    const defense = indicationOf(ctx, target, armed, armedUnits, !target.broken && inRange(target, d));
+    const { offense, defense } = indicationsOf(ctx, armed, target, armedUnits, !target.broken && inRange(target, d));
 
     const chainExpectation = thinkChain
       ? chainAttackers(armed, target, armedUnits).length > 0

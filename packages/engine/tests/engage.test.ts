@@ -90,6 +90,24 @@ describe("인게이지 충전", () => {
     expect(next.units[1].engage?.count).toBe(3);
   });
 
+  /**
+   * ☠유령 타격 가산. 왜 위험한가: 종전은 `strikes += 1`이 `strike(...)` **밖**에 무조건 붙어 있어
+   * 본공격으로 상대가 죽어 추격이 실행되지 않아도 게이지가 1 더 찼다(strike 이벤트 1건인데 charge 2).
+   * 정본은 `AddEngageCount`가 `CalcAction` 진입부(0x2470d94)라 **게이트를 통과한 오더에서만** 돈다 —
+   * 게이지는 인게이지 발동 턴을 정하므로 +1이 어긋나면 수순 전체가 한 턴씩 밀린다.
+   */
+  it("실행되지 않은 오더는 세지 않는다 — 본공격으로 격파하면 추격분이 안 찬다", () => {
+    const a = unit({
+      id: "a", force: 0, x: 0, y: 0, weapon: sword,
+      stats: { ...baseStats, spd: 30, str: 40 },
+      engage: gauge({ count: 0 }),
+    });
+    const e = unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, hp: 5 });
+    const next = reduce(state([a, e]), { type: "attack", unit: "a", target: "e" } as BattleAction, roll(0, 9999, 9999, 9999));
+    expect(next.events.filter((ev) => ev.type === "strike")).toHaveLength(1);
+    expect(next.units[0].engage?.count).toBe(1);
+  });
+
   it("반격이 없으면 1충전 — 사거리 밖 상대는 때리기만 한다", () => {
     const bow = { might: 5, hit: 100, crit: 0, weight: 5, kind: 4, rangeMin: 2, rangeMax: 2 };
     const a = unit({ id: "a", force: 0, x: 0, y: 0, weapon: bow, engage: gauge({ count: 0 }) });

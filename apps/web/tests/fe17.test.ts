@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -133,6 +133,23 @@ describe("스크립트 엠블렘(m002 2회전 시구르드) — 문장사 패시
     );
     const engaged = sigurd.engagedSkills?.find((r) => r.Sid === "SID_迅走");
     expect(engaged?.["EnhanceValue.Move"]).toBe(5);
+  });
+
+  /**
+   * ☠같은 결손의 두 번째 층 — 스크립트 엠블렘은 **받을 유닛을 모르는 자리**라 스타일 분기를 못 건다.
+   * 그런데 迅走는 스타일마다 값이 다르다: 본체 이동 +5 · `SID_迅走_竜族` 이동 **+6**.
+   * 기본 목록만 실으면 2회전 뤼미에르(竜族スタイル)가 영원히 +5를 받고, 숫자가 1 작을 뿐 오류가 없어
+   * 아무도 못 찾는다. 사영은 치환표(원본 Sid → 변형 행)를 싣고 소비처가 unit.style로 고른다.
+   */
+  it("스타일 치환표 — 竜族スタイル이 받으면 SID_迅走_竜族(이동 +6)이 된다", () => {
+    const sigurd = gods["GID_M002_シグルド"]!;
+    const swap = sigurd.styles?.["竜族スタイル"];
+    expect(swap?.["SID_迅走"]?.Sid).toBe("SID_迅走_竜族");
+    expect(swap?.["SID_迅走"]?.["EnhanceValue.Move"]).toBe(6);
+    // 갈리지 않는 스타일은 아예 안 싣는다(종별 선형 — 목록을 스타일마다 복제하면 8벌로 불어난다).
+    expect(sigurd.styles?.["スタイル無し"]).toBeUndefined();
+    // 치환되는 행만 든다 — 기본 목록 전량 복제가 아니다.
+    expect(Object.keys(swap ?? {})).toEqual(["SID_迅走"]);
   });
 
   /**
@@ -556,5 +573,391 @@ describe("문장사 스탯 상승 사영", () => {
     const noRing = board.units.find((u) => u.force === 0 && u.synchroSkills === undefined);
     if (noRing === undefined) return;
     expect(noRing.stats?.l?.str ?? 0).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * GiveSids 해소 — ☠**층 사이**의 자리다. 엔진에는 스킬 표가 없어서(행은 유닛이 들고 다닌다)
+ * 사영이 `GiveSids`(문자열)를 `Gives`(행)로 풀어 실어 보내지 않으면 부여층이 아무것도 못 붙인다.
+ * 그때 나는 증상은 오류가 아니라 **"신속이 조용히 무발현"**이다 — 엔진 테스트는 자기 픽스처로 그린이라
+ * 웹 경로만 죽는다(SKILL_ROW_FIELDS에서 Stand·Action·Order를 떨어뜨렸을 때와 같은 사고 유형).
+ */
+describe("슬림 사영 — 부여 사슬(GiveSids → Gives)", () => {
+  it("SID_カウンター가 50% 행과 発動済み 래치까지 행으로 딸려 온다", () => {
+    // ☠스타일 무관 직업으로 묻는다 — 竜族·隠密 직업은 분기 치환(GetStyleSkill)이 먼저 걸려
+    //   본체가 아니라 변형이 실린다(그 갈래는 "스타일 분기 사영" 절이 소유한다).
+    const rows = unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター"] }));
+    const counter = rows.find((r) => r.Sid === "SID_カウンター");
+    expect(counter?.Timing).toBe(4);
+    const half = counter?.Gives?.find((r) => r.Sid === "SID_カウンター_ダメージ５０％");
+    expect(half?.ActValues).toEqual(["0.5"]);
+    expect(half?.Gives?.map((r) => r.Sid)).toEqual(["SID_神速発動済み"]);
+  });
+
+  /**
+   * ★사영 → 엔진 **끝까지** 관통. 두 층이 각각 맞아도 사이에서 끊기면 판에서는 아무 일도 안 일어난다 —
+   * 신속은 어휘·오더 큐·Timing·부여 넷 중 하나만 빠져도 **오류 없이** 종전 산출을 낸다.
+   * 실기 앵커(뤼에르 인게이지 레이피어 = `8 + 4`)와 같은 모양: 추가타가 정확히 절반이어야 한다.
+   */
+  it("사영한 SID_カウンター로 엔진이 8 + 4를 낸다 (오더 큐·부여층 관통)", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const reduce = createReducer(calc);
+    const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+    const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+    const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+    // 기본 jid = JID_神竜ノ子(竜族スタイル)라 사영이 실어 보내는 것은 **SID_カウンター_竜族**이다 —
+    // 실기 앵커(뤼에르)와 같은 행이고, 竜族 변형의 手番回数 +1·威力 * 0.5도 본체와 같은 값이다.
+    const game = {
+      turn: 1,
+      phase: 0,
+      difficulty: "n" as const,
+      map: { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } },
+      units: [
+        { ...base, id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: unitSkillRows(disposUnit({ sids: ["SID_カウンター"] })) },
+        { ...base, id: "e", force: 1, x: 1, y: 0, weapon: sword },
+      ],
+      events: [],
+    };
+    const next = reduce(game, { type: "attack", unit: "a", target: "e" }, { next: () => 9999 });
+    const strikes = next.events.filter((ev) => ev.type === "strike");
+    expect(strikes.map((ev) => (ev.type === "strike" ? ev.kind : ""))).toEqual(["attack", "counter", "followUp"]);
+    const damage = strikes.map((ev) => (ev.type === "strike" ? ev.damage : -1));
+    expect(damage[2]).toBe(damage[0] / 2);
+  });
+});
+
+/**
+ * 스타일 분기(`SkillData.GetStyleSkill` 0x248D920)는 **기술만의 규칙이 아니다** —
+ * `SkillArray.Commit`(0x2485A10)이 수집된 **모든 카테고리의 행**에 거는 파생이라
+ * 개인·싱크로·인게이지 패시브가 전부 같은 치환을 탄다(il2cpp/SKILL_ENGINE.md §3 표 17행).
+ * ☠왜 위험한가: 안 걸면 뤼에르(JID_神竜ノ子 = 竜族スタイル)가 마르스의 `SID_カウンター` **본체**를 받는다.
+ *   手番回数 +1도 威力 * 0.5도 본체와 **똑같아서** 대미지로는 아무 차이가 안 보이는데,
+ *   竜族 변형만 딸고 오는 HP 흡수(`SID_カウンター_竜族効果`)가 통째로 사라진다 —
+ *   오류도 경고도 없는 조용한 결손이다(장부 skills.style-variant가 실측으로 단정한 자리:
+ *   "M003 실측 신속 = SID_カウンター_竜族").
+ */
+describe("스타일 분기 사영 — 개인·싱크로·인게이지 패시브 (MP8 G1 3단계)", () => {
+  it("竜族スタイル 직업은 SID_カウンター 대신 SID_カウンター_竜族을 받는다", () => {
+    const rows = unitSkillRows(disposUnit({ sids: ["SID_カウンター"] })); // 기본 jid = JID_神竜ノ子
+    const sids = rows.map((r) => r.Sid);
+    expect(sids).toContain("SID_カウンター_竜族");
+    expect(sids).not.toContain("SID_カウンター");
+    // 竜族 변형만 HP 흡수(Timing 12)와 종료 래치를 딸고 온다 — 본체의 GiveSids는 50% 행 하나뿐이다.
+    expect(rows.find((r) => r.Sid === "SID_カウンター_竜族")?.Gives?.map((r) => r.Sid)).toEqual([
+      "SID_カウンター_ダメージ５０％",
+      "SID_カウンター_竜族効果",
+      "SID_カウンター_竜族効果_発動終了チェック",
+    ]);
+  });
+
+  it("스타일 열이 비어 있으면 본체 그대로 — 連携スタイル은 SID_カウンター에 CooperationSkill이 없다", () => {
+    // ☠빈 열을 "치환 실패"로 읽어 임의 행을 고르면 조용히 다른 스킬이 붙는다. 없으면 본체가 정답이다.
+    const rows = unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター"] }));
+    expect(rows.map((r) => r.Sid)).toContain("SID_カウンター");
+    // 隠密스타일은 열이 있으므로 그쪽 변형으로 갈린다(같은 기전이 스타일마다 다른 답을 낸다는 증거).
+    const covert = unitSkillRows(disposUnit({ jid: "JID_シーフ", sids: ["SID_カウンター"] }));
+    expect(covert.map((r) => r.Sid)).toContain("SID_カウンター_隠密");
+  });
+
+  it("인게이지 패시브 = 뤼에르+마르스의 engagedSkills가 竜族 변형을 싣는다", () => {
+    const rows = unitEngagedSkillRows(disposUnit({ gid: "GID_マルス" }), 1) ?? [];
+    expect(rows.map((r) => r.Sid)).toContain("SID_カウンター_竜族");
+    // ★보드 사영까지 관통 — 함수만 맞고 보드가 다른 인자로 부르면 판에서는 그대로 본체가 실린다.
+    const lueur = boardPropsFor("m003", "ko").units.find((u) => u.pid === "PID_リュール");
+    expect(lueur?.style).toBe("竜族スタイル");
+    expect(lueur?.engagedSkills?.map((r) => r.Sid)).toContain("SID_カウンター_竜族");
+  });
+
+  it("싱크로 패시브도 같은 분기 — 카무이 絆1 SID_竜脈 → SID_竜脈_竜族", () => {
+    const rows = unitSynchroSkillRows(disposUnit({ gid: "GID_カムイ" }), 1) ?? [];
+    expect(rows.map((r) => r.Sid)).toContain("SID_竜脈_竜族");
+    expect(rows.map((r) => r.Sid)).not.toContain("SID_竜脈");
+  });
+});
+
+/**
+ * ☠Order는 **웹 사영만** 잃을 수 있는 정렬 키다 — 엔진 테스트는 자기 픽스처로 Order를 직접 넣으므로
+ * 사영이 이 필드를 떨어뜨려도 영원히 그린이고 판에서만 순서가 배열 순서로 강하한다.
+ * 실제 갈리는 자리 = Timing 3의 `SID_切り返し`(Order -10, `手番回数 = 2`)와
+ * `SID_追撃不可`(Order 50, `= min(手番回数,1)`) — 순서가 뒤집히면 추격 불가가 무력화된다.
+ */
+describe("Order 사영 — 정렬 키의 층 사이 결손", () => {
+  it("기본값(0)은 안 싣고, 음수·양수 Order는 그대로 싣는다", () => {
+    const rows = unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター", "SID_切り返し", "SID_追撃不可"] }));
+    // Order 0 = 엔진 기본값(`skill.Order ?? 0`) — 유닛마다 반복되는 0은 보드 JSON 예산만 먹는다.
+    expect(rows.find((r) => r.Sid === "SID_カウンター")?.Order).toBeUndefined();
+    expect(rows.find((r) => r.Sid === "SID_切り返し")?.Order).toBe(-10);
+    expect(rows.find((r) => r.Sid === "SID_追撃不可")?.Order).toBe(50);
+    // 부여 사슬(Gives)도 같은 규칙 — 신속의 50% 행은 Order 10이라 실려야 한다.
+    const half = rows.find((r) => r.Sid === "SID_カウンター")?.Gives?.[0];
+    expect(half?.Sid).toBe("SID_カウンター_ダメージ５０％");
+    expect(half?.Order).toBe(10);
+  });
+
+  it("Cycle도 같은 규칙 — 0(전투 로컬)은 생략, 비0(영속)은 싣는다", () => {
+    // ☠Cycle을 생략만 하고 엔진 기본값이 0이 아니면 영속 부여가 전투 사본에 섞인다(`row.Cycle ?? 0`이 계약).
+    const rows = unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター"] }));
+    expect(rows.find((r) => r.Sid === "SID_カウンター")?.Cycle).toBeUndefined();
+  });
+});
+
+/**
+ * ★층 사이 — 예보 패널(`combatForecast`)은 리듀서와 **다른 코드**로 타격 순서를 돈다.
+ * 각 층만 보는 테스트로는 이 경계가 영원히 안 보인다: 리듀서 테스트도 예보 테스트도 각자 그린인데
+ * 판에서는 예보 숫자와 실제 결과가 갈린다. 여기서 양끝 값으로 한 번 관통시킨다.
+ */
+describe("예보 ↔ 리듀서 — 오더 순서 관통 (MP8 G1 3단계)", () => {
+  const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+  const gameWith = (aSkills?: ReturnType<typeof unitSkillRows>, aStats = stats) => ({
+    turn: 1,
+    phase: 0,
+    difficulty: "n" as const,
+    map: { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } },
+    units: [
+      { ...base, stats: aStats, id: "a", force: 0, x: 0, y: 0, weapon: sword, ...(aSkills === undefined ? {} : { skills: aSkills }) },
+      { ...base, id: "e", force: 1, x: 1, y: 0, weapon: sword },
+    ],
+    events: [],
+  });
+
+  it("배율 없는 판에서는 예보 잔여 HP = 리듀서 잔여 HP (추격 포함)", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { combatForecast } = await import("../src/components/BoardIsland");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    // 攻撃速度差 >= 5 = 追撃条件 → 手番回数 2. 예보와 리듀서가 같은 오더 수를 봐야 한다.
+    const fast = { ...stats, spd: 20 };
+    const game = gameWith(undefined, fast);
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    // ☠난수 0 = 전 타격 명중(필살률 0이라 필살은 안 뜬다). 예보는 **전 타격 명중 가정**이므로
+    //   이 조건에서만 두 층을 값으로 맞댈 수 있다 — 빗나감이 섞이면 갈린 원인이 순서인지 명중인지 못 가른다.
+    const next = createReducer(calc)(game as never, { type: "attack", unit: "a", target: "e" }, { next: () => 0 });
+    expect(fc.attack?.battleTimes).toBe(2);
+    expect(fc.targetHp).toBe(next.units.find((u) => u.id === "e")!.hp);
+    expect(fc.selfHp).toBe(next.units.find((u) => u.id === "a")!.hp);
+  });
+
+  /**
+   * ☠이 자리는 **결손 박제였다**(`expect(fc.targetHp).toBeLessThan(actual)` — 예보 10 vs 리듀서 15).
+   * 결손의 정체 = 예보가 오더별 배율을 모른 채 `damage x battleTimes`를 그린 것이다. 신속 판에서
+   * 마지막 오더만 `威力 * 0.5`인데 예보는 전 오더를 만배로 봐, 방향이 "격파한다" 쪽으로 과대했다 —
+   * 확정타로 읽고 지르면 적이 산다(경고 표시도 없다).
+   * 무엇이 닫았나 = 엔진 공용 오더 목록(`battlePlan`) 신설 + 예보·리듀서가 **그 하나만** 소비(MP8 G1 3단계).
+   */
+  it("신속(오더별 威力 * 0.5)에서도 예보 잔여 HP = 리듀서 잔여 HP", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { combatForecast } = await import("../src/components/BoardIsland");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const skills = unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター"] }));
+    const game = gameWith(skills);
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    // ☠난수 0 = 전 타격 명중(필살률 0이라 필살은 안 뜬다). 예보는 **전 타격 명중 가정**이므로
+    //   이 조건에서만 두 층을 값으로 맞댈 수 있다 — 빗나감이 섞이면 갈린 원인이 순서인지 명중인지 못 가른다.
+    const next = createReducer(calc)(game as never, { type: "attack", unit: "a", target: "e" }, { next: () => 0 });
+    expect(fc.attack?.battleTimes).toBe(2);
+    expect(fc.targetHp).toBe(15); // 30 - 10 - (10 * 0.5)
+    expect(fc.targetHp).toBe(next.units.find((u) => u.id === "e")!.hp);
+    expect(fc.selfHp).toBe(next.units.find((u) => u.id === "a")!.hp);
+  });
+
+  /**
+   * ☠체인어택은 **오더 목록 밖의 타격**이라 예보가 통째로 빼고 있었다 — 실측으로 기보 138 attack 스텝 중
+   *   9건에서 예상 잔여 HP가 2~4 과대였고 화면엔 체인 표시가 하나도 없었다. 방향이 "격파한다" 쪽이 아니라
+   *   "안 죽는다" 쪽으로 틀리는 자리라 더 조용하다(적이 예보보다 먼저 죽어도 아무도 안 따진다).
+   * ★정본도 안 뺀다: 맵 예보는 `CalcSimulation`(명중 확정·필살 없음)으로 **체인 포함 전투를 통째로 돌린**
+   *   결과 HP를 읽는다(MapUIGauge.CalcBattleInfoForNormal 0x2025920 → BattleCalculator 0x246D610).
+   */
+  it("★체인어택도 관통 — 예보 잔여 HP = 리듀서 잔여 HP", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { combatForecast } = await import("../src/components/BoardIsland");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const plain = gameWith();
+    // 연계 스타일 아군이 대상 사거리 안에 서면 본공격 **앞에** 체인 타격이 한 번 들어간다(battle.ts).
+    const game = {
+      ...plain,
+      units: [...plain.units, { ...base, id: "c", force: 0, x: 2, y: 0, weapon: sword, style: "連携スタイル" }],
+    };
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    expect(fc.chain).toBe(1);
+    expect(fc.chainDamage).toBeGreaterThan(0); // チェインアタック威力 = max(相手のMaxHP*0.1, 1)
+    const next = createReducer(calc)(game as never, { type: "attack", unit: "a", target: "e" }, { next: () => 0 });
+    expect(fc.targetHp).toBe(next.units.find((u) => u.id === "e")!.hp);
+    expect(fc.selfHp).toBe(next.units.find((u) => u.id === "a")!.hp);
+  });
+
+  /**
+   * ☠**잠복 결손** — 예보는 `toCombatant`에 `terrainPatches`를 안 넘기고 리듀서는 넘겼다.
+   * 현행 5챕터에 `terrainSet` 이벤트가 0건이라 기보 대조로도 안 잡힌다: 그 이벤트를 쓰는 챕터가
+   * 열리는 날 **예보만 조용히 옛 지형으로** 계산한다(오류도 경고도 없다). 그래서 여기서 박제한다.
+   */
+  it("★런타임 교체 지형(terrainPatches)도 관통 — 예보가 리듀서와 같은 지형 보정을 본다", async () => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const { combatForecast } = await import("../src/components/BoardIsland");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const plain = gameWith();
+    // 대상 칸을 지형방어 5짜리로 갈아끼운다(TerrainSet 이벤트가 하는 일).
+    const game = { ...plain, terrainPatches: [{ x: 1, y: 0, tid: "TID_test", cell: { avoid: 0, def: 5 } }] };
+    const bare = combatForecast(plain as never, plain.units[0] as never, plain.units[1] as never, 1);
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    expect(fc.attack!.damage).toBe(bare.attack!.damage - 5); // 패치를 못 보면 두 값이 같다
+    const next = createReducer(calc)(game as never, { type: "attack", unit: "a", target: "e" }, { next: () => 0 });
+    expect(fc.targetHp).toBe(next.units.find((u) => u.id === "e")!.hp);
+  });
+});
+
+/**
+ * ★기보 `kind`와 **화면 이름**이 갈리는 자리. 기보는 호환 불변식이라 오더 인덱스 1을 무조건
+ * `followUp`으로 적는데, 신속(`SID_カウンター` = 手番回数 +1) 판의 두 번째 타격은 추격이 아니다.
+ * ☠왜 위험한가: 사용자가 실기 스크린샷으로 보고한 바로 그 장면(뤼에르 8 + 4, 追撃条件 거짓)에서
+ *   UI가 "(추격)"을 내보냈다. 숫자는 맞고 이름만 틀린 조용한 오류라 아무도 결손으로 안 잡는다 —
+ *   그 로그를 근거로 追撃条件(攻撃速度差 >= 5)을 역산하면 판독이 통째로 어긋난다.
+ */
+describe("표시 라벨 — 추격 vs 추가타 (MP8 G1 3단계-A)", () => {
+  const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+  const gameWith = (over: { aStats?: typeof stats; eStats?: typeof stats; aSkills?: ReturnType<typeof unitSkillRows> }) => ({
+    turn: 1,
+    phase: 0,
+    difficulty: "n" as const,
+    map: { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } },
+    units: [
+      { ...base, stats: over.aStats ?? stats, id: "a", force: 0, x: 0, y: 0, weapon: sword, ...(over.aSkills === undefined ? {} : { skills: over.aSkills }) },
+      { ...base, stats: over.eStats ?? stats, id: "e", force: 1, x: 1, y: 0, weapon: sword },
+    ],
+    events: [],
+  });
+  const strike = async (game: ReturnType<typeof gameWith>) => {
+    const { createCalculator, createReducer } = await import("@fesim/engine");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const next = createReducer(calc)(game as never, { type: "attack", unit: "a", target: "e" }, { next: () => 0 });
+    return next.events.filter((ev): ev is Extract<typeof ev, { type: "strike" }> => ev.type === "strike");
+  };
+
+  it("신속 판의 두 번째 타격은 기보 followUp이지만 화면에는 추가타로 뜬다", async () => {
+    // 기본 jid = JID_神竜ノ子(竜族スタイル) — 실기 앵커(뤼에르 8 + 4)와 같은 행(SID_カウンター_竜族)이다.
+    const { displayKindOf } = await import("../src/components/BoardIsland");
+    const game = gameWith({ aSkills: unitSkillRows(disposUnit({ sids: ["SID_カウンター"] })) });
+    const hits = await strike(game);
+    expect(hits.map((h) => h.kind)).toEqual(["attack", "counter", "followUp"]); // 기보는 안 바뀐다
+    expect(displayKindOf(game as never, hits[2]!)).toBe("extra");
+  });
+
+  it("追撃条件(攻撃速度差 >= 5)이 참인 판은 그대로 추격이다", async () => {
+    const { displayKindOf } = await import("../src/components/BoardIsland");
+    const game = gameWith({ aStats: { ...stats, spd: 20 } });
+    const hits = await strike(game);
+    expect(hits.map((h) => h.kind)).toEqual(["attack", "counter", "followUp"]);
+    expect(displayKindOf(game as never, hits[2]!)).toBe("followUp");
+  });
+
+  it("반격측도 같은 규칙 — 받는 쪽이 빠르면 counterFollowUp이 그대로 산다", async () => {
+    // ☠개시측 판별이 뒤집히면 여기서만 갈린다(반격 오더의 攻撃速度差는 부호가 반대다).
+    const { displayKindOf } = await import("../src/components/BoardIsland");
+    const game = gameWith({ eStats: { ...stats, spd: 20 } });
+    const hits = await strike(game);
+    expect(hits.map((h) => h.kind)).toEqual(["attack", "counter", "counterFollowUp"]);
+    expect(displayKindOf(game as never, hits[2]!)).toBe("counterFollowUp");
+  });
+});
+
+/**
+ * ★관통 앵커 — **재생 기보와 표시층 사이**. 두 층 각각은 멀쩡한데 사이가 끊겨 있었다.
+ *
+ * ☠왜 위험했나: 追撃条件은 `攻撃速度 = 速さ - max(武器の重さ - 体格, 0)` 위에 서 있어서 **무기가 바뀌면
+ *   기저 手番回数가 뒤집힌다**. `displayKindOf`는 무기를 안 받고 `before` 유닛의 **전투 직전 장비**로
+ *   근사했는데, m001 step34는 액션이 무기 인덱스 1(레이피어)을 지정한 전환 판이라 근사가 철의 검을 봤다.
+ *   그 결과 진짜 추격이 화면에 "(추가타)"로 나갔다 — 숫자는 맞고 이름만 틀린 조용한 오류다.
+ *   ☠m001은 맵 진입 시 **자동 재생되는 기본 기보**라 그 화면이 그대로 사용자에게 나간다.
+ * ★기보를 직접 되읽는 이유 = 픽스처로 옮겨 적으면 기보가 다시 만들어질 때 테스트만 옛 판을 붙든다.
+ */
+describe("★앵커 m001 step34 — 무기 전환이 낀 추격 판", () => {
+  it("액션이 지정한 무기(레이피어)로 판정해야 추격이 추격으로 뜬다", async () => {
+    const { parseEphemeris } = await import("@fesim/shared");
+    const { actionWeapon, displayKindOf } = await import("../src/components/BoardIsland");
+    const { createBoardStore, replayer } = await import("../src/lib/boardStore");
+    const { eventWiringFor } = await import("../src/lib/eventWiring");
+    const eventsMod = await import("@fesim/engine/events");
+
+    const file = parseEphemeris(
+      readFileSync(new URL("../../../data/fe17/replays/m001.eph.json", import.meta.url), "utf-8"),
+    );
+    const props = boardPropsFor(file.chapter.cid, "ko");
+    const commons = Object.fromEntries(
+      (props.script?.commons ?? []).map((n) => [
+        n,
+        readFileSync(new URL(`../../../data/fe17/scripts/${n}.lua`, import.meta.url), "utf-8"),
+      ]),
+    );
+    const store = createBoardStore(props, { file }, file.setup, eventWiringFor(props, eventsMod, commons));
+    const session = store.getState().replay!;
+    const step = file.log[34]!;
+    expect(step.action).toMatchObject({ type: "attack", unit: "u8", target: "u11", weapon: 1 });
+
+    const before = replayer.stateAt(session.timeline, 34);
+    expect(before.units.find((u) => u.id === "u8")?.weapon?.name).toBe("철의 검"); // 전투 직전 장비
+    const equipped = actionWeapon(before, step.action);
+    expect(equipped?.weapon.name).toBe("레이피어");
+
+    const hits = (step.events ?? []).filter(
+      (e): e is Extract<typeof e, { type: "strike" }> => e.type === "strike",
+    );
+    expect(hits.map((h) => h.kind)).toEqual(["attack", "followUp", "extra"]);
+    expect(displayKindOf(before, hits[1]!, equipped)).toBe("followUp");
+    // 종전 근사(무기 미전달) — 같은 타격이 추가타로 강하한다. 이 줄이 결함의 실물이다.
+    expect(displayKindOf(before, hits[1]!)).toBe("extra");
+  }, 30000);
+});
+
+/**
+ * ☠`×2`는 **같은 대미지를 두 번**으로 읽힌다 — 신속 판(8 + 4)에서 그 읽기는 총합을 과대하게 만든다.
+ * 잔여 HP 칸은 맞아도 대미지 칸이 혼자 거짓말을 하는 자리라, 사용자가 대미지 칸만 보고 지르면 적이 산다.
+ */
+describe("예보 대미지 표기 — 오더별로 다르면 ×N을 안 쓴다 (MP8 G1 3단계-A)", () => {
+  const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+  const gameWith = (aStats: typeof stats, aSkills?: ReturnType<typeof unitSkillRows>) => ({
+    turn: 1,
+    phase: 0,
+    difficulty: "n" as const,
+    map: { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } },
+    units: [
+      { ...base, stats: aStats, id: "a", force: 0, x: 0, y: 0, weapon: sword, ...(aSkills === undefined ? {} : { skills: aSkills }) },
+      { ...base, id: "e", force: 1, x: 1, y: 0, weapon: sword },
+    ],
+    events: [],
+  });
+
+  it("배율이 같은 추격 판은 종전대로 ×2", async () => {
+    const { combatForecast, strikeSuffix } = await import("../src/components/BoardIsland");
+    const game = gameWith({ ...stats, spd: 20 });
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    expect(fc.attack?.damages).toEqual([10, 10]);
+    expect(strikeSuffix(fc.attack!.damages)).toBe("×2");
+  });
+
+  it("신속 판은 두 번째 오더가 절반이라 +5로 적는다", async () => {
+    const { combatForecast, strikeSuffix } = await import("../src/components/BoardIsland");
+    const game = gameWith(stats, unitSkillRows(disposUnit({ jid: "JID_ソードファイター", sids: ["SID_カウンター"] })));
+    const fc = combatForecast(game as never, game.units[0] as never, game.units[1] as never, 1);
+    expect(fc.attack?.damages).toEqual([10, 5]);
+    expect(strikeSuffix(fc.attack!.damages)).toBe("+5");
+    // 한 번뿐인 오더에는 아무것도 안 붙는다(종전과 같다).
+    expect(strikeSuffix([10])).toBe("");
   });
 });
