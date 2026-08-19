@@ -51,6 +51,12 @@ export interface BattleWeapon extends CombatantWeapon {
   /** 무기 부여 스킬(EquipSids 행 사영) — 장비 중에만 유효 스킬에 합류(특효 스킬의 원천). */
   sids?: SkillRow[];
   /**
+   * 엠블렘(인게이지) 무기 표식 — items.json `Flag`의 Engage 비트(128).
+   * 정본 = `ItemData.Flags.Engage = 128`을 `UnitItem.GetFontColor`(0x1F95D70)가 검사해
+   * 목록 글자색을 시안으로 가른다. 판정이 아니라 **표시**의 입력이다(부재 = 일반 무기).
+   */
+  engage?: boolean;
+  /**
    * items.json `Enhance.*` — **장비 중 스탯 강화**(무기 35종이 든다: 티르핑 마방+5 등).
    * ☠도핑 아이템 전용이 아니다. 정본 = `UnitEnhanceCalculator.Commit1st`(0x1F74B40)가
    * 0x1F74C44에서 장착 아이템의 `Enhance`(0xB0)를 직접 읽는다.

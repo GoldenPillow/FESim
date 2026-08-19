@@ -13,6 +13,8 @@ export interface MapQuery {
   /** 국면 id(phases.ts의 PhaseDef.id) */
   p?: string;
   d?: Difficulty;
+  /** 넘버링 세이브 번호 — 목록에서 다른 챕터의 세이브를 여는 유일한 경로. */
+  load?: number;
 }
 
 const toParams = (search: string | URLSearchParams): URLSearchParams =>
@@ -33,13 +35,19 @@ export function readMapQuery(search: string | URLSearchParams): MapQuery {
   const params = toParams(search);
   const p = params.get("p") ?? undefined;
   const d = params.get("d") ?? undefined;
-  return { p, d: d !== undefined && DIFFICULTIES.includes(d) ? (d as Difficulty) : undefined };
+  const load = Number(params.get("load"));
+  return {
+    p,
+    d: d !== undefined && DIFFICULTIES.includes(d) ? (d as Difficulty) : undefined,
+    load: Number.isInteger(load) && load > 0 ? load : undefined,
+  };
 }
 
 export function writeMapQuery(search: string | URLSearchParams, query: MapQuery): string {
   const params = toParams(search);
   put(params, "p", query.p);
   put(params, "d", query.d);
+  put(params, "load", query.load === undefined ? undefined : String(query.load));
   return format(params);
 }
 

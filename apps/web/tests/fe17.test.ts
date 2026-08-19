@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -431,5 +431,130 @@ describe("장비 Enhance 사영", () => {
   it("일반 상점 무기도 강화를 든다(호신 체술 = 수비 +5)", () => {
     const [w] = attackWeapons(disposUnit({ items: [{ iid: "IID_護身の法", drop: false }] }), "ko");
     expect(w?.enhance).toEqual({ def: 5 });
+  });
+});
+
+/**
+ * 무기 사영의 결손 2건 — 원본에 있는데 사영이 안 읽어 조용히 죽어 있던 필드들.
+ * ☠Secure(무기 필살회피)는 엔진 combat.ts가 `武器必殺回避`로 **이미 소비 중**이라, 사영이 비면
+ * 값이 늘 0이 되어 **예보 필살 확률이 과대**해진다 — 오류도 경고도 없이 수치만 틀린다.
+ * Flag의 Engage 비트는 인게임이 엠블렘 무기를 시안으로 칠하는 판별 그 자체다
+ * (ItemData.Flags.Engage = 128 · UnitItem.GetFontColor RVA 0x1F95D70).
+ */
+describe("무기 사영 — 필살회피·엠블렘 플래그", () => {
+  it("Secure가 dodge로 실린다 — 가느다란 검 30", () => {
+    const list = attackWeapons(disposUnit({ items: [{ iid: "IID_ほそみの剣", drop: false }] }), "ko");
+    expect(list[0]?.dodge).toBe(30);
+  });
+
+  it("Secure가 없는 무기는 dodge를 싣지 않는다(용량 정책 — 0은 기본값)", () => {
+    const list = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko");
+    expect(list[0]?.dodge).toBeUndefined();
+  });
+
+  /** 엠블렘 무기 = Flag 128 비트. 마르스 레이피어 Flag=131(128+2+1). */
+  it("엠블렘 무기에 engage 표식이 선다 — 목록에서 시안으로 갈리는 근거", () => {
+    const rapier = emblemEngageWeapons("GID_マルス", "ko")[0];
+    expect(rapier?.engage).toBe(true);
+    const iron = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko")[0];
+    expect(iron?.engage).toBeUndefined();
+  });
+
+  /**
+   * ★사영 → 판정 관통. 층별로는 둘 다 그린이었다: 엔진은 주입된 `武器必殺回避`를 정확히 빼고,
+   * 사영은 items.json을 정확히 읽는다. 그런데 **사이가 끊겨** 값이 늘 0이었다 —
+   * 필살률이 조용히 과대 표시되고, 오류도 경고도 없어 예보를 눈으로 봐도 알 수 없다.
+   * 정본 공식 = `必殺率計算 = 必殺値 - 相手の必殺回避`(calculator.json).
+   */
+  it("방어자 무기의 필살회피가 공격자 필살률을 깎는다 — 가느다란 검 30", async () => {
+    const { createCalculator, forecastSide, toCombatant } = await import("@fesim/engine");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+    const map = { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } };
+    const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+    const iron = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko")[0]!;
+    const thin = attackWeapons(disposUnit({ items: [{ iid: "IID_ほそみの剣", drop: false }] }), "ko")[0]!;
+    // 技 80 = 必殺値 40 — 낮은 技로는 양쪽 다 0으로 클램프돼 차이가 안 보인다(공식: int(技/2) + 武器必殺).
+    const attacker = { ...base, id: "a", force: 0, x: 0, y: 0, weapon: iron, stats: { ...stats, dex: 80 } };
+    const plain = { ...base, id: "p", force: 1, x: 1, y: 0, weapon: iron };
+    const dodgy = { ...base, id: "d", force: 1, x: 1, y: 0, weapon: thin };
+
+    const vsPlain = forecastSide(calc, toCombatant(attacker, map), toCombatant(plain, map));
+    const vsDodgy = forecastSide(calc, toCombatant(attacker, map), toCombatant(dodgy, map));
+    expect(thin.dodge).toBe(30);
+    expect(vsPlain.critRate - vsDodgy.critRate).toBe(30);
+  });
+
+  // ☠랭크·설명문은 여기 싣지 않는다 — 같은 무기가 유닛마다 중복돼 보드 JSON 예산(50KB gz)을 먹고
+  //   열람 경로(/s/)까지 따라간다. 소지품 화면 전용 사전으로 따로 낸다(제작 경로에서만 fetch).
+});
+
+/**
+ * 인연(絆) 레벨 스케폴드 — ☠**비계**다. 진행 중 絆 레벨은 romfs·덤프 어디에도 없다
+ * (dispos는 유닛 배치만 싣고, 絆는 플레이어 진행이 소유한다).
+ * 사용자 지시(2026-08-19) = 경험치와 같은 문법으로 **유닛 레벨 / 2**를 쓰고,
+ * 본편 문장사는 외전 클리어 전까지 **10에서 잠긴다**(클리어하면 상한이 풀린다).
+ * 제거 조건 = 런(캠페인) 상태가 絆 레벨을 실제로 들고 다닐 때 그 값으로 교체.
+ */
+describe("인연 레벨 스케폴드", () => {
+  it("레벨의 절반 — 경험치 스케폴드와 같은 문법", () => {
+    expect(bondScaffold(2)).toBe(1);
+    expect(bondScaffold(11)).toBe(5);
+    expect(bondScaffold(20)).toBe(10);
+  });
+
+  it("외전 클리어 전에는 10에서 잠긴다", () => {
+    expect(bondScaffold(30)).toBe(10);
+    expect(bondScaffold(40)).toBe(10);
+  });
+
+  it("외전을 클리어하면 상한이 풀린다(絆 상한 20)", () => {
+    expect(bondScaffold(30, true)).toBe(15);
+    expect(bondScaffold(40, true)).toBe(20);
+    expect(bondScaffold(99, true)).toBe(20);
+  });
+
+  it("1 미만으로 내려가지 않는다 — 반지를 낀 순간 絆는 1이다", () => {
+    expect(bondScaffold(1)).toBe(1);
+    expect(bondScaffold(0)).toBe(1);
+  });
+
+  /** ★인연 레벨이 실제로 패시브 수를 가른다 — 스케폴드가 사영까지 닿는지가 요점이다. */
+  it("絆 레벨이 높을수록 싱크로 패시브가 누적된다", () => {
+    const low = emblemSyncSids("GID_マルス", 1);
+    const high = emblemSyncSids("GID_マルス", 10);
+    expect(high.length).toBeGreaterThan(low.length);
+  });
+});
+
+/**
+ * ★문장사(엠블렘) 스탯 상승 — 싱크로 스킬의 `EnhanceValue.*`가 **스탯 스냅숏에 들어가야** 한다.
+ * ☠종전에는 `staticEnhances(base, unitSkillRows(unit))`로 **유닛 자기 스킬만** 넣어서
+ * 반지를 낀 유닛의 힘·기술·속도 보정이 통째로 빠졌다(마르스 絆1 = 力/技/速さ 각 +1).
+ * 속도는 추격 임계(공격속도 차 5)를 직접 가르므로, 이 결손은 **판정까지 바꾼다** —
+ * 화면에는 그냥 낮은 수치로 보일 뿐이라 눈으로는 못 잡는다.
+ * 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆 Lv1, 속도 8 표시.
+ */
+describe("문장사 스탯 상승 사영", () => {
+  it("싱크로 EnhanceValue가 스탯 스냅숏에 들어간다 — 마르스 絆1 = 힘·기술·속도 +1", () => {
+    // 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆 Lv1, 철의 검 장비, **물공 12**.
+    // 물공 = 힘 + 무기 위력(5)이므로 힘이 7이어야 12가 된다 — 싱크로 力＋１이 들어간 값이다.
+    const board = boardPropsFor("m002", "ko");
+    const ruell = board.units.find((u) => u.pid === "PID_リュール")!;
+    expect(ruell.gid).toBe("GID_マルス");
+    const bonus = (key: string) =>
+      (ruell.synchroSkills ?? []).reduce((n, s) => n + Number(s[`EnhanceValue.${key}`] ?? 0), 0);
+    expect(bonus("Str")).toBe(1); // 데이터가 실제로 +1을 들고 있다(전제)
+    expect(ruell.stats?.l?.str).toBe(7); // ★스냅숏이 그 보정을 품는가 = 실기 물공 12의 근거
+    expect(ruell.stats?.l?.dex).toBe(6);
+  });
+
+  it("반지를 안 낀 유닛에는 보정이 새지 않는다", () => {
+    const board = boardPropsFor("m002", "ko");
+    const noRing = board.units.find((u) => u.force === 0 && u.synchroSkills === undefined);
+    if (noRing === undefined) return;
+    expect(noRing.stats?.l?.str ?? 0).toBeGreaterThan(0);
   });
 });

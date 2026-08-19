@@ -139,8 +139,17 @@ def build_gods(src: Path, out: Path) -> None:
         elif current and row.get("Level"):
             # Flag(비트) 의미 = 코드 확정(il2cpp/EMBLEM_ENGAGE §3-4): 1=계승 해금(Lv5) ·
             # 2=지속 턴 +1(Lv11, リュール만 Lv20) · 4=게이지 상한 -1(Lv20)
+            # ☠스타일별 인게이지 무기 8열을 빼면 **조용히 사라진다**: 벨레트는 絆 1~9 구간의 무기가
+            #   0개가 되고, 치키는 OnlyEngageWeapon이라 브레스가 빠지면 쓸 무기 자체가 없어진다.
+            #   (2026-08-19 판독으로 발견 — 두 엠블렘만 쓰므로 현행 챕터에는 아직 발현하지 않는다.
+            #    소비는 fe17.ts가 그 엠블렘을 다룰 때 잇는다. 장부 = emblem.style-engage-weapons)
             growth[current][str(row["Level"])] = {
-                k: row[k] for k in ("SynchroSkills", "EngageSkills", "EngageItems", "InheritanceSkills", "Flag")
+                k: row[k]
+                for k in (
+                    "SynchroSkills", "EngageSkills", "EngageItems", "InheritanceSkills", "Flag",
+                    "EngageCooperations", "EngageCoverts", "EngageDragons", "EngageFlys",
+                    "EngageHeavys", "EngageHorses", "EngageMagics", "EngagePranas",
+                )
                 if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})

@@ -19,7 +19,16 @@ import {
 import type { CalculatorData, Difficulty, EphemerisFile, EphemerisSetup, EphemerisStep } from "@fesim/shared";
 import calculatorRaw from "../../../../data/fe17/tables/calculator.json?raw";
 import type { BoardProps } from "./fe17";
-import { clearSlot, loadSlot, saveSlot, type SaveKey } from "./guestSave";
+import {
+  clearSlot,
+  listSaves,
+  loadSlot,
+  putSave,
+  readSave,
+  saveSlot,
+  type SaveKey,
+  type SaveSummary,
+} from "./guestSave";
 
 /**
  * 보드 상태의 정본 — 아일랜드는 이 스토어를 구독만 한다(룰 로직은 엔진, 표시는 BoardView).
@@ -87,6 +96,10 @@ export interface BoardState {
   recording: EphemerisStep[];
   replay?: ReplaySession;
   cursor: number;
+  /** ★세이브 계보 — 처음부터 둔 판인가, 남의 기보 도중에 끼어든 판인가(대화 앵커의 절반). */
+  origin: "play" | "replay";
+  /** 난입 원본(기본 기보 = cid). */
+  from?: string;
   setDifficulty: (difficulty: Difficulty) => void;
   setScenario: (scenario: string | undefined) => void;
   reset: () => void;
@@ -100,6 +113,10 @@ export interface BoardState {
   loadReplay: (file: EphemerisFile) => void;
   /** 리플레이 열람 종료 — 기보 끝 국면의 플레이 모드로 복귀(맵 페이지 자기 기보 열람용). */
   exitReplay: () => void;
+  /** 넘버링 세이브 — 지금 국면을 번호로 박제한다. 리플레이 열람 중엔 무동작(난입 후에 찍는다). */
+  saveNamed: (label?: string) => SaveSummary | undefined;
+  /** 세이브 로드 — 다른 챕터의 세이브면 false(UI가 그 챕터 페이지로 보낸다). */
+  loadSave: (n: number) => boolean;
   seek: (cursor: number) => void;
   stepAction: (delta: number) => void;
   stepPhase: (delta: number) => void;
@@ -321,7 +338,9 @@ export function createBoardStore(
    */
   seedIn?: number,
 ): BoardStore {
-  const seed = seedIn ?? replayInit?.file.seed ?? freshSeed();
+  // ☠let인 이유 = **복원이 시드를 이어받는다**. 세이브·자동 저장을 새로고침 뒤에 열면 스토어는
+  // 새 시드로 서 있는데, 그 판의 난수는 기록된 시드가 소유한다(안 갈아끼우면 같은 수가 다른 결과가 된다).
+  let seed = seedIn ?? replayInit?.file.seed ?? freshSeed();
   /** Game 스트림(전투 판정) — 인게임의 `Random.Game`에 대응. AI(System)는 웹이 아직 안 돌린다. */
   let rng: Random = createRandom(seed);
 
@@ -379,6 +398,38 @@ export function createBoardStore(
       scenario: get().scenario,
     });
 
+    /**
+     * ★기록 → 국면 복원의 **유일한 경로** — 자동 저장 이어하기·세이브 로드·리플레이 난입이 같이 쓴다.
+     * ☠국면만 되돌리고 난수를 두면 "같은 수인데 다른 결과"가 된다(MP8 A6: 정본은 커서까지 복원한다).
+     * 복원이 세 군데로 갈라져 있으면 그중 하나만 고쳐지고, 그 하나는 오류도 경고도 없이 조용히 틀린다.
+     */
+    const resume = (file: EphemerisFile, log: readonly EphemerisStep[] = file.log): void => {
+      const setupOf = file.setup ?? get().setup;
+      const base = initGame(props, file.chapter.difficulty, file.chapter.scenario, setupOf);
+      let state = base.game;
+      for (const step of log) state = replayer.applyStep(state, step);
+      // 시드가 먼저다 — rewindRng가 이 값에서 되감는다(순서가 바뀌면 남의 판 커서를 만든다).
+      if (file.seed !== undefined) seed = file.seed;
+      rewindRng(log);
+      // 이어 두려면 살아 있는 이벤트 리듀서가 필요하다(리플레이로 만든 스토어엔 live가 없다).
+      // 1회성 발화 플래그는 GameState.variables가 들고 있어 새 세션이 과거 이벤트를 재발화하지 않는다.
+      live = evented ? events!.create(file.chapter.difficulty) : undefined;
+      set({
+        mode: "play",
+        difficulty: file.chapter.difficulty,
+        scenario: file.chapter.scenario,
+        setup: setupOf,
+        game: state,
+        visuals: base.visuals,
+        recording: [...log],
+        replay: undefined,
+        cursor: 0,
+      });
+      // ☠이어하기 슬롯까지 옮긴다 — 안 옮기면 로드 직후 새로고침에서 낡은 국면이 돌아와
+      //   사용자가 부른 판이 소리 없이 사라진다(실측 2026-08-19).
+      saveSlot(saveKey(), get().toFile());
+    };
+
     const fresh = (difficulty: Difficulty, scenario: string | undefined) => {
       rewindRng([]); // 새 판 = 커서도 판 머리로(같은 시드면 같은 판이 열린다)
       const next = boot(difficulty, scenario, get().setup);
@@ -392,6 +443,8 @@ export function createBoardStore(
         recording: next.log,
         replay: undefined,
         cursor: 0,
+        origin: "play",
+        from: undefined,
       });
     };
 
@@ -405,6 +458,7 @@ export function createBoardStore(
       recording: session === undefined ? initial.log : [...session.file.log],
       replay: session,
       cursor: session === undefined ? 0 : clamp(replayInit?.cursor ?? 0, 0, session.timeline.steps.length),
+      origin: "play",
 
       setDifficulty(difficulty) {
         if (get().mode === "replay" || get().difficulty === difficulty) return;
@@ -427,11 +481,8 @@ export function createBoardStore(
         const key = saveKey();
         const file = loadSlot(key);
         if (file === undefined || file.log.length === 0) return;
-        const base = initGame(props, key.difficulty, key.scenario, file.setup ?? get().setup);
         try {
-          let state = base.game;
-          for (const step of file.log) state = replayer.applyStep(state, step);
-          set({ game: state, visuals: base.visuals, recording: [...file.log], setup: file.setup ?? get().setup });
+          resume(file);
         } catch (e) {
           console.warn("게스트 저장 복원 실패 — 새 판으로 시작한다", e);
           clearSlot(key);
@@ -526,21 +577,52 @@ export function createBoardStore(
         // ☠개시 스텝(setup)은 판 그 자체다 — 커서를 0까지 되감고 나가도 이건 남긴다.
         //   빼면 이벤트 챕터가 스폰·변수 없는 원시 배치로 떨어진다.
         const floor = file.log[0]?.action.type === "setup" ? 1 : 0;
-        const log = file.log.slice(0, Math.max(cursor, floor));
-        const base = initGame(props, file.chapter.difficulty, file.chapter.scenario, file.setup ?? get().setup);
-        let state = base.game;
-        for (const step of log) state = replayer.applyStep(state, step);
-        // ★이어 두려면 살아 있는 이벤트 리듀서가 필요하다 — 리플레이로 생성된 스토어는 live가 없다.
-        //   1회성 발화 플래그는 GameState.variables가 들고 있으므로 새 세션이 과거 이벤트를 재발화하지 않는다.
-        live = evented ? events!.create(file.chapter.difficulty) : undefined;
-        set({
-          mode: "play",
-          game: state,
-          visuals: base.visuals,
-          recording: log,
-          replay: undefined,
-          cursor: 0,
-        });
+        resume(file, file.log.slice(0, Math.max(cursor, floor)));
+        // ★난입 계보 — 이 판은 남의 기보 도중에서 시작했다. 세이브에 실려 앵커의 절반이 된다.
+        set({ origin: "replay", from: file.meta?.title ?? file.chapter.cid });
+      },
+
+      /**
+       * 지금 국면을 번호로 박제한다. 요약(턴·수·생존)을 함께 실어 목록이 기보를 파싱하지 않게 한다.
+       * ☠리플레이 열람 중엔 안 찍는다 — recording이 기보 전체라 커서 국면과 어긋난다(난입 후에 찍어라).
+       */
+      saveNamed(label) {
+        const { mode, game, recording, origin, from } = get();
+        if (mode === "replay") return undefined;
+        const mine = game.units.filter((u) => u.force === 0);
+        return putSave(
+          {
+            game: GAME_ID,
+            cid: props.mapId,
+            difficulty: get().difficulty,
+            turn: game.turn,
+            phase: game.phase,
+            steps: recording.length,
+            alive: mine.filter((u) => !u.dead).length,
+            total: mine.length,
+            origin,
+            ...(from === undefined ? {} : { from }),
+            ...(label === undefined ? {} : { label }),
+          },
+          // 번호는 저장 계층이 발급한다(파일 meta는 사용자가 붙인 라벨만 싣는다 — 번호 이중 정본 금지).
+          get().toFile({ ...(label === undefined ? {} : { title: label }), created: new Date().toISOString() }),
+        );
+      },
+
+      loadSave(n) {
+        const file = readSave(n);
+        // 보드 props가 챕터를 고정한다 — 남의 챕터 기록을 이 판에 얹으면 유닛 주소부터 어긋난다.
+        if (file === undefined || file.chapter.cid !== props.mapId) return false;
+        try {
+          resume(file);
+        } catch (e) {
+          console.warn(`세이브 ${n} 복원 실패 — 판을 건드리지 않는다`, e);
+          return false;
+        }
+        // 계보 승계 — 난입에서 나온 세이브를 이어받으면 그 판은 여전히 난입 판이다.
+        const summary = listSaves().find((s) => s.n === n);
+        set({ origin: summary?.origin ?? "play", from: summary?.from });
+        return true;
       },
 
       seek(cursor) {

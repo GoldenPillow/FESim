@@ -41,3 +41,23 @@ describe("주소 질의", () => {
     expect(readAddress("?t=1&p=player&a=abc")?.a).toBe(0);
   });
 });
+
+/**
+ * ?load=n — 번호로 부른 세이브. ★자동 복원보다 앞선다(명시 지시가 이긴다).
+ * 왜 위험한가: 다른 챕터의 세이브를 여는 유일한 경로라, 여기서 값이 새면 목록 클릭이 조용히 무동작이 된다.
+ */
+describe("세이브 딥링크 — ?load", () => {
+  it("양수 정수만 읽고, 이물·0·음수는 없는 셈 친다", () => {
+    expect(readMapQuery("?load=7").load).toBe(7);
+    expect(readMapQuery("?load=0").load).toBeUndefined();
+    expect(readMapQuery("?load=-3").load).toBeUndefined();
+    expect(readMapQuery("?load=abc").load).toBeUndefined();
+    expect(readMapQuery("").load).toBeUndefined();
+  });
+
+  it("다른 질의를 보존하며 왕복한다", () => {
+    // 이 코덱이 소유하지 않는 키(로케일 등)는 보존, 소유하는 키는 undefined = 삭제가 계약이다.
+    expect(writeMapQuery("?l=ko", { load: 12 })).toBe("?l=ko&load=12");
+    expect(readMapQuery(writeMapQuery("", { d: "l", load: 3 }))).toEqual({ p: undefined, d: "l", load: 3 });
+  });
+});

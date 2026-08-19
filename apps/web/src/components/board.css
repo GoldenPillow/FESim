@@ -654,6 +654,231 @@
 .plate .edit-bar button:hover {
   color: var(--ink);
 }
+/* 유닛 커맨드 메뉴 — 인게임 우측 세로 메뉴의 재현(MapUnitCommandMenu).
+   ☠색은 실기 스크린샷 픽셀 실측이다: 코드에 RGBA가 없다(GameColor가 Unity ScriptableObject 자산).
+   선택 #b2f2ff · 비선택 #ffffff — 추측으로 정하지 않았다. */
+.plate .cmd-menu {
+  position: absolute;
+  /* 보드 오른쪽 바깥, 세로 중앙(2026-08-19 사용자 지시). 우측 정보 패널 위로 겹쳐도 무방. */
+  left: calc(100% + 0.9rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  min-width: 11.5rem;
+  padding: 0.5rem 0;
+  /* 실기 SetShowRowNum(10) — 10행을 넘으면 스크롤한다. */
+  max-height: calc(10 * 2.35rem);
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgb(7 13 25 / 0.985), rgb(12 21 38 / 0.985));
+  border-top: 1px solid rgb(178 242 255 / 0.35);
+  border-bottom: 1px solid rgb(178 242 255 / 0.35);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+}
+.plate .cmd-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plate .cmd-menu button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.32rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.plate .cmd-menu button.on {
+  color: #b2f2ff;
+}
+.plate .cmd-menu button.on .cmd-label {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(178 242 255 / 0.7);
+  padding: 0.05rem 0.6rem;
+  margin: 0 -0.2rem;
+}
+/* 고른 커맨드(대상 지정 중) — 호버가 떠나도 자리를 지킨다. */
+.plate .cmd-menu button.picked .cmd-label {
+  background: rgb(178 242 255 / 0.16);
+}
+.plate .cmd-menu .cmd-help {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgb(255 255 255 / 0.72);
+  white-space: nowrap;
+}
+
+/* 사이드 패널이 접히는 폭에서는 보드 아래로 — 우측 공간이 없다(board-metrics 예산 참조). */
+@media (max-width: 1023px) {
+  .plate .cmd-menu {
+    position: static;
+    transform: none;
+    max-height: none;
+    margin-top: 0.6rem;
+    min-width: 0;
+  }
+  .plate .cmd-menu ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.2rem;
+  }
+  .plate .cmd-menu button {
+    width: auto;
+  }
+  .plate .cmd-menu .cmd-help {
+    display: none;
+  }
+}
+
+/* 소지품 화면 — 커맨드 메뉴와 같은 자리를 쓴다(실기: 메뉴가 물러나고 이 화면이 선다).
+   색은 실기 스크린샷 픽셀 실측: 엠블렘 무기 #40dfff · 사용불가 #898e99 · 능력표 #d9ceb8 · 상승 #26dbff. */
+.plate .item-panel {
+  position: absolute;
+  left: calc(100% + 0.9rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  min-width: 13rem;
+  padding: 0.5rem 0 0.6rem;
+  background: linear-gradient(180deg, rgb(7 13 25 / 0.985), rgb(12 21 38 / 0.985));
+  border-top: 1px solid rgb(178 242 255 / 0.35);
+  border-bottom: 1px solid rgb(178 242 255 / 0.35);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+}
+.plate .item-panel .ip-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plate .item-panel .ip-list button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.3rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+/* 엠블렘(인게이지) 무기 — items.json Flag 128. 목록에서 이 색으로 갈린다. */
+.plate .item-panel .ip-list button.engage {
+  color: #40dfff;
+}
+.plate .item-panel .ip-list button.dim {
+  color: #898e99;
+}
+.plate .item-panel .ip-list button.on .ip-name {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(178 242 255 / 0.7);
+  padding: 0.05rem 0.55rem;
+  margin: 0 -0.2rem;
+}
+.plate .item-panel .ip-uses {
+  font-weight: 400;
+  opacity: 0.8;
+}
+.plate .item-panel .ip-stats {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 0.15rem 0.7rem;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.9rem 0;
+  border-top: 1px solid rgb(217 206 184 / 0.25);
+  font-size: 11px;
+  color: #d9ceb8;
+}
+.plate .item-panel .ip-stats div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.plate .item-panel .ip-stats dt {
+  opacity: 0.75;
+}
+.plate .item-panel .ip-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.plate .item-panel .ip-stats em {
+  font-style: normal;
+  font-size: 9px;
+}
+.plate .item-panel .ip-stats em.up {
+  color: #26dbff;
+}
+.plate .item-panel .ip-stats em.down {
+  color: #ff8a8a;
+}
+
+@media (max-width: 1023px) {
+  .plate .item-panel {
+    position: static;
+    transform: none;
+    margin-top: 0.6rem;
+    min-width: 0;
+  }
+}
+
+/* 넘버링 세이브 목록(관리자 표면) — 번호가 앵커라 제일 먼저 읽히게 굵게 세운다. */
+.plate .saves-panel {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.plate .saves-panel .saves-empty {
+  text-align: center;
+  padding: 0.4rem;
+}
+.plate .saves-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.plate .saves-row .saves-open {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+  justify-content: flex-start;
+}
+.plate .saves-row .saves-open b {
+  font-variant-numeric: tabular-nums;
+  color: var(--gold, #f0c85a);
+}
+.plate .saves-row .saves-open time {
+  margin-left: auto;
+  opacity: 0.6;
+}
+.plate .saves-row button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .saves-row button:hover {
+  color: var(--ink);
+}
+
 .plate .turn-strip button.on {
   color: var(--gold, #f0c85a);
   border-color: var(--gold, #f0c85a);

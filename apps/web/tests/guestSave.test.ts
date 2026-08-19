@@ -15,7 +15,13 @@ import {
   loadRun,
   saveRun,
   runKey,
+  dropSave,
+  listSaves,
+  putSave,
+  readSave,
+  saveKey,
   type RunState,
+  type SaveDraft,
   type SaveKey,
 } from "../src/lib/guestSave";
 import { memoryStorage } from "./fixtures";
@@ -152,5 +158,87 @@ describe("런 저장 — fesim:run", () => {
     Object.defineProperty(globalThis, "localStorage", { value: memoryStorage(), configurable: true });
     saveRun(run());
     expect(loadRun("fe18")).toBeUndefined();
+  });
+});
+
+/**
+ * 넘버링 세이브 — 대화 앵커의 그릇. 자동 저장(fesim:eph:*)과 **다른 축**이다:
+ * 저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 사용자가 찍은 지점이 번호로 남는 보관이다.
+ * 왜 위험한가: 번호가 흔들리면 "세이브 7 봐줘"가 다른 국면을 가리킨다 — 앵커의 존재 이유가 사라진다.
+ */
+describe("넘버링 세이브 — fesim:save", () => {
+  const draft = (over: Partial<SaveDraft> = {}): SaveDraft => ({
+    game: "fe17",
+    cid: "m002",
+    difficulty: "l",
+    turn: 3,
+    phase: 0,
+    steps: 12,
+    alive: 5,
+    total: 6,
+    origin: "play",
+    ...over,
+  });
+
+  it("저장 → 목록 → 읽기 왕복", () => {
+    use(memoryStorage());
+    const s = putSave(draft(), file());
+    expect(s?.n).toBe(1);
+    expect(listSaves()).toEqual([s]);
+    expect(readSave(1)).toEqual(file());
+  });
+
+  /** ☠번호 재사용 = 앵커 붕괴. 지운 자리에 다음 세이브가 들어앉으면 옛 대화의 "세이브 2"가 딴 판을 가리킨다. */
+  it("번호는 삭제 후에도 재사용되지 않는다", () => {
+    use(memoryStorage());
+    putSave(draft(), file());
+    const two = putSave(draft(), file());
+    dropSave(two!.n);
+    expect(listSaves().map((s) => s.n)).toEqual([1]);
+    expect(putSave(draft(), file())?.n).toBe(3);
+  });
+
+  it("최신이 앞에 온다 — 목록은 사용자가 방금 찍은 지점부터 읽는다", () => {
+    use(memoryStorage());
+    putSave(draft(), file());
+    putSave(draft({ turn: 9 }), file());
+    expect(listSaves().map((s) => s.n)).toEqual([2, 1]);
+  });
+
+  it("난입 계보를 싣는다 — 어느 기보 어디서 이어받았는지가 앵커의 절반이다", () => {
+    use(memoryStorage());
+    const s = putSave(draft({ origin: "replay", from: "m002" }), file());
+    expect(listSaves()[0]).toMatchObject({ origin: "replay", from: "m002" });
+    expect(s?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  /** 손상 인덱스로 보관함 전체가 막히면 안 된다 — 자동 저장 계층과 같은 규약. */
+  it("손상 인덱스는 빈 목록으로 강하한다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    storage.setItem("fesim:save:index", "{ 이건 JSON이 아니다");
+    expect(listSaves()).toEqual([]);
+    expect(putSave(draft(), file())?.n).toBe(1); // 인덱스가 죽어도 저장은 계속된다
+  });
+
+  /** 인덱스에만 남은 고아는 읽는 순간 스스로 걷힌다 — 목록이 없는 세이브를 계속 광고하면 안 된다. */
+  it("슬롯이 사라진 인덱스 항목은 읽을 때 걷힌다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    const s = putSave(draft(), file());
+    storage.removeItem(saveKey(s!.n));
+    expect(readSave(s!.n)).toBeUndefined();
+    expect(listSaves()).toEqual([]);
+  });
+
+  it("localStorage 예외는 저장·목록·읽기·삭제 전부에서 무해화된다", () => {
+    use(memoryStorage("setItem"));
+    expect(() => putSave(draft(), file())).not.toThrow();
+    use(memoryStorage("getItem"));
+    expect(listSaves()).toEqual([]);
+    expect(readSave(1)).toBeUndefined();
+    use(memoryStorage("removeItem"));
+    expect(() => dropSave(1)).not.toThrow();
   });
 });

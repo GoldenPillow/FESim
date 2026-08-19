@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|opening|promote|link:put|perf|size
+# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|opening|saves|promote|link:put|perf|size
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -131,6 +131,46 @@ case "$cmd" in
             shift
             [ $# -ge 1 ] || { echo "usage: ./dev opening check <cid> [--seed <정수>] [--carry <앞 기보>]"; exit 2; }
             node tools/replay/make.mjs "$@" --opening-check ;;
+  saves)    shift
+            # 넘버링 세이브 조회 — ★Claude가 "세이브 7"을 국면으로 읽는 경로.
+            # ☠정본은 브라우저(localStorage)이고 이 디렉터리는 **로컬 dev로 플레이한 세이브의 사본**이다
+            #   (베타 채널 세이브는 미러가 없어 여기 안 나온다 — 목록의 복사 버튼으로 옮긴다).
+            PYBIN="$PY"; [ -x "$PYBIN" ] || PYBIN=python3
+            "$PYBIN" - "$ROOT/data/fe17/saves" "$@" <<'PYEOF'
+import json, sys
+from pathlib import Path
+
+d = Path(sys.argv[1])
+args = sys.argv[2:]
+try:
+    index = json.loads((d / "index.json").read_text())
+except Exception:
+    print(f"세이브 없음 ({d}) — 로컬 dev 서버에서 SAVE를 누르면 생긴다")
+    raise SystemExit(0)
+
+if args[:1] == ["show"]:
+    n = int(args[1])
+    s = next((s for s in index if s["n"] == n), None)
+    if s is None:
+        print(f"세이브 {n} 없음"); raise SystemExit(1)
+    print(json.dumps(s, ensure_ascii=False, indent=2))
+    f = d / f"{n:03d}.eph.json"
+    print(f"기보: {f}")
+    eph = json.loads(f.read_text())
+    print(f"룰버전 {eph['ruleVersion']} · 시드 {eph.get('seed')} · {len(eph['log'])}스텝")
+    print("마지막 수:")
+    for step in eph["log"][-5:]:
+        print("  " + json.dumps(step["action"], ensure_ascii=False))
+    raise SystemExit(0)
+
+print(f"== 넘버링 세이브 {len(index)}건 ({d}) ==")
+for s in index:
+    origin = f"난입({s.get('from','?')})" if s.get("origin") == "replay" else "직접"
+    label = f" [{s['label']}]" if s.get("label") else ""
+    print(f"  {s['n']:03d}  {s['cid']} {s['difficulty']}  T{s['turn']}p{s['phase']}  "
+          f"{s['steps']}수  자군 {s['alive']}/{s['total']}  {origin}  {s['created'][:16]}{label}")
+PYEOF
+            ;;
   link:put) shift
             # 공유 링크 수동 등재(발급 API는 M4). 키 = id 그대로 · 값 = .eph 원문(@fesim/api 계약).
             [ $# -ge 2 ] || { echo "usage: ./dev link:put <id> <eph.json> [--local]"; exit 2; }
@@ -171,5 +211,5 @@ case "$cmd" in
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|opening check <cid>|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

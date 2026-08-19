@@ -24,6 +24,7 @@ import {
   staffHealAmount,
   staffHitRate,
   toCombatant,
+  combatEnv,
   warpDestinations,
   type AiDeficit,
   type BattleAction,
@@ -50,8 +51,24 @@ import {
   type UnitVisual,
 } from "../lib/boardStore";
 import { eventWiringFor } from "../lib/eventWiring";
-import { clampZoom, hasGuestSave, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
+import {
+  clampZoom,
+  dropSave,
+  hasGuestSave,
+  listSaves,
+  loadZoom,
+  readSave,
+  saveZoom,
+  type SaveSummary,
+  ZOOM_DEFAULT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
+import CommandMenu from "./CommandMenu";
+import ItemPanel, { type ItemRow, type StatDelta } from "./ItemPanel";
+import { availableCommands, type CommandId } from "../lib/commands";
 import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
 // REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
@@ -94,6 +111,24 @@ export default function BoardIsland(props: BoardProps) {
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  /**
+   * 넘버링 세이브 표면 — ☠**비계**: 지금은 관리자만 쓴다(2026-08-19 사용자 지시, 게스트 정책은 추후 논의).
+   * 제거 조건 = 게스트 세이브 정책 확정. 그때 이 게이트를 걷고 전면 노출한다.
+   * 켜기 = ?admin=1 (localStorage에 남는다) · 끄기 = ?admin=0.
+   */
+  const [admin, setAdmin] = useState(false);
+  const [savesOpen, setSavesOpen] = useState(false);
+  const [saves, setSaves] = useState<SaveSummary[]>([]);
+  useEffect(() => {
+    try {
+      const flag = new URLSearchParams(window.location.search).get("admin");
+      if (flag === "1") localStorage.setItem("fesim:admin", "1");
+      if (flag === "0") localStorage.removeItem("fesim:admin");
+      setAdmin(localStorage.getItem("fesim:admin") === "1");
+    } catch {
+      // 프라이빗 모드 = 관리자 표면 숨김. 판은 그대로 돌아간다.
+    }
+  }, []);
   // 맵 줌 — SSR·하이드레이션은 디폴트로 그리고 마운트 후 저장값 반영(마크업 불일치 회피).
   const [zoom, setZoom] = useState(ZOOM_DEFAULT);
   useEffect(() => setZoom(loadZoom()), []);
@@ -122,6 +157,35 @@ export default function BoardIsland(props: BoardProps) {
     .filter(([, su]) => su.removed === true)
     .map(([id]) => id);
 
+  /**
+   * ★1스텝 취소 — 인게임 B 버튼(2026-08-19 사용자 지시: "바깥쪽 클릭이 1스탭 이전으로 가는 방식").
+   * ☠한 번에 한 단계만 물러난다. 통째로 취소하면 이동부터 다시 잡아야 해서 조작이 배로 든다 —
+   * 그래서 `pending`(잠정 이동)을 마지막에서 두 번째로 둔다: 명령을 무르면 **같은 자리에서 다시 고르고**,
+   * 한 번 더 무르면 **원위치로 돌아가 다시 이동**할 수 있다.
+   */
+  const stepBack = () => {
+    if (tradeWith !== undefined) return setTradeWith(undefined);
+    if (targetId !== undefined) {
+      setTargetId(undefined);
+      setWeaponPick(undefined);
+      return;
+    }
+    if (staffPick !== undefined) return setStaffPick(undefined);
+    if (cmd !== undefined) return setCmd(undefined);
+    if (pending !== undefined) return setPending(undefined);
+    /**
+     * ★인게이지 해제 — 실기는 커서 단계의 **버튼 10**이 담당한다(메뉴 항목이 아니다:
+     * keyhelpdata.xml이 `인게이지` ↔ `인게이지 해제` 라벨을 같은 버튼에 매단다).
+     * 웹에는 그 버튼이 없어 **메뉴 밖 클릭(B)으로 대체**한다(2026-08-19 사용자 결정).
+     * ☠되돌릴 단계를 전부 소진한 뒤에 놓는다 — 취소하려다 인게이지가 풀리면 손해가 크다.
+     */
+    if (selected?.engage?.engaging === true && !selected.acted && selected.force === game.phase) {
+      tryDispatch({ type: "engage", unit: selected.id });
+      return;
+    }
+    if (selectedId !== undefined) return setSelectedId(undefined);
+  };
+
   const clearLocal = () => {
     setSelectedId(undefined);
     setTargetId(undefined);
@@ -134,7 +198,10 @@ export default function BoardIsland(props: BoardProps) {
     const boot = (target: BoardStore, file?: EphemerisFile) => {
       const query = readMapQuery(window.location.search);
       if (file === undefined && query.d !== undefined) target.getState().setDifficulty(query.d);
-      if (file === undefined) target.getState().restore();
+      // ★명시 지시(?load=n)가 자동 복원을 이긴다 — 번호로 부른 판이 이어하던 판보다 우선이다.
+      //   실패(다른 챕터·슬롯 없음)면 평소대로 이어하기로 떨어진다.
+      const loaded = file === undefined && query.load !== undefined && target.getState().loadSave(query.load);
+      if (file === undefined && !loaded) target.getState().restore();
       setReady(true);
     };
     let dead = false;
@@ -161,7 +228,9 @@ export default function BoardIsland(props: BoardProps) {
     const defaultReplay = async (): Promise<EphemerisFile | undefined> => {
       const file = await fetchDefault();
       defaultFile.current = file;
-      return hasGuestSave(props.mapId) ? undefined : file;
+      // 이어하던 판·번호로 부른 세이브가 있으면 시연을 자동 재생하지 않는다(남의 기보가 내 진행을 덮으면 안 된다).
+      const called = readMapQuery(window.location.search).load !== undefined;
+      return hasGuestSave(props.mapId) || called ? undefined : file;
     };
     if (props.script === undefined) {
       void defaultReplay().then((file) => {
@@ -299,15 +368,27 @@ export default function BoardIsland(props: BoardProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, store]);
 
-  // 전투 취소 — 보드·예보(플레이트) 바깥 클릭 = 교전 해제(인게임 B버튼 문법).
+  /**
+   * 바깥 클릭 = 1스텝 취소. ☠종전에는 `targetId`가 있을 때만 돌고 그것만 지웠다 —
+   * 유닛만 고른 상태에서는 바깥을 눌러도 아무 일이 없었다.
+   * ☠판정 기준이 `.plate`인 것이 중요하다: 커맨드 메뉴·예보가 전부 그 안에 있어야
+   * 메뉴를 누르는 행위가 "바깥 클릭"으로 오인돼 자기를 닫지 않는다.
+   */
   useEffect(() => {
-    if (targetId === undefined) return;
+    if (selectedId === undefined) return;
     const cancel = (e: PointerEvent) => {
-      if (!(e.target instanceof Element) || e.target.closest(".plate") === null) setTargetId(undefined);
+      if (!(e.target instanceof Element) || e.target.closest(".plate") === null) stepBack();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") stepBack();
     };
     document.addEventListener("pointerdown", cancel);
-    return () => document.removeEventListener("pointerdown", cancel);
-  }, [targetId]);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", cancel);
+      window.removeEventListener("keydown", onKey);
+    };
+  });
 
   const alive = useMemo(() => game.units.filter((u) => !u.dead), [game]);
   const byTile = useMemo(() => {
@@ -342,6 +423,17 @@ export default function BoardIsland(props: BoardProps) {
   // 무기 선택: 클릭 = 확정(사거리·공격에 반영, attack 액션에 기록) · 호버 = 예보 수치만 바꾸는 프리뷰.
   const [weaponPick, setWeaponPick] = useState<number | undefined>(undefined);
   const [weaponHover, setWeaponHover] = useState<number | undefined>(undefined);
+  /**
+   * 고른 커맨드(인게임 우측 메뉴) — 대상을 고르는 중이면 여기 남아 있다.
+   * ☠기존 클릭 문맥(적 칸 = 공격 등)은 그대로 둔다: 메뉴는 **길을 하나 더 여는 것**이지
+   * 있던 조작을 막는 장치가 아니다. 다만 "자기 재클릭 = 대기"만은 메뉴 항목과 충돌해 걷어냈다.
+   */
+  const [cmd, setCmd] = useState<CommandId | undefined>(undefined);
+  const [cmdHover, setCmdHover] = useState<CommandId | undefined>(undefined);
+  useEffect(() => {
+    setCmd(undefined);
+    setCmdHover(undefined);
+  }, [selectedId, game]);
   useEffect(() => {
     setWeaponPick(undefined);
     setWeaponHover(undefined);
@@ -564,6 +656,124 @@ export default function BoardIsland(props: BoardProps) {
       .map((c, i) => ({ c, i }))
       .filter(({ c }) => c.addType === 2 && c.uses > 0 && itemTargets(userAt, viewUnits, c).length > 0);
   }, [selected, selectedAt, viewUnits, game.phase]);
+
+  /** 춤 대상 — 인접 1칸의 **행동을 마친** 같은 군(엔진 dance 게이트와 같은 조건). */
+  const danceTargets = useMemo(() => {
+    if (selected === undefined || selected.acted || selectedAt === undefined || !canDance(selected)) return [];
+    return viewUnits.filter(
+      (u) =>
+        u.force === selected.force &&
+        u.id !== selected.id &&
+        u.acted &&
+        Math.abs(u.x - selectedAt.x) + Math.abs(u.y - selectedAt.y) === 1,
+    );
+  }, [selected, selectedAt, viewUnits]);
+
+  /** 방문 = 서 있는 칸이 민가이고 아직 안 들른 곳(엔진 visit 게이트와 같은 조건). */
+  const canVisitHere = useMemo(() => {
+    if (selected === undefined || selected.acted || selectedAt === undefined || selected.force !== game.phase) return false;
+    const spot = (game.map.interactions ?? []).find(
+      (i) => i.kind === "visit" && (i.stand?.x ?? i.x) === selectedAt.x && (i.stand?.y ?? i.y) === selectedAt.y,
+    );
+    if (spot === undefined) return false;
+    return !(game.visited ?? []).some((v) => v.x === spot.x && v.y === spot.y);
+  }, [selected, selectedAt, game]);
+
+  /** 사거리 안에 실제로 칠 적이 있나 — 공격 항목의 게이트(실기 GetMapAttribute도 대상 열거를 본다). */
+  const hasAttackTarget = useMemo(() => {
+    if (selected === undefined || selected.acted || selected.force !== game.phase || range === undefined) return false;
+    if ((weapons.length === 0) && selected.weapon === undefined) return false;
+    return viewUnits.some((u) => u.force !== selected.force && range.attackAll.has(tileKey(u.x, u.y)));
+  }, [selected, range, viewUnits, game.phase, weapons]);
+
+  /** 우측 메뉴에 세울 커맨드 — 순서·규칙의 정본은 lib/commands.ts(인게임 CreateBind 사영). */
+  const commands = useMemo(() => {
+    if (selected === undefined || mode === "replay" || editing || selected.force !== game.phase) return [];
+    return availableCommands(selected, {
+      hasAttackTarget,
+      hasStaffTarget: usableStaves.length > 0,
+      hasDanceTarget: danceTargets.length > 0,
+      hasTradePartner: tradePartners.length > 0,
+      hasDestroyTarget: breakables.length > 0,
+      canVisit: canVisitHere,
+    });
+  }, [selected, mode, editing, game.phase, hasAttackTarget, usableStaves, danceTargets, tradePartners, breakables, canVisitHere, itemButtons]);
+
+  /** 소지품 커서(호버) — 능력표는 이 항목 기준이다(실기: 커서 초기 위치 = 현재 장비). */
+  const [itemCursor, setItemCursor] = useState<string | undefined>(undefined);
+  useEffect(() => setItemCursor(undefined), [selectedId, cmd]);
+
+  /**
+   * 소지품 목록 = 무기 ++ 지팡이 ++ 사용형. ☠무기·지팡이는 **정보 표시 전용**이다:
+   * 장비 변경 액션이 엔진에 없다(BattleAction 14종에 equip이 없다) — 없는 것을 있는 척하지 않는다.
+   */
+  const itemRows = useMemo<ItemRow[]>(() => {
+    if (selected === undefined) return [];
+    const rows: ItemRow[] = [];
+    weapons.forEach((w, i) =>
+      rows.push({ key: `w${i}`, name: w.name ?? "—", ...(w.engage === true ? { engage: true } : {}) }),
+    );
+    (selected.staves ?? []).forEach((s, i) =>
+      rows.push({ key: `s${i}`, name: s.name ?? labels.staffCmd, uses: s.uses, dim: s.uses === 0 }),
+    );
+    (selected.consumables ?? []).forEach((c, i) => {
+      const usable = itemButtons.some((b) => b.i === i);
+      rows.push({
+        key: `c${i}`,
+        name: c.name ?? labels.itemCmd,
+        uses: c.uses,
+        dim: !usable,
+        ...(usable
+          ? {
+              onUse: () => {
+                if (commitMove() && tryDispatch({ type: "item", unit: selected.id, item: i })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                  setCmd(undefined);
+                }
+              },
+            }
+          : {}),
+      });
+    });
+    return rows;
+  }, [selected, weapons, itemButtons, labels]);
+
+  /**
+   * "사용 시 능력" — 커서가 놓인 무기를 들었을 때의 수치와 **현 장비 대비 차분**.
+   * 전부 self-only 공식이라 상대 없이 계산된다(calculator.json). 정본을 두 번 돌려 빼는 것이
+   * 우리가 수치를 다시 짜지 않는 유일한 방법이다.
+   */
+  const itemStats = useMemo<{ stats: StatDelta[]; reach: string } | undefined>(() => {
+    if (selected === undefined || itemCursor === undefined || !itemCursor.startsWith("w")) return undefined;
+    const pick = weapons[Number(itemCursor.slice(1))];
+    if (pick === undefined) return undefined;
+    // ☠예보와 같은 인자로 부른다: `game.units`가 빠지면 지원(絆) 보정이 사라지고,
+    //   좌표가 원위치면 잠정 이동한 자리의 지형 회피가 안 들어간다 — 능력표만 조용히 다른 수를 말한다.
+    //   문장사 보정(싱크로 패시브·EnhanceValue)은 effectiveSkills가 이미 합류시킨다.
+    const envOf = (w: typeof pick) =>
+      combatEnv(toCombatant({ ...selected, ...(selectedAt ?? {}), weapon: w }, game.map, game.units));
+    const now = envOf(pick);
+    const base = chosenWeapon === undefined ? undefined : envOf(chosenWeapon);
+    const val = (env: ReturnType<typeof envOf>, formula: string) => Math.trunc(Number(calculator.eval(formula, env)));
+    const row = (label: string, formula: string): StatDelta => ({
+      label,
+      now: val(now, formula),
+      diff: base === undefined ? 0 : val(now, formula) - val(base, formula),
+    });
+    const t = labels.itemStats;
+    return {
+      stats: [
+        row(t.atk, "攻撃力計算"),
+        row(t.hit, "命中値計算"),
+        row(t.crit, "必殺値計算"),
+        row(t.spd, "攻撃速度計算"),
+        row(t.avo, "回避値計算"),
+        row(t.dodge, "必殺回避計算"),
+      ],
+      reach: pick.rangeMin === pick.rangeMax ? String(pick.rangeMax) : `${pick.rangeMin}-${pick.rangeMax}`,
+    };
+  }, [selected, selectedAt, itemCursor, weapons, chosenWeapon, game, labels]);
 
   // 회복 예보 — 수치의 정본은 엔진 staffHealAmount(중복 구현 금지). 기준 위치 = 지팡이 발판.
   const healFc = useMemo(() => {
@@ -930,8 +1140,17 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   /** 공격 액션 — 무기 목록이 있으면 선택 인덱스를 기보에 싣는다(장비 전환 포함 재현 계약). */
+  /**
+   * 교전 액션 — 메뉴에서 **인게이지 기술**을 골랐으면 그쪽으로 나간다.
+   * ☠리워프형(세리카)·관통형(시구르드)은 착지 좌표를 더 물어야 해서 아직 못 쏜다 —
+   * 엔진이 정직하게 거부하고 콘솔에 사유가 남는다(조용히 일반 공격으로 흘리지 않는다).
+   */
   const attackAction = (unit: string, target: string): BattleAction =>
-    weapons.length > 0 ? { type: "attack", unit, target, weapon: weaponIdx } : { type: "attack", unit, target };
+    cmd === "engageArt"
+      ? { type: "engageAttack", unit, target }
+      : weapons.length > 0
+        ? { type: "attack", unit, target, weapon: weaponIdx }
+        : { type: "attack", unit, target };
 
   /** 잠정 이동 확정 — 행동 직전에만 호출된다. 이동 없음/제자리 = 성공으로 친다. */
   const commitMove = (): boolean => {
@@ -1048,17 +1267,8 @@ export default function BoardIsland(props: BoardProps) {
         }
         return;
       }
-      if (clicked.id === selectedId) {
-        // 자기 자신 재클릭 = 대기 (인게임 문법 근사) — 잠정 이동이 있으면 함께 확정된다.
-        if (!clicked.acted && clicked.force === game.phase) {
-          if (commitMove()) {
-            tryDispatch({ type: "wait", unit: clicked.id });
-            if (canterPower(clicked) === undefined) setSelectedId(undefined);
-            setTargetId(undefined);
-          }
-          return;
-        }
-      }
+      // ☠"자기 재클릭 = 대기"는 걷어냈다(2026-08-19) — 커맨드 메뉴에 대기 항목이 생긴 이상
+      //   암묵 조작을 남기면 이동을 무르려다 턴을 끝내는 오폭이 된다. 취소는 stepBack이 맡는다.
       // 행동 완료 유닛도 재이동 창이 남아 있으면 선택 가능(예산 판정 = 엔진 moveBudget).
       const canterReady = clicked.acted && moveBudget(clicked) !== undefined;
       setSelectedId(clicked.force === game.phase && (!clicked.acted || canterReady) ? clicked.id : undefined);
@@ -1100,12 +1310,95 @@ export default function BoardIsland(props: BoardProps) {
     setTargetId(undefined);
   };
 
+  /**
+   * 커맨드 실행 — 즉시 끝나는 것과 대상을 더 고르는 것으로 갈린다.
+   * ☠`visit`은 다른 액션과 달리 재이동 창을 열지 않는다(엔진 battle.ts가 moved=false를 세우지 않는다) —
+   * 여기서 특별 취급하지 않아도 `canterPower`가 없으면 선택이 풀리므로 결과가 같다.
+   * ☠`engage`는 행동을 소모하지 않는다 — 실행 후에도 선택을 유지해야 이어서 공격할 수 있다.
+   */
+  const runCommand = (id: CommandId) => {
+    if (selected === undefined) return;
+    const finish = () => {
+      if (canterPower(selected) === undefined) setSelectedId(undefined);
+      setTargetId(undefined);
+      setCmd(undefined);
+      clearLocal();
+    };
+    switch (id) {
+      case "wait":
+        if (commitMove() && tryDispatch({ type: "wait", unit: selected.id })) finish();
+        return;
+      case "engage":
+        tryDispatch({ type: "engage", unit: selected.id });
+        setCmd(undefined);
+        return;
+      case "guard":
+        if (commitMove() && tryDispatch({ type: "guard", unit: selected.id })) finish();
+        return;
+      case "visit":
+        if (commitMove() && tryDispatch({ type: "visit", unit: selected.id })) finish();
+        return;
+      case "destroy": {
+        const t = breakables[0];
+        if (t !== undefined && commitMove() && tryDispatch({ type: "destroy", unit: selected.id, x: t.x, y: t.y })) finish();
+        return;
+      }
+      default:
+        // 대상·목록을 더 고르는 커맨드 — 재선택은 해제(토글)로 둔다.
+        setCmd(cmd === id ? undefined : id);
+        setTargetId(undefined);
+    }
+  };
+
   const copyRecord = () => {
     const file = store.getState().toFile({ created: new Date().toISOString() });
     void navigator.clipboard
       .writeText(serializeEphemeris(file))
       .then(() => setCopied(true))
       .catch(() => setCopied(false));
+  };
+
+  /* ── 넘버링 세이브 — 사용자가 찍은 지점을 번호로 박제한다.
+     ★번호의 쓸모 = 대화 앵커: 로컬 dev로 플레이하면 같은 세이브가 data/fe17/saves/{NNN}.eph.json에
+     미러돼(astro.config의 saveMirror) "세이브 7"이 그대로 국면 조회가 된다. */
+
+  const padNo = (n: number): string => String(n).padStart(3, "0");
+
+  const doSave = () => {
+    const saved = store.getState().saveNamed();
+    if (saved === undefined) return;
+    setBanner(`${labels.saves.saved} ${padNo(saved.n)}`);
+    setSaves(listSaves());
+  };
+
+  const openSave = (s: SaveSummary) => {
+    // 다른 챕터 = 그 페이지가 열어야 한다(보드 props가 챕터를 고정한다 — 유닛 주소부터 다르다).
+    if (s.cid !== props.mapId) {
+      window.location.href = `${window.location.pathname.replace(/[^/]+$/, s.cid)}${writeMapQuery("", { load: s.n })}`;
+      return;
+    }
+    if (!store.getState().loadSave(s.n)) return;
+    clearLocal();
+    setSavesOpen(false);
+    setBanner(`${labels.saves.saved} ${padNo(s.n)}`);
+  };
+
+  /** 베타(워커)에는 파일 미러가 없다 — 그쪽 세이브는 이 버튼으로 대화에 옮긴다. */
+  const copySave = (s: SaveSummary) => {
+    const file = readSave(s.n);
+    if (file === undefined) {
+      setSaves(listSaves()); // 슬롯이 사라진 항목은 읽는 순간 걷힌다
+      return;
+    }
+    void navigator.clipboard
+      .writeText(serializeEphemeris(file))
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
+
+  const removeSave = (s: SaveSummary) => {
+    dropSave(s.n);
+    setSaves(listSaves());
   };
 
   return (
@@ -1153,6 +1446,23 @@ export default function BoardIsland(props: BoardProps) {
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
         </button>
+        {admin && (
+          <>
+            <button type="button" disabled={mode === "replay"} title={labels.saves.hint} onClick={doSave}>
+              {labels.saves.save}
+            </button>
+            <button
+              type="button"
+              className={savesOpen ? "on" : undefined}
+              onClick={() => {
+                setSaves(listSaves());
+                setSavesOpen((v) => !v);
+              }}
+            >
+              {labels.saves.list}
+            </button>
+          </>
+        )}
         <button
           type="button"
           disabled={mode === "replay"}
@@ -1304,61 +1614,44 @@ export default function BoardIsland(props: BoardProps) {
         </button>
       </div>
 
-      {!editing && mode !== "replay" && selected !== undefined && (itemButtons.length > 0 || selected.engage !== undefined || tradePartners.length > 0 || usableStaves.some(({ s }) => s.rodType !== 2) || hasChainGuardSkill(selected)) && (
-        <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.itemCmd}>
-          {selected.engage !== undefined && (
-            <span className="edit-hint">
-              ⚡{" "}
-              {selected.engage.engaging
-                ? `${labels.engageCmd} ${selected.engage.turnLimit - selected.engage.turn}`
-                : `${selected.engage.count}/${selected.engage.limit}`}
-            </span>
-          )}
-          {selected.engage !== undefined &&
-            !selected.engage.engaging &&
-            !selected.acted &&
-            selected.traded !== true && // 교환 후 인게이지 발동 불가(실기 판별) — 엔진과 동일 게이트
-            selected.engage.limit > 0 &&
-            selected.engage.count >= selected.engage.limit && (
-              <button type="button" onClick={() => void tryDispatch({ type: "engage", unit: selected.id })}>
-                {labels.engageCmd}
-              </button>
-            )}
-          {/* 체인가드 지정 — 만HP 미달이면 비활성(인게임 GuardType.NotEnoughHP 문법). */}
-          {hasChainGuardSkill(selected) && !selected.acted && selected.force === game.phase && (
-            <button
-              type="button"
-              className={selected.guarding === true ? "on" : undefined}
-              disabled={selected.guarding === true || !canChainGuard(selected)}
-              onClick={() => {
-                if (commitMove() && tryDispatch({ type: "guard", unit: selected.id })) {
-                  if (canterPower(selected) === undefined) setSelectedId(undefined);
-                  setTargetId(undefined);
-                }
-              }}
-            >
-              {labels.guardCmd}
-            </button>
-          )}
-          {/* 파괴 — 인접 파괴 가능물(Destroyer 자격) 존재 시. 열거 = 엔진 destroyTargets 단일 정본(C4). */}
-          {!selected.acted && selected.force === game.phase && breakables.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                const t = breakables[0];
-                if (commitMove() && tryDispatch({ type: "destroy", unit: selected.id, x: t.x, y: t.y })) {
-                  if (canterPower(selected) === undefined) setSelectedId(undefined);
-                  setTargetId(undefined);
-                }
-              }}
-            >
-              {labels.destroyCmd}
-            </button>
-          )}
-          {/* 지팡이 선택 버튼 — 방해·워프 보유 시에만(기본 회복 문법은 버튼 없이 그대로). 재클릭 = 해제. */}
-          {usableStaves.some(({ s }) => s.rodType !== 2) &&
-            !selected.acted &&
-            selected.force === game.phase &&
+      <CommandMenu
+        commands={cmd === "item" ? [] : commands}
+        labels={labels.commands}
+        artName={selected?.engageArt?.name}
+        active={cmd}
+        hovered={cmdHover}
+        onPick={runCommand}
+        onHover={setCmdHover}
+      />
+
+      {!editing && mode !== "replay" && selected !== undefined && cmd === "item" && (
+        <ItemPanel
+          rows={itemRows}
+          cursor={itemCursor}
+          stats={itemStats?.stats}
+          reach={itemStats?.reach}
+          labels={labels}
+          onCursor={setItemCursor}
+        />
+      )}
+
+      {/* 인게이지 게이지 — 커맨드가 아니라 상태 표시라 메뉴 밖에 남긴다. */}
+      {!editing && mode !== "replay" && selected?.engage !== undefined && (
+        <div className="edit-bar cmd-bar" role="status">
+          <span className="edit-hint">
+            ⚡{" "}
+            {selected.engage.engaging
+              ? `${labels.commands.engage.label} ${selected.engage.turnLimit - selected.engage.turn}`
+              : `${selected.engage.count}/${selected.engage.limit}`}
+          </span>
+        </div>
+      )}
+
+      {/* ★하위 목록 — 고른 커맨드가 무엇을 더 물어보는지에 따라 내용이 갈린다(실기 MapItemMenu 자리).
+          ☠커맨드를 안 고르면 아무것도 안 뜬다: 종전처럼 전부 늘어놓으면 메뉴가 있는 의미가 없다. */}
+      {!editing && mode !== "replay" && selected !== undefined && cmd !== undefined && (
+        <div className="edit-bar cmd-bar" role="toolbar" aria-label={labels.commands[cmd].label}>
+          {cmd === "staff" &&
             usableStaves.map(({ s, i }) => (
               <button
                 key={`staff${i}`}
@@ -1372,33 +1665,25 @@ export default function BoardIsland(props: BoardProps) {
                 {s.name ?? labels.staffCmd} ({s.uses})
               </button>
             ))}
-          {staffMode === "warp" && allyTarget !== undefined && <span className="edit-hint">{labels.warpPick}</span>}
-          {itemButtons.map(({ c, i }) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => {
-                if (selected !== undefined && commitMove() && tryDispatch({ type: "item", unit: selected.id, item: i })) {
-                  if (canterPower(selected) === undefined) setSelectedId(undefined);
-                  setTargetId(undefined);
-                }
-              }}
-            >
-              {c.name ?? labels.itemCmd} +{c.power} ({c.uses})
-            </button>
-          ))}
-          {tradePartners.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => {
-                // 교환은 확정 위치 기준 — 잠정 이동을 먼저 커밋한다(인게임: 이동 후 교환, 이후 재이동 불가).
-                if (commitMove()) setTradeWith(p.id);
-              }}
-            >
-              {labels.tradeCmd}: {visuals.get(p.id)?.name ?? p.id}
-            </button>
-          ))}
+          {cmd === "staff" && staffMode === "warp" && allyTarget !== undefined && (
+            <span className="edit-hint">{labels.warpPick}</span>
+          )}
+
+          {cmd === "trade" &&
+            tradePartners.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  // 교환은 확정 위치 기준 — 잠정 이동을 먼저 커밋한다(인게임: 이동 후 교환, 이후 재이동 불가).
+                  if (commitMove()) setTradeWith(p.id);
+                }}
+              >
+                {visuals.get(p.id)?.name ?? p.id}
+              </button>
+            ))}
+          {cmd === "attack" && <span className="edit-hint">{labels.commands.attack.help}</span>}
+          {cmd === "dance" && <span className="edit-hint">{labels.commands.dance.help}</span>}
         </div>
       )}
 
@@ -1447,6 +1732,31 @@ export default function BoardIsland(props: BoardProps) {
             </div>
           );
         })()}
+
+      {admin && savesOpen && (
+        <div className="saves-panel" role="group" aria-label={labels.saves.list}>
+          {saves.length === 0 && <span className="saves-empty">{labels.saves.empty}</span>}
+          {saves.map((s) => (
+            <div key={s.n} className="saves-row">
+              <button type="button" className="saves-open" onClick={() => openSave(s)}>
+                <b>{padNo(s.n)}</b>
+                <span>
+                  {s.cid} {labels.diffNames[s.difficulty]} · {labels.turnWord} {s.turn} · {s.steps}
+                  {labels.saves.steps} · {s.alive}/{s.total}
+                  {s.origin === "replay" ? ` · ${labels.saves.joined}` : ""}
+                </span>
+                <time>{s.created.slice(0, 16).replace("T", " ")}</time>
+              </button>
+              <button type="button" onClick={() => copySave(s)}>
+                {labels.saves.copy}
+              </button>
+              <button type="button" onClick={() => removeSave(s)}>
+                {labels.saves.drop}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {editing && (
         <div className="edit-bar" role="toolbar" aria-label={labels.editCmd}>

@@ -18,7 +18,7 @@ import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
-import { UI, type Locale } from "./i18n";
+import { UI, type Locale, type Strings } from "./i18n";
 
 export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
 import { forceStyle } from "./grid";
@@ -623,6 +623,16 @@ const addGodSkill = (out: string[], sid: string): void => {
   out.push(sid);
 };
 
+/**
+ * ☠**비계** — 인연(絆) 레벨 스케폴드.
+ * 진행 중 絆 레벨은 romfs·IL2CPP 어디에도 없다(dispos는 배치만 싣고, 絆는 플레이어 진행이 소유한다).
+ * 사용자 지시(2026-08-19) = 경험치 스케폴드와 같은 문법으로 **유닛 레벨 / 2**를 쓰고,
+ * 본편 문장사는 **외전 클리어 전까지 10에서 잠긴다**(클리어하면 상한 20까지 풀린다).
+ * ★제거 조건 = 런(캠페인) 상태가 絆 레벨을 실제로 들고 다닐 때 그 값으로 교체한다.
+ */
+export const bondScaffold = (unitLevel: number, paralogueCleared = false): number =>
+  Math.min(Math.max(1, Math.floor(unitLevel / 2)), paralogueCleared ? 20 : 10);
+
 const godGrowthRows = (gid: string, bondLevel?: number) => {
   const god = godsTable.gods[gid];
   const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
@@ -844,6 +854,10 @@ export interface BoardWeaponProp {
   enhance?: Partial<StatBlock>;
   /** 무기 부여 스킬 행(EquipSids 슬림 사영) — 장비 중에만 유효(엔진 effectiveSkills 합류). */
   sids?: SkillRow[];
+  /** items.json Secure — 무기 필살회피(엔진 combat의 `武器必殺回避`). 부재 = 0. */
+  dodge?: number;
+  /** items.json Flag의 Engage 비트(128) — 엠블렘 무기 표식. 목록 글자색이 여기서 갈린다. */
+  engage?: boolean;
 }
 
 export interface BoardUnitProp {
@@ -1048,6 +1062,14 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
+    /** 유닛 커맨드 메뉴 라벨·설명문(residentmenu.msbt 정본) — i18n Strings.commands 그대로. */
+    commands: Strings["commands"];
+    /** 소지품 능력표 라벨(system.msbt MID_SYS_* 정본). */
+    itemStats: Strings["itemStats"];
+    saves: {
+      save: string; list: string; empty: string; drop: string; copy: string;
+      saved: string; joined: string; steps: string; hint: string;
+    };
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
   };
 }
@@ -1072,6 +1094,9 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
 
 /** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
 const MAGIC_FLAG = 0x10000;
+/** items.json Flag의 엠블렘 무기 비트 — 정본 `ItemData.Flags.Engage = 128`(dump.cs:600903).
+ *  `UnitItem.GetFontColor`(0x1F95D70)가 이 비트로 목록 글자색을 시안으로 가른다. */
+const ENGAGE_FLAG = 128;
 
 const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefined => {
   const row = items[iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
@@ -1088,6 +1113,10 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
     rangeMin: row.RangeI ?? 1,
     rangeMax: row.RangeO ?? 1,
     kind: row.Kind ?? 0,
+    // ☠Secure를 안 실으면 `武器必殺回避`가 늘 0이 되어 **예보 필살 확률이 과대**해진다.
+    //   엔진(combat.ts)은 이미 소비 중이었고 사영만 끊겨 있었다 — 값이 틀릴 뿐 오류는 안 난다.
+    ...(Number(row["Secure"] ?? 0) !== 0 ? { dodge: Number(row["Secure"]) } : {}),
+    ...((Number(row["Flag"] ?? 0) & ENGAGE_FLAG) !== 0 ? { engage: true as const } : {}),
     ...(() => {
       const rows = (row.EquipSids ?? []).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
       return rows.length > 0 ? { sids: rows } : {};
@@ -1294,9 +1323,19 @@ export function boardProps(
     moveTypes.add(moveType);
     const style = forceStyle(v.unit.force);
     const skillRows = unitSkillRows(v.unit);
+    /**
+     * ★문장사(싱크로) 패시브의 정적 보정도 스냅숏에 든다 — 종전에는 **유닛 자기 스킬만** 넣어서
+     * 반지를 낀 유닛의 力/技/速さ 보정이 통째로 빠져 있었다.
+     * 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆1·철의 검에서 **물공 12**인데
+     * 보정 없이는 11이 나온다(힘 6 + 위력 5). ☠속도는 추격 임계를 직접 가르므로 판정까지 바뀐다.
+     * 絆 레벨은 bondScaffold가 정한다(진행 중 絆는 어떤 덤프에도 없다).
+     */
+    const bondLevel = v.unit.gid === undefined ? undefined : bondScaffold(unitLevel(v.unit, "l"));
+    const syncRows = v.unit.gid === undefined ? undefined : unitSynchroSkillRows(v.unit, bondLevel);
+    const enhanceRows = syncRows === undefined ? skillRows : [...(skillRows ?? []), ...syncRows];
     const withEnhance = (d: Difficulty): StatBlock | undefined => {
       const base = unitStats(v.unit, d);
-      return base === undefined ? undefined : staticEnhances(base, skillRows);
+      return base === undefined ? undefined : staticEnhances(base, enhanceRows ?? []);
     };
     const person = persons[v.unit.pid] as unknown as Record<string, unknown> | undefined;
     return {
@@ -1342,12 +1381,15 @@ export function boardProps(
       })(),
       ...(() => {
         if (v.unit.gid === undefined) return {};
-        const engage = engageStateFor(v.unit.gid);
+        // 絆 레벨 = 스케폴드(위 bondScaffold). ☠난이도별로 갈리지 않게 **루나틱 레벨**을 기준으로 삼는다 —
+        // 스킬 목록은 보드 JSON에 한 벌만 실리므로(난이도별 3벌 = 용량 정책 위반) 기준을 하나로 고정해야 한다.
+        const bond = bondLevel ?? bondScaffold(unitLevel(v.unit, "l"));
+        const engage = engageStateFor(v.unit.gid, bond);
         if (engage === undefined) return {};
         gidsUsed.add(v.unit.gid);
-        const synchroSkills = unitSynchroSkillRows(v.unit);
-        const engagedSkills = unitEngagedSkillRows(v.unit);
-        const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
+        const synchroSkills = syncRows;
+        const engagedSkills = unitEngagedSkillRows(v.unit, bond);
+        const engageWeapons = emblemEngageWeapons(v.unit.gid, locale, bond);
         const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);
         return {
           gid: v.unit.gid,
@@ -1652,6 +1694,9 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     zoomOut: t.zoomOut,
     copyRecord: t.copyRecord,
     copied: t.copied,
+    commands: t.commands,
+    itemStats: t.itemStats,
+    saves: t.saves,
     logTags: t.logTags,
   });
 }

@@ -1438,7 +1438,16 @@ export function createReducer(calc: Calculator, supportEffects?: SupportEffects)
         if (u.acted) throw new Error(`행동 완료 유닛: ${u.id}`);
         const g = u.engage;
         if (g === undefined) throw new Error("엠블렘 미장착");
-        if (g.engaging) throw new Error("이미 인게이지 중");
+        // ★토글이다 — 인게임도 **같은 버튼(10)**이 상태에 따라 개시/해제로 갈린다
+        //   (keyhelpdata.xml `..._エンゲージ可` ↔ `..._エンゲージ解除可`). 새 액션을 만들지 않는 이유:
+        //   .eph의 ACTION_TYPES를 넓히면 기보 계약이 흔들리는데, 토글이면 기존 기보(전부 미인게이지에서
+        //   찍힌 개시)의 재생 결과가 그대로다.
+        if (g.engaging) {
+          // ☠해제는 게이지를 되돌리지 않는다 — 되돌리면 무한 인게이지가 된다. 지속 턴만 접는다.
+          u.engage = { ...g, engaging: false, turn: 0 };
+          events.push({ type: "disengage", unit: u.id });
+          break;
+        }
         // 발동 조건 = 만충(CanEngageImpl 0x1A26F70). 행동은 소모하지 않는다 — 발동 후 이동·공격 가능.
         if (u.traded === true) throw new Error("교환 후에는 인게이지 발동 불가");
         if (g.limit < 1 || g.count < g.limit) throw new Error("게이지 미만충");
