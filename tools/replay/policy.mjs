@@ -31,13 +31,42 @@ const ADVANCE_MARGIN = 0.25;
 const FRAIL_MARGIN = 0.45;
 const FRAIL_AFTER = 0.35;
 
+/**
+ * ★탱커 선봉(2026-08-19 사용자 실기 관측: "뤼에르의 적극성이 떨어지고 힐러나 마도사의 위험 전진이 많았다").
+ * 맷집 상위는 **여유를 줄여 앞에 세운다** — 맞아 주는 것이 그 유닛의 일이다.
+ */
+const STURDY_MARGIN = 0.10;
+
 const bulkOf = (u) => u.stats.hp + u.stats.def * 2 + u.stats.res;
 
-function frailSet(mine) {
+/** 회복 지팡이 보유 = 후열 역할. 맷집과 무관하게 보수적으로 둔다(죽으면 판이 회복 수단을 잃는다). */
+const isHealer = (u) => (u.staves ?? []).some((st) => st.uses > 0 && st.rodType === 2);
+
+/**
+ * 자군을 **물몸 / 보통 / 탱커** 3단으로 가른다 — 그 판의 상대치라 챕터가 바뀌어도 기준이 따라 움직인다.
+ *
+ * ☠종전 물몸 기준 `맷집 < 중앙값 x 0.85`는 **너무 빡빡해 아무도 안 걸렸다**(m002 실측:
+ * 맷집 [34,34,36,68] · 중앙값 36 · 물몸선 30.6 ⇒ 마도사 34·힐러 34가 물몸으로 안 잡혀
+ * 보수화 없이 전진했다). 그리고 **탱커 항이 아예 없어**(설계 §4-3이 이미 지적) 68짜리 탱커가
+ * 선봉을 안 서니, 그만큼 나머지가 맞을 자리를 대신 떠안았다.
+ * ⇒ 물몸 = **중앙값 미만이거나 회복 지팡이 보유** · 탱커 = 중앙값의 1.4배 이상.
+ */
+function tiersOf(mine) {
   const bulks = mine.map(bulkOf).sort((a, b) => a - b);
-  if (bulks.length === 0) return new Set();
+  if (bulks.length === 0) return { frail: new Set(), sturdy: new Set() };
   const median = bulks[Math.floor(bulks.length / 2)];
-  return new Set(mine.filter((u) => bulkOf(u) < median * 0.85).map((u) => u.id));
+  const frail = new Set();
+  const sturdy = new Set();
+  for (const u of mine) {
+    const b = bulkOf(u);
+    if (b >= median * 1.4) sturdy.add(u.id);
+    else if (b < median || isHealer(u)) frail.add(u.id);
+  }
+  return { frail, sturdy };
+}
+
+function frailSet(mine) {
+  return tiersOf(mine).frail;
 }
 
 
@@ -182,7 +211,20 @@ function bestVisit(engine, calculator, game, unit, zones, frail = false) {
   return undefined;
 }
 
-function bestAttack(engine, calculator, game, unit, foes, zones, frail = false) {
+/**
+ * 선봉 기준 — **가장 튼튼한 아군이 지금 적과 얼마나 떨어져 있는가**.
+ * 물몸이 이보다 더 앞으로 나가면 진형이 뒤집힌다(탱커가 뒤, 물몸이 앞).
+ * ☠노출을 직접 벌하지 않는 이유 = 접근로가 통째로 위협권인 맵에서는 판만 늘어진다(실측 15턴·손실).
+ */
+function vanguardOf(mine, foes, sturdy) {
+  if (foes.length === 0) return undefined;
+  const tank = mine.filter((u) => sturdy.has(u.id) && !u.dead)[0];
+  if (tank === undefined) return undefined;
+  const foe = foes.reduce((a, b) => (dist(tank, a) <= dist(tank, b) ? a : b));
+  return { foe, gap: dist(tank, foe) };
+}
+
+function bestAttack(engine, calculator, game, unit, foes, zones, frail = false, sturdy = false, vanguard = undefined) {
   const weapons = engine.effectiveWeapons(unit) ?? (unit.weapon !== undefined ? [unit.weapon] : []);
   if (weapons.length === 0) return undefined;
   let best;
@@ -200,14 +242,23 @@ function bestAttack(engine, calculator, game, unit, foes, zones, frail = false) 
         if (after <= 0) continue;
         // 물몸은 "죽지만 않으면 간다"를 못 쓴다 — 한 방 더 맞을 몫을 남긴다.
         if (frail && !fc.kill && after < unit.stats.hp * FRAIL_AFTER) continue;
-        if (fc.selfHp < unit.stats.hp * RISK_FLOOR && !fc.kill) continue;
+        // ★탱커는 더 깊이 들어간다 — 맞아 주는 것이 그 유닛의 일이다(§4-3 탱커 선봉).
+        if (fc.selfHp < unit.stats.hp * (sturdy ? RISK_FLOOR * 0.5 : RISK_FLOOR) && !fc.kill) continue;
+        // ★노출 가중은 **역할마다 다르다**(2026-08-19 사용자 실기 관측: "힐러나 마도사의 위험 전진이 많았다").
+        //   종전엔 전 유닛이 같은 계수(4)를 써서, 실측상 **마도사가 탱커보다 더 노출됐다**
+        //   (m002 자군턴 10 중 노출: 클랜 9 · 반드레 8 — 맞아야 할 쪽과 피해야 할 쪽이 뒤바뀌어 있었다).
+        //   물몸은 같은 대미지를 위해 **훨씬 안전한 칸**을 요구하고, 탱커는 노출을 싸게 친다(맞는 게 일이다).
+        const exposureWeight = frail ? 6 : sturdy ? 2 : 4;
         const score =
           (fc.kill ? 1000 : 0) +
           (fc.brk ? 120 : 0) +
           (unit.hp - fc.selfHp) * -6 +
           (foe.hp - fc.foeHp) * 8 +
           fc.hitRate * 0.4 -
-          Math.max(threat.total - relief, 0) * 4;
+          Math.max(threat.total - relief, 0) * exposureWeight -
+          // ★진형 — **물몸은 탱커보다 앞서지 않는다**. 노출 자체를 벌하면 판만 늘어지고(실측: 15턴·손실)
+          //   노출 비율은 그대로다. 막을 것은 노출이 아니라 **선봉이 뒤바뀌는 것**이다.
+          (frail && vanguard !== undefined && dist(at, vanguard.foe) < vanguard.gap ? 60 : 0);
         if (best === undefined || score > best.score) best = { score, at, foe, weapon: wi, fc };
       }
     }
@@ -251,7 +302,7 @@ function bestHeal(engine, calculator, game, unit, allies, zones, frail = false) 
  * 전진 — 가장 가까운 적 쪽으로 붙되, **버틸 수 있는 칸**까지만 나간다.
  * 죽을 칸은 아예 후보에서 빼고, 남은 칸 중에서 (거리 ↓ · 예상 피해 ↓)로 고른다.
  */
-function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = false, frail = false) {
+function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = false, frail = false, sturdy = false) {
   if (foes.length === 0) return undefined;
   let best;
   for (const at of reachable(engine, game, unit)) {
@@ -259,10 +310,18 @@ function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = f
     // ☠**여유를 남긴다**(2026-08-18 사용자 지적 "지나친 공격위치에 있는지도 확인").
     //   "죽지만 않으면 간다"로 두면 잔여 HP 1로 적진 앞에 서고, 증원 한 명이면 그대로 끝난다.
     // ★단 **교착이면 여유를 접는다** — 양쪽 다 대기만 하면 판이 안 끝난다(m002 61턴 미결 실측).
-    const margin = aggressive ? 0 : Math.floor(unit.stats.hp * (frail ? FRAIL_MARGIN : ADVANCE_MARGIN));
+    const margin = aggressive
+      ? 0
+      : Math.floor(unit.stats.hp * (frail ? FRAIL_MARGIN : sturdy ? STURDY_MARGIN : ADVANCE_MARGIN));
     if (threat.total >= unit.hp - margin) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
-    const score = -near * 10 - threat.total * 6 - threat.hits * 4;
+    // ☠**맞기만 하는 자리는 고르지 않는다**(2026-08-19 사용자 실기 관측: "맞는 위치에 가서 대기만 한다 —
+    //   생존도 공격도 이유가 타당하지 않다"). 종전 점수는 근접(10)이 위협(6)보다 무거워서,
+    //   **때리지도 못하는데 사거리 안으로 걸어 들어가** 공짜로 맞았다. 전진은 *때리러 가는 것*이지
+    //   *맞으러 가는 것*이 아니다 — 이 갈래는 공격 후보가 하나도 없을 때만 오므로 노출은 순손실이다.
+    // ★단 교착(aggressive)이면 노출을 감수한다 — 양쪽이 서로 안 움직이면 판이 안 끝난다(m002 61턴 실측).
+    const exposed = aggressive || threat.total === 0 ? 0 : 1;
+    const score = -exposed * 1e6 - near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
   }
   // 전부 위험하면 가장 덜 맞는 칸으로 물러난다(제자리 포함).
@@ -335,6 +394,16 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
       ? new Set()
       : runOpeningTurn({ engine, dispatch, state, opening, cid, log, verbose: openingVerbose });
 
+  /**
+   * ★이번 페이즈에 **한 번 미뤄 둔** 유닛(2026-08-19 사용자 실기 관측:
+   * "맞는 위치에 가서 대기만 한다 — 생존도 공격도 이유가 타당하지 않다").
+   * 원인은 **낡은 위협 평가**다: 칠 곳이 없는 유닛이 먼저 움직이면 아직 살아 있는 적까지 전부
+   * 자기를 노린다고 계산해(m002 실측 = 도달 칸 전부 위협합 20) 맞을 자리로 걸어가 대기했는데,
+   * 바로 뒤에 아군이 그 적을 죽였다. 그 적이 죽은 뒤였다면 위협이 반으로 줄어 공격이 섰다.
+   * ⇒ 그런 유닛은 **딱 한 번 뒤로 미룬다**. 전역 재정렬은 하지 않는다 — m003에서 무손실이 깨졌다(실측).
+   */
+  const deferred = new Set();
+
   for (let guard = 0; guard < 300; guard++) {
     const game = state();
     if (game.outcome !== undefined || game.phase !== 0) return;
@@ -347,16 +416,21 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     // ★행동 순서 = **확실한 격파를 가진 유닛부터**(2026-08-18). 위협을 먼저 지우면 뒤에 두는 유닛의
     //   피격 예상이 그만큼 줄어 물몸이 설 자리가 생긴다 — 배치 순서대로 두면 물몸이 먼저 나가 죽는다.
     //   ☠적 AI는 정본을 따르지만 자군 정책은 그럴 의무가 없다(사용자 확정) — 여기서는 잘 두는 게 목적이다.
-    const ready = mine.filter((u) => !u.acted && !owned.has(u.id));
+    let ready = mine.filter((u) => !u.acted && !owned.has(u.id));
     if (ready.length === 0) {
       dispatch({ type: "endPhase" });
       return;
     }
+    // ★한 번 미뤄 둔 유닛은 뒤로 돌린다 — 전부 미뤄졌으면 그대로 진행한다(교착 금지).
+    const waiting = ready.filter((u) => !deferred.has(u.id));
+    if (waiting.length > 0) ready = waiting;
+    const tiers = tiersOf(mine);
+    const vanguard = vanguardOf(mine, enemies, tiers.sturdy);
     const preZones = threatZones(engine, game, enemies);
     const preTargets = avoid.size === 0 ? enemies : enemies.filter((f) => !avoid.has(f.pid));
     const killer = ready.find((u) => {
       if (canEngageNow(game, u, enemies)) return false; // 발동은 국면을 바꾼다 — 예측으로 앞세우지 않는다
-      const best = bestAttack(engine, calculator, game, u, preTargets, preZones, frailSet(mine).has(u.id));
+      const best = bestAttack(engine, calculator, game, u, preTargets, preZones, tiers.frail.has(u.id), tiers.sturdy.has(u.id), vanguard);
       return best?.fc.kill === true;
     });
     const actor = killer ?? ready[0];
@@ -374,7 +448,7 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
       const projected = { ...actor, engage: { ...actor.engage, engaging: true } };
       const zonesNow = threatZones(engine, game, enemies);
       const worth =
-        bestAttack(engine, calculator, game, projected, targets, zonesNow, frailSet(mine).has(actor.id)) !== undefined;
+        bestAttack(engine, calculator, game, projected, targets, zonesNow, tiers.frail.has(actor.id), tiers.sturdy.has(actor.id), vanguard) !== undefined;
       if (worth) dispatch({ type: "engage", unit: actor.id });
     }
     // 인게이지가 스탯·무기·스킬을 바꾼다 — 이후 평가는 **갱신된 국면**으로 한다.
@@ -383,10 +457,11 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     const zones = threatZones(engine, cur, enemies);
     // ★민가 방문 — 방문 칸에 설 수 있으면 우선한다(사용자 지적: "인접 민가에서 아이템을 얻어도").
     //   보상은 스크립트가 주므로 여기서는 "그 칸에 서서 visit"만 하면 된다.
-    const frail = frailSet(mine).has(self.id);
+    const frail = tiers.frail.has(self.id);
+    const sturdy = tiers.sturdy.has(self.id);
     const visit = bestVisit(engine, calculator, cur, self, zones, frail);
     const heal = bestHeal(engine, calculator, cur, self, mine, zones, frail);
-    const atk = bestAttack(engine, calculator, cur, self, targets, zones, frail);
+    const atk = bestAttack(engine, calculator, cur, self, targets, zones, frail, sturdy, vanguard);
     // 상처약 — 칠 게 없고 자신이 다쳐 있으면 쓴다(행동 소모). 확실한 격파가 있으면 격파가 먼저다.
     const item = atk?.fc.kill === true || heal !== undefined ? undefined : bestItem(engine, cur, self, mine);
 
@@ -410,7 +485,18 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
           : false;
       if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
-      const go = bestAdvance(engine, calculator, cur, self, enemies, zones, aggressive, frail);
+      // ☠맞을 자리에 서면서 때리지도 않는 수 — 아직 안 움직인 아군 중 칠 수 있는 쪽이 있으면
+      //   그쪽을 먼저 보내고 이 유닛은 **한 번만** 미룬다(위협이 걷힌 뒤 다시 판단한다).
+      const others = ready.filter((u) => u.id !== actor.id);
+      if (
+        !deferred.has(actor.id) &&
+        others.length > 0 &&
+        others.some((u) => bestAttack(engine, calculator, cur, u, targets, zones, tiers.frail.has(u.id), tiers.sturdy.has(u.id), vanguard) !== undefined)
+      ) {
+        deferred.add(actor.id);
+        continue;
+      }
+      const go = bestAdvance(engine, calculator, cur, self, enemies, zones, aggressive, frail, sturdy);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
       }
