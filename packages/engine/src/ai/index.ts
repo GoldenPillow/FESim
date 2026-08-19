@@ -20,6 +20,8 @@ import {
   moveBreakDown,
   moveEscape,
   moveIdle,
+  mindVillage,
+  moveHero,
   movePerson,
   movePosition,
   rodHealTo,
@@ -113,6 +115,8 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     //   MI_Escape와 같이 취급한다(장부 ai.action-handlers에 근사로 명기).
     if (opcode === ACT.mindEscape || opcode === ACT.mindEscapeSlow) return mindEscape(ctx);
     if (opcode === ACT.movePosition) return movePosition(ctx);
+    if (opcode === ACT.mindVillage) return mindVillage(ctx);
+    if (opcode === ACT.moveHero) return moveHero(ctx);
     if (opcode === ACT.movePerson) return movePerson(ctx);
     if (opcode === ACT.mindBreakDown) return mindBreakDown(ctx);
     if (opcode === ACT.moveBreakDown) return moveBreakDown(ctx);

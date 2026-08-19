@@ -36,6 +36,7 @@ import {
   moveBreakDown,
   moveEscape,
   moveIdle,
+  moveHero,
   movePerson,
   movePosition,
   movePowerOf,
@@ -567,6 +568,53 @@ describe("MV_Position — pos(x,z)로 이동 (ActionMovePosition 0x194F5A0)", ()
 
   it("좌표 인자가 없으면 정직 결손 — 조용히 대기시키지 않는다", () => {
     expect(movePosition(ctx(mover(), [])).kind).toBe("deficit");
+  });
+});
+
+/**
+ * `MV_Hero(89)` — 주인공 추격 (ActionMoveHero 0x194F0A0).
+ *
+ * 왜 위험했나: 옵코드 89 핸들러가 **아예 없어서** 인터프리터가 결손으로 기록하고
+ * 폴백 사슬(`82 MV_AttackRange` → `81 MV_Idle`)로 내려갔다 — 유닛은 움직이지만
+ * **주인공 추격이 아니라 다른 이동**을 했다(정지가 아니라 **정확도 오차**라 화면으로는 안 보인다).
+ * `m001`의 3유닛이 이 루틴을 쓴다.
+ * ★대상은 `Force(Player).GetHeroUnit()` 1명 확정 — 후보 열거도 점수도 코인플립도 없다.
+ * 판별 = `PersonData.IsHero` = `CommonSkills`에 `SID_主人公`(전 1523인물 중 PID_リュール 1건).
+ */
+describe("MV_Hero — 주인공 추격 (ActionMoveHero 0x194F0A0)", () => {
+  const map = flatMap(12, 12);
+  const sword = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const HERO = { Sid: "SID_主人公" };
+  const chaser = () =>
+    unit({ id: "me", force: 1, x: 1, y: 1, movePoints: 3, weapon: sword, weapons: [sword], ai: { move: "AI_MV_Hero" } });
+  const ctxOf = (u: UnitState, others: UnitState[]): HandlerContext =>
+    ({
+      state: { turn: 1, phase: 1, map, units: [u, ...others], events: [] } as unknown as GameState,
+      unit: u, args: [], rng: { next: () => 1 }, think: 8, allowIdle: false, targeted: {},
+    }) as unknown as HandlerContext;
+
+  it("주인공 쪽으로 이동하고 그 턴을 마친다", () => {
+    const u = chaser();
+    const hero = unit({ id: "h", force: 0, x: 9, y: 1, skills: [HERO] });
+    const r = moveHero(ctxOf(u, [hero]));
+    expect(r.kind).toBe("decide");
+    const acts = r.kind === "decide" ? r.actions : [];
+    const move = acts.find((a) => a.type === "move");
+    if (move !== undefined && move.type === "move") expect(move.x).toBeGreaterThan(u.x);
+    expect(acts.at(-1)?.type).toBe("wait");
+  });
+
+  /** ☠"보스"가 아니라 **주인공 지정 스킬**이다 — 아무 자군이나 쫓으면 과대 재현이다. */
+  it("SID_主人公이 없는 자군은 대상이 아니다", () => {
+    const u = chaser();
+    const plain = unit({ id: "p", force: 0, x: 9, y: 1 });
+    expect(moveHero(ctxOf(u, [plain])).kind).toBe("none");
+  });
+
+  it("주인공이 죽었으면 None이다", () => {
+    const u = chaser();
+    const dead = unit({ id: "h", force: 0, x: 9, y: 1, skills: [HERO], dead: true });
+    expect(moveHero(ctxOf(u, [dead])).kind).toBe("none");
   });
 });
 

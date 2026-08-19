@@ -1086,6 +1086,20 @@ export const FIDELITY: readonly FidelityEntry[] = [
       "★IL2CPP 코드 확정(5.0.0, 2026-08-17, il2cpp/AI_ENGINE.md §4·§7): 슬롯 실행 순서 = Cause → Mind → Attack → Move 고정 · Active 게이트 4종(AIThink.Command{EveryTime=-1, NonActiive=-2, Active=0} + 서브상태) · 변경은 Trans에 스테이징했다가 Update에서 반영 · AI_Retry는 Cause부터 재시작 · 적턴 페이즈 13단 테이블 = AIOrder..cctor(RVA 0x1936C70)이고 공격이 3단으로 도는 이유는 유닛이 아니라 **액션**이 걸러지기 때문 · AI_Priority 해석식 = 512*P + 256*enchant + 16 − clamp(removable,0,99), **P < 100이면 Priority 페이즈에서 제외** · ☠gaps/K의 'Trans=-128=무변화'는 코드에 없다(기각) · 선행 = turn.enemy-ai · ★이식(2026-08-18, MP4): engine ai/interpreter.ts processing/processingActive + ai/order.ts AI_PHASES 13단·aiPriorityKey·attackTierAllowed·slotGateOpen. 연속 중복 억제(직전 명령과 Code/Mind/v0/v1 전부 일치 시 스킵)·Trans 스테이징→Update 반영·Retry는 Cause부터 재시작까지 그대로. ai.test.ts 우선도 5건",
   },
   {
+    id: "ai.move-hero",
+    label: { en: "MV_Hero (89): chase the protagonist", ko: "MV_Hero(89) — 주인공 추격" },
+    status: "anchored",
+    evidence:
+      "★배선(2026-08-19 MP8 A3, ai.test.ts 3건) — 종전에는 **옵코드 89 핸들러가 없어** 인터프리터가 결손으로 기록하고 폴백 사슬(`82 MV_AttackRange(V_Max)` → `81 MV_Idle`)로 내려갔다. 유닛은 움직이므로 **정지가 아니라 정확도 오차**였고 화면으로는 안 보였다(`m001`의 3유닛이 이 루틴). 정본 = `ActionMoveHero`(0x194F0A0): 대상은 `UnitPool.GetForce(Player).GetHeroUnit()` **1명 확정**이라 후보 열거·점수·코인플립이 **전부 없다**. 주인공 판별 = `PersonData.IsHero`(0x1F2A0B0) = CommonSkills에 `SID_主人公`(전 1523인물 중 `PID_リュール` 1건, AT_Hero가 쓰던 술어 재사용). 도색 = `BlockFree`(목적지가 주인공이 선 칸 자체라 점유를 보면 후보가 사라진다 — MV_Person과 같은 이유) · v0·v1은 본문에서 안 읽는다(사문). ⚠미사영 = `Unit.Status`의 `MoveNotAllow`/`Vision` 게이트(런타임 Status 사영 부재)·`CanUnlockDoor`→`DoorFree`(문 해제 판정 부재) — 둘 다 도달 가능성을 넓히는 방향이라 과대 재현은 아니다",
+  },
+  {
+    id: "ai.mind-village",
+    label: { en: "MI_Village (62): head for villages (to destroy)", ko: "MI_Village(62) — 민가로 향한다(파괴 목적)" },
+    status: "assumed",
+    evidence:
+      "★이동만 배선(2026-08-19 MP8 A3) — ☠☠**이름 함정: '마을 방문'이 아니라 마을 파괴다.** 열거는 `MapFor.EachPoke(MapInspector.Kind.Visit = 8)`로 민가 지점을 훑지만 확정 커밋이 `MapMind.Type.DestroyVillage = 42`(0x194B35C)다 — 플레이어의 '방문'과 대상 지점만 공유하고 결과가 반대다. 정본 = `ActionMindVillage`(0x194B040): 점수는 `100 - 이동코스트` 하나뿐이고 ☠**동점 코인플립이 없다**(나중 후보가 이긴다). ★배선 함정 = 열거 좌표는 `interactions[].stand`다 — `x/y`는 파이프라인이 +1 시프트한 民家入口 타일이고(m004 (14,11)) 실제로 서는 칸은 `stand`(14,10) = dispos `pos(14,10)`와 일치한다. ☠**assumed 사유 2건** = (1) `PersonData.BmapSize > 1` 대형 유닛 제외 게이트가 미사영(과대 적용 방향) (2) **파괴 실행 자체가 엔진에 없다**(`destroy` 액션은 구조물 전용) ⇒ 적은 민가로 **가기만 하고 부수지 못한다**. 위치는 맞고 결과가 다르다 — 선행 = 민가 파괴 실행 배선",
+  },
+  {
     id: "ai.attack-scoring",
     label: { en: "AI target scoring (bitfield lexicographic)", ko: "AI 표적 평가(비트필드 사전식 비교)" },
     status: "assumed",

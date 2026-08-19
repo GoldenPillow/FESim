@@ -121,6 +121,8 @@ export {
   moveAttackRange,
   moveBreakDown,
   moveEscape,
+  mindVillage,
+  moveHero,
   movePerson,
   movePosition,
   moveIdle,

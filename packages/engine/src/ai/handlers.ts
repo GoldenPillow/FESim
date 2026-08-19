@@ -854,6 +854,76 @@ function interferenceTargetFilter(opcode: number, args: readonly string[], t: Un
  * ☠`CheckMoveTargetWithAttack`(0x195FA90)은 미판독이다 — 후보를 **좁히는** 필터라 누락 시 후보가 넓어질 뿐이고,
  * PID 일치 조건이 이미 대상을 거의 1건으로 좁힌다.
  */
+/**
+ * `AIThink$$ActionMoveHero`(0x194F0A0) — `MV_Hero(89)`. **`MV_Person(90)`의 주인공 판**이다.
+ *
+ * ★후보 열거도 점수도 코인플립도 없다 — 대상이 `Force(Player).GetHeroUnit()` **1명으로 확정**이고,
+ * 그 칸으로 갈 수 있으면 가고 아니면 None이다.
+ * 주인공 판별 = `PersonData.IsHero`(0x1F2A0B0) = `CommonSkills`에 `SID_主人公`(전 1523인물 중 1건).
+ * 도색이 `BlockFree`인 이유 = 목적지가 **주인공이 선 칸 자체**라 점유를 보면 후보가 사라진다(90과 동일).
+ * ☠v0·v1은 본문에서 읽지 않는다(사문).
+ *
+ * ⚠미사영 = `Unit.Status`의 `MoveNotAllow`/`Vision` 게이트(런타임 Status 사영이 엔진에 없다) ·
+ *   `CanUnlockDoor`→`DoorFree`(문 해제 판정 부재). 둘 다 도달 가능성만 넓히는 쪽이라 과대 재현은 아니다.
+ */
+/**
+ * `AIThink$$ActionMindVillage`(0x194B040) — `MI_Village(62)`.
+ *
+ * ☠☠**이름 함정 — "마을 방문"이 아니라 마을 파괴다.** 열거는 `MapFor.EachPoke(MapInspector.Kind.Visit = 8)`로
+ * 민가 지점을 훑지만, 확정 커밋은 `MapMind.Type.DestroyVillage = 42`다(0x194B35C `mov w8,#0x2a`).
+ * 플레이어의 "방문"과 대상 지점만 공유하고 결과가 반대다.
+ *
+ * ★배선 함정 = **열거할 좌표는 `interactions[].stand`다**. `x/y`는 파이프라인이 +1 시프트한
+ * 민가 입구 타일(m004 (14,11) = 民家入口)이고 실제로 서는 칸은 `stand`(14,10) = dispos `pos(14,10)`와 일치한다.
+ * ★점수 = `100 - 이동코스트` 하나뿐이고 ☠**동점 코인플립이 없다**(나중 후보가 이긴다).
+ *
+ * ⚠미사영 2건(정직 표기) = `PersonData.BmapSize > 1` 대형 유닛 제외 게이트(사영 없음 — 과대 적용 방향) ·
+ *   ☠**파괴 실행 자체가 엔진에 없다**(`destroy` 액션은 구조물 전용). 즉 적은 민가로 **가기만 하고**
+ *   부수지 못한다 — 위치는 맞고 결과가 다르다(장부 ai.mind-village).
+ */
+export function mindVillage(ctx: HandlerContext): ActionResult {
+  const spots = (ctx.state.map.interactions ?? []).filter((i) => i.kind === "visit");
+  if (spots.length === 0) return NONE;
+  const image = moveImageOf(ctx.state, ctx.unit, -1, true);
+  let best: { x: number; y: number; cost: number } | undefined;
+  for (const spot of spots) {
+    const at = spot.stand ?? { x: spot.x, y: spot.y };
+    const cost = image.get(key(ctx.state, at.x, at.y));
+    if (cost === undefined) continue;
+    // ☠`<=` — 동점이면 **나중 후보가 이긴다**(코인플립 없음, 0x194B040 본문).
+    if (best === undefined || cost <= best.cost) best = { x: at.x, y: at.y, cost };
+  }
+  if (best === undefined) return NONE;
+  const dest = moveTo(ctx.state, ctx.unit, best.x, best.y, 0, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
+export function moveHero(ctx: HandlerContext): ActionResult {
+  const hero = ctx.state.units.find(
+    (u) => u.force === 0 && !u.dead && effectiveSkills(u)?.some((sk) => sk.Sid === "SID_主人公") === true,
+  );
+  if (hero === undefined) return NONE;
+  const image = moveImageOf(ctx.state, ctx.unit, -1, true);
+  if (image.get(key(ctx.state, hero.x, hero.y)) === undefined) return NONE; // 도달 불가
+  const dest = moveTo(ctx.state, ctx.unit, hero.x, hero.y, 0, ctx.rng);
+  if (dest === undefined || (dest.x === ctx.unit.x && dest.y === ctx.unit.y)) return NONE;
+  ctx.targeted[hero.id] = (ctx.targeted[hero.id] ?? 0) + 1;
+  return {
+    kind: "decide",
+    actions: [
+      { type: "move", unit: ctx.unit.id, x: dest.x, y: dest.y },
+      { type: "wait", unit: ctx.unit.id },
+    ],
+  };
+}
+
 export function movePerson(ctx: HandlerContext): ActionResult {
   const pid = ctx.args[0];
   if (pid === undefined || pid === "") return { kind: "deficit", reason: "MV_Person 인물 인자 부재" };
