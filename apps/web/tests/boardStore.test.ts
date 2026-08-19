@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseEphemeris, serializeEphemeris } from "@fesim/shared";
 import { carryover, RULE_VERSION } from "@fesim/engine";
 import { createBoardStore, displayState } from "../src/lib/boardStore";
+import { loadSlot } from "../src/lib/guestSave";
 import { boardFixture, memoryStorage } from "./fixtures";
 
 beforeEach(() => {
@@ -108,7 +109,8 @@ describe("인계 로스터 추출 — 커서 국면 (MP5 5-5)", () => {
     // 왜 위험했나: 기보 생성기가 seek(끝) 뒤 store.game을 읽어 carryover를 돌렸고,
     // 그 결과 경험치·레벨이 통째로 0인 로스터가 **조용히** 다음 챕터로 인계됐다.
     // seek은 커서만 옮긴다 — 커서 국면의 소유자는 displayState다.
-    const play = createBoardStore(props);
+    // ☠시드 고정 — 안 주면 판마다 명중이 갈려 이 테스트가 간헐적으로 레드가 된다(빗나가면 exp가 안 붙는다).
+    const play = createBoardStore(props, undefined, undefined, undefined, 20260819);
     play.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
     const file = play.getState().toFile();
     const gained = carryover(play.getState().game)[props.units[0]!.pid]!.exp!;
@@ -529,5 +531,123 @@ describe("★되돌리기 x 난수 커서 (관통)", () => {
     a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
     b.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
     expect(rollsOf(a)).not.toEqual(rollsOf(b));
+  });
+});
+
+/**
+ * ★관통 테스트 — 넘버링 세이브 x 난수 커서 x 미러 페이로드.
+ *
+ * 세이브는 세 층을 지난다: 스토어(국면·시드) → 저장 계층(localStorage) → dev 미러(파일).
+ * 층마다 테스트가 그린이어도 **사이가 끊기면** 조용히 죽는다:
+ *   - 시드를 안 실으면 로드한 판이 "같은 국면 다른 난수"가 된다(화면에 안 보인다)
+ *   - 미러 페이로드가 파서를 못 통과하면 대화 앵커가 통째로 무용지물이 된다(브라우저에선 멀쩡하다)
+ * 그래서 양끝 값으로 여기 박제한다.
+ */
+describe("★넘버링 세이브 (관통)", () => {
+  const rollsOf = (store: ReturnType<typeof createBoardStore>): number[] =>
+    store.getState().recording.at(-1)?.rolls ?? [];
+
+  it("저장 → 로드 왕복: 국면과 기록이 저장 시점 그대로다", () => {
+    const store = createBoardStore(props, undefined, undefined, undefined, 7);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const at = store.getState().game;
+    const saved = store.getState().saveNamed();
+    expect(saved?.n).toBe(1);
+    expect(saved).toMatchObject({ cid: props.mapId, steps: 1, origin: "play" });
+
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(store.getState().recording.length).toBe(2);
+
+    expect(store.getState().loadSave(saved!.n)).toBe(true);
+    expect(store.getState().game).toEqual(at);
+    expect(store.getState().recording.length).toBe(1);
+  });
+
+  /**
+   * ☠세이브가 시드를 안 이어받으면 "같은 국면인데 다른 판"이 된다 — 오류도 경고도 없다.
+   * 새로고침 뒤 ?load=n은 **다른 시드로 열린 스토어**에 얹히므로 이 경계가 실제로 발현한다.
+   */
+  it("새 세션에서 로드해도 같은 수는 같은 결과다 — 시드·커서까지 그 판으로 돌아온다", () => {
+    const a = createBoardStore(props, undefined, undefined, undefined, 111);
+    a.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const saved = a.getState().saveNamed();
+    const first = a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+
+    const b = createBoardStore(props, undefined, undefined, undefined, 999); // 새로고침 = 새 시드
+    expect(b.getState().loadSave(saved!.n)).toBe(true);
+    const again = b.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+
+    expect(rollsOf(b)).toEqual(rollsOf(a));
+    expect(again.events).toEqual(first.events);
+  });
+
+  /** 자동 저장 이어하기도 같은 경로다 — 복원이 하나면 결함도 하나다(둘로 두면 하나만 고쳐진다). */
+  it("자동 저장 복원도 시드·난수 커서를 되돌린다", () => {
+    const a = createBoardStore(props, undefined, undefined, undefined, 555);
+    a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+
+    // 새로고침 = 다른 시드로 열린 스토어. 슬롯에는 위 1수가 들어 있다.
+    const b = createBoardStore(props, undefined, undefined, undefined, 31337);
+    b.getState().restore();
+
+    const second = a.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const secondB = b.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(rollsOf(a).length).toBeGreaterThan(0);
+    expect(rollsOf(b)).toEqual(rollsOf(a));
+    expect(secondB.events).toEqual(second.events);
+  });
+
+  /**
+   * ☠실측(2026-08-19)에서 잡힌 조용한 실패: 로드는 국면을 옮기는데 **이어하기 슬롯은 낡은 채** 남아,
+   * 로드 직후 새로고침하면 부른 판이 소리 없이 사라지고 옛 국면이 돌아온다.
+   */
+  it("복원은 이어하기 슬롯까지 그 국면으로 옮긴다", () => {
+    const key = { game: "fe17", mapId: props.mapId, difficulty: "l" as const, scenario: undefined };
+    const store = createBoardStore(props, undefined, undefined, undefined, 77);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const saved = store.getState().saveNamed();
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    expect(loadSlot(key)!.log.length).toBe(2);
+
+    store.getState().loadSave(saved!.n);
+    expect(loadSlot(key)!.log.length).toBe(1); // 새로고침해도 부른 판이 이어진다
+  });
+
+  /** 난입 계보 — 어느 기보 도중에서 이어받았는지가 앵커의 절반이다. */
+  it("리플레이 난입 후 저장하면 origin이 replay다", () => {
+    const store = createBoardStore(props, undefined, undefined, undefined, 8);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const file = store.getState().toFile();
+
+    const viewer = createBoardStore(props, { file, cursor: 1 });
+    viewer.getState().exitReplay();
+    expect(viewer.getState().saveNamed()).toMatchObject({ origin: "replay", from: props.mapId });
+  });
+
+  it("다른 챕터의 세이브는 이 보드에서 열리지 않는다", () => {
+    const store = createBoardStore(props, undefined, undefined, undefined, 9);
+    store.getState().dispatch({ type: "move", unit: "u0", x: 2, y: 2 });
+    const saved = store.getState().saveNamed();
+    const other = boardFixture("m123");
+    expect(createBoardStore(other, undefined, undefined, undefined, 9).getState().loadSave(saved!.n)).toBe(false);
+  });
+
+  /** ★층 경계 — dev 미러로 나가는 페이로드가 .eph 파서를 통과하는가(브라우저만 보면 영원히 안 보인다). */
+  it("미러 페이로드가 .eph 파서를 통과한다", () => {
+    const sent: { summary: unknown; eph: string }[] = [];
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => {
+      if (url === "/__fesim/save") sent.push(JSON.parse(String(init.body)));
+      return Promise.resolve(new Response(null));
+    });
+    const store = createBoardStore(props, undefined, undefined, undefined, 10);
+    store.getState().dispatch({ type: "attack", unit: "u0", target: "u1" });
+    const saved = store.getState().saveNamed();
+
+    expect(sent.length).toBe(1);
+    const parsed = parseEphemeris(sent[0]!.eph);
+    expect(parsed.chapter.cid).toBe(props.mapId);
+    expect(parsed.seed).toBe(10);
+    expect(sent[0]!.summary).toMatchObject({ n: saved!.n });
+    vi.unstubAllGlobals();
   });
 });

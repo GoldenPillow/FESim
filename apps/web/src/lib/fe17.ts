@@ -1048,6 +1048,10 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
+    saves: {
+      save: string; list: string; empty: string; drop: string; copy: string;
+      saved: string; joined: string; steps: string; hint: string;
+    };
     logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
   };
 }
@@ -1652,6 +1656,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     zoomOut: t.zoomOut,
     copyRecord: t.copyRecord,
     copied: t.copied,
+    saves: t.saves,
     logTags: t.logTags,
   });
 }

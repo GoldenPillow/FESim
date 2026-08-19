@@ -175,3 +175,148 @@ export function loadZoom(): number {
   const zoom = Number(text);
   return Number.isFinite(zoom) && zoom >= ZOOM_MIN && zoom <= ZOOM_MAX ? clampZoom(zoom) : ZOOM_DEFAULT;
 }
+
+/* ── 넘버링 세이브 — 사용자가 찍은 지점의 보관. ☠자동 저장(fesim:eph:*)과 다른 축이다:
+   저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 **번호가 붙어 남는** 보관이다.
+   번호의 쓸모 = 대화 앵커("세이브 7의 국면") — 그래서 번호는 절대 재사용하지 않는다. */
+
+export interface SaveSummary {
+  /** 전역 연번(챕터 무관, 1부터). ☠삭제해도 재사용 금지 — 옛 대화의 번호가 딴 판을 가리키면 안 된다. */
+  n: number;
+  game: string;
+  cid: string;
+  difficulty: Difficulty;
+  /** 국면 주소 — 목록이 기보를 파싱하지 않고 읽는다(기보는 챕터당 수십 KB). */
+  turn: number;
+  phase: number;
+  /** 둔 수 = log 길이. */
+  steps: number;
+  alive: number;
+  total: number;
+  created: string;
+  /** ★난입 계보 — 처음부터 둔 판인지, 남의 기보 도중에 끼어든 판인지. */
+  origin: "play" | "replay";
+  /** 난입 원본(기본 기보 = cid, 공유 기보 = 그 id). */
+  from?: string;
+  label?: string;
+}
+
+/** 저장 시점에 스토어가 아는 것 전부 — n·created는 저장 계층이 발급한다. */
+export type SaveDraft = Omit<SaveSummary, "n" | "created">;
+
+const SAVE_SEQ = "fesim:save:seq";
+const SAVE_INDEX = "fesim:save:index";
+
+/** 3자리 패딩 = 파일 미러의 이름과 같은 주소(007 → data/fe17/saves/007.eph.json). */
+export const saveKey = (n: number): string => `fesim:save:${String(n).padStart(3, "0")}`;
+
+/** 발급 즉시 소비한다 — 저장이 실패해 번호가 비어도 재사용보다 낫다(앵커 안정성 > 번호 밀도). */
+function takeSaveNo(): number {
+  const s = storage();
+  let next = 1;
+  try {
+    next = Math.max(1, Math.trunc(Number(s?.getItem(SAVE_SEQ))) || 1);
+    s?.setItem(SAVE_SEQ, String(next + 1));
+  } catch {
+    // 읽기·쓰기 실패 = 1번부터. 같은 번호가 겹쳐도 저장 자체를 막지는 않는다.
+  }
+  return next;
+}
+
+function writeIndex(list: SaveSummary[]): void {
+  try {
+    storage()?.setItem(SAVE_INDEX, JSON.stringify(list));
+  } catch {
+    // 인덱스를 못 써도 슬롯은 남는다 — 목록에서 사라질 뿐 데이터는 살아 있다.
+  }
+}
+
+/** 최신이 앞. 손상 인덱스는 빈 목록으로 강하한다(보관함 전체가 막히면 안 된다). */
+export function listSaves(): SaveSummary[] {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(SAVE_INDEX);
+  } catch {
+    return [];
+  }
+  if (text === null || text === undefined) return [];
+  try {
+    const list: unknown = JSON.parse(text);
+    if (!Array.isArray(list)) throw new Error("인덱스가 배열이 아니다");
+    return list.filter((s): s is SaveSummary => typeof (s as SaveSummary)?.n === "number");
+  } catch (e) {
+    console.warn("세이브 인덱스 손상 — 빈 목록으로 시작한다", e);
+    return [];
+  }
+}
+
+export function putSave(draft: SaveDraft, file: EphemerisFile): SaveSummary | undefined {
+  const summary: SaveSummary = { ...draft, n: takeSaveNo(), created: new Date().toISOString() };
+  try {
+    storage()?.setItem(saveKey(summary.n), serializeEphemeris(file));
+  } catch (e) {
+    console.warn("세이브 저장 실패 — 진행 중인 판은 그대로다", e);
+    return undefined;
+  }
+  writeIndex([summary, ...listSaves().filter((s) => s.n !== summary.n)]);
+  mirrorSave(summary, file);
+  return summary;
+}
+
+/** 슬롯이 사라진 인덱스 항목은 읽는 순간 걷힌다 — 없는 세이브를 목록이 계속 광고하면 안 된다. */
+export function readSave(n: number): EphemerisFile | undefined {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(saveKey(n));
+  } catch {
+    return undefined;
+  }
+  if (text === null || text === undefined) {
+    const list = listSaves();
+    if (list.some((s) => s.n === n)) writeIndex(list.filter((s) => s.n !== n));
+    return undefined;
+  }
+  try {
+    return parseEphemeris(text);
+  } catch (e) {
+    console.warn(`세이브 ${n} 복원 실패 — 슬롯을 버린다`, e);
+    dropSave(n);
+    return undefined;
+  }
+}
+
+export function dropSave(n: number): void {
+  try {
+    storage()?.removeItem(saveKey(n));
+  } catch {
+    // 슬롯을 못 지워도 인덱스에서 빠지면 목록에는 안 보인다.
+  }
+  writeIndex(listSaves().filter((s) => s.n !== n));
+  mirrorDrop(n);
+}
+
+/* ── 저장소 파일 미러(로컬 dev 전용) — ★이것이 대화 앵커의 실체다.
+   브라우저 저장소는 Claude가 못 읽는다. dev 서버가 켜져 있을 때만 같은 세이브를
+   data/fe17/saves/{NNN}.eph.json에 복제해, 번호 하나로 국면을 읽게 한다.
+   ☠import.meta.env.DEV 가드 = 프로덕션 번들에서 통째로 걷힌다(열람 경로 예산·공개 쓰기 경로 차단).
+   베타(워커)에는 미러가 없다 — 그쪽 세이브는 목록의 복사 버튼으로 옮긴다. */
+
+const mirror = (path: string, body: unknown): void => {
+  if (!import.meta.env.DEV) return;
+  try {
+    void fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {
+      // dev 미들웨어 부재 = 미러 없음. 세이브는 이미 브라우저에 있다.
+    });
+  } catch {
+    // fetch 부재(테스트 환경 등) = 미러 스킵.
+  }
+};
+
+const mirrorSave = (summary: SaveSummary, file: EphemerisFile): void =>
+  mirror("/__fesim/save", { summary, eph: serializeEphemeris(file) });
+
+const mirrorDrop = (n: number): void => mirror("/__fesim/save/delete", { n });

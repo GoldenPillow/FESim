@@ -50,7 +50,20 @@ import {
   type UnitVisual,
 } from "../lib/boardStore";
 import { eventWiringFor } from "../lib/eventWiring";
-import { clampZoom, hasGuestSave, loadZoom, saveZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/guestSave";
+import {
+  clampZoom,
+  dropSave,
+  hasGuestSave,
+  listSaves,
+  loadZoom,
+  readSave,
+  saveZoom,
+  type SaveSummary,
+  ZOOM_DEFAULT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
@@ -94,6 +107,24 @@ export default function BoardIsland(props: BoardProps) {
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  /**
+   * 넘버링 세이브 표면 — ☠**비계**: 지금은 관리자만 쓴다(2026-08-19 사용자 지시, 게스트 정책은 추후 논의).
+   * 제거 조건 = 게스트 세이브 정책 확정. 그때 이 게이트를 걷고 전면 노출한다.
+   * 켜기 = ?admin=1 (localStorage에 남는다) · 끄기 = ?admin=0.
+   */
+  const [admin, setAdmin] = useState(false);
+  const [savesOpen, setSavesOpen] = useState(false);
+  const [saves, setSaves] = useState<SaveSummary[]>([]);
+  useEffect(() => {
+    try {
+      const flag = new URLSearchParams(window.location.search).get("admin");
+      if (flag === "1") localStorage.setItem("fesim:admin", "1");
+      if (flag === "0") localStorage.removeItem("fesim:admin");
+      setAdmin(localStorage.getItem("fesim:admin") === "1");
+    } catch {
+      // 프라이빗 모드 = 관리자 표면 숨김. 판은 그대로 돌아간다.
+    }
+  }, []);
   // 맵 줌 — SSR·하이드레이션은 디폴트로 그리고 마운트 후 저장값 반영(마크업 불일치 회피).
   const [zoom, setZoom] = useState(ZOOM_DEFAULT);
   useEffect(() => setZoom(loadZoom()), []);
@@ -134,7 +165,10 @@ export default function BoardIsland(props: BoardProps) {
     const boot = (target: BoardStore, file?: EphemerisFile) => {
       const query = readMapQuery(window.location.search);
       if (file === undefined && query.d !== undefined) target.getState().setDifficulty(query.d);
-      if (file === undefined) target.getState().restore();
+      // ★명시 지시(?load=n)가 자동 복원을 이긴다 — 번호로 부른 판이 이어하던 판보다 우선이다.
+      //   실패(다른 챕터·슬롯 없음)면 평소대로 이어하기로 떨어진다.
+      const loaded = file === undefined && query.load !== undefined && target.getState().loadSave(query.load);
+      if (file === undefined && !loaded) target.getState().restore();
       setReady(true);
     };
     let dead = false;
@@ -161,7 +195,9 @@ export default function BoardIsland(props: BoardProps) {
     const defaultReplay = async (): Promise<EphemerisFile | undefined> => {
       const file = await fetchDefault();
       defaultFile.current = file;
-      return hasGuestSave(props.mapId) ? undefined : file;
+      // 이어하던 판·번호로 부른 세이브가 있으면 시연을 자동 재생하지 않는다(남의 기보가 내 진행을 덮으면 안 된다).
+      const called = readMapQuery(window.location.search).load !== undefined;
+      return hasGuestSave(props.mapId) || called ? undefined : file;
     };
     if (props.script === undefined) {
       void defaultReplay().then((file) => {
@@ -1108,6 +1144,49 @@ export default function BoardIsland(props: BoardProps) {
       .catch(() => setCopied(false));
   };
 
+  /* ── 넘버링 세이브 — 사용자가 찍은 지점을 번호로 박제한다.
+     ★번호의 쓸모 = 대화 앵커: 로컬 dev로 플레이하면 같은 세이브가 data/fe17/saves/{NNN}.eph.json에
+     미러돼(astro.config의 saveMirror) "세이브 7"이 그대로 국면 조회가 된다. */
+
+  const padNo = (n: number): string => String(n).padStart(3, "0");
+
+  const doSave = () => {
+    const saved = store.getState().saveNamed();
+    if (saved === undefined) return;
+    setBanner(`${labels.saves.saved} ${padNo(saved.n)}`);
+    setSaves(listSaves());
+  };
+
+  const openSave = (s: SaveSummary) => {
+    // 다른 챕터 = 그 페이지가 열어야 한다(보드 props가 챕터를 고정한다 — 유닛 주소부터 다르다).
+    if (s.cid !== props.mapId) {
+      window.location.href = `${window.location.pathname.replace(/[^/]+$/, s.cid)}${writeMapQuery("", { load: s.n })}`;
+      return;
+    }
+    if (!store.getState().loadSave(s.n)) return;
+    clearLocal();
+    setSavesOpen(false);
+    setBanner(`${labels.saves.saved} ${padNo(s.n)}`);
+  };
+
+  /** 베타(워커)에는 파일 미러가 없다 — 그쪽 세이브는 이 버튼으로 대화에 옮긴다. */
+  const copySave = (s: SaveSummary) => {
+    const file = readSave(s.n);
+    if (file === undefined) {
+      setSaves(listSaves()); // 슬롯이 사라진 항목은 읽는 순간 걷힌다
+      return;
+    }
+    void navigator.clipboard
+      .writeText(serializeEphemeris(file))
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
+
+  const removeSave = (s: SaveSummary) => {
+    dropSave(s.n);
+    setSaves(listSaves());
+  };
+
   return (
     <figure
       className="plate"
@@ -1153,6 +1232,23 @@ export default function BoardIsland(props: BoardProps) {
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
         </button>
+        {admin && (
+          <>
+            <button type="button" disabled={mode === "replay"} title={labels.saves.hint} onClick={doSave}>
+              {labels.saves.save}
+            </button>
+            <button
+              type="button"
+              className={savesOpen ? "on" : undefined}
+              onClick={() => {
+                setSaves(listSaves());
+                setSavesOpen((v) => !v);
+              }}
+            >
+              {labels.saves.list}
+            </button>
+          </>
+        )}
         <button
           type="button"
           disabled={mode === "replay"}
@@ -1447,6 +1543,31 @@ export default function BoardIsland(props: BoardProps) {
             </div>
           );
         })()}
+
+      {admin && savesOpen && (
+        <div className="saves-panel" role="group" aria-label={labels.saves.list}>
+          {saves.length === 0 && <span className="saves-empty">{labels.saves.empty}</span>}
+          {saves.map((s) => (
+            <div key={s.n} className="saves-row">
+              <button type="button" className="saves-open" onClick={() => openSave(s)}>
+                <b>{padNo(s.n)}</b>
+                <span>
+                  {s.cid} {labels.diffNames[s.difficulty]} · {labels.turnWord} {s.turn} · {s.steps}
+                  {labels.saves.steps} · {s.alive}/{s.total}
+                  {s.origin === "replay" ? ` · ${labels.saves.joined}` : ""}
+                </span>
+                <time>{s.created.slice(0, 16).replace("T", " ")}</time>
+              </button>
+              <button type="button" onClick={() => copySave(s)}>
+                {labels.saves.copy}
+              </button>
+              <button type="button" onClick={() => removeSave(s)}>
+                {labels.saves.drop}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {editing && (
         <div className="edit-bar" role="toolbar" aria-label={labels.editCmd}>

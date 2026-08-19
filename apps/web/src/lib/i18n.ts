@@ -86,6 +86,14 @@ interface Strings {
   restoreCmd: string;
   copyRecord: string;
   copied: string;
+  /**
+   * 넘버링 세이브(관리자 표면) — 객체 하나로 묶는 이유: 라벨은 i18n → BoardProps → 컴포넌트로
+   * ☠3층을 지나므로, 낱개 키로 늘리면 한 층에서 빠져도 조용히 빈 문자열로 렌더된다.
+   */
+  saves: {
+    save: string; list: string; empty: string; drop: string; copy: string;
+    saved: string; joined: string; steps: string; hint: string;
+  };
   logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
   chapterSelect: string;
   comingSoon: string;
@@ -194,6 +202,10 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "Remove",
     restoreCmd: "Restore",
     copyRecord: "Copy record",
+    saves: {
+      save: "Save", list: "Load", empty: "No saves yet", drop: "Delete", copy: "Copy",
+      saved: "Save", joined: "joined", steps: "moves", hint: "Callable by number",
+    },
     copied: "Copied",
     logTags: { chain: "chain", counter: "counter", follow: "follow-up", miss: "missed", brk: "Break!", kill: "defeated", crit: "crit!", refresh: "dances again", engage: "Engage!", disengage: "engage ended", warp: "warped", guard: "Chain Guard", spawn: "appears!", join: "joins the party", despawn: "leaves" },
     chapterSelect: "Chapters",
@@ -308,6 +320,10 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "제거",
     restoreCmd: "복원",
     copyRecord: "기보 복사",
+    saves: {
+      save: "세이브", list: "불러오기", empty: "저장된 판이 없다", drop: "삭제", copy: "복사",
+      saved: "세이브", joined: "난입", steps: "수", hint: "번호로 부를 수 있다",
+    },
     copied: "복사됨",
     logTags: { chain: "체인", counter: "반격", follow: "추격", miss: "빗나감", brk: "브레이크!", kill: "격파", crit: "필살!", refresh: "재행동", engage: "인게이지!", disengage: "인게이지 종료", warp: "워프", guard: "체인가드", spawn: "증원!", join: "아군 합류", despawn: "퇴장" },
     chapterSelect: "챕터 선택",

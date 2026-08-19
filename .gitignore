@@ -9,6 +9,9 @@ dist/
 __pycache__/
 *.pyc
 data/staging/
+# 넘버링 세이브 미러(로컬 dev 전용) — 커밋 대상이 아니다.
+# ☠추적하면 세이브마다 작업트리가 더러워져 ./dev done의 클린 게이트가 막힌다.
+data/fe17/saves/
 coverage/
 .serena/
 .venv

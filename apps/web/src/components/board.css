@@ -654,6 +654,55 @@
 .plate .edit-bar button:hover {
   color: var(--ink);
 }
+/* 넘버링 세이브 목록(관리자 표면) — 번호가 앵커라 제일 먼저 읽히게 굵게 세운다. */
+.plate .saves-panel {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.plate .saves-panel .saves-empty {
+  text-align: center;
+  padding: 0.4rem;
+}
+.plate .saves-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.plate .saves-row .saves-open {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+  justify-content: flex-start;
+}
+.plate .saves-row .saves-open b {
+  font-variant-numeric: tabular-nums;
+  color: var(--gold, #f0c85a);
+}
+.plate .saves-row .saves-open time {
+  margin-left: auto;
+  opacity: 0.6;
+}
+.plate .saves-row button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule, rgb(255 255 255 / 0.15));
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plate .saves-row button:hover {
+  color: var(--ink);
+}
+
 .plate .turn-strip button.on {
   color: var(--gold, #f0c85a);
   border-color: var(--gold, #f0c85a);
