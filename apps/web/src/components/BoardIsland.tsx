@@ -1140,8 +1140,17 @@ export default function BoardIsland(props: BoardProps) {
   };
 
   /** 공격 액션 — 무기 목록이 있으면 선택 인덱스를 기보에 싣는다(장비 전환 포함 재현 계약). */
+  /**
+   * 교전 액션 — 메뉴에서 **인게이지 기술**을 골랐으면 그쪽으로 나간다.
+   * ☠리워프형(세리카)·관통형(시구르드)은 착지 좌표를 더 물어야 해서 아직 못 쏜다 —
+   * 엔진이 정직하게 거부하고 콘솔에 사유가 남는다(조용히 일반 공격으로 흘리지 않는다).
+   */
   const attackAction = (unit: string, target: string): BattleAction =>
-    weapons.length > 0 ? { type: "attack", unit, target, weapon: weaponIdx } : { type: "attack", unit, target };
+    cmd === "engageArt"
+      ? { type: "engageAttack", unit, target }
+      : weapons.length > 0
+        ? { type: "attack", unit, target, weapon: weaponIdx }
+        : { type: "attack", unit, target };
 
   /** 잠정 이동 확정 — 행동 직전에만 호출된다. 이동 없음/제자리 = 성공으로 친다. */
   const commitMove = (): boolean => {
