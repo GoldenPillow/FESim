@@ -659,9 +659,10 @@
    선택 #b2f2ff · 비선택 #ffffff — 추측으로 정하지 않았다. */
 .plate .cmd-menu {
   position: absolute;
-  /* 실기와 같이 **맵 위에 겹쳐** 우측에 뜬다 — 보드 밖으로 내보내면 우측 정보 패널을 가린다. */
-  right: 0;
-  top: 12%;
+  /* 보드 오른쪽 바깥, 세로 중앙(2026-08-19 사용자 지시). 우측 정보 패널 위로 겹쳐도 무방. */
+  left: calc(100% + 0.9rem);
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 12;
   min-width: 11.5rem;
   padding: 0.5rem 0;
@@ -716,6 +717,7 @@
 @media (max-width: 1023px) {
   .plate .cmd-menu {
     position: static;
+    transform: none;
     max-height: none;
     margin-top: 0.6rem;
     min-width: 0;
