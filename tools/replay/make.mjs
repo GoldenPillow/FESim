@@ -10,7 +10,7 @@
  *
  * 자군 = 정책 플레이어(policy.mjs) · 적군 = 엔진 AI(createAi) — 웹의 "적턴 자동"과 같은 루프.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -56,6 +56,30 @@ const seed = seedArg === undefined ? undefined : Number(seedArg);
 // 스트림 2개는 정본의 Game(전투 판정)·System(AI)에 대응한다.
 const gameSeed = seed === undefined ? freshSeed() : seed;
 
+/**
+ * ★룰북 자동 주입(MP8 B4) — 기보 생성은 **룰북을 기초 룰로 먹고** 시작한다.
+ * 사용자 지시: *"만들어진 룰북은 전략 실험을 반복할 때마다 기초 룰로 자동 주입되게 배선"*.
+ * 여기서 찍는 것은 절 목차와 **믿으면 안 되는 곳**(미생성 절·비anchored 장부 수)이다 —
+ * 룰북의 절반이 그것이라 요약에서 빼면 주입이 거짓말이 된다.
+ */
+const injectRulebook = () => {
+  const path = resolve(ROOT, "data/fe17/rulebook/rulebook.json");
+  if (!existsSync(path)) {
+    console.error("[rulebook] ☠없다 — ./dev rulebook 으로 생성하라(기초 룰 없이 기보를 쓴다)");
+    return undefined;
+  }
+  const book = JSON.parse(readFileSync(path, "utf-8"));
+  const gen = book.sections.filter((s) => s.generated).map((s) => s.id);
+  const ungen = book.sections.filter((s) => !s.generated);
+  const deficits = book.sections.find((s) => s.id === "deficits");
+  const counts = deficits?.statusCount ?? {};
+  const unsure = Object.entries(counts).filter(([k]) => k !== "anchored").reduce((a, [, v]) => a + v, 0);
+  console.error(`[rulebook] ${book.ruleVersion} 주입 · 절 ${gen.join(",")}`);
+  console.error(`[rulebook] ☠믿으면 안 되는 곳 = 미생성 ${ungen.map((s) => s.id).join(",") || "없음"} · 장부 비anchored ${unsure}건`);
+  console.error(`[rulebook] 전문 = data/fe17/rulebook/ko.md`);
+  return book;
+};
+
 const server = await createServer({
   root: WEB,
   configFile: false,
@@ -69,6 +93,7 @@ const server = await createServer({
 });
 
 try {
+  injectRulebook(); // ★기초 룰 주입 — 기보는 룰북 위에서 쓰인다(MP8 B4)
   const { boardPropsFor } = await server.ssrLoadModule("/src/lib/fe17.ts");
   const { createBoardStore, calculator, displayState } = await server.ssrLoadModule("/src/lib/boardStore.ts");
   const { eventWiringFor } = await server.ssrLoadModule("/src/lib/eventWiring.ts");

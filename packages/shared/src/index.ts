@@ -28,6 +28,7 @@ export {
 } from "./fidelity.js";
 
 export {
+  ACTION_TYPES,
   parseEphemeris,
   serializeEphemeris,
   type EphemerisFile,

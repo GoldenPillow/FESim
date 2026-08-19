@@ -92,12 +92,17 @@ gc() {
   [ "$moved" = 1 ] || echo "gc: 이송할 done 문서 없음"
 }
 
+rulebook_check() {
+  # ☠낡은 룰북은 없는 룰북보다 나쁘다 — 코드에서 재생성한 것과 다르면 레드.
+  node tools/rulebook/build.mjs --check
+}
+
 case "$cmd" in
   check)    check ;;
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
-  gate)     check && test_all && doccheck && echo "== ./dev gate: ALL GREEN ==" ;;
+  gate)     check && test_all && doccheck && rulebook_check && echo "== ./dev gate: ALL GREEN ==" ;;
   done)     shift; publish_done "$@" ;;
   clear-check) clear_report "$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)" ;;
   fuzz)     shift
@@ -110,6 +115,9 @@ case "$cmd" in
   verify-m002) shift; "$PY" tools/pipeline/verify_m002.py "$@" ;;
   verify-all) shift; "$PY" tools/pipeline/verify_all.py "$@" ;;
   notes)    shift; "$PY" tools/pipeline/build_notes.py "$@" ;;
+  rulebook) shift
+            # 룰북 생성 — ☠코드에서 뽑아낸다(손으로 쓰지 않는다). --check = 신선도만 판정.
+            node tools/rulebook/build.mjs "$@" ;;
   bake)     shift; "$PY" tools/pipeline/bake_assets.py "$@" ;;
   replay)   shift
             # 챕터 기보 생성 — 헤드리스 완주 후 data/fe17/replays/<cid>.eph.json (= 맵의 기본 기보).

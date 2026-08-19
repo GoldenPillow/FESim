@@ -110,7 +110,7 @@ const DIFFICULTIES: readonly unknown[] = ["n", "h", "l"];
  * ☠전수 맵이지 목록이 아니다 — `Record<BattleAction["type"], true>`라 액션이 늘면 **컴파일이 깨진다**.
  * 손목록이던 시절 `setup`·`guard`·`destroy`가 빠져 이벤트 챕터 기보 전부와 게스트 저장 복원이 막혔다.
  */
-const ACTION_TYPES: Record<BattleAction["type"], true> = {
+export const ACTION_TYPES: Record<BattleAction["type"], true> = {
   setup: true,
   move: true,
   visit: true,
