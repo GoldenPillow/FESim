@@ -440,15 +440,14 @@ describe("지팡이 회복 (MP0)", () => {
     // 손상은 전투로 만든다: u1을 인접시켜 공격 → u2 피격(초기 hp를 깎는 주입구는 없다 — 정본 = stats).
     const p = staffProps();
     p.units[1] = { ...p.units[1], x: 2, y: 2 }; // 적을 u2 인접에
-    const s2 = createBoardStore(p);
+    // ☠결정화는 **시드 주입**으로 한다 — 종전엔 `Math.random`을 스텁했는데, 스토어가 정본 PRNG를
+    //   소유하게 되면서(MP8 A6) 스텁이 아무 효과가 없어 **확률적으로 실패하는 테스트**가 됐다
+    //   (2026-08-19 게이트가 간헐적으로 흔들린 원인이 이것이었다 — 재현이 안 돼 오래 미궁이었다).
+    const s2 = createBoardStore(p, undefined, undefined, undefined, 1);
     // 적 페이즈로 넘겨 u2를 때리게 한다
     s2.getState().dispatch({ type: "wait", unit: "u0" });
     s2.getState().dispatch({ type: "endPhase" });
-    // 결정화: roll 0.5 → 명중(표시 90+)·비필살 — 빗나감/즉사로 검증이 새는 것을 막는다.
-    const restore = Math.random;
-    Math.random = () => 0.5;
     const afterHit = s2.getState().dispatch({ type: "attack", unit: "u1", target: "u2" });
-    Math.random = restore;
     const hurt = afterHit.units.find((u) => u.id === "u2")!;
     expect(hurt.dead).toBe(false);
     expect(hurt.hp).toBeLessThan(hurt.stats.hp);

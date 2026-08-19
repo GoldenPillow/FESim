@@ -276,6 +276,21 @@ try {
     // ★결손은 비율로 읽어야 한다 — 분모(비자군 유닛 수·AI 호출 수)를 함께 낸다(MP7 B4 재측정).
     aiUnits: final.units.filter((u) => u.force !== 0).length,
     aiCalls,
+    // ★낭비된 인게이지 — 켜 놓고 그 유닛이 그 활성화에서 공격을 안 한 건수.
+    //   실측 결함(2026-08-19 사용자: "뤼미에르 2차전부터 뤼에르가 이동만 하고 공격을 안 한다")의 지표다.
+    //   ☠인게이지는 자원(지속 턴·게이지)이라 태우고 안 싸우면 그 자체가 손실이고, 화면으로는 안 보인다.
+    wastedEngage: file.log.reduce((n, st, i) => {
+      if (st.action?.type !== "engage") return n;
+      const who = st.action.unit;
+      for (let j = i + 1; j < file.log.length; j++) {
+        const a = file.log[j].action;
+        if (a?.type === "endPhase") break;
+        if (a?.unit !== who) continue;
+        if (a.type === "attack" || a.type === "engageAttack") return n;
+        if (a.type === "wait") break;
+      }
+      return n + 1;
+    }, 0),
     deficits: deficits.length,
     deficitUnits: new Set(deficits.map((d) => d.unit)).size,
     deficitKinds: Object.fromEntries(

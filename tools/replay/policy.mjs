@@ -367,7 +367,15 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     //   발동 후 그대로 이동·공격한다. ☠지속 턴이 유한하니 **싸울 수 있을 때만** 켠다 —
     //   적이 (이동력 + 사거리) 안에 없으면 그냥 켜 두다가 빈 턴으로 흘려보낸다.
     if (canEngageNow(game, actor, enemies)) {
-      dispatch({ type: "engage", unit: actor.id });
+      // ☠**인게이지는 자원이다**(지속 턴·게이지). 켜 놓고 안 싸우면 그냥 태운 것이다 —
+      //   실측(2026-08-19 사용자): m002 뤼미에르 2차전부터 뤼에르가 **인게이지 → 이동 → 대기**를 반복했다.
+      //   원인 = `canEngageNow`가 "적이 이동력+사거리 안에 있는가"만 보고 **공격이 실제로 서는지는 안 봤다**.
+      //   ⇒ 켠 상태를 **투영**해 공격 후보가 서는지 먼저 확인하고, 안 서면 켜지 않는다(자원 예약, MP8 §4-7).
+      const projected = { ...actor, engage: { ...actor.engage, engaging: true } };
+      const zonesNow = threatZones(engine, game, enemies);
+      const worth =
+        bestAttack(engine, calculator, game, projected, targets, zonesNow, frailSet(mine).has(actor.id)) !== undefined;
+      if (worth) dispatch({ type: "engage", unit: actor.id });
     }
     // 인게이지가 스탯·무기·스킬을 바꾼다 — 이후 평가는 **갱신된 국면**으로 한다.
     const cur = state();
