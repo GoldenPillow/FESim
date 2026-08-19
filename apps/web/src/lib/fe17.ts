@@ -623,6 +623,16 @@ const addGodSkill = (out: string[], sid: string): void => {
   out.push(sid);
 };
 
+/**
+ * ☠**비계** — 인연(絆) 레벨 스케폴드.
+ * 진행 중 絆 레벨은 romfs·IL2CPP 어디에도 없다(dispos는 배치만 싣고, 絆는 플레이어 진행이 소유한다).
+ * 사용자 지시(2026-08-19) = 경험치 스케폴드와 같은 문법으로 **유닛 레벨 / 2**를 쓰고,
+ * 본편 문장사는 **외전 클리어 전까지 10에서 잠긴다**(클리어하면 상한 20까지 풀린다).
+ * ★제거 조건 = 런(캠페인) 상태가 絆 레벨을 실제로 들고 다닐 때 그 값으로 교체한다.
+ */
+export const bondScaffold = (unitLevel: number, paralogueCleared = false): number =>
+  Math.min(Math.max(1, Math.floor(unitLevel / 2)), paralogueCleared ? 20 : 10);
+
 const godGrowthRows = (gid: string, bondLevel?: number) => {
   const god = godsTable.gods[gid];
   const table = god === undefined ? undefined : godsTable.growth[String(god["GrowTable"] ?? "")];
@@ -1361,12 +1371,15 @@ export function boardProps(
       })(),
       ...(() => {
         if (v.unit.gid === undefined) return {};
-        const engage = engageStateFor(v.unit.gid);
+        // 絆 레벨 = 스케폴드(위 bondScaffold). ☠난이도별로 갈리지 않게 **루나틱 레벨**을 기준으로 삼는다 —
+        // 스킬 목록은 보드 JSON에 한 벌만 실리므로(난이도별 3벌 = 용량 정책 위반) 기준을 하나로 고정해야 한다.
+        const bond = bondScaffold(unitLevel(v.unit, "l"));
+        const engage = engageStateFor(v.unit.gid, bond);
         if (engage === undefined) return {};
         gidsUsed.add(v.unit.gid);
-        const synchroSkills = unitSynchroSkillRows(v.unit);
-        const engagedSkills = unitEngagedSkillRows(v.unit);
-        const engageWeapons = emblemEngageWeapons(v.unit.gid, locale);
+        const synchroSkills = unitSynchroSkillRows(v.unit, bond);
+        const engagedSkills = unitEngagedSkillRows(v.unit, bond);
+        const engageWeapons = emblemEngageWeapons(v.unit.gid, locale, bond);
         const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);
         return {
           gid: v.unit.gid,

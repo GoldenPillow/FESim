@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -489,4 +489,42 @@ describe("무기 사영 — 필살회피·엠블렘 플래그", () => {
 
   // ☠랭크·설명문은 여기 싣지 않는다 — 같은 무기가 유닛마다 중복돼 보드 JSON 예산(50KB gz)을 먹고
   //   열람 경로(/s/)까지 따라간다. 소지품 화면 전용 사전으로 따로 낸다(제작 경로에서만 fetch).
+});
+
+/**
+ * 인연(絆) 레벨 스케폴드 — ☠**비계**다. 진행 중 絆 레벨은 romfs·덤프 어디에도 없다
+ * (dispos는 유닛 배치만 싣고, 絆는 플레이어 진행이 소유한다).
+ * 사용자 지시(2026-08-19) = 경험치와 같은 문법으로 **유닛 레벨 / 2**를 쓰고,
+ * 본편 문장사는 외전 클리어 전까지 **10에서 잠긴다**(클리어하면 상한이 풀린다).
+ * 제거 조건 = 런(캠페인) 상태가 絆 레벨을 실제로 들고 다닐 때 그 값으로 교체.
+ */
+describe("인연 레벨 스케폴드", () => {
+  it("레벨의 절반 — 경험치 스케폴드와 같은 문법", () => {
+    expect(bondScaffold(2)).toBe(1);
+    expect(bondScaffold(11)).toBe(5);
+    expect(bondScaffold(20)).toBe(10);
+  });
+
+  it("외전 클리어 전에는 10에서 잠긴다", () => {
+    expect(bondScaffold(30)).toBe(10);
+    expect(bondScaffold(40)).toBe(10);
+  });
+
+  it("외전을 클리어하면 상한이 풀린다(絆 상한 20)", () => {
+    expect(bondScaffold(30, true)).toBe(15);
+    expect(bondScaffold(40, true)).toBe(20);
+    expect(bondScaffold(99, true)).toBe(20);
+  });
+
+  it("1 미만으로 내려가지 않는다 — 반지를 낀 순간 絆는 1이다", () => {
+    expect(bondScaffold(1)).toBe(1);
+    expect(bondScaffold(0)).toBe(1);
+  });
+
+  /** ★인연 레벨이 실제로 패시브 수를 가른다 — 스케폴드가 사영까지 닿는지가 요점이다. */
+  it("絆 레벨이 높을수록 싱크로 패시브가 누적된다", () => {
+    const low = emblemSyncSids("GID_マルス", 1);
+    const high = emblemSyncSids("GID_マルス", 10);
+    expect(high.length).toBeGreaterThan(low.length);
+  });
 });

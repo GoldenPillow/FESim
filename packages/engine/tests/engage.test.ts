@@ -420,3 +420,37 @@ describe("인게이지 효과 — 紋章氣", () => {
     expect(replayed.crests).toEqual([]);
   });
 });
+
+/**
+ * 인게이지 해제 — 인게임은 **같은 버튼(10)이 상태에 따라 개시/해제로 갈린다**
+ * (keyhelpdata.xml: `..._エンゲージ可` → `MID_MENU_ENGAGE_COMMAND` / `..._解除可` → `..._RELEASE`).
+ * 그래서 새 액션을 만들지 않고 `engage`를 토글로 둔다 — 기보 계약(ACTION_TYPES)이 안 흔들리고,
+ * 기존 기보의 engage는 전부 미인게이지 상태에서 찍혔으므로 재생 결과도 그대로다.
+ */
+describe("인게이지 해제 (토글)", () => {
+  const withGauge = (over: Partial<EngageState>): GameState =>
+    state([unit({ id: "u0", force: 0, x: 0, y: 0, weapon: sword, engage: gauge(over) })]);
+
+  it("인게이지 중에 engage를 다시 부르면 해제된다 — 게이지는 남는다", () => {
+    const base = withGauge({ count: 3, limit: 3, engaging: false });
+    const on = reduce(base, { type: "engage", unit: "u0" }, roll());
+    expect(on.units[0]!.engage!.engaging).toBe(true);
+
+    const off = reduce(on, { type: "engage", unit: "u0" }, roll());
+    expect(off.units[0]!.engage!.engaging).toBe(false);
+    // ☠해제가 게이지를 되돌리면 무한 인게이지가 된다 — 소모된 채로 남아야 한다.
+    expect(off.units[0]!.engage!.count).toBe(on.units[0]!.engage!.count);
+    expect(off.events.some((e) => e.type === "disengage")).toBe(true);
+  });
+
+  it("해제도 행동을 소모하지 않는다 — 풀고 나서 이어서 둘 수 있다", () => {
+    const base = withGauge({ count: 3, limit: 3, turn: 1, engaging: true });
+    const off = reduce(base, { type: "engage", unit: "u0" }, roll());
+    expect(off.units[0]!.acted).toBe(false);
+  });
+
+  it("게이지가 비어도 해제는 된다 — 만충 게이트는 개시에만 걸린다", () => {
+    const base = withGauge({ count: 0, limit: 3, turn: 2, engaging: true });
+    expect(() => reduce(base, { type: "engage", unit: "u0" }, roll())).not.toThrow();
+  });
+});

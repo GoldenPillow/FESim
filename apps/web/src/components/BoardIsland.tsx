@@ -173,6 +173,16 @@ export default function BoardIsland(props: BoardProps) {
     if (staffPick !== undefined) return setStaffPick(undefined);
     if (cmd !== undefined) return setCmd(undefined);
     if (pending !== undefined) return setPending(undefined);
+    /**
+     * ★인게이지 해제 — 실기는 커서 단계의 **버튼 10**이 담당한다(메뉴 항목이 아니다:
+     * keyhelpdata.xml이 `인게이지` ↔ `인게이지 해제` 라벨을 같은 버튼에 매단다).
+     * 웹에는 그 버튼이 없어 **메뉴 밖 클릭(B)으로 대체**한다(2026-08-19 사용자 결정).
+     * ☠되돌릴 단계를 전부 소진한 뒤에 놓는다 — 취소하려다 인게이지가 풀리면 손해가 크다.
+     */
+    if (selected?.engage?.engaging === true && !selected.acted && selected.force === game.phase) {
+      tryDispatch({ type: "engage", unit: selected.id });
+      return;
+    }
     if (selectedId !== undefined) return setSelectedId(undefined);
   };
 
@@ -738,7 +748,11 @@ export default function BoardIsland(props: BoardProps) {
     if (selected === undefined || itemCursor === undefined || !itemCursor.startsWith("w")) return undefined;
     const pick = weapons[Number(itemCursor.slice(1))];
     if (pick === undefined) return undefined;
-    const envOf = (w: typeof pick) => combatEnv(toCombatant({ ...selected, weapon: w }, game.map));
+    // ☠예보와 같은 인자로 부른다: `game.units`가 빠지면 지원(絆) 보정이 사라지고,
+    //   좌표가 원위치면 잠정 이동한 자리의 지형 회피가 안 들어간다 — 능력표만 조용히 다른 수를 말한다.
+    //   문장사 보정(싱크로 패시브·EnhanceValue)은 effectiveSkills가 이미 합류시킨다.
+    const envOf = (w: typeof pick) =>
+      combatEnv(toCombatant({ ...selected, ...(selectedAt ?? {}), weapon: w }, game.map, game.units));
     const now = envOf(pick);
     const base = chosenWeapon === undefined ? undefined : envOf(chosenWeapon);
     const val = (env: ReturnType<typeof envOf>, formula: string) => Math.trunc(Number(calculator.eval(formula, env)));
@@ -759,7 +773,7 @@ export default function BoardIsland(props: BoardProps) {
       ],
       reach: pick.rangeMin === pick.rangeMax ? String(pick.rangeMax) : `${pick.rangeMin}-${pick.rangeMax}`,
     };
-  }, [selected, itemCursor, weapons, chosenWeapon, game.map, labels]);
+  }, [selected, selectedAt, itemCursor, weapons, chosenWeapon, game, labels]);
 
   // 회복 예보 — 수치의 정본은 엔진 staffHealAmount(중복 구현 금지). 기준 위치 = 지팡이 발판.
   const healFc = useMemo(() => {
