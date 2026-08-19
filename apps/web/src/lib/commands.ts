@@ -50,7 +50,6 @@ export interface CommandGates {
   hasTradePartner: boolean;
   hasDestroyTarget: boolean;
   canVisit: boolean;
-  hasItem: boolean;
 }
 
 /** 인게이지 개시 = 게이지 만충 + 미인게이지. 정본 `Unit.CanEngageStart`(0x1A273E0) → `CanEngageImpl`. */
@@ -85,7 +84,9 @@ export function availableCommands(unit: UnitState, gates: CommandGates): Command
     guard: hasChainGuardSkill(unit) && canChainGuard(unit),
     destroy: gates.hasDestroyTarget,
     visit: gates.canVisit,
-    item: gates.hasItem,
+    // ★소지품은 **언제나 활성**이다(2026-08-19 사용자 지시) — 사용형 아이템이 없어도
+    //   무기·지팡이를 확인하는 화면이라 목록이 비는 일이 없다(실기 스크린샷 2가 그 화면이다).
+    item: true,
     trade: gates.hasTradePartner,
     wait: true, // 언제나 가능 — 다른 항목이 하나도 없어도 혼자 남는다(§2)
   };

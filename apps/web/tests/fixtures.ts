@@ -67,6 +67,7 @@ const LABELS: BoardProps["labels"] = {
   victory: "", defeat: "", reset: "", replayCmd: "", replayPrev: "", replayNext: "", replayPrevPhase: "", replayNextPhase: "", zoomIn: "", zoomOut: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   saves: { save: "", list: "", empty: "", drop: "", copy: "", saved: "", joined: "", steps: "", hint: "" },
+  itemStats: { atk: "물공", hit: "명중", crit: "필살", spd: "속도", avo: "회피", dodge: "필살 회피", rng: "사정" },
   commands: {
     engage: { label: "인게이지" }, engageArt: { label: "인게이지 기술" }, attack: { label: "공격" },
     staff: { label: "지팡이" }, dance: { label: "춤추기" }, guard: { label: "체인 가드" },

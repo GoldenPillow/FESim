@@ -24,6 +24,7 @@ import {
   staffHealAmount,
   staffHitRate,
   toCombatant,
+  combatEnv,
   warpDestinations,
   type AiDeficit,
   type BattleAction,
@@ -66,6 +67,7 @@ import {
 } from "../lib/guestSave";
 import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import CommandMenu from "./CommandMenu";
+import ItemPanel, { type ItemRow, type StatDelta } from "./ItemPanel";
 import { availableCommands, type CommandId } from "../lib/commands";
 import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
@@ -684,9 +686,80 @@ export default function BoardIsland(props: BoardProps) {
       hasTradePartner: tradePartners.length > 0,
       hasDestroyTarget: breakables.length > 0,
       canVisit: canVisitHere,
-      hasItem: itemButtons.length > 0,
     });
   }, [selected, mode, editing, game.phase, hasAttackTarget, usableStaves, danceTargets, tradePartners, breakables, canVisitHere, itemButtons]);
+
+  /** 소지품 커서(호버) — 능력표는 이 항목 기준이다(실기: 커서 초기 위치 = 현재 장비). */
+  const [itemCursor, setItemCursor] = useState<string | undefined>(undefined);
+  useEffect(() => setItemCursor(undefined), [selectedId, cmd]);
+
+  /**
+   * 소지품 목록 = 무기 ++ 지팡이 ++ 사용형. ☠무기·지팡이는 **정보 표시 전용**이다:
+   * 장비 변경 액션이 엔진에 없다(BattleAction 14종에 equip이 없다) — 없는 것을 있는 척하지 않는다.
+   */
+  const itemRows = useMemo<ItemRow[]>(() => {
+    if (selected === undefined) return [];
+    const rows: ItemRow[] = [];
+    weapons.forEach((w, i) =>
+      rows.push({ key: `w${i}`, name: w.name ?? "—", ...(w.engage === true ? { engage: true } : {}) }),
+    );
+    (selected.staves ?? []).forEach((s, i) =>
+      rows.push({ key: `s${i}`, name: s.name ?? labels.staffCmd, uses: s.uses, dim: s.uses === 0 }),
+    );
+    (selected.consumables ?? []).forEach((c, i) => {
+      const usable = itemButtons.some((b) => b.i === i);
+      rows.push({
+        key: `c${i}`,
+        name: c.name ?? labels.itemCmd,
+        uses: c.uses,
+        dim: !usable,
+        ...(usable
+          ? {
+              onUse: () => {
+                if (commitMove() && tryDispatch({ type: "item", unit: selected.id, item: i })) {
+                  if (canterPower(selected) === undefined) setSelectedId(undefined);
+                  setTargetId(undefined);
+                  setCmd(undefined);
+                }
+              },
+            }
+          : {}),
+      });
+    });
+    return rows;
+  }, [selected, weapons, itemButtons, labels]);
+
+  /**
+   * "사용 시 능력" — 커서가 놓인 무기를 들었을 때의 수치와 **현 장비 대비 차분**.
+   * 전부 self-only 공식이라 상대 없이 계산된다(calculator.json). 정본을 두 번 돌려 빼는 것이
+   * 우리가 수치를 다시 짜지 않는 유일한 방법이다.
+   */
+  const itemStats = useMemo<{ stats: StatDelta[]; reach: string } | undefined>(() => {
+    if (selected === undefined || itemCursor === undefined || !itemCursor.startsWith("w")) return undefined;
+    const pick = weapons[Number(itemCursor.slice(1))];
+    if (pick === undefined) return undefined;
+    const envOf = (w: typeof pick) => combatEnv(toCombatant({ ...selected, weapon: w }, game.map));
+    const now = envOf(pick);
+    const base = chosenWeapon === undefined ? undefined : envOf(chosenWeapon);
+    const val = (env: ReturnType<typeof envOf>, formula: string) => Math.trunc(Number(calculator.eval(formula, env)));
+    const row = (label: string, formula: string): StatDelta => ({
+      label,
+      now: val(now, formula),
+      diff: base === undefined ? 0 : val(now, formula) - val(base, formula),
+    });
+    const t = labels.itemStats;
+    return {
+      stats: [
+        row(t.atk, "攻撃力計算"),
+        row(t.hit, "命中値計算"),
+        row(t.crit, "必殺値計算"),
+        row(t.spd, "攻撃速度計算"),
+        row(t.avo, "回避値計算"),
+        row(t.dodge, "必殺回避計算"),
+      ],
+      reach: pick.rangeMin === pick.rangeMax ? String(pick.rangeMax) : `${pick.rangeMin}-${pick.rangeMax}`,
+    };
+  }, [selected, itemCursor, weapons, chosenWeapon, game.map, labels]);
 
   // 회복 예보 — 수치의 정본은 엔진 staffHealAmount(중복 구현 금지). 기준 위치 = 지팡이 발판.
   const healFc = useMemo(() => {
@@ -1519,7 +1592,7 @@ export default function BoardIsland(props: BoardProps) {
       </div>
 
       <CommandMenu
-        commands={commands}
+        commands={cmd === "item" ? [] : commands}
         labels={labels.commands}
         artName={selected?.engageArt?.name}
         active={cmd}
@@ -1527,6 +1600,17 @@ export default function BoardIsland(props: BoardProps) {
         onPick={runCommand}
         onHover={setCmdHover}
       />
+
+      {!editing && mode !== "replay" && selected !== undefined && cmd === "item" && (
+        <ItemPanel
+          rows={itemRows}
+          cursor={itemCursor}
+          stats={itemStats?.stats}
+          reach={itemStats?.reach}
+          labels={labels}
+          onCursor={setItemCursor}
+        />
+      )}
 
       {/* 인게이지 게이지 — 커맨드가 아니라 상태 표시라 메뉴 밖에 남긴다. */}
       {!editing && mode !== "replay" && selected?.engage !== undefined && (
@@ -1561,22 +1645,7 @@ export default function BoardIsland(props: BoardProps) {
           {cmd === "staff" && staffMode === "warp" && allyTarget !== undefined && (
             <span className="edit-hint">{labels.warpPick}</span>
           )}
-          {cmd === "item" &&
-            itemButtons.map(({ c, i }) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => {
-                  if (commitMove() && tryDispatch({ type: "item", unit: selected.id, item: i })) {
-                    if (canterPower(selected) === undefined) setSelectedId(undefined);
-                    setTargetId(undefined);
-                    setCmd(undefined);
-                  }
-                }}
-              >
-                {c.name ?? labels.itemCmd} +{c.power} ({c.uses})
-              </button>
-            ))}
+
           {cmd === "trade" &&
             tradePartners.map((p) => (
               <button

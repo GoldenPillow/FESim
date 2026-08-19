@@ -16,7 +16,6 @@ const gates = (over: Partial<CommandGates> = {}): CommandGates => ({
   hasTradePartner: false,
   hasDestroyTarget: false,
   canVisit: false,
-  hasItem: false,
   ...over,
 });
 
@@ -41,7 +40,8 @@ const unit = (over: Partial<UnitState> = {}): UnitState =>
 describe("커맨드 메뉴 구성 — 실기 순서", () => {
   it("대기는 언제나 있고, 유효 커맨드가 없어도 혼자 남는다", () => {
     // 정본 §2 — FixedMenuItem은 CreateBind에서 항상 마지막이고, 축약 분기에서 유일 항목이 된다.
-    expect(availableCommands(unit(), gates())).toEqual(["wait"]);
+    // 소지품은 언제나 활성이라 최소 구성이 [소지품, 대기]다(사용자 지시).
+    expect(availableCommands(unit(), gates())).toEqual(["item", "wait"]);
   });
 
   it("표시 순서는 실기 CreateBind 호출 순서를 따른다", () => {
@@ -57,7 +57,6 @@ describe("커맨드 메뉴 구성 — 실기 순서", () => {
         hasTradePartner: true,
         hasDestroyTarget: true,
         canVisit: true,
-        hasItem: true,
       }),
     );
     // 인게이지(#7) → 공격(#14) → 지팡이(#23) → 춤추기(#24) → 체인가드(#25)
@@ -103,7 +102,7 @@ describe("인게이지 상태의 메뉴", () => {
   });
 
   it("★기술이 없으면 기술 항목이 통째로 빠진다 — 공격은 그대로 남는다", () => {
-    const cmds = availableCommands(engaging(), gates({ hasAttackTarget: true, hasItem: true }));
+    const cmds = availableCommands(engaging(), gates({ hasAttackTarget: true }));
     expect(cmds).not.toContain("engageArt");
     expect(cmds).toEqual(["attack", "item", "wait"]); // 실기 스크린샷과 같은 구성
   });
@@ -111,7 +110,7 @@ describe("인게이지 상태의 메뉴", () => {
   it("★기술이 있으면 공격 앞에 선다 — 병존이지 대체가 아니다", () => {
     const art = { sid: "SID_スターラッシュ", name: "스타 러시", skills: [], cost: 1 };
     const cmds = availableCommands(engaging({ engageArt: art }), gates({ hasAttackTarget: true }));
-    expect(cmds).toEqual(["engageArt", "attack", "wait"]);
+    expect(cmds).toEqual(["engageArt", "attack", "item", "wait"]);
   });
 
   it("인게이지 중이 아니면 기술은 뜨지 않는다(엔진 CanEngageAttack 전제)", () => {

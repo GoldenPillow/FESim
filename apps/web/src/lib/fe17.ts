@@ -1054,6 +1054,8 @@ export interface BoardProps {
     copied: string;
     /** 유닛 커맨드 메뉴 라벨·설명문(residentmenu.msbt 정본) — i18n Strings.commands 그대로. */
     commands: Strings["commands"];
+    /** 소지품 능력표 라벨(system.msbt MID_SYS_* 정본). */
+    itemStats: Strings["itemStats"];
     saves: {
       save: string; list: string; empty: string; drop: string; copy: string;
       saved: string; joined: string; steps: string; hint: string;
@@ -1670,6 +1672,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     copyRecord: t.copyRecord,
     copied: t.copied,
     commands: t.commands,
+    itemStats: t.itemStats,
     saves: t.saves,
     logTags: t.logTags,
   });

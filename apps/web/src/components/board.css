@@ -669,7 +669,7 @@
   /* 실기 SetShowRowNum(10) — 10행을 넘으면 스크롤한다. */
   max-height: calc(10 * 2.35rem);
   overflow-y: auto;
-  background: linear-gradient(180deg, rgb(9 16 30 / 0.94), rgb(14 24 42 / 0.94));
+  background: linear-gradient(180deg, rgb(7 13 25 / 0.985), rgb(12 21 38 / 0.985));
   border-top: 1px solid rgb(178 242 255 / 0.35);
   border-bottom: 1px solid rgb(178 242 255 / 0.35);
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
@@ -733,6 +733,100 @@
   }
   .plate .cmd-menu .cmd-help {
     display: none;
+  }
+}
+
+/* 소지품 화면 — 커맨드 메뉴와 같은 자리를 쓴다(실기: 메뉴가 물러나고 이 화면이 선다).
+   색은 실기 스크린샷 픽셀 실측: 엠블렘 무기 #40dfff · 사용불가 #898e99 · 능력표 #d9ceb8 · 상승 #26dbff. */
+.plate .item-panel {
+  position: absolute;
+  left: calc(100% + 0.9rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  min-width: 13rem;
+  padding: 0.5rem 0 0.6rem;
+  background: linear-gradient(180deg, rgb(7 13 25 / 0.985), rgb(12 21 38 / 0.985));
+  border-top: 1px solid rgb(178 242 255 / 0.35);
+  border-bottom: 1px solid rgb(178 242 255 / 0.35);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+}
+.plate .item-panel .ip-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plate .item-panel .ip-list button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.3rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+/* 엠블렘(인게이지) 무기 — items.json Flag 128. 목록에서 이 색으로 갈린다. */
+.plate .item-panel .ip-list button.engage {
+  color: #40dfff;
+}
+.plate .item-panel .ip-list button.dim {
+  color: #898e99;
+}
+.plate .item-panel .ip-list button.on .ip-name {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(178 242 255 / 0.7);
+  padding: 0.05rem 0.55rem;
+  margin: 0 -0.2rem;
+}
+.plate .item-panel .ip-uses {
+  font-weight: 400;
+  opacity: 0.8;
+}
+.plate .item-panel .ip-stats {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 0.15rem 0.7rem;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.9rem 0;
+  border-top: 1px solid rgb(217 206 184 / 0.25);
+  font-size: 11px;
+  color: #d9ceb8;
+}
+.plate .item-panel .ip-stats div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.plate .item-panel .ip-stats dt {
+  opacity: 0.75;
+}
+.plate .item-panel .ip-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.plate .item-panel .ip-stats em {
+  font-style: normal;
+  font-size: 9px;
+}
+.plate .item-panel .ip-stats em.up {
+  color: #26dbff;
+}
+.plate .item-panel .ip-stats em.down {
+  color: #ff8a8a;
+}
+
+@media (max-width: 1023px) {
+  .plate .item-panel {
+    position: static;
+    transform: none;
+    margin-top: 0.6rem;
+    min-width: 0;
   }
 }
 

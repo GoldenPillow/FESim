@@ -93,6 +93,8 @@ export interface Strings {
    * ☠객체 하나로 묶는 이유 = i18n → BoardProps → 컴포넌트 3층을 지나므로 낱개 키면 한 층에서 빠져도
    * 빈 문자열로 조용히 렌더된다.
    */
+  /** 소지품 "사용 시 능력" 표의 항목 라벨 — 정본 = system.msbt MID_SYS_*. */
+  itemStats: { atk: string; hit: string; crit: string; spd: string; avo: string; dodge: string; rng: string };
   commands: Record<
     "engage" | "engageArt" | "attack" | "staff" | "dance" | "guard" | "destroy" | "visit" | "item" | "trade" | "wait",
     { label: string; help?: string }
@@ -213,6 +215,7 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "Remove",
     restoreCmd: "Restore",
     copyRecord: "Copy record",
+    itemStats: { atk: "Ph Atk", hit: "Hit", crit: "Crit", spd: "Spd", avo: "Avo", dodge: "Ddg", rng: "Rng" },
     commands: {
       engage: { label: "Engage", help: "Merge with an Emblem." },
       engageArt: { label: "Engage Attacks" },
@@ -344,6 +347,7 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "제거",
     restoreCmd: "복원",
     copyRecord: "기보 복사",
+    itemStats: { atk: "물공", hit: "명중", crit: "필살", spd: "속도", avo: "회피", dodge: "필살 회피", rng: "사정" },
     commands: {
       engage: { label: "인게이지", help: "문장사와 일체화한다" },
       engageArt: { label: "인게이지 기술" },
