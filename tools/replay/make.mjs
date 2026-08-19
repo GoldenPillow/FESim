@@ -291,6 +291,24 @@ try {
       }
       return n + 1;
     }, 0),
+    // ★무위 전진 — 이동해 놓고 그 활성화에서 아무것도 안 하고 대기한 건수(자군 한정).
+    //   실측 결함(2026-08-19 사용자: "맞는 위치에 가서 대기만 한다 — 생존도 공격도 이유가 타당하지 않다").
+    //   ☠맞을 자리에 서면서 때리지 않는 것은 순손실인데, 화면에서는 "신중해 보이는" 수로 지나간다.
+    idleAdvance: (() => {
+      const mineIds = new Set(final.units.filter((u) => u.force === 0).map((u) => u.id));
+      let n = 0;
+      for (let i = 0; i < file.log.length; i++) {
+        const a = file.log[i].action;
+        if (a?.type !== "move" || !mineIds.has(a.unit)) continue;
+        for (let j = i + 1; j < file.log.length; j++) {
+          const b = file.log[j].action;
+          if (b?.unit !== a.unit) continue;
+          if (b.type === "wait") n += 1;
+          break;
+        }
+      }
+      return n;
+    })(),
     deficits: deficits.length,
     deficitUnits: new Set(deficits.map((d) => d.unit)).size,
     deficitKinds: Object.fromEntries(

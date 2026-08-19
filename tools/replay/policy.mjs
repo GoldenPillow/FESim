@@ -262,7 +262,13 @@ function bestAdvance(engine, calculator, game, unit, foes, zones, aggressive = f
     const margin = aggressive ? 0 : Math.floor(unit.stats.hp * (frail ? FRAIL_MARGIN : ADVANCE_MARGIN));
     if (threat.total >= unit.hp - margin) continue;
     const near = Math.min(...foes.map((f) => dist(at, f)));
-    const score = -near * 10 - threat.total * 6 - threat.hits * 4;
+    // ☠**맞기만 하는 자리는 고르지 않는다**(2026-08-19 사용자 실기 관측: "맞는 위치에 가서 대기만 한다 —
+    //   생존도 공격도 이유가 타당하지 않다"). 종전 점수는 근접(10)이 위협(6)보다 무거워서,
+    //   **때리지도 못하는데 사거리 안으로 걸어 들어가** 공짜로 맞았다. 전진은 *때리러 가는 것*이지
+    //   *맞으러 가는 것*이 아니다 — 이 갈래는 공격 후보가 하나도 없을 때만 오므로 노출은 순손실이다.
+    // ★단 교착(aggressive)이면 노출을 감수한다 — 양쪽이 서로 안 움직이면 판이 안 끝난다(m002 61턴 실측).
+    const exposed = aggressive || threat.total === 0 ? 0 : 1;
+    const score = -exposed * 1e6 - near * 10 - threat.total * 6 - threat.hits * 4;
     if (best === undefined || score > best.score) best = { score, at };
   }
   // 전부 위험하면 가장 덜 맞는 칸으로 물러난다(제자리 포함).
@@ -335,6 +341,16 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
       ? new Set()
       : runOpeningTurn({ engine, dispatch, state, opening, cid, log, verbose: openingVerbose });
 
+  /**
+   * ★이번 페이즈에 **한 번 미뤄 둔** 유닛(2026-08-19 사용자 실기 관측:
+   * "맞는 위치에 가서 대기만 한다 — 생존도 공격도 이유가 타당하지 않다").
+   * 원인은 **낡은 위협 평가**다: 칠 곳이 없는 유닛이 먼저 움직이면 아직 살아 있는 적까지 전부
+   * 자기를 노린다고 계산해(m002 실측 = 도달 칸 전부 위협합 20) 맞을 자리로 걸어가 대기했는데,
+   * 바로 뒤에 아군이 그 적을 죽였다. 그 적이 죽은 뒤였다면 위협이 반으로 줄어 공격이 섰다.
+   * ⇒ 그런 유닛은 **딱 한 번 뒤로 미룬다**. 전역 재정렬은 하지 않는다 — m003에서 무손실이 깨졌다(실측).
+   */
+  const deferred = new Set();
+
   for (let guard = 0; guard < 300; guard++) {
     const game = state();
     if (game.outcome !== undefined || game.phase !== 0) return;
@@ -347,11 +363,14 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
     // ★행동 순서 = **확실한 격파를 가진 유닛부터**(2026-08-18). 위협을 먼저 지우면 뒤에 두는 유닛의
     //   피격 예상이 그만큼 줄어 물몸이 설 자리가 생긴다 — 배치 순서대로 두면 물몸이 먼저 나가 죽는다.
     //   ☠적 AI는 정본을 따르지만 자군 정책은 그럴 의무가 없다(사용자 확정) — 여기서는 잘 두는 게 목적이다.
-    const ready = mine.filter((u) => !u.acted && !owned.has(u.id));
+    let ready = mine.filter((u) => !u.acted && !owned.has(u.id));
     if (ready.length === 0) {
       dispatch({ type: "endPhase" });
       return;
     }
+    // ★한 번 미뤄 둔 유닛은 뒤로 돌린다 — 전부 미뤄졌으면 그대로 진행한다(교착 금지).
+    const waiting = ready.filter((u) => !deferred.has(u.id));
+    if (waiting.length > 0) ready = waiting;
     const preZones = threatZones(engine, game, enemies);
     const preTargets = avoid.size === 0 ? enemies : enemies.filter((f) => !avoid.has(f.pid));
     const killer = ready.find((u) => {
@@ -410,6 +429,17 @@ export function playerPhase({ engine, calculator, dispatch, state, log, opening,
           : false;
       if (!usedArt) dispatch({ type: "attack", unit: actor.id, target: atk.foe.id, weapon: atk.weapon });
     } else {
+      // ☠맞을 자리에 서면서 때리지도 않는 수 — 아직 안 움직인 아군 중 칠 수 있는 쪽이 있으면
+      //   그쪽을 먼저 보내고 이 유닛은 **한 번만** 미룬다(위협이 걷힌 뒤 다시 판단한다).
+      const others = ready.filter((u) => u.id !== actor.id);
+      if (
+        !deferred.has(actor.id) &&
+        others.length > 0 &&
+        others.some((u) => bestAttack(engine, calculator, cur, u, targets, zones, frailSet(mine).has(u.id)) !== undefined)
+      ) {
+        deferred.add(actor.id);
+        continue;
+      }
       const go = bestAdvance(engine, calculator, cur, self, enemies, zones, aggressive, frail);
       if (go !== undefined && (go.at.x !== actor.x || go.at.y !== actor.y)) {
         dispatch({ type: "move", unit: actor.id, x: go.at.x, y: go.at.y });
