@@ -91,6 +91,88 @@ try {
     };
   });
 
+
+  // ── 6. 문장사(엠블렘) 패시브 전수 — ★상시 컨텍스트 주입용(2026-08-19 사용자 지시) ───────
+  // 왜 룰북에 박는가: 絆 레벨마다 붙는 패시브가 판정을 바꾸는데(신속 = 추가타, 見切り = 필살 무효)
+  // 그 목록이 어디에도 정리돼 있지 않아 **매번 데이터를 다시 뒤지게 된다**. 실측 앵커를 대조할 때
+  // "그 수치가 어느 패시브에서 왔는가"를 즉시 못 답하면 엉뚱한 층(스탯 계산 등)을 의심하게 된다.
+  // ☠배선 여부는 기계로 판정한다 — `ActName`이 calculator 공식 이름과 일치할 때만 엔진이 질의하고
+  //   (calculator.ts:48·84가 그 이름으로 modify를 부른다), `EnhanceValue.*`는 정적 보정으로 항상 산다.
+  //   둘 다 아니면 **데이터는 있는데 아무도 안 읽는다** = 조용한 결손이다.
+  const godsTable = JSON.parse(src("data/fe17/tables/gods.json"));
+  const skillTable = JSON.parse(src("data/fe17/tables/skills.json"));
+  const nameKo = JSON.parse(src("data/fe17/names/ko.json"));
+  // ☠질의 이름은 공식명이 아니라 **`計算`을 뗀 값 이름**이다(calculator.ts eval: valueName).
+  //   `回避値計算` 공식이 있으면 스킬은 `回避値`라는 이름으로 보정에 걸린다 —
+  //   이 변환을 빼면 멀쩡히 사는 패시브가 전부 "미배선"으로 잡혀 룰북이 거짓말을 한다.
+  const formulaNames = new Set();
+  for (const key of Object.keys(calc.formulas)) {
+    formulaNames.add(key);
+    if (key.endsWith("計算")) formulaNames.add(key.slice(0, -2));
+  }
+  const ENHANCE_KEYS = ["Hp", "Str", "Tech", "Quick", "Luck", "Def", "Magic", "Mdef", "Phys", "Move"];
+
+  const skillFacts = (sid) => {
+    const row = skillTable[sid];
+    if (row === undefined) return { sid, missing: true, wired: false };
+    const enhances = ENHANCE_KEYS.filter((k) => Number(row[`EnhanceValue.${k}`] ?? 0) !== 0)
+      .map((k) => `${k}${row[`EnhanceValue.${k}`] > 0 ? "+" : ""}${row[`EnhanceValue.${k}`]}`);
+    const acts = (row.ActNames ?? []).map((n, i) => `${n}${row.ActOperations?.[i] ?? "+"}${row.ActValues?.[i] ?? "0"}`);
+    const actWired = (row.ActNames ?? []).filter((n) => formulaNames.has(n));
+    const actDead = (row.ActNames ?? []).filter((n) => !formulaNames.has(n));
+    return {
+      sid,
+      name: nameKo[row.Name] ?? row.Name ?? sid,
+      ...(enhances.length > 0 ? { enhance: enhances } : {}),
+      ...(acts.length > 0 ? { act: acts } : {}),
+      ...(row.Condition ? { condition: row.Condition } : {}),
+      // 정적 보정이 있거나, 계산값 보정이 실제로 질의되는 공식이면 산다.
+      wired: enhances.length > 0 || actWired.length > 0,
+      ...(actDead.length > 0 ? { unreadActNames: actDead } : {}),
+    };
+  };
+
+  const emblems = Object.entries(godsTable.gods)
+    .filter(([, g]) => godsTable.growth[String(g.GrowTable ?? "")] !== undefined)
+    .map(([gid, g]) => {
+      const table = godsTable.growth[String(g.GrowTable)];
+      const levels = Object.keys(table)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((lv) => {
+          const row = table[lv];
+          const pick = (key) => (row[key] ?? []).map(skillFacts);
+          const sync = pick("SynchroSkills");
+          const eng = pick("EngageSkills");
+          if (sync.length === 0 && eng.length === 0) return undefined;
+          return { bond: Number(lv), ...(sync.length > 0 ? { synchro: sync } : {}), ...(eng.length > 0 ? { engaged: eng } : {}) };
+        })
+        .filter((r) => r !== undefined);
+      return { gid, name: nameKo[g.Mid] ?? g.Gid ?? gid, levels };
+    })
+    .filter((e) => e.levels.length > 0);
+
+  /**
+   * ☠아무도 안 읽는 패시브 = **효과 값을 들고 있는데 엔진이 그 이름을 질의하지 않는** 것만 센다.
+   * 효과 필드가 아예 없는 스킬(특효 마스크·GiveSids·조건부 부여 등 다른 경로로 작동)은
+   * 여기 넣지 않는다 — 넣으면 결손 목록이 부풀어 **진짜 결손이 묻힌다**.
+   */
+  const unwiredPassives = [];
+  const outOfScope = new Set();
+  for (const e of emblems) {
+    for (const lv of e.levels) {
+      for (const kind of ["synchro", "engaged"]) {
+        for (const s of lv[kind] ?? []) {
+          if (s.wired) continue;
+          if (s.unreadActNames === undefined) {
+            outOfScope.add(s.sid); // 이 판정 기준 밖(다른 메커니즘) — 결손이 아니라 미판정이다
+            continue;
+          }
+          unwiredPassives.push({ gid: e.gid, bond: lv.bond, kind, sid: s.sid, name: s.name, unreadActNames: s.unreadActNames });
+        }
+      }
+    }
+  }
+
   const section = (id, ko, en, generated, payload, sources = [], why) => ({
     id,
     title: { ko, en },
@@ -145,6 +227,30 @@ try {
     }, rvasOf("packages/engine/src/ai/attack.ts")),
 
     section("constants", "상수", "Constants", true, { constants }),
+
+    section(
+      "emblems",
+      "문장사 패시브",
+      "Emblem passives",
+      true,
+      {
+        note:
+          "絆 레벨마다 붙는 싱크로(상시)·인게이지(발동 중) 패시브 전수. wired=false는 데이터는 있는데 " +
+          "엔진이 읽지 않는다는 뜻이다 — ActName이 calculator 공식 이름과 일치할 때만 질의되기 때문이다.",
+        emblems,
+        unwiredCount: unwiredPassives.length,
+        unwired: unwiredPassives,
+        outOfScopeCount: outOfScope.size,
+        outOfScopeNote:
+          "효과 필드(EnhanceValue·ActNames)가 없어 이 기준으로는 판정할 수 없는 스킬 수. " +
+          "특효 마스크·GiveSids 등 다른 경로로 작동하며, 결손이라는 뜻이 아니다.",
+      },
+      [
+        { file: "data/fe17/tables/gods.json", what: "絆 성장표(SynchroSkills·EngageSkills)" },
+        { file: "data/fe17/tables/skills.json", what: "스킬 행 원형" },
+        { file: "packages/engine/src/formula/calculator.ts", what: "modify 질의 = 배선 판정 기준" },
+      ],
+    ),
 
     section("contracts", "계약 예제", "Contract examples", true, { contracts }),
 
