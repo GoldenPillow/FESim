@@ -252,6 +252,11 @@ function bestAttack(engine, calculator, game, unit, foes, zones, frail = false, 
         const score =
           (fc.kill ? 1000 : 0) +
           (fc.brk ? 120 : 0) +
+          // ★추격을 노린다(2026-08-19 사용자 지시: "속도가 유리한 무기와 유리 국면을 이용하라").
+          //   총 대미지로는 이미 반영되지만, 그것만으로는 **한 방이 큰 무기**에 밀린다 —
+          //   추격은 명중 판정이 두 번이라 기대 대미지가 같아도 분산이 낮고, 브레이크·처치 확률이 높다.
+          //   실기 앵커 = 인게이지 중 레이피어(무게 3)로 추가타가 서는 국면(사용자 스크린샷).
+          (fc.attack.followUp ? 60 : 0) +
           (unit.hp - fc.selfHp) * -6 +
           (foe.hp - fc.foeHp) * 8 +
           fc.hitRate * 0.4 -

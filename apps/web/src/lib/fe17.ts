@@ -1323,9 +1323,19 @@ export function boardProps(
     moveTypes.add(moveType);
     const style = forceStyle(v.unit.force);
     const skillRows = unitSkillRows(v.unit);
+    /**
+     * ★문장사(싱크로) 패시브의 정적 보정도 스냅숏에 든다 — 종전에는 **유닛 자기 스킬만** 넣어서
+     * 반지를 낀 유닛의 力/技/速さ 보정이 통째로 빠져 있었다.
+     * 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆1·철의 검에서 **물공 12**인데
+     * 보정 없이는 11이 나온다(힘 6 + 위력 5). ☠속도는 추격 임계를 직접 가르므로 판정까지 바뀐다.
+     * 絆 레벨은 bondScaffold가 정한다(진행 중 絆는 어떤 덤프에도 없다).
+     */
+    const bondLevel = v.unit.gid === undefined ? undefined : bondScaffold(unitLevel(v.unit, "l"));
+    const syncRows = v.unit.gid === undefined ? undefined : unitSynchroSkillRows(v.unit, bondLevel);
+    const enhanceRows = syncRows === undefined ? skillRows : [...(skillRows ?? []), ...syncRows];
     const withEnhance = (d: Difficulty): StatBlock | undefined => {
       const base = unitStats(v.unit, d);
-      return base === undefined ? undefined : staticEnhances(base, skillRows);
+      return base === undefined ? undefined : staticEnhances(base, enhanceRows ?? []);
     };
     const person = persons[v.unit.pid] as unknown as Record<string, unknown> | undefined;
     return {
@@ -1373,11 +1383,11 @@ export function boardProps(
         if (v.unit.gid === undefined) return {};
         // 絆 레벨 = 스케폴드(위 bondScaffold). ☠난이도별로 갈리지 않게 **루나틱 레벨**을 기준으로 삼는다 —
         // 스킬 목록은 보드 JSON에 한 벌만 실리므로(난이도별 3벌 = 용량 정책 위반) 기준을 하나로 고정해야 한다.
-        const bond = bondScaffold(unitLevel(v.unit, "l"));
+        const bond = bondLevel ?? bondScaffold(unitLevel(v.unit, "l"));
         const engage = engageStateFor(v.unit.gid, bond);
         if (engage === undefined) return {};
         gidsUsed.add(v.unit.gid);
-        const synchroSkills = unitSynchroSkillRows(v.unit, bond);
+        const synchroSkills = syncRows;
         const engagedSkills = unitEngagedSkillRows(v.unit, bond);
         const engageWeapons = emblemEngageWeapons(v.unit.gid, locale, bond);
         const engageArt = emblemEngageArt(v.unit.gid, job?.StyleName, locale);

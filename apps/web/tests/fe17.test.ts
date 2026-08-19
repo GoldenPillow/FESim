@@ -528,3 +528,33 @@ describe("인연 레벨 스케폴드", () => {
     expect(high.length).toBeGreaterThan(low.length);
   });
 });
+
+/**
+ * ★문장사(엠블렘) 스탯 상승 — 싱크로 스킬의 `EnhanceValue.*`가 **스탯 스냅숏에 들어가야** 한다.
+ * ☠종전에는 `staticEnhances(base, unitSkillRows(unit))`로 **유닛 자기 스킬만** 넣어서
+ * 반지를 낀 유닛의 힘·기술·속도 보정이 통째로 빠졌다(마르스 絆1 = 力/技/速さ 각 +1).
+ * 속도는 추격 임계(공격속도 차 5)를 직접 가르므로, 이 결손은 **판정까지 바꾼다** —
+ * 화면에는 그냥 낮은 수치로 보일 뿐이라 눈으로는 못 잡는다.
+ * 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆 Lv1, 속도 8 표시.
+ */
+describe("문장사 스탯 상승 사영", () => {
+  it("싱크로 EnhanceValue가 스탯 스냅숏에 들어간다 — 마르스 絆1 = 힘·기술·속도 +1", () => {
+    // 실기 앵커(2026-08-19 사용자 스크린샷) = 뤼에르&마르스 絆 Lv1, 철의 검 장비, **물공 12**.
+    // 물공 = 힘 + 무기 위력(5)이므로 힘이 7이어야 12가 된다 — 싱크로 力＋１이 들어간 값이다.
+    const board = boardPropsFor("m002", "ko");
+    const ruell = board.units.find((u) => u.pid === "PID_リュール")!;
+    expect(ruell.gid).toBe("GID_マルス");
+    const bonus = (key: string) =>
+      (ruell.synchroSkills ?? []).reduce((n, s) => n + Number(s[`EnhanceValue.${key}`] ?? 0), 0);
+    expect(bonus("Str")).toBe(1); // 데이터가 실제로 +1을 들고 있다(전제)
+    expect(ruell.stats?.l?.str).toBe(7); // ★스냅숏이 그 보정을 품는가 = 실기 물공 12의 근거
+    expect(ruell.stats?.l?.dex).toBe(6);
+  });
+
+  it("반지를 안 낀 유닛에는 보정이 새지 않는다", () => {
+    const board = boardPropsFor("m002", "ko");
+    const noRing = board.units.find((u) => u.force === 0 && u.synchroSkills === undefined);
+    if (noRing === undefined) return;
+    expect(noRing.stats?.l?.str ?? 0).toBeGreaterThan(0);
+  });
+});

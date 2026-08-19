@@ -1,4 +1,4 @@
-# FESim Rulebook — fe17 / fe17-12
+# FESim Rulebook — fe17 / fe17-13
 
 ☠**Generated document.** `./dev rulebook` extracts it from code — hand edits are lost on regeneration.
 
@@ -9,7 +9,7 @@
   "coordinates": "인게임 (X, Z) — 좌하단 원점. 표기 정본 = apps/web/src/lib/grid.ts coordLabel",
   "phases": "force 오름차순 순환(0 자군 · 1 적군 · 2 우군). 한 바퀴 = 1턴",
   "activation": "유닛당 이동 1회 + 행동 1회. 행동이 재이동 창을 연다(moved 해제)",
-  "ruleVersion": "fe17-12"
+  "ruleVersion": "fe17-13"
 }
 ```
 
@@ -420,7 +420,7 @@
 ```json
 {
   "constants": {
-    "RULE_VERSION": "fe17-12",
+    "RULE_VERSION": "fe17-13",
     "INIT_SPIN": 20,
     "BAD_STATE": {
       "silence": 32,
