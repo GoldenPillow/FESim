@@ -14,7 +14,7 @@ import { effectiveWeapons, equipCandidates, type GameState, type TerrainPatch, t
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-11";
+export const RULE_VERSION = "fe17-12";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {

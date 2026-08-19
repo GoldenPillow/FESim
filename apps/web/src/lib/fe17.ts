@@ -18,7 +18,7 @@ import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
-import { UI, type Locale } from "./i18n";
+import { UI, type Locale, type Strings } from "./i18n";
 
 export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
 import { forceStyle } from "./grid";
@@ -844,6 +844,10 @@ export interface BoardWeaponProp {
   enhance?: Partial<StatBlock>;
   /** 무기 부여 스킬 행(EquipSids 슬림 사영) — 장비 중에만 유효(엔진 effectiveSkills 합류). */
   sids?: SkillRow[];
+  /** items.json Secure — 무기 필살회피(엔진 combat의 `武器必殺回避`). 부재 = 0. */
+  dodge?: number;
+  /** items.json Flag의 Engage 비트(128) — 엠블렘 무기 표식. 목록 글자색이 여기서 갈린다. */
+  engage?: boolean;
 }
 
 export interface BoardUnitProp {
@@ -1048,6 +1052,8 @@ export interface BoardProps {
     restoreCmd: string;
     copyRecord: string;
     copied: string;
+    /** 유닛 커맨드 메뉴 라벨·설명문(residentmenu.msbt 정본) — i18n Strings.commands 그대로. */
+    commands: Strings["commands"];
     saves: {
       save: string; list: string; empty: string; drop: string; copy: string;
       saved: string; joined: string; steps: string; hint: string;
@@ -1076,6 +1082,9 @@ const weaponRange = (unit: DisposUnit): { rangeMin: number; rangeMax: number } =
 
 /** 마법 데미지 판별: 마도서(Kind 6) 또는 Flag bit16(光の弓·火のブレス 실측) — 가정 포함, 코퍼스 검증 대상. */
 const MAGIC_FLAG = 0x10000;
+/** items.json Flag의 엠블렘 무기 비트 — 정본 `ItemData.Flags.Engage = 128`(dump.cs:600903).
+ *  `UnitItem.GetFontColor`(0x1F95D70)가 이 비트로 목록 글자색을 시안으로 가른다. */
+const ENGAGE_FLAG = 128;
 
 const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefined => {
   const row = items[iid] as (ItemRow & Record<string, number | string | undefined>) | undefined;
@@ -1092,6 +1101,10 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
     rangeMin: row.RangeI ?? 1,
     rangeMax: row.RangeO ?? 1,
     kind: row.Kind ?? 0,
+    // ☠Secure를 안 실으면 `武器必殺回避`가 늘 0이 되어 **예보 필살 확률이 과대**해진다.
+    //   엔진(combat.ts)은 이미 소비 중이었고 사영만 끊겨 있었다 — 값이 틀릴 뿐 오류는 안 난다.
+    ...(Number(row["Secure"] ?? 0) !== 0 ? { dodge: Number(row["Secure"]) } : {}),
+    ...((Number(row["Flag"] ?? 0) & ENGAGE_FLAG) !== 0 ? { engage: true as const } : {}),
     ...(() => {
       const rows = (row.EquipSids ?? []).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
       return rows.length > 0 ? { sids: rows } : {};
@@ -1656,6 +1669,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     zoomOut: t.zoomOut,
     copyRecord: t.copyRecord,
     copied: t.copied,
+    commands: t.commands,
     saves: t.saves,
     logTags: t.logTags,
   });

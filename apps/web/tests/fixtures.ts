@@ -67,6 +67,12 @@ const LABELS: BoardProps["labels"] = {
   victory: "", defeat: "", reset: "", replayCmd: "", replayPrev: "", replayNext: "", replayPrevPhase: "", replayNextPhase: "", zoomIn: "", zoomOut: "", undoCmd: "", copyRecord: "", copied: "",
   editCmd: "", editExit: "", editHint: "", removeCmd: "", restoreCmd: "",
   saves: { save: "", list: "", empty: "", drop: "", copy: "", saved: "", joined: "", steps: "", hint: "" },
+  commands: {
+    engage: { label: "인게이지" }, engageArt: { label: "인게이지 기술" }, attack: { label: "공격" },
+    staff: { label: "지팡이" }, dance: { label: "춤추기" }, guard: { label: "체인 가드" },
+    destroy: { label: "파괴" }, visit: { label: "방문" }, item: { label: "소지품" },
+    trade: { label: "소지품 교환" }, wait: { label: "대기" },
+  },
   warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "",
   replayOn: "", replayOff: "", unitTurn: "", prevUnit: "", nextUnit: "", nextTurn: "",
   logTags: { chain: "", counter: "", follow: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },

@@ -433,3 +433,60 @@ describe("장비 Enhance 사영", () => {
     expect(w?.enhance).toEqual({ def: 5 });
   });
 });
+
+/**
+ * 무기 사영의 결손 2건 — 원본에 있는데 사영이 안 읽어 조용히 죽어 있던 필드들.
+ * ☠Secure(무기 필살회피)는 엔진 combat.ts가 `武器必殺回避`로 **이미 소비 중**이라, 사영이 비면
+ * 값이 늘 0이 되어 **예보 필살 확률이 과대**해진다 — 오류도 경고도 없이 수치만 틀린다.
+ * Flag의 Engage 비트는 인게임이 엠블렘 무기를 시안으로 칠하는 판별 그 자체다
+ * (ItemData.Flags.Engage = 128 · UnitItem.GetFontColor RVA 0x1F95D70).
+ */
+describe("무기 사영 — 필살회피·엠블렘 플래그", () => {
+  it("Secure가 dodge로 실린다 — 가느다란 검 30", () => {
+    const list = attackWeapons(disposUnit({ items: [{ iid: "IID_ほそみの剣", drop: false }] }), "ko");
+    expect(list[0]?.dodge).toBe(30);
+  });
+
+  it("Secure가 없는 무기는 dodge를 싣지 않는다(용량 정책 — 0은 기본값)", () => {
+    const list = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko");
+    expect(list[0]?.dodge).toBeUndefined();
+  });
+
+  /** 엠블렘 무기 = Flag 128 비트. 마르스 레이피어 Flag=131(128+2+1). */
+  it("엠블렘 무기에 engage 표식이 선다 — 목록에서 시안으로 갈리는 근거", () => {
+    const rapier = emblemEngageWeapons("GID_マルス", "ko")[0];
+    expect(rapier?.engage).toBe(true);
+    const iron = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko")[0];
+    expect(iron?.engage).toBeUndefined();
+  });
+
+  /**
+   * ★사영 → 판정 관통. 층별로는 둘 다 그린이었다: 엔진은 주입된 `武器必殺回避`를 정확히 빼고,
+   * 사영은 items.json을 정확히 읽는다. 그런데 **사이가 끊겨** 값이 늘 0이었다 —
+   * 필살률이 조용히 과대 표시되고, 오류도 경고도 없어 예보를 눈으로 봐도 알 수 없다.
+   * 정본 공식 = `必殺率計算 = 必殺値 - 相手の必殺回避`(calculator.json).
+   */
+  it("방어자 무기의 필살회피가 공격자 필살률을 깎는다 — 가느다란 검 30", async () => {
+    const { createCalculator, forecastSide, toCombatant } = await import("@fesim/engine");
+    const calc = createCalculator(
+      JSON.parse(readFileSync(new URL("../../../data/fe17/tables/calculator.json", import.meta.url), "utf-8")),
+    );
+    const stats = { hp: 30, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 5, res: 5, bld: 5 };
+    const map = { width: 4, height: 1, costs: { foot: [[1, 1, 1, 1]] } };
+    const base = { hp: 30, stats, level: 1, exp: 0, movePoints: 4, moveType: "foot" as const, acted: false, dead: false, broken: false };
+    const iron = attackWeapons(disposUnit({ items: [{ iid: "IID_鉄の剣", drop: false }] }), "ko")[0]!;
+    const thin = attackWeapons(disposUnit({ items: [{ iid: "IID_ほそみの剣", drop: false }] }), "ko")[0]!;
+    // 技 80 = 必殺値 40 — 낮은 技로는 양쪽 다 0으로 클램프돼 차이가 안 보인다(공식: int(技/2) + 武器必殺).
+    const attacker = { ...base, id: "a", force: 0, x: 0, y: 0, weapon: iron, stats: { ...stats, dex: 80 } };
+    const plain = { ...base, id: "p", force: 1, x: 1, y: 0, weapon: iron };
+    const dodgy = { ...base, id: "d", force: 1, x: 1, y: 0, weapon: thin };
+
+    const vsPlain = forecastSide(calc, toCombatant(attacker, map), toCombatant(plain, map));
+    const vsDodgy = forecastSide(calc, toCombatant(attacker, map), toCombatant(dodgy, map));
+    expect(thin.dodge).toBe(30);
+    expect(vsPlain.critRate - vsDodgy.critRate).toBe(30);
+  });
+
+  // ☠랭크·설명문은 여기 싣지 않는다 — 같은 무기가 유닛마다 중복돼 보드 JSON 예산(50KB gz)을 먹고
+  //   열람 경로(/s/)까지 따라간다. 소지품 화면 전용 사전으로 따로 낸다(제작 경로에서만 fetch).
+});

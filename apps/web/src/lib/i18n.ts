@@ -8,7 +8,7 @@ export const DEFAULT_LOCALE: Locale = "en";
 export const isLocale = (v: string | undefined): v is Locale =>
   LOCALES.includes(v as Locale);
 
-interface Strings {
+export interface Strings {
   localeName: string;
   player: string;
   enemy: string;
@@ -86,6 +86,17 @@ interface Strings {
   restoreCmd: string;
   copyRecord: string;
   copied: string;
+  /**
+   * 유닛 커맨드 메뉴 — ★라벨·설명문의 정본은 `residentmenu.msbt`(`MID_MENU_*` / `MID_MENU_HELP_*`)다.
+   * 손으로 지어내지 않는다. `engageArt`만 라벨이 기술명이라 여기 값은 폴백이고
+   * 설명문은 정본을 못 찾아 비운다(`MID_TUT_BMAP_ENGAGE_ATTACK_TITLE` 사영).
+   * ☠객체 하나로 묶는 이유 = i18n → BoardProps → 컴포넌트 3층을 지나므로 낱개 키면 한 층에서 빠져도
+   * 빈 문자열로 조용히 렌더된다.
+   */
+  commands: Record<
+    "engage" | "engageArt" | "attack" | "staff" | "dance" | "guard" | "destroy" | "visit" | "item" | "trade" | "wait",
+    { label: string; help?: string }
+  >;
   /**
    * 넘버링 세이브(관리자 표면) — 객체 하나로 묶는 이유: 라벨은 i18n → BoardProps → 컴포넌트로
    * ☠3층을 지나므로, 낱개 키로 늘리면 한 층에서 빠져도 조용히 빈 문자열로 렌더된다.
@@ -202,6 +213,19 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "Remove",
     restoreCmd: "Restore",
     copyRecord: "Copy record",
+    commands: {
+      engage: { label: "Engage", help: "Merge with an Emblem." },
+      engageArt: { label: "Engage Attacks" },
+      attack: { label: "Attack", help: "Combat a foe." },
+      staff: { label: "Staff", help: "Heal allies, impair enemies, etc." },
+      dance: { label: "Dance", help: "Inspire allies to act again this phase." },
+      guard: { label: "Chain Guard", help: "Shield adjacent allies from attack." },
+      destroy: { label: "Destroy", help: "Break through walls or obstacles." },
+      visit: { label: "Visit", help: "Speak to people in houses." },
+      item: { label: "Items", help: "Use or equip items." },
+      trade: { label: "Trade", help: "Swap items with an ally." },
+      wait: { label: "Wait", help: "End this unit's turn." },
+    },
     saves: {
       save: "Save", list: "Load", empty: "No saves yet", drop: "Delete", copy: "Copy",
       saved: "Save", joined: "joined", steps: "moves", hint: "Callable by number",
@@ -320,6 +344,19 @@ export const UI: Record<Locale, Strings> = {
     removeCmd: "제거",
     restoreCmd: "복원",
     copyRecord: "기보 복사",
+    commands: {
+      engage: { label: "인게이지", help: "문장사와 일체화한다" },
+      engageArt: { label: "인게이지 기술" },
+      attack: { label: "공격", help: "적과 싸운다" },
+      staff: { label: "지팡이", help: "아군을 회복시키거나 적을 방해한다" },
+      dance: { label: "춤추기", help: "특별한 춤을 춰 아군을 재행동시킨다" },
+      guard: { label: "체인 가드", help: "인접한 아군이 받는 공격을 무효화한다" },
+      destroy: { label: "파괴", help: "벽이나 장애물을 파괴한다" },
+      visit: { label: "방문", help: "민가를 방문한다" },
+      item: { label: "소지품", help: "아이템을 사용하거나 장비한다" },
+      trade: { label: "소지품 교환", help: "아군과 아이템을 교환한다" },
+      wait: { label: "대기", help: "행동을 마친다" },
+    },
     saves: {
       save: "세이브", list: "불러오기", empty: "저장된 판이 없다", drop: "삭제", copy: "복사",
       saved: "세이브", joined: "난입", steps: "수", hint: "번호로 부를 수 있다",

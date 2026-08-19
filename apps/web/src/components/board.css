@@ -654,6 +654,86 @@
 .plate .edit-bar button:hover {
   color: var(--ink);
 }
+/* 유닛 커맨드 메뉴 — 인게임 우측 세로 메뉴의 재현(MapUnitCommandMenu).
+   ☠색은 실기 스크린샷 픽셀 실측이다: 코드에 RGBA가 없다(GameColor가 Unity ScriptableObject 자산).
+   선택 #b2f2ff · 비선택 #ffffff — 추측으로 정하지 않았다. */
+.plate .cmd-menu {
+  position: absolute;
+  /* 실기와 같이 **맵 위에 겹쳐** 우측에 뜬다 — 보드 밖으로 내보내면 우측 정보 패널을 가린다. */
+  right: 0;
+  top: 12%;
+  z-index: 12;
+  min-width: 11.5rem;
+  padding: 0.5rem 0;
+  /* 실기 SetShowRowNum(10) — 10행을 넘으면 스크롤한다. */
+  max-height: calc(10 * 2.35rem);
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgb(9 16 30 / 0.94), rgb(14 24 42 / 0.94));
+  border-top: 1px solid rgb(178 242 255 / 0.35);
+  border-bottom: 1px solid rgb(178 242 255 / 0.35);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+}
+.plate .cmd-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plate .cmd-menu button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.32rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.plate .cmd-menu button.on {
+  color: #b2f2ff;
+}
+.plate .cmd-menu button.on .cmd-label {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(178 242 255 / 0.7);
+  padding: 0.05rem 0.6rem;
+  margin: 0 -0.2rem;
+}
+/* 고른 커맨드(대상 지정 중) — 호버가 떠나도 자리를 지킨다. */
+.plate .cmd-menu button.picked .cmd-label {
+  background: rgb(178 242 255 / 0.16);
+}
+.plate .cmd-menu .cmd-help {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgb(255 255 255 / 0.72);
+  white-space: nowrap;
+}
+
+/* 사이드 패널이 접히는 폭에서는 보드 아래로 — 우측 공간이 없다(board-metrics 예산 참조). */
+@media (max-width: 1023px) {
+  .plate .cmd-menu {
+    position: static;
+    max-height: none;
+    margin-top: 0.6rem;
+    min-width: 0;
+  }
+  .plate .cmd-menu ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.2rem;
+  }
+  .plate .cmd-menu button {
+    width: auto;
+  }
+  .plate .cmd-menu .cmd-help {
+    display: none;
+  }
+}
+
 /* 넘버링 세이브 목록(관리자 표면) — 번호가 앵커라 제일 먼저 읽히게 굵게 세운다. */
 .plate .saves-panel {
   margin-top: 0.6rem;
