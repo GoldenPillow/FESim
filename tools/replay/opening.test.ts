@@ -271,4 +271,21 @@ describe("resolveStep — 수순 → 액션", () => {
   it("문법에 없는 수순은 실패다(빈 수순을 조용히 넘기지 않는다)", () => {
     expect(() => resolveStep(engine, gameWith([hero]), { unit: "PID_リュール" })).toThrow(/수순 문법/);
   });
+
+  /**
+   * 왜 위험한가: 소모품 경로는 오프닝 수순 중 **유일하게 AddType 게이트가 없었다**. 엔진은 범위 회복(2)만
+   * 배선했으므로 사람이 특효약(7)·해독제(18)·능력치 약(31)을 지명하면 리듀서가 `미배선 아이템 종류`로
+   * 던지는데, 그 문장에는 **어느 수순의 무엇인지가 없다** — 검수 도구가 원인을 못 짚는다.
+   */
+  it("엔진 미배선 소모품(AddType != 2)은 사유를 붙여 거부한다", () => {
+    const vulnerary = { iid: "IID_상처약", addType: 2, uses: 3 };
+    const tonic = { iid: "IID_능력치약", addType: 31, uses: 1 };
+    const carrier = { ...hero, consumables: [vulnerary, tonic] };
+    const step = (iid: string) => ({ unit: "PID_リュール", item: { iid } });
+    expect(resolveStep(engine, gameWith([carrier]), step("IID_상처약")).actions).toEqual([
+      { type: "item", unit: "u0", item: 0 },
+    ]);
+    expect(() => resolveStep(engine, gameWith([carrier]), step("IID_능력치약"))).toThrow(OpeningError);
+    expect(() => resolveStep(engine, gameWith([carrier]), step("IID_능력치약"))).toThrow(/AddType 31/);
+  });
 });

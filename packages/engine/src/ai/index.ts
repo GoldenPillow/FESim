@@ -29,9 +29,11 @@ import {
   type HandlerContext,
 } from "./handlers.js";
 import { NONE, processing, type ActionResult, type ThinkRuntime } from "./interpreter.js";
+import type { AiTraceSink } from "./attack.js";
+import type { AiReasoning } from "@fesim/shared";
 import { AI_PHASES, aiCanAct, aiPhaseQueue, aiPriorityQueue, attackTierAllowed } from "./order.js";
-import { bandMembers } from "./unit.js";
-import { AC, ACT, type AiDeficit } from "./types.js";
+import { bandMembers, isClever } from "./unit.js";
+import { AC, ACT, battleRateOf, BATTLE_RATE, type AiDeficit } from "./types.js";
 
 /** AI 런타임 기억 — 순수 함수 계약을 지키려고 호출측이 들고 다음 호출에 되돌려준다. */
 export interface AiMemory {
@@ -65,7 +67,12 @@ export interface AiDecision {
   memory: AiMemory;
   /** 결손을 뺀 전 유닛이 행동을 마쳤다 = `endPhase` 시점. */
   done: boolean;
+  /** 왜 이 수인가 — 채택 스코어·후보·기각 사유(행동을 확정했을 때만). 소비는 표시층이 한다. */
+  reasons?: AiReasoning;
 }
+
+/** 후보 덤프 상한 — e004처럼 유닛이 많은 판에서 전량을 실으면 폭발한다(F2 §6-2). */
+const TRACE_CANDIDATE_LIMIT = 5;
 
 /** `AttackTo`(0x1945DB0)로 들어가는 공격 옵코드 — 등급 3종 + 표적 필터형. */
 const ATTACK_OPCODES = new Set<number>([
@@ -135,6 +142,7 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
     allowIdle: boolean,
     rng: RandomSource,
     memory: AiMemory,
+    trace: AiTraceSink,
   ) {
     const runtime: ThinkRuntime = {
       active: memory.active[actor.id] ?? 0,
@@ -154,6 +162,7 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
             supportEffects,
             rng,
             think: thinkLevel,
+            trace,
             unit: actor,
             args,
             allowIdle,
@@ -184,7 +193,8 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
           step.queue === "priority" ? aiPriorityQueue(state.units, state.phase) : aiPhaseQueue(state.units, state.phase);
         for (const actor of queue) {
           if (!aiCanAct(actor) || skipped[actor.id] !== undefined) continue;
-          const r = think(state, actor, step.think, step.allowIdle === true, rng, { active, targeted, skipped, sequences });
+          const trace: AiTraceSink = { candidates: [], rejected: [] };
+          const r = think(state, actor, step.think, step.allowIdle === true, rng, { active, targeted, skipped, sequences }, trace);
           // 밴드 각성 전파 — 같은 AI_BandNo 전원을 Active=1로(§8-4).
           if (r.active !== 0 && (active[actor.id] ?? 0) === 0) {
             for (const m of bandMembers(state.units, actor)) {
@@ -200,6 +210,17 @@ export function createAi(calc: Calculator, supportEffects?: SupportEffects) {
               deficits: [],
               memory: { active, targeted, skipped, sequences },
               done: false,
+              reasons: {
+                step: step.name,
+                think: step.think,
+                // 공격이 아닌 결정(이동·지팡이 등)은 레이아웃을 쓰지 않는다 —
+                // 그때는 "이 유닛이 지금 쳤다면 무엇이 쓰였을까"를 적는다(false 기본값은 조용히 틀린다).
+                battleRate: trace.battleRate ?? (isClever(state) ? BATTLE_RATE.chariness : battleRateOf(actor.ai?.battleRate)),
+                battleRateForced: trace.battleRateForced ?? isClever(state),
+                ...(trace.chosen !== undefined ? { chosen: trace.chosen } : {}),
+                candidates: [...trace.candidates].sort((a, b) => b.battle - a.battle).slice(0, TRACE_CANDIDATE_LIMIT),
+                rejected: trace.rejected,
+              },
             };
           }
           if (r.deficits.length > 0) {

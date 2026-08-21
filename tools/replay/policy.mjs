@@ -131,26 +131,47 @@ function forecast(engine, calculator, game, unit, at, weapon, foe) {
 }
 
 /**
- * 위험지대 — 적이 **실제 이동력·지형 코스트로** 닿는 칸 집합(맨해튼 근사 금지: 벽·강을 무시하면
- * 안전한 칸을 위험으로 오판해 전선이 안 나간다). 이동 범위는 엔진 movementRange 그대로 쓴다.
+ * 위험지대 — 적이 닿는 칸 집합. ★**엔진 `threatTiles`에 위임한다**(정본 1개).
  *
- * ☠**알려진 과소평가(2026-08-20 실측, MP8 §10-7-(16))**: `reachable()`이 쓰는
- * `engine.movePredicates(map, units, unit)`는 **자군 유닛을 통행 차단으로** 넣는다. 자군 페이즈에는
+ * ☠**층이 갈렸던 자리다**: 종전엔 여기가 자기 구현(장비 무기 사거리 + `moveBudgetOn`)을 썼고 UI
+ * 「위험 범위」(`apps/web/src/lib/threat.ts`)는 엔진 `threatTiles`를 썼다 — 같은 국면에서 **화면과 정책이
+ * 서로 다른 위험**을 봤다(m017 7유닛/811칸 · g001 133유닛/3386칸 차 — 적대적 검증 2026-08-22 보고).
+ * 두 구현이 갈리면 "화면은 위험한데 기보는 들어간다"가 되고, 어느 쪽도 틀렸다고 말해 주지 않는다.
+ *
+ * ★위임이 실제로 고친 것 = **행동을 마친 적을 부동으로 보던 과소평가**(2026-08-22 실측). 종전 `reachable()`은
+ * `moveBudgetOn`이 `undefined`(행동 완료)면 **발밑 한 칸**만 돌려줬는데, `acted`는 `endPhase`에서
+ * **다음 페이즈 진영만** 리셋된다 ⇒ 자군 페이즈의 적은 *직전 적 페이즈에 움직였다는 이유로* 전부 부동 취급됐다.
+ * 실측 첫 발현 = m001 턴2(38칸 → 125칸) · m002 턴3(4 → 59) · m003 턴2(386 → 819).
+ * ☠**대가**: 정책이 진짜 위험을 보게 되자 보수화돼 사슬 성적이 떨어졌다. 실측(2026-08-22, seed 1 사슬 전건
+ * 재생성 후 저장분과 `meta` 제외 대조) = m000 동일 · m001 47→52스텝 · **m002 승→패**(뤼에르·프랑 전사) ·
+ * **m003 승→패**(뤼에르·알프레드 전사) · m004는 그 사슬로는 **전멸**. 위험 상수(RISK_FLOOR·ADVANCE_MARGIN·
+ * FRAIL_*)가 **과소평가 위에서 튜닝된 값**이라 재튜닝이 선행이다.
+ * ★**그래서 `data/fe17/replays/`의 m000~m003은 재생성하지 않았다**(지는 기보를 게시하게 된다). 부수 근거 =
+ * 그 사슬의 m002는 뤼에르가 죽어 §10-6 실기 앵커(인게이지 8 + 4)가 판에서 사라지고, `corpus.test.ts`의
+ * 절대 앵커 테스트가 갈 곳을 잃는다.
+ * ☠**예외 = m004 1장은 재생성했다**(2026-08-22) — 격리 실행(이 위임만 되돌리고 엔진 변경은 그대로)에서도
+ * 저장분과 갈렸다(297 → 272스텝) ⇒ 원인이 정책이 아니라 **엔진 AI 정합 수리**이고, 저장분이 이미 낡아
+ * 있었다는 뜻이다. 재생성 결과 = 패배 11턴 297스텝 → **승리 25턴 532스텝**(자군 손실 5 → 6).
+ * ★해제 조건 = 위험 상수 재튜닝 후 **사슬 전건**으로 판정(시드 손질 금지) — 등재 = MP8 §10-5-a · §10-7-(19).
+ *
+ * ⚠위임으로 넘어오는 **정본 쪽 과대평가** 1건(별건 — 여기서 고치지 않는다): `attackAreaFrom`은 소지 무기
+ * 전체의 `min(rangeMin)..max(rangeMax)`를 **한 구간**으로 칠한다. 검(1-1) + 장궁(3-10)을 함께 들면
+ * 어느 무기로도 못 닿는 2칸이 위험으로 칠해진다(무기별 합집합이 아니다). 결손 = `ai.attack-position` 장부.
+ * 실측 m000~m004에서는 발현 0건(혼합 사거리 소지 적이 없다).
+ *
+ * ☠**알려진 과소평가(2026-08-20 실측, MP8 §10-7-(16))** — 위임 후에도 그대로다:
+ * `movePredicates(map, units, unit)`가 **자군 유닛을 통행 차단으로** 넣는다. 자군 페이즈에는
  * 그 아군이 *아직 안 움직였을 뿐*이고 적 페이즈에는 거기 없다 ⇒ 적 도달 범위가 실제보다 **좁게** 나온다.
  * 발현 = m003 seed 13 뤼에르 전사(정책은 `threat 6 / hits 1`로 보고 들어갔는데 적 페이즈에 2기에게 14).
  * ★**미채택 사유 = 순효과 불명**: 미행동 아군을 막이에서 빼는 실험이 seed 1 패배→승리 · seed 2 승리→패배 ·
  * seed 13 불변으로 부호가 안 갈렸다. ★제거 조건 = §C 전략 엔진(적 페이즈 예지·적턴 반격 계산)이 설 때
  * 함께 교체하고, 판정은 시드 3개가 아니라 **기보 사슬 전건**으로 한다.
  */
-function threatZones(engine, game, foes) {
+export function threatZones(engine, game, foes) {
   return foes.map((foe) => {
-    const weapon = foe.weapon;
     const tiles = new Set();
-    if (weapon === undefined) return { foe, tiles };
-    const stand = reachable(engine, game, foe);
-    for (const t of engine.attackRange(stand, weapon.rangeMin, weapon.rangeMax, game.map.width, game.map.height)) {
-      tiles.add(t.y * game.map.width + t.x);
-    }
+    // factor 100 = 이동력 그대로(`GetMovePower`의 백분율). UI 색인도 같은 값을 쓴다.
+    for (const t of engine.threatTiles(game, foe, 100)) tiles.add(t.y * game.map.width + t.x);
     return { foe, tiles };
   });
 }

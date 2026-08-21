@@ -12,6 +12,7 @@ import {
   effectiveSkills,
   makeCostAt,
   staffHealAmount,
+  staffHitRate,
   movePower,
   movePredicates,
   piercePath,
@@ -36,7 +37,7 @@ import { movePowerOf, parsePos } from "./cause.js";
 import { NONE, type ActionResult } from "./interpreter.js";
 import { enumerateRing, healRodPositionScore, sidePosition, terrainScoreAt } from "./position.js";
 import { ACT, AI_FLAG, AI_THINK, AI_VALUE, ATTACK_FLAG } from "./types.js";
-import { aiHealCondition, moveLimitAllows, parseMoveLimit } from "./unit.js";
+import { aiHealCondition, isClever, moveLimitAllows, parseMoveLimit, rejectsPower0 } from "./unit.js";
 
 /** `AIThink.MoveFlag`. */
 export const MOVE_FLAG = { through: 1, break: 2, back: 4, slow: 8, door: 16, ignore: 32, ignoreIceTile: 64 } as const;
@@ -134,7 +135,10 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
       unsupported = `표적 필터 미사영: AT ${opcode}`;
       break;
     }
-    if (!ok) continue;
+    if (!ok) {
+      ctx.trace?.rejected.push({ target: target.id, gate: "targetFilter" });
+      continue;
+    }
     const cand = getAttackScore(ctx, actor, target, 0, image);
     if (cand === undefined) continue;
     if (best === undefined || betterAttack(cand, best, ctx.rng)) best = cand;
@@ -146,6 +150,7 @@ export function attackTo(ctx: HandlerContext, opcode: number): ActionResult {
   const weapon = effectiveWeapons(actor)?.[best.weapon];
   if (ctx.think === AI_THINK.attackLongRange && (weapon?.rangeMax ?? 0) < 2) return NONE;
 
+  if (ctx.trace !== undefined) ctx.trace.chosen = best.target;
   ctx.targeted[best.target] = (ctx.targeted[best.target] ?? 0) + 1;
   const actions: BattleAction[] = [];
   if (best.moveX !== actor.x || best.moveY !== actor.y) {
@@ -761,7 +766,8 @@ const hasTome = (u: UnitState): boolean =>
 /**
  * `AIThink$$ActionRodInterference`(0x1948350) → `InterferenceTo`(0x1948360) — `IR_*(30~36)`.
  *
- * 게이트: `m_Think`가 AttackLongRange(4)·AttackHigh(5)면 실행하지 않는다 · 대형 유닛 제외.
+ * 게이트: `m_Think`가 AttackLongRange(4)·AttackHigh(5)면 실행하지 않는다 · 대형 유닛 제외 ·
+ * ★`IsClever || CheckFlag(RejectPower0Attack)`면 명중 0인 후보를 버린다(공격 경로와 같은 게이트).
  * 도색은 `weaponFlag = InterferenceRod`(☠`IgnoreSilent` **없음** — AC_InterferenceRange와 다르다).
  * 표적은 `EachEnemyUnit` 전수 + 옵코드 필터, 점수는 위 조립식 최대, 동점은 50% 코인플립.
  * 커밋 = `MapMind.Type = RodInterference(30)`.
@@ -787,6 +793,10 @@ export function rodInterferenceTo(ctx: HandlerContext, opcode: number): ActionRe
   const high = opcode === ACT.rodInterferenceHighMagic;
   const low = opcode === ACT.rodInterferenceLowMagic;
   const image = moveImageOf(ctx.state, actor);
+  // ★공격측과 **같은 게이트**가 방해에도 걸린다(0x1958908 IsClever · 0x1958934 CheckFlag(RejectPower0Attack=512)):
+  //   참이면 `sim.Hit < 1` 후보를 버린다(0x1958ae4) — 못 맞히는 지팡이를 던지지 않는다.
+  //   ☠명중은 시전 칸에 무관하다(`staffHitRate`의 시전자 환경에 지형 항이 없다) → 칸 루프 밖에서 한 번만 센다.
+  const requireHit = isClever(ctx.state) || rejectsPower0(actor, ctx.state.difficulty);
 
   let best: { score: number; target: string; staff: number; x: number; y: number } | undefined;
   for (const foe of eachEnemyUnit(ctx.state, actor)) {
@@ -796,6 +806,7 @@ export function rodInterferenceTo(ctx: HandlerContext, opcode: number): ActionRe
     if (!ok) continue;
     for (const { s, i } of usable) {
       if (s.useType === 11 && !hasTome(foe)) continue; // 침묵시킬 것이 없으면 부적합
+      if (requireHit && staffHitRate(ctx.calc, actor, foe, s, ctx.state.map, ctx.state.terrainPatches) < 1) continue;
       for (const tile of enumerateRing(foe.x, foe.y, s.rangeMin, s.rangeMax, ctx.state.map.width, ctx.state.map.height)) {
         if (!image.has(key(ctx.state, tile.x, tile.y))) continue;
         const d = Math.abs(tile.x - foe.x) + Math.abs(tile.y - foe.y);

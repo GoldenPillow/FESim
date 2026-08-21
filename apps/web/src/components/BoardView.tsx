@@ -1,5 +1,6 @@
 import type { Tile, UnitState } from "@fesim/engine";
 import { colLabel, coordLabel, gridCol, gridRow, rawCoord, rowLabel, tileKey, tileShade } from "../lib/grid";
+import { arcPath, regionOutline, type ThreatArc } from "../lib/threat";
 import type { BoardProps } from "../lib/fe17";
 import type { UnitVisual } from "../lib/boardStore";
 import "./board.css";
@@ -27,6 +28,12 @@ export interface BoardViewProps {
   byTile: Map<string, UnitState>;
   visuals: Map<string, UnitVisual>;
   range?: { move: Tile[]; attack: Tile[]; staff?: Tile[] };
+  /** ZR 전체 위험 범위(「위험 범위」 ZL) — 분홍 면 + 둘레 점선. 산출·무효화는 lib/threat이 소유. */
+  danger?: readonly Tile[];
+  /** 위협 아크 — 이 칸을 칠 수 있는 적 → 표적(재현·실선). 예지선(치트)은 여기로 오지 않는다. */
+  arcs?: readonly ThreatArc[];
+  /** 붉은 ! 배지가 붙는 적의 칸 — 아크와 조건이 다르다(도달 판정 없음). */
+  alerts?: readonly Tile[];
   path?: Tile[];
   /** GID → 문장사 초상 경로 — 반지 장착 유닛의 왼쪽 위 배지. 없으면 배지 없이 게이지만 선다. */
   godFaces?: BoardProps["godFaces"];
@@ -113,6 +120,9 @@ export default function BoardView({
   byTile,
   visuals,
   range,
+  danger,
+  arcs,
+  alerts,
   path,
   godFaces,
   strikes,
@@ -229,6 +239,18 @@ export default function BoardView({
           </div>
         )}
 
+        {/* 전체 위험 범위는 **배경 정보**라 이동·공격 범위보다 아래에 깔린다(인게임 알파도 절반 수준). */}
+        {danger !== undefined && danger.length > 0 && (
+          <div className="layer danger">
+            {danger.map((t) => (
+              <i key={tileKey(t.x, t.y)} className="ov danger" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
+            ))}
+            <svg className="danger-edge" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+              <path d={regionOutline(danger, width, height)} />
+            </svg>
+          </div>
+        )}
+
         {range !== undefined && (
           <div className="layer range">
             {range.move.map((t) => (
@@ -240,6 +262,12 @@ export default function BoardView({
             {(range.staff ?? []).map((t) => (
               <i key={tileKey(t.x, t.y)} className="ov sta" style={{ gridColumn: col(t.x), gridRow: row(t.y) }} />
             ))}
+            {/* 외곽선은 영역 둘레만 — 칸마다 그으면 인게임에 없는 격자가 생긴다(board.css .range-edge 주석). */}
+            <svg className="range-edge" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+              <path className="e-move" d={regionOutline(range.move, width, height)} />
+              <path className="e-atk" d={regionOutline(range.attack, width, height)} />
+              <path className="e-sta" d={regionOutline(range.staff ?? [], width, height)} />
+            </svg>
           </div>
         )}
 
@@ -300,6 +328,18 @@ export default function BoardView({
           <svg className="arrow" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
             <path d={path.map((t, i) => `${i === 0 ? "M" : "L"}${cx(t.x)} ${cy(t.y)}`).join(" ")} />
             <ArrowHead from={path[path.length - 2]} to={path[path.length - 1]} cx={cx} cy={cy} />
+          </svg>
+        )}
+
+        {arcs !== undefined && arcs.length > 0 && (
+          <svg className="arcs" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+            {arcs.map((a) => (
+              <path
+                key={a.id}
+                className={`arc ${a.tone}`}
+                d={arcPath(cx(a.from.x), cy(a.from.y), cx(a.to.x), cy(a.to.y))}
+              />
+            ))}
           </svg>
         )}
 
@@ -368,6 +408,21 @@ export default function BoardView({
             );
           })}
         </div>
+
+        {/* 붉은 ! — 적 머리 위 풍선. 유닛 레이어 **위**에 얹는다(스프라이트에 가리면 경고가 아니다). */}
+        {alerts !== undefined && alerts.length > 0 && (
+          <div className="layer alerts" aria-hidden="true">
+            {alerts.map((t) => (
+              <span key={tileKey(t.x, t.y)} className="cell" style={{ gridColumn: col(t.x), gridRow: row(t.y) }}>
+                <svg className="alert-badge" viewBox="0 0 24 24">
+                  <path d="M12 1.2 L22.8 12 L12 22.8 L1.2 12 Z" fill="#D42D2D" />
+                  <path d="M10.7 5.8 H13.3 L12.7 14.2 H11.3 Z" fill="#F6F3F3" />
+                  <circle cx="12" cy="17.6" r="1.45" fill="#F6F3F3" />
+                </svg>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 이동 잔상 — ★**출발 칸 한 곳에 고정**으로 흐리게 남긴다(2026-08-18 사용자 지정).
             궤적을 따라 흩뿌리면 어디서 왔는지가 아니라 "지나갔다"만 보인다.

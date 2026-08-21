@@ -74,7 +74,7 @@ const LABELS: BoardProps["labels"] = {
     destroy: { label: "파괴" }, visit: { label: "방문" }, item: { label: "소지품" },
     trade: { label: "소지품 교환" }, wait: { label: "대기" },
   },
-  warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "",
+  warpPick: "", guardCmd: "", destroyCmd: "", enemyAuto: "", enemyAutoBlocked: "", dangerAll: "",
   replayOn: "", replayOff: "", unitTurn: "", prevUnit: "", nextUnit: "", nextTurn: "",
   logTags: { chain: "", counter: "", follow: "", extra: "", miss: "", brk: "", kill: "", crit: "", refresh: "", engage: "", disengage: "", warp: "", guard: "", spawn: "", join: "", despawn: "" },
 };

@@ -91,6 +91,7 @@ export {
   type SkillRow,
 } from "./skills.js";
 export type { ConsumableItem, EngageArt, EngageState, StaffItem } from "@fesim/shared";
+export type { AiReasoning, AiRejectGate, AiRejection, AiTargetCandidate } from "@fesim/shared";
 export {
   deriveStats,
   grownLevels,
@@ -151,6 +152,7 @@ export {
   getAttackPosition,
   getAttackScore,
   moveImageOf,
+  type AiTraceSink,
   type AttackContext,
   type AttackEvaluation,
   type AttackPosition,
@@ -177,6 +179,7 @@ export {
   AI_GUARD,
   battleScore,
   expectationScoreNormalize,
+  isPower0Attack,
   killProbability,
   killScoreNormalize,
   simulateBattle,
@@ -223,6 +226,7 @@ export {
   aiHasFlag,
   aiHealCondition,
   bandMembers,
+  isClever,
   moveLimitAllows,
   parseMoveLimit,
   rejectsPower0,

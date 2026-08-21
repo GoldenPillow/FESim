@@ -50,6 +50,8 @@ export interface Strings {
   endPhase: string;
   enemyAuto: string;
   enemyAutoBlocked: string;
+  /** 「위험 범위」 전체 표시 토글 — 인게임 ZL(tutorial.msbt MID_TUT_OVERALLINFORMATION_1). */
+  dangerAll: string;
   waitCmd: string;
   attackCmd: string;
   staffCmd: string;
@@ -180,6 +182,7 @@ export const UI: Record<Locale, Strings> = {
     endPhase: "End phase",
     enemyAuto: "Auto enemy turn",
     enemyAutoBlocked: "AI gap — units skipped",
+    dangerAll: "Danger area",
     waitCmd: "Wait",
     attackCmd: "Attack",
     staffCmd: "Staff",
@@ -312,6 +315,7 @@ export const UI: Record<Locale, Strings> = {
     endPhase: "페이즈 종료",
     enemyAuto: "적턴 자동",
     enemyAutoBlocked: "AI 결손 — 건너뛴 유닛",
+    dangerAll: "위험 범위",
     waitCmd: "대기",
     attackCmd: "공격",
     staffCmd: "지팡이",

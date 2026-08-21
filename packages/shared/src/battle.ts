@@ -372,3 +372,52 @@ export type BattleAction =
   | { type: "visit"; unit: string }
   | { type: "wait"; unit: string }
   | { type: "endPhase" };
+
+/**
+ * AI 결정 근거 — "왜 저 적이 나를 안 쳤나"에 답하는 최소 집합(F2 §6-2: 누가·무슨 규칙으로·
+ * 후보 중 왜 이것·왜 저것은 아닌지). ☠소비는 표시층이 한다 — 엔진은 값을 내주기만 한다.
+ * shared가 소유하는 이유는 `BattleAction`과 같다: 표시층이 엔진 내부 타입을 import하지 않게 한다.
+ */
+export interface AiTargetCandidate {
+  target: string;
+  /** 표적 선택 키(§5-1 uint32 비트필드) — 레이아웃이 다르면 값끼리 비교해도 뜻이 없다. */
+  battle: number;
+  kill: number;
+  dead: number;
+  expectation: number;
+  /** 이 표적을 칠 때 서는 칸. */
+  x: number;
+  y: number;
+}
+
+/** 후보가 조용히 사라진 자리 — 어느 게이트가 걸렀는가. */
+export type AiRejectGate =
+  /** 표적 필터(AT_*)에 안 맞음. */
+  | "targetFilter"
+  /** 도달 가능한 공격 발판이 없음. */
+  | "noPosition"
+  /** `RejectPower0Attack` — 대미지도 명중도 0. */
+  | "power0"
+  /** AttackHigh(5) 회전의 격파확률 0.3 미만 기각. */
+  | "lowKill";
+
+export interface AiRejection {
+  target: string;
+  gate: AiRejectGate;
+}
+
+export interface AiReasoning {
+  /** 결정이 나온 페이즈 스텝 이름(`AIOrder` 13단). */
+  step: string;
+  /** 그 스텝의 `AIThink.m_Think`. */
+  think: number;
+  /** 쓰인 `AI_BattleRate` 레이아웃(0 突撃 · 1 攻撃 · 2 慎重). */
+  battleRate: number;
+  /** dispos 값이 아니라 `IsClever()` 강제로 慎重이 된 것인가. */
+  battleRateForced: boolean;
+  /** 채택한 표적(공격이 아니면 부재). */
+  chosen?: string;
+  /** 후보 상위 N(battle 내림차순). ☠전량이 아니다 — 유닛이 많은 판에서 폭발한다. */
+  candidates: AiTargetCandidate[];
+  rejected: AiRejection[];
+}

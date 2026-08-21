@@ -1099,6 +1099,7 @@ export interface BoardProps {
     endPhase: string;
     enemyAuto: string;
     enemyAutoBlocked: string;
+    dangerAll: string;
     waitCmd: string;
     attackCmd: string;
     staffCmd: string;
@@ -1733,6 +1734,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     endPhase: t.endPhase,
     enemyAuto: t.enemyAuto,
     enemyAutoBlocked: t.enemyAutoBlocked,
+    dangerAll: t.dangerAll,
     undoCmd: t.undoCmd,
     editCmd: t.editCmd,
     editExit: t.editExit,

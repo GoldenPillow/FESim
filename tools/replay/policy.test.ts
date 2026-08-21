@@ -6,7 +6,7 @@
  * 실행 결과만 보면 "운이 나빴다"로 지나간다. 층 사이를 묶는 테스트가 아니면 영원히 안 보인다.
  */
 import { describe, expect, it } from "vitest";
-import { incoming } from "./policy.mjs";
+import { incoming, threatZones } from "./policy.mjs";
 
 type Unit = { id: string; force: number; x: number; y: number; hp: number; stats: { hp: number } };
 
@@ -65,5 +65,39 @@ describe("incoming — 그 칸에 서면 적 페이즈에 얼마를 맞는가", 
     };
     incoming(engine, calculator, game, me, at, [zoneAt(foe, width, at)]);
     expect(seen).toEqual([{ attacker: "foe", defender: "me" }]);
+  });
+});
+
+/**
+ * 위험지대 위임 — ☠**층이 둘로 갈렸던 자리**다. 정책이 자기 구현을 들고 있고 UI 「위험 범위」가
+ * 엔진 `threatTiles`를 쓰면, 같은 국면에서 화면과 기보가 서로 다른 위험을 본다(어느 쪽도 틀렸다고 말해 주지 않는다).
+ *
+ * 실제로 갈려 있던 값 = **행동을 마친 적**. 종전 구현은 `moveBudgetOn`이 undefined(행동 완료)면 발밑 한 칸만
+ * 돌려줬는데, `acted`는 다음 페이즈 진영만 리셋되므로 자군 페이즈의 적은 직전 적 페이즈에 움직였다는
+ * 이유만으로 전부 부동 취급됐다(실측 m003 턴2: 386칸 → 819칸). 그래서 여기서는 **누구를 부르는가**를 박제한다.
+ */
+describe("threatZones — 엔진 threatTiles 위임(정본 1개)", () => {
+  const game = { map: { width: 8, height: 8 }, units: [] };
+  const foe = { id: "foe", force: 1, x: 2, y: 2, acted: true, moveType: "foot" };
+
+  it("★엔진 threatTiles를 factor 100으로 부른다 — 자기 구현으로 되돌아가지 않는다", () => {
+    const seen: unknown[] = [];
+    const engine = {
+      threatTiles: (_g: unknown, u: { id: string }, factor: number) => {
+        seen.push([u.id, factor]);
+        return [{ x: 1, y: 1 }, { x: 3, y: 4 }];
+      },
+      // 종전 경로로 되돌아가면 여기서 터진다(조용한 재구현 방지).
+      moveBudgetOn: () => { throw new Error("자기 구현 금지 — threatTiles에 위임한다"); },
+      attackRange: () => { throw new Error("자기 구현 금지 — threatTiles에 위임한다"); },
+    };
+    const zones = threatZones(engine, game, [foe]);
+    expect(seen).toEqual([["foe", 100]]);
+    expect([...zones[0]!.tiles].sort((a, b) => a - b)).toEqual([1 * 8 + 1, 4 * 8 + 3]);
+  });
+
+  it("행동을 마친 적도 위험으로 센다 — `acted`는 여기서 안 본다", () => {
+    const engine = { threatTiles: () => [{ x: 5, y: 5 }] };
+    expect(threatZones(engine, game, [foe])[0]!.tiles.size).toBe(1);
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  allianceOf,
   attackRange,
   BAD_STATE,
   baseBattleTimes,
@@ -73,6 +74,7 @@ import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import CommandMenu from "./CommandMenu";
 import ItemPanel, { type ItemRow, type StatDelta } from "./ItemPanel";
 import { availableCommands, type CommandId } from "../lib/commands";
+import { alertTiles, threatArcs, threatIndex, type ThreatIndex } from "../lib/threat";
 import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
 // REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
@@ -161,6 +163,12 @@ export default function BoardIsland(props: BoardProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
+  /**
+   * 「위험 범위」 전체 표시 — 인게임 ZL(`MapPanelDangerAll.SetMode`). ★**기본 off**가 정본이다
+   * (튜토리얼 원문 *"ZL을 누르면 모든 적의 위험 범위를 한 번에 표시할 수 있습니다"*).
+   * 재현 아크는 반대로 기본 on이다 — 그쪽은 토글이 아니라 상시 표시가 정본이다.
+   */
+  const [dangerAll, setDangerAll] = useState(false);
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
@@ -869,6 +877,44 @@ export default function BoardIsland(props: BoardProps) {
     return { ...range, staff: warpTiles };
   }, [range, warpTiles]);
 
+  /**
+   * 위협 색인(적별 사정권 + 전체 합집합) — ★**국면 하나가 무효화 키**다(MP8 §5-2 사용자 결정).
+   * 인게임도 비트맵을 미리 구워 놓고 조회만 한다(`MapImageDanger`) — 커서 이동마다 적 N명 BFS를
+   * 돌면 INP 게이트를 정면으로 때린다. useMemo가 아니라 ref 캐시인 이유 = **아무도 안 볼 때는 안 굽는다**
+   * (리플레이 관전·아크 표적 없음·ZR off면 계산 자체가 일어나지 않는다).
+   * 실측 2026-08-21(node/vitest, 전 챕터 전수): 최악 g001 적 190명 8.7ms · 본편 최대 m017 47명 5.9ms ·
+   * 통상 본편(적 30~45명) 0.3~2.1ms. 국면당 1회.
+   * ☠**귀속 정정(2026-08-22)**: 이 페이지는 **제작 경로**다 — 열람 INP 게이트(100ms) 대상이 아니다.
+   * 열람 경로 정의는 `design/fesim_plan.md`가 *공유 링크 → 첫 화면 → 스테핑(`/s/`)*으로 못박았고
+   * 맵 보드는 그 밖이다(제작 경로 = 예산 관대). 4x CPU 스로틀 실기 측정 **104~160ms**로 게이트 값을
+   * 넘지만 그것이 결함이 아닌 이유가 이 귀속이다(측정 출처 = 적대적 검증 2026-08-22 · 본 갈래 미재현).
+   */
+  const threatCache = useRef<{ game: GameState; index: ThreatIndex } | undefined>(undefined);
+  const threatsOf = (g: GameState): ThreatIndex => {
+    if (threatCache.current?.game !== g) threatCache.current = { game: g, index: threatIndex(g, 0) };
+    return threatCache.current.index;
+  };
+
+  /**
+   * 아크의 표적 — 선택 자군, 없으면 커서가 가리킨 자군(`GetTargetUnit`). 우군(Force 2)도 표적이 된다.
+   * ☠기준 칸은 **그 유닛이 실제로 선 칸**이다(잠정 이동 칸이 아니다) — 우리는 전통 FE식 Indirect
+   * 조작만 있고 정본도 Indirect면 아크를 출발 칸에 고정한다(F3 §2 (2)).
+   * 게이트 = `MapSituation.IsHumanPlayer` — 리플레이 관전·적 페이즈에는 안 뜬다.
+   */
+  const arcTarget = useMemo(() => {
+    if (mode === "replay" || editing || game.phase !== 0 || game.outcome !== undefined) return undefined;
+    const u = selected ?? (hover === undefined ? undefined : byTile.get(tileKey(hover.x, hover.y)));
+    if (u === undefined || u.dead) return undefined;
+    return allianceOf(game.map, u.force) === allianceOf(game.map, 0) ? u : undefined;
+  }, [mode, editing, game, selected, hover, byTile]);
+
+  const arcs = useMemo(
+    () => (arcTarget === undefined ? undefined : threatArcs(game, threatsOf(game), arcTarget)),
+    [game, arcTarget],
+  );
+  const alerts = useMemo(() => (arcTarget === undefined ? undefined : alertTiles(game, arcTarget)), [game, arcTarget]);
+  const dangerTiles = useMemo(() => (dangerAll ? threatsOf(game).all : undefined), [dangerAll, game]);
+
   const forecast = useMemo(() => {
     if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 교전 예보 대신 지팡이 예보
     if (selected === undefined || fcAt === undefined || fcTarget === undefined) return undefined;
@@ -1518,6 +1564,13 @@ export default function BoardIsland(props: BoardProps) {
         >
           {labels.reset}
         </button>
+        <button
+          type="button"
+          className={dangerAll ? "on" : undefined}
+          onClick={() => setDangerAll((v) => !v)}
+        >
+          {labels.dangerAll}
+        </button>
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
         </button>
@@ -1566,6 +1619,9 @@ export default function BoardIsland(props: BoardProps) {
         byTile={byTileView}
         visuals={visuals}
         range={boardRange}
+        danger={dangerTiles}
+        arcs={arcs}
+        alerts={alerts}
         path={path ?? fx?.trail}
         godFaces={props.godFaces}
         strikes={strikes}

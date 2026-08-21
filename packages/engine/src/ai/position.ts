@@ -14,6 +14,9 @@ const idiv = (a: number, b: number): number => Math.trunc(a / b);
 /**
  * `AIThink$$GetTerrainScore`(0x19422B0) — 0..15.
  * ★비행 병종은 함수 초입에서 **항상 0**. 진영 비대칭항은 우군(2+)에 가산되지 않는다.
+ * ☠**사이드항은 오버레이 층에만** 더한다 — 베이스 셀은 `[0x5c]`/`[0x5d]`(Defense·Avoid)만 읽고
+ * force 분기가 아예 없다(0x1942440/44 대 0x1942588~). 전투용 `terrainBonusAt`은 **다른 함수**의
+ * 사영이라 층 규칙이 다르다 — 같아 보인다고 합치지 말 것.
  */
 export function terrainScoreAt(
   map: BattleMap,
@@ -23,21 +26,17 @@ export function terrainScoreAt(
   patches?: readonly TerrainPatch[],
 ): number {
   if (u.moveType === "fly" || u.moveType === "dragon" || u.flying === true) return 0;
-  let def = 0;
-  let avoid = 0;
-  let heal = 0;
-  for (const t of [terrainPatchAt(patches, x, y)?.cell ?? map.terrain?.[y]?.[x], overlayAt(map, x, y)?.cell]) {
-    if (t === undefined) continue;
-    const side =
-      u.force === 0
-        ? { avoid: t.playerAvoid ?? 0, def: t.playerDef ?? 0 }
-        : u.force === 1
-          ? { avoid: t.enemyAvoid ?? 0, def: t.enemyDef ?? 0 }
-          : { avoid: 0, def: 0 };
-    def += t.def + side.def;
-    avoid += t.avoid + side.avoid;
-    heal += t.heal ?? 0;
-  }
+  const base = terrainPatchAt(patches, x, y)?.cell ?? map.terrain?.[y]?.[x];
+  const over = overlayAt(map, x, y)?.cell;
+  const side =
+    u.force === 0
+      ? { avoid: over?.playerAvoid ?? 0, def: over?.playerDef ?? 0 }
+      : u.force === 1
+        ? { avoid: over?.enemyAvoid ?? 0, def: over?.enemyDef ?? 0 }
+        : { avoid: 0, def: 0 };
+  const def = (base?.def ?? 0) + (over?.def ?? 0) + side.def;
+  const avoid = (base?.avoid ?? 0) + (over?.avoid ?? 0) + side.avoid;
+  const heal = (base?.heal ?? 0) + (over?.heal ?? 0);
   const score = def + idiv(avoid, 5) + idiv(heal, 10) + 5;
   return Math.min(Math.max(score, 0), 15);
 }

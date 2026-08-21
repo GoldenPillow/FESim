@@ -8,6 +8,7 @@ import {
   createReplayer,
   makeCostAt,
   moveBudgetOn,
+  rejectsPower0,
   terrainBonusAt,
   type BattleWeapon,
   type GameState,
@@ -1270,5 +1271,32 @@ describe("이벤트 HP 스톡 — 사영·질의·대입", () => {
     const dead = s.units.find((u) => u.id === "e")!;
     expect(dead.dead).toBe(true); // 부활 없음(장부 combat.hp-stock = absent 유지)
     expect(dead.hpStock).toBe(3); // 스톡은 소모되지 않는다 — 사영만 살아 있다
+  });
+});
+
+/**
+ * `AiSetRejectPower0Attack` 관통 — Lua 바인딩 → `aiScript` 기록 → 엔진 소비(`rejectsPower0`).
+ *
+ * 왜 위험했나: 층이 셋인데 잇는 열쇠가 **문자열 하나**(`"AiSetRejectPower0Attack"`)다. 어느 층에서든
+ * 철자가 갈리면 기록은 남고 소비는 안 되며 **오류도 경고도 안 난다** — 게이트가 조용히 계속 걸린 채
+ * "적이 안 온다"로만 나타난다(정본이 이 호출로 끄는 이유가 ハマり = 교착이다).
+ * 각 층만 보는 테스트는 이 경계를 영원히 못 보므로 양끝 값으로 박제한다.
+ */
+describe("AiSetRejectPower0Attack 관통(Lua → aiScript → rejectsPower0)", () => {
+  const SCRIPT_REJECT = `
+Include("Common")
+function Startup()
+  AiSetRejectPower0Attack("PID_e", false)
+end
+`;
+  it("Lua 해제가 엔진 소비까지 도달한다 — 루나틱 강제가 꺼진다", () => {
+    const session = createEventSession({ sources: { common: COMMON_MIN, r: SCRIPT_REJECT }, chapter: "r", host: host() });
+    session.setRng(rolls([0]));
+    const foe = unit({ id: "e", force: 1, x: 4, y: 4 });
+    const r = session.setup({ ...state([unit({ id: "p", force: 0, x: 1, y: 1 }), foe]), difficulty: "l" });
+    const after = r.state.units.find((u) => u.id === "e")!;
+    expect(after.aiScript).toEqual([["AiSetRejectPower0Attack", false]]);
+    expect(rejectsPower0(after, "l")).toBe(false);
+    expect(rejectsPower0(foe, "l")).toBe(true); // 안 걸린 유닛은 강제 그대로
   });
 });

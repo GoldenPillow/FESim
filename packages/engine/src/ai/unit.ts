@@ -1,8 +1,25 @@
 /**
  * 유닛별 AI 상태 — 회복 임계 · 이동 제약 · 밴드 활성(AI_ENGINE §8-4 · §9).
  */
-import type { UnitState } from "../battle.js";
+import { allianceOf, type GameState, type UnitState } from "../battle.js";
 import { AI_FLAG } from "./types.js";
+
+/**
+ * `AIThink$$IsClever`(0x192A000) — **지금 행동 중인 진영이 플레이어 진영과 동맹인가**.
+ * 참이면 (a) 전투 스코어 레이아웃이 dispos 값을 무시하고 慎重으로 강제되고
+ * (b) 위력 0 공격 기각(`RejectPower0Attack`)이 dispos 플래그와 무관하게 켜진다.
+ *
+ * ☠조건은 유닛의 force가 아니라 `MapSituation.GetCurrentForce()` = 페이즈다.
+ * 기본 동맹표(`MapSequence$$Init` 0x2363660 = `[0, 1, Opposition ? 2 : 0]`)에서 우군 NPC도 동맹이므로
+ * **통상 챕터의 force 2 턴도 강제 대상**이다 — `force === 0`으로 좁히면 그 턴이 통째로 빠진다.
+ *
+ * ☠**비계**: 정본의 두 번째 항 `m_Entrust != Berserk(5)`가 빠져 있다(위임 상태가 GameState에 없다).
+ * 제거 조건 = 위임(Entrust) 파이프라인 이식으로 맵 전역 위임값이 국면에 들어올 때
+ * (暴走 위임 중에는 이 게이트를 꺼야 한다).
+ */
+export function isClever(state: GameState): boolean {
+  return allianceOf(state.map, state.phase) === allianceOf(state.map, 0);
+}
 
 /**
  * `AIThink$$UpdateHealCondition`(0x1941570).
@@ -66,9 +83,41 @@ export function bandMembers(units: readonly UnitState[], u: UnitState): UnitStat
 }
 
 /**
+ * 유닛에 마지막으로 걸린 `AiSetRejectPower0Attack` 인자 — 스크립트가 안 건드렸으면 undefined.
+ * 기록층 = `events/session.ts`의 Ai* 바인딩(`u.aiScript`), 열람 재생층 = `replay.ts`의 `ai` 이벤트.
+ */
+function scriptedRejectPower0(u: UnitState): boolean | undefined {
+  const log = u.aiScript;
+  if (log === undefined) return undefined;
+  for (let i = log.length - 1; i >= 0; i--) {
+    const row = log[i]!;
+    if (row[0] === "AiSetRejectPower0Attack") return row[1] === true || row[1] === 1;
+  }
+  return undefined;
+}
+
+/**
  * 루나틱(난이도 >= 2)이면 dispos 지정과 무관하게 전 유닛에 `RejectPower0Attack`이 강제된다
  * (`SetDisposAi` 0x1A0C4DC~0x1A0C624).
+ *
+ * ★그러나 정본은 그 강제를 **Lua가 되돌린다** — `AiSetRejectPower0Attack(unit, false)`. 스크립트가
+ * 적은 해제 사유가 *"ハマり(교착)につながるおそれがあった"*다: 위력 0을 전부 기각하면 칠 것이 없는 적이
+ * 영영 안 움직인다. 그래서 이 호출은 **난이도 강제·dispos 플래그보다 우선**한다(나중에 실행되는 층).
+ *
+ * 코퍼스 전수 = 5건, 유효 4건 · 인자는 전부 `false`(해제)뿐이고 대상은 항상 **유닛 단위**(전역 스위치 없음).
+ *  - `e001` MapOpening — 루나틱일 때 FORCE_ENEMY 전원
+ *  - `m020` MapOpening — 보스 1명, 난이도 무관
+ *  - `g002` 증원 AI 변경 — 지정 PID 7종, 난이도 무관(증원 Dispos 직후)
+ *  - `common` 비행 적 일괄 해제 — 루나틱 · ☠**지금은 닿지 않는다**(아래)
+ *  - `g005` — 주석 처리된 사문
+ *
+ * ☠common의 비행 해제가 미발현인 이유 2중: (a) 유일한 호출자가 `common_p0`(DLC 遭遇戦)이라 챕터 변환
+ * 대상 밖이고 (b) 게이트가 읽는 `UnitGetMoveCost` 바인딩이 정수 1 스텁이라 `"COST_飛行"` 비교가 영영 거짓이다.
+ * ★**비계** — 제거 조건 = 遭遇戦 맵을 이식할 때 `UnitGetMoveCost`를 MoveType 이름 문자열로 배선
+ * (판독된 리터럴은 `COST_飛行` 하나뿐이라 나머지 이름표는 함께 판독해야 한다).
  */
 export function rejectsPower0(u: UnitState, difficulty: string | undefined): boolean {
+  const scripted = scriptedRejectPower0(u);
+  if (scripted !== undefined) return scripted;
   return difficulty === "l" || aiHasFlag(u, AI_FLAG.zeroAttack);
 }
