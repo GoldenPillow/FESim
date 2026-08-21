@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|opening|saves|promote|link:put|perf|size
+# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|replay:verify|opening|saves|promote|link:put|perf|size
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -52,7 +52,11 @@ publish_done() {
     echo "☠ 마감 중단: main에서 실행됐다 — 작업 브랜치(beta)에서 돌려라"; return 1
   fi
 
-  check && test_all && doccheck || { echo "☠ 마감 중단: 게이트 레드"; return 1; }
+  # ☠마감이 게이트보다 느슨하면 안 된다 — 여기가 **베타에 실제로 나가는** 자리다.
+  #   종전엔 룰북·기보 신선도를 빼고 돌면서 "게이트 ALL GREEN"이라고 찍었다(2026-08-19에 낡은 기보
+  #   5종이 그 문구 밑으로 통과했다). ./dev gate와 같은 항목을 같은 순서로 돈다.
+  check && test_all && doccheck && rulebook_check && replay_check \
+    || { echo "☠ 마감 중단: 게이트 레드"; return 1; }
   echo "== 게이트 ALL GREEN =="
 
   if [ "$dry" = 1 ]; then
@@ -97,12 +101,20 @@ rulebook_check() {
   node tools/rulebook/build.mjs --check
 }
 
+replay_check() {
+  # ☠낡은 기보는 **화면에 그대로 나온다** — 맵 진입이 기본 기보를 자동 재생하므로(BoardIsland)
+  #   룰을 올리고 기보를 안 고치면 모든 맵 첫 화면이 낡은 기록이 되고 배지만 조용히 내려앉는다.
+  #   2026-08-19에 정확히 그렇게 5종이 통째로 낡았고 아무것도 빨개지지 않았다 ⇒ 기계로 본다.
+  #   --deep = 되읽어 재계산 일치까지(실측 1.9초 · 게이트 20초 대비 싸다. 룰 미범프 회귀는 이쪽만 잡는다).
+  node tools/replay/verify.mjs --deep
+}
+
 case "$cmd" in
   check)    check ;;
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
-  gate)     check && test_all && doccheck && rulebook_check && echo "== ./dev gate: ALL GREEN ==" ;;
+  gate)     check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN ==" ;;
   done)     shift; publish_done "$@" ;;
   clear-check) clear_report "$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)" ;;
   fuzz)     shift
@@ -124,6 +136,9 @@ case "$cmd" in
             # ☠승리·자군 무손실·검증 통과가 아니면 실패로 끝난다(리포트의 verified/playerLost 확인).
             [ $# -ge 1 ] || { echo "usage: ./dev replay <cid> [--difficulty l] [--max-turns 40] [--carry <앞 챕터 eph.json>] [--seed <정수>] [--out <path>] [--no-opening]"; exit 2; }
             node tools/replay/make.mjs "$@" ;;
+  replay:verify) shift
+            # 저장소 기보 신선도 — 기본은 ruleVersion 대조, --deep은 재계산 일치까지(게이트가 쓰는 쪽).
+            node tools/replay/verify.mjs "$@" ;;
   opening)  shift
             # 오프닝 수순 검수 — 사람이 적은 수순(data/fe17/openings/<cid>.json)이 우리 국면에서
             # 무엇을 가리키는지 출력한다. ☠기보는 쓰지 않는다(해석 확인 전용, design/opening_script.md §4).
@@ -180,7 +195,10 @@ PYEOF
             [ "${1:-}" = "--local" ] && SCOPE="--local"
             "$WRANGLER" kv key put "$ID" --path "$FILE" --binding LINKS "$SCOPE" -c "$ROOT/wrangler.jsonc" ;;
   perf)     shift
-            # 열람 경로 릴리즈 게이트(§11): /s/ JS ≤100KB gzip + LCP<1s(모바일 4G 시뮬, lighthouserc.json).
+            # 열람 경로 릴리즈 게이트(§11) = **LCP<1s(모바일 4G 시뮬, lighthouserc.json)뿐**이다.
+            # ★/s/ JS 예산은 **참고 지표**다(2026-08-19 사용자 결정 = CLAUDE.md 성능 행 "용량은 게이트 아님 —
+            #   JS 100KB·보드 JSON = 참고 지표"). 그래서 초과해도 실패시키지 않는다 — ./dev size와 같은 규칙이다.
+            #   ☠exit 1로 되돌리려면 그 전에 CLAUDE.md의 "용량은 게이트 아님"부터 바꿔라(명령과 정책은 같은 말을 한다).
             [ $# -ge 1 ] || { echo "usage: ./dev perf <URL>  (프리뷰/베타의 /s/<id> 주소)"; exit 2; }
             URL="$1"
             BUDGET=102400; TOTAL=0
@@ -190,26 +208,28 @@ PYEOF
               SZ=$(gzip -c "$f" | wc -c); TOTAL=$((TOTAL + SZ))
               echo "  $(basename "$f"): ${SZ}B gz"
             done
-            echo "perf: /s/ JS 합계 ${TOTAL}B gz (예산 ${BUDGET}B)"
-            [ "$TOTAL" -le "$BUDGET" ] || { echo "perf: ☠번들 예산 초과"; exit 1; }
+            echo "perf: /s/ JS 합계 ${TOTAL}B gz (참고 예산 ${BUDGET}B)"
+            [ "$TOTAL" -le "$BUDGET" ] || echo "perf: ⚠번들이 참고 예산을 넘는다(게이트 아님 — 실패시키지 않는다)"
             CHROME_PATH="${CHROME_PATH:-$(find ~/.cache/puppeteer/chrome -name chrome -type f 2>/dev/null | sort | tail -1)}"
             export CHROME_PATH
             pnpm exec lhci collect --url="$URL" && pnpm exec lhci assert
             echo "== ./dev perf: GREEN (URL=$URL, 표본 3회 중앙값) ==" ;;
   size)     shift
-            # 챕터 데이터 게이트(§11): 빌드 산출 보드 JSON 전건 ≤50KB gzip. 위반 목록 출력 후 실패.
+            # ★보드 JSON 용량 = **참고 지표**다(2026-08-19 사용자 결정: 릴리즈 게이트는 렌더링·응답만).
+            #   그래서 초과해도 실패시키지 않는다 — 경고만 찍고 0으로 끝난다.
+            #   ☠exit 1로 되돌리려면 그 전에 CLAUDE.md의 "용량은 게이트 아님"부터 바꿔라(명령과 정책은 같은 말을 한다).
             BUDGET=51200; BAD=0; N=0; MAX=0; MAXF=""
             for f in apps/web/dist/client/fe17/boards/*.json; do
               [ -e "$f" ] || { echo "size: 보드 JSON 없음 — 먼저 pnpm build"; exit 1; }
               SZ=$(gzip -c "$f" | wc -c); N=$((N + 1))
               [ "$SZ" -gt "$MAX" ] && { MAX="$SZ"; MAXF="$(basename "$f")"; }
-              [ "$SZ" -le "$BUDGET" ] || { echo "  ☠$(basename "$f"): ${SZ}B gz (예산 ${BUDGET}B)"; BAD=$((BAD + 1)); }
+              [ "$SZ" -le "$BUDGET" ] || { echo "  ⚠$(basename "$f"): ${SZ}B gz (참고 예산 ${BUDGET}B)"; BAD=$((BAD + 1)); }
             done
-            echo "size: 보드 JSON ${N}건 · 최대 ${MAXF} ${MAX}B gz · 예산 ${BUDGET}B"
-            [ "$BAD" -eq 0 ] || { echo "size: ☠${BAD}건 예산 초과"; exit 1; }
-            echo "== ./dev size: GREEN ==" ;;
+            echo "size: 보드 JSON ${N}건 · 최대 ${MAXF} ${MAX}B gz · 참고 예산 ${BUDGET}B"
+            [ "$BAD" -eq 0 ] || echo "size: ⚠${BAD}건이 참고 예산을 넘는다(게이트 아님 — 실패시키지 않는다)"
+            echo "== ./dev size: 보고 완료(게이트 아님) ==" ;;
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

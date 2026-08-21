@@ -129,7 +129,7 @@ describe("전투 예보 (combat facade)", () => {
     // 필살값 int(15/2)=7 - 필살회피 4 = 3
     expect(f.critRate).toBe(3);
     expect(f.attackSpeed).toBe(11);
-    expect(f.followUp).toBe(true); // 11 - 3 = 8 >= 5
+    expect(f.battleTimes).toBe(2); // 11 - 3 = 8 >= 5 → 手番回数 2
   });
 
   it("역방향 예보: 명중률 하한 0 클램프, 추격 없음", () => {
@@ -138,7 +138,7 @@ describe("전투 예보 (combat facade)", () => {
     expect(f.damage).toBe(6);
     // 명중값 6*2 + int(4/2) + 70 = 84 - 회피값 (11*2 + int(9/2) = 26) = 58
     expect(f.hitRate).toBe(58);
-    expect(f.followUp).toBe(false);
+    expect(f.battleTimes).toBe(1);
   });
 
   it("체인어택: 위력 = max(상대 MaxHP*0.1, 1), 명중 80 고정", () => {
@@ -157,5 +157,65 @@ describe("전투 예보 (combat facade)", () => {
     const effective: Combatant = { ...attacker, weapon: { ...attacker.weapon!, effective: 2 } };
     const f = forecastSide(calc, effective, defender);
     expect(f.damage).toBe(15); // (10 + 5*2) - 5
+  });
+});
+
+/**
+ * 전투 문맥 어휘 — `手番回数`(BattleInfoSide.BattleTimes +0xB0)·`総手番回数`(TotalOrder +0xB4)·
+ * `武器の種類`(items.json Kind)·`スキル所持()`(UnitSkillCommand.FuncImpl 0x1B4D820).
+ *
+ * 왜 위험했나: 이 네 어휘가 env에 없어 조건식이 미지 식별자·미지 함수로 **던졌고**,
+ * `makeSkillModifier`의 `catch { continue }`가 그걸 통째로 삼켰다 — 오류도 경고도 결손 등록도 없이
+ * 조건을 가진 416행 중 370행이 평가조차 되지 않았다(배선 전 실측). 전형적인 조용한 실패다.
+ */
+describe("전투 문맥 어휘 (手番回数·武器の種類·スキル所持)", () => {
+  const swordsman: Combatant = {
+    stats: { maxHp: 28, hp: 25, str: 10, mag: 3, dex: 15, spd: 12, lck: 9, def: 6, res: 4, bld: 5 },
+    weapon: { might: 5, hit: 90, crit: 0, weight: 6, kind: 1 },
+  };
+  const mage: Combatant = {
+    stats: { maxHp: 30, hp: 30, str: 8, mag: 1, dex: 6, spd: 7, lck: 4, def: 5, res: 2, bld: 4 },
+    weapon: { might: 4, hit: 70, crit: 0, weight: 8, kind: 6, magic: true },
+  };
+
+  it("flow 문맥이 있으면 手番回数·総手番回数가 그 측 값으로 노출된다", () => {
+    const env = combatEnv({ ...swordsman, flow: { battleTimes: 2, totalOrder: 1 } }, mage);
+    expect(env.lookup("手番回数")).toBe(2);
+    expect(env.lookup("総手番回数")).toBe(1);
+  });
+
+  it("☠문맥이 없으면 0이 아니라 **미지**다 — 강하 방향이 행마다 갈리는 것을 막는다", () => {
+    // 왜 위험한가: 0을 흘리면 `手番回数 > 0`(SID_カウンター)은 거짓으로 과소인데
+    // `総手番回数 == 手番回数 - 1`(SID_カウンター_ダメージ５０％)은 -1 == -1 로 **참**이 되어 과대로 뒤집힌다.
+    // 키를 넣지 않으면 strictIdents가 던져 두 행 다 미적용 — 어휘 결손은 언제나 한 방향(과소)이어야 한다.
+    const env = combatEnv(swordsman, mage);
+    expect(env.lookup("手番回数")).toBeUndefined();
+    expect(env.lookup("総手番回数")).toBeUndefined();
+  });
+
+  it("武器の種類는 items.json Kind의 심볼이고 相手の~도 상대 무기를 본다", () => {
+    // 왜 위험한가: 이 변수 하나가 없어 조건식 132행(剣殺し·剣術・柔·陽光 계열 전부)이 던졌다.
+    const env = combatEnv(swordsman, mage);
+    expect(env.lookup("武器の種類")).toBe("剣");
+    expect(evaluateFormula(parseFormula("武器の種類 == 剣"), env)).toBe(1);
+    expect(evaluateFormula(parseFormula("相手の武器の種類 == 魔道書"), env)).toBe(1);
+  });
+
+  it("무기가 없으면 武器の種類도 미지다(0 심볼을 지어내지 않는다)", () => {
+    expect(combatEnv({ stats: swordsman.stats }).lookup("武器の種類")).toBeUndefined();
+  });
+
+  it("スキル所持()는 접두 있는 이름과 없는 이름을 모두 본다 — 相手の도 같은 훅으로 닫힌다", () => {
+    // 왜 위험한가: 정본은 StructDictionary가 로드 시 `SID_追撃不可`와 `追撃不可`를 같은 인덱스로
+    // 등록해 둔다(Prefixless 0x35FE6B0). 한쪽만 보면 데이터가 쓰는 무접두 인자가 통째로 거짓이 된다.
+    const env = combatEnv(
+      { ...swordsman, skills: [{ Sid: "SID_追撃不可" }] },
+      { ...mage, skills: [{ Sid: "SID_カウンター" }] },
+    );
+    expect(evaluateFormula(parseFormula('スキル所持("追撃不可")'), env)).toBe(1);
+    expect(evaluateFormula(parseFormula('スキル所持("SID_追撃不可")'), env)).toBe(1);
+    expect(evaluateFormula(parseFormula('スキル所持("神速発動済み")'), env)).toBe(0);
+    expect(evaluateFormula(parseFormula('相手のスキル所持("カウンター")'), env)).toBe(1);
+    expect(evaluateFormula(parseFormula('相手のスキル所持("追撃不可")'), env)).toBe(0);
   });
 });

@@ -43,6 +43,8 @@ import {
   rodInterferenceTo,
   targetFilter,
   attackTo,
+  createAi,
+  emptyAiMemory,
   type HandlerContext,
   parseMoveLimit,
   parsePos,
@@ -1050,5 +1052,256 @@ describe("IR_Default(30) — 방해 지팡이 (M_rod_breakdown §1-5-A)", () => 
     const foe = unit({ id: "f", force: 0, x: 6, y: 2, weapon: sword, weapons: [sword] });
     const c = { ...ctx([caster([freeze]), foe]), think: 5 } as HandlerContext;
     expect(rodInterferenceTo(c, ACT.rodInterference)).toEqual({ kind: "none" });
+  });
+
+  /**
+   * 왜 위험했나: `GetInterferenceScore`(0x1958850)의 `requireHit` 게이트(0x1958908 IsClever ·
+   * 0x1958934 CheckFlag(RejectPower0Attack) → 0x1958ae4 `Hit < 1`이면 후보 탈락)가 통째로 빠져 있었다.
+   * ☠**테스트로는 안 잡히는 종류**다 — 방해 지팡이를 든 적이 드물어(코퍼스 24유닛) 챕터 회귀가 침묵하고,
+   * 발현해도 "적 마도사가 못 맞힐 프리즈를 던지고 턴을 버렸다"로만 보인다(오류도 경고도 없다).
+   */
+  it("★requireHit 게이트 — 명중 0인 방해는 후보에서 빠진다(공격 경로와 같은 게이트)", () => {
+    // 妨害杖回避値 = int((魔防*3 + 幸運)/2) 이 妨害杖命中値(魔力 + 技 + 武器命中 = 0+10+60)를 넘기면 명중 0.
+    const slippery = unit({
+      id: "f", force: 0, x: 6, y: 2, weapon: sword, weapons: [sword],
+      stats: { ...baseStats, res: 60, lck: 60 },
+    });
+    const withCalc = (units: UnitState[], difficulty?: string) =>
+      ({
+        ...ctx(units),
+        calc,
+        state: { turn: 1, phase: 1, difficulty, map, units, events: [] } as unknown as GameState,
+      }) as unknown as HandlerContext;
+    expect(rodInterferenceTo(withCalc([caster([freeze]), slippery]), ACT.rodInterference).kind).toBe("decide");
+    expect(rodInterferenceTo(withCalc([caster([freeze]), slippery], "l"), ACT.rodInterference).kind).toBe("none");
+  });
+});
+
+/**
+ * `AIThink$$IsClever`(0x192A000) — 慎重 강제·위력0 기각의 공통 게이트.
+ *
+ * 왜 위험했나: 종전 조건이 `actor.force === 0` 한 줄이라 **우군 NPC(force 2) 턴이 통째로 빠졌다**.
+ * 정본은 "지금 행동 중인 진영이 플레이어 진영과 동맹인가"이고 기본 동맹표에서 force 2도 동맹이다
+ * (`MapSequence$$Init` 0x2363660 = `[0, 1, Opposition ? 2 : 0]`).
+ * 빠지면 우군 NPC가 격파확률만 보고 자기 죽을 확률을 감점하지 않아 정본보다 무모하게 돌진하는데,
+ * 오류도 결손도 안 뜨므로 **화면에서 우연히 보기 전엔 영영 모른다**(F2 조사에서 e004·s001 실발현 확인).
+ */
+describe("진영 대칭성 — IsClever 게이트 (F2 §3-A)", () => {
+  const blade = (might: number) => ({ might, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 });
+  // 突撃과 慎重이 갈리는 배치: A = 격파확률 높지만 반격이 치명적 · B = 못 죽이지만 반격 0.
+  //   突撃은 격파확률이 최상위 비트라 A, 慎重은 피격파확률이 최상위라 B를 고른다.
+  const ROUTINE = [{ Active: -1, Code: 3, Mind: ACT.attackMiddleLow, Trans: 0 }];
+  const build = (actorForce: number, foeForce: number, alliance?: number[]) => {
+    const me = unit({
+      id: "me", force: actorForce, x: 5, y: 5, movePoints: 0, hp: 12,
+      weapon: blade(12), weapons: [blade(12)], stats: { ...baseStats, hp: 30, dex: 8, lck: 0 },
+      ai: { attack: "R", routines: { R: ROUTINE } },
+    });
+    const a = unit({
+      id: "A", force: foeForce, x: 5, y: 4, hp: 8, weapon: blade(20), weapons: [blade(20)],
+      stats: { ...baseStats, hp: 40, def: 0, spd: 24, lck: 10, str: 30 },
+    });
+    const b = unit({ id: "B", force: foeForce, x: 6, y: 5, hp: 90, stats: { ...baseStats, hp: 90, def: 0, spd: 1, lck: 0 } });
+    const map = alliance === undefined ? flatMap() : { ...flatMap(), alliance };
+    return { turn: 1, phase: actorForce, map, units: [me, a, b], events: [] } as unknown as GameState;
+  };
+  const decide = (state: GameState) => createAi(calc).next(state, { next: () => 1 }, emptyAiMemory());
+
+  it("★자군(0)과 우군 NPC(2)는 같은 배치에서 같은 수를 둔다 — 좌표·순번·난수 통제", () => {
+    // 통제: 좌표·유닛 배열 순서·id·난수 동일. 표적은 양쪽 다 force 1이라 열거 순서(0→1→2)도 같다.
+    const self = decide(build(0, 1));
+    const ally = decide(build(2, 1));
+    expect(ally.actions).toEqual(self.actions);
+    // 공허한 일치 방지 — 둘 다 慎重이 고르는 쪽(반격 없는 B)이어야 한다.
+    expect(self.actions).toEqual([{ type: "attack", unit: "me", target: "B", weapon: 0 }]);
+  });
+
+  it("적(1) 턴은 dispos 突撃 그대로 — 정본이 의도한 비대칭까지 지우지 않는다", () => {
+    expect(decide(build(1, 0)).actions).toEqual([{ type: "attack", unit: "me", target: "A", weapon: 0 }]);
+  });
+
+  it("★Opposition 챕터(동맹표 [0,1,2])에서는 우군 NPC도 慎重이 아니다 — 게이트는 force가 아니라 동맹표다", () => {
+    // 정본 = `MapSequence$$Init` 0x2363660. 실데이터 해당 챕터는 CID_E004 1건이고,
+    // 하필 그 챕터가 오늘 force 2 AI가 실제로 도는 두 챕터 중 하나다(F2 §V-3).
+    expect(decide(build(2, 1, [0, 1, 2])).actions).toEqual([{ type: "attack", unit: "me", target: "A", weapon: 0 }]);
+  });
+});
+
+/**
+ * `RejectPower0Attack` — `IsClever`가 강제하는 두 번째 효과(F2 §V-4).
+ *
+ * 왜 위험했나: `rejectsPower0`가 정의·export만 되고 **소비처가 0곳**이었다. 위력 0 공격 기각이
+ * 통째로 미구현이라, 대미지 0인 무기로 헛치는 수가 후보에 남아 채택될 수 있었다.
+ * 정본 `AIThink$$GetAttackScore` 0x1956670 = `IsClever() || CheckFlag(RejectPower0Attack)`이면
+ * `IsPower0Attack()`(0x1928E40) 후보를 버린다. 유인(Decoy) 대상은 그 검사 앞에서 면제된다(0x1956664).
+ */
+describe("위력 0 공격 기각 (F2 §V-4)", () => {
+  const stick = { might: 0, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const board = (actorForce: number, flag?: number) => {
+    const me = unit({
+      id: "me", force: actorForce, x: 5, y: 5, movePoints: 0, weapon: stick, weapons: [stick],
+      stats: { ...baseStats, str: 0 }, ...(flag === undefined ? {} : { ai: { flag } }),
+    });
+    const t = unit({ id: "t", force: actorForce === 1 ? 0 : 1, x: 5, y: 4, hp: 30, stats: { ...baseStats, def: 40 } });
+    return { turn: 1, phase: actorForce, map: flatMap(), units: [me, t], events: [] } as unknown as GameState;
+  };
+  const run = (state: GameState) =>
+    attackTo(
+      { unit: state.units[0]!, state, calc, rng: { next: () => 1 }, args: [], targeted: {}, think: 6 } as unknown as HandlerContext,
+      ACT.attackMiddleLow,
+    );
+
+  it("★IsClever 진영은 dispos 플래그가 없어도 대미지 0 후보를 버린다", () => {
+    expect(run(board(0)).kind).toBe("none");
+    expect(run(board(2)).kind).toBe("none");
+  });
+
+  it("적(1) 턴은 dispos `ZeroAttack`(4) 플래그가 있을 때만 버린다", () => {
+    expect(run(board(1)).kind).toBe("decide"); // 플래그 없음 = 헛쳐도 정본대로
+    expect(run(board(1, 4)).kind).toBe("none");
+  });
+
+  /**
+   * 왜 위험했나: 게이트를 `difficulty === "l"`로 배선한 순간 **기보 생성 기본 난이도가 루나틱**이라
+   * (tools/replay/make.mjs) 적 전원에 걸렸다. 정본은 루나틱에서 켠 뒤 Lua가 `AiSetRejectPower0Attack(u,false)`로
+   * 되돌리며, 스크립트가 적은 해제 사유가 **"ハマり(교착)"**다 — 칠 것이 없는 적이 영영 안 움직이는 것.
+   * 즉 이 해제 경로가 없으면 게이트는 곧 **AI 무진행**이고, 기보는 "적이 조용히 안 온다"로만 나타나 안 잡힌다.
+   */
+  it("★Lua 해제(`AiSetRejectPower0Attack(u,false)`)가 루나틱 강제를 이긴다", () => {
+    const lunatic = (script?: (string | number | boolean)[][]) => {
+      const s = board(1);
+      const me = s.units[0]!;
+      return {
+        ...s, difficulty: "l",
+        units: [{ ...me, ...(script === undefined ? {} : { aiScript: script }) }, s.units[1]!],
+      } as GameState;
+    };
+    expect(run(lunatic()).kind).toBe("none"); // 해제 전 = 루나틱 강제
+    expect(run(lunatic([["AiSetRejectPower0Attack", false]])).kind).toBe("decide");
+  });
+
+  it("Lua가 켜면 난이도·플래그가 없어도 걸린다(인자 true — 대칭 확인)", () => {
+    const s = board(1);
+    const me = s.units[0]!;
+    const on = { ...s, units: [{ ...me, aiScript: [["AiSetRejectPower0Attack", true]] }, s.units[1]!] } as GameState;
+    expect(run(on).kind).toBe("none");
+  });
+
+  it("마지막 호출이 이긴다 — 같은 유닛에 두 번 걸리면 뒤가 정본이다", () => {
+    const s = board(1);
+    const me = s.units[0]!;
+    const twice = (difficulty: GameState["difficulty"], args: boolean[]) =>
+      ({
+        ...s,
+        difficulty,
+        units: [{ ...me, aiScript: args.map((a) => ["AiSetRejectPower0Attack", a]) }, s.units[1]!],
+      }) as GameState;
+    expect(run(twice("l", [true, false])).kind).toBe("decide");
+    expect(run(twice(undefined, [false, true])).kind).toBe("none");
+  });
+});
+
+/**
+ * 지형 스코어 진영 사이드항의 **층** — 정본 `GetTerrainScore` 0x19422B0은 오버레이 셀에만 더한다.
+ *
+ * 왜 위험했나: 우리는 베이스·오버레이 두 층을 같은 루프로 돌며 둘 다 더했다. 지금은 사이드값이 0이 아닌
+ * 지형(`TID_瘴気` 계열 3행)이 전 54챕터에서 오버레이로만 배치돼 **미발현**이라 어떤 테스트도 못 잡는다 —
+ * 지형 교체(`terrainPatchAt`)나 새 챕터가 그 지형을 베이스로 놓는 날 조용히 틀린다(0..15 클램프라 사실상
+ * 최대치 고정 → 적이 오지 말아야 할 칸으로 몰린다). 그래서 잠복 상태로 박제한다.
+ */
+describe("지형 사이드항은 오버레이 층에만 (F2 §3-C)", () => {
+  const grid = (): BattleMap["terrain"] =>
+    Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => ({ avoid: 0, def: 0 })));
+
+  it("★베이스 지형의 PlayerDefense/EnemyDefense는 무시된다", () => {
+    const terrain = grid()!;
+    terrain[1]![1] = { avoid: 0, def: 0, enemyDef: 20, playerDef: -20 };
+    const map: BattleMap = { ...flatMap(), terrain };
+    expect(terrainScoreAt(map, unit({ id: "a", force: 1, x: 1, y: 1 }), 1, 1)).toBe(5);
+    expect(terrainScoreAt(map, unit({ id: "a", force: 0, x: 1, y: 1 }), 1, 1)).toBe(5);
+  });
+
+  it("오버레이 지형의 사이드항은 그대로 더해진다 — 층만 갈렸다", () => {
+    const map: BattleMap = {
+      ...flatMap(),
+      terrain: grid(),
+      overlays: [{ x: 1, y: 1, cell: { avoid: 0, def: 0, enemyDef: 20, playerDef: -20 } }],
+    };
+    expect(terrainScoreAt(map, unit({ id: "a", force: 1, x: 1, y: 1 }), 1, 1)).toBe(15); // 20+5 → 클램프
+    expect(terrainScoreAt(map, unit({ id: "a", force: 0, x: 1, y: 1 }), 1, 1)).toBe(0); // -20+5 → 클램프
+  });
+
+  it("★관통 — 베이스 사이드항이 발판 선택을 흔들지 않는다(위치 스코어까지)", () => {
+    // 층 하나만 보는 테스트는 이 경계를 영원히 못 본다: 지형 점수는 위치 스코어의 하위 4비트로 들어가
+    // 이동코스트를 통째로 덮는다. 표적 (5,5) 인접 4칸 중 (5,4)에만 베이스 사이드값을 둔다.
+    const terrain = grid()!;
+    terrain[4]![5] = { avoid: 0, def: 0, enemyDef: 20 };
+    const blade = { might: 5, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+    const me = unit({ id: "me", force: 1, x: 5, y: 8, movePoints: 6, weapon: blade, weapons: [blade] });
+    const t = unit({ id: "t", force: 0, x: 5, y: 5 });
+    const state = {
+      turn: 1, phase: 1, map: { ...flatMap(), terrain }, units: [me, t], events: [],
+    } as unknown as GameState;
+    const r = attackTo(
+      { unit: me, state, calc, rng: { next: () => 1 }, args: [], targeted: {}, think: 6 } as unknown as HandlerContext,
+      ACT.attackMiddleLow,
+    );
+    expect(r.kind).toBe("decide");
+    // 사이드항이 죽으면 네 칸의 지형 점수가 같아져 **이동코스트가 가장 싼 칸**이 남는다.
+    expect((r.kind === "decide" ? r.actions : [])[0]).toEqual({ type: "move", unit: "me", x: 5, y: 6 });
+  });
+});
+
+/**
+ * AI 결정 근거 노출 — "왜 저 적이 나를 안 쳤나"의 답을 엔진 밖으로 내주는 통로(F2 §6).
+ *
+ * 왜 위험했나: 스코어·후보·기각 사유가 전부 계산된 즉시 버려져, 오재현을 발견해도
+ * **어느 게이트에서 갈렸는지 되짚을 수단이 없었다**(조사할 때마다 스크래치 프로브를 새로 짜야 했다).
+ */
+describe("AI 결정 근거 (F2 §6-2 최소 집합)", () => {
+  const blade = { might: 12, hit: 100, crit: 0, weight: 5, kind: 1, rangeMin: 1, rangeMax: 1 };
+  const ROUTINE = [{ Active: -1, Code: 3, Mind: ACT.attackMiddleLow, Trans: 0 }];
+  const state = (force: number) => {
+    const me = unit({
+      id: "me", force, x: 5, y: 5, movePoints: 0, weapon: blade, weapons: [blade],
+      ai: { attack: "R", routines: { R: ROUTINE } },
+    });
+    const foe = unit({ id: "f", force: force === 1 ? 0 : 1, x: 5, y: 4, hp: 30 });
+    return { turn: 1, phase: force, map: flatMap(), units: [me, foe], events: [] } as unknown as GameState;
+  };
+
+  it("★채택 스코어·후보·쓰인 레이아웃(강제 여부)·페이즈 스텝이 결정에 실려 나온다", () => {
+    const d = createAi(calc).next(state(1), { next: () => 1 }, emptyAiMemory());
+    expect(d.unit).toBe("me");
+    const r = d.reasons!;
+    expect(r.step).toBe("StaticAttackMiddle");
+    expect(r.think).toBe(6);
+    expect(r.chosen).toBe("f");
+    expect(r.candidates[0]).toMatchObject({ target: "f" });
+    expect(r.candidates[0]!.battle).toBeGreaterThan(0);
+    expect(r.battleRate).toBe(BATTLE_RATE.rush);
+    expect(r.battleRateForced).toBe(false);
+  });
+
+  it("IsClever 진영이면 레이아웃이 강제됐다는 것까지 나온다", () => {
+    const r = createAi(calc).next(state(0), { next: () => 1 }, emptyAiMemory()).reasons!;
+    expect(r.battleRate).toBe(BATTLE_RATE.chariness);
+    expect(r.battleRateForced).toBe(true);
+  });
+
+  it("기각된 표적은 사유(게이트 이름)와 함께 남는다", () => {
+    // AttackHigh(5) 회전의 격파확률 0.3 미만 기각 — 지금까지 조용한 continue였다.
+    // ☠AT_Default(0)로 둔다: AT_MiddleLow(1)는 등급 게이트가 AttackHigh 회전을 통째로 막아 이 자리에 못 온다.
+    const me = unit({
+      id: "me", force: 1, x: 5, y: 5, movePoints: 0, weapon: blade, weapons: [blade],
+      ai: { attack: "R", routines: { R: [{ Active: -1, Code: 3, Mind: ACT.attackDefault, Trans: 0 }] } },
+    });
+    const weak = unit({ id: "weak", force: 0, x: 5, y: 4, hp: 10 });
+    const tanky = unit({ id: "tanky", force: 0, x: 6, y: 5, hp: 200, stats: { ...baseStats, hp: 200 } });
+    const high = { turn: 1, phase: 1, map: flatMap(), units: [me, weak, tanky], events: [] } as unknown as GameState;
+    const r = createAi(calc).next(high, { next: () => 1 }, emptyAiMemory()).reasons!;
+    expect(r.step).toBe("StaticAttackHigh");
+    expect(r.chosen).toBe("weak");
+    expect(r.rejected).toEqual([{ target: "tanky", gate: "lowKill" }]);
   });
 });

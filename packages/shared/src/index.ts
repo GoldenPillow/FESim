@@ -1,5 +1,9 @@
 export {
   STAT_KEYS,
+  type AiReasoning,
+  type AiRejectGate,
+  type AiRejection,
+  type AiTargetCandidate,
   type BattleAction,
   type BattleEvent,
   type BattleWeapon,

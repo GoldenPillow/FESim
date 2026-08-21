@@ -14,7 +14,7 @@ import { effectiveWeapons, equipCandidates, type GameState, type TerrainPatch, t
  * 표시·성능·리팩터링은 bump하지 않는다. bump 후 옛 기보는 events 적용으로 계속 열람되지만
  * verify는 불일치로 뜬다 — 그것이 의도된 신호다.
  */
-export const RULE_VERSION = "fe17-13";
+export const RULE_VERSION = "fe17-14";
 
 /** 기록과 재계산이 어긋난 지점 — 묵살하면 남의 전략이 조용히 다르게 재생된다. */
 export class ReplayDesyncError extends Error {
@@ -446,26 +446,11 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
     return next;
   }
 
+  /** 공격류 = 기록 events 절대 적용 경로. 그 밖은 baseReduce 재계산 + 기록 오버레이. */
+  const STRIKE_ACTIONS = ["attack", "engageAttack", "staff", "item", "dance"] as const;
+  type StrikeAction = Extract<BattleAction, { type: (typeof STRIKE_ACTIONS)[number] }>;
+
   function applyStep(state: GameState, step: EphemerisStep): GameState {
-    if (
-      (step.action.type === "attack" ||
-        step.action.type === "engageAttack" ||
-        step.action.type === "staff" ||
-        step.action.type === "item" ||
-        step.action.type === "dance") &&
-      step.events !== undefined
-    ) {
-      // ★스크립트가 **이 행동으로 페이즈를 닫은** 경우(m002 `行動後フェイズ終了`, events/index.ts):
-      //   라이브는 여기서 진짜 endPhase를 이어 돌린다. 재생이 `phase` 필드만 옮기면
-      //   활성화 리셋(acted·moved·broken·인게이지 턴·지형회복·상태 에이징)이 통째로 빠져
-      //   **전 유닛의 acted가 남고 다음 자군 행동이 거부된다** — 생성한 기보가 재생되지 않는다.
-      //   ⇒ endPhase 스텝과 같은 계약으로 처리한다: 행동을 먼저 끝내고(acted), 그 자리에서
-      //     baseReduce로 페이즈를 닫고, 기록 이벤트를 절대값으로 덮는다(라이브 순서 그대로).
-      const cut = step.events.findIndex((e) => e.type === "phase");
-      if (cut < 0) return applyEvents(state, step.action, step.events);
-      const acted = applyEvents(state, step.action, step.events.slice(0, cut));
-      return applyEventList(closePhase(acted, step.events, cut), step.events.slice(cut));
-    }
     if (step.action.type === "setup" && step.events !== undefined) {
       // 챕터 초기화 스텝 — 기록 이벤트(스폰·변수·규칙) 절대 적용만으로 초기 국면이 완성된다.
       return applyEventList(state, step.events);
@@ -496,8 +481,23 @@ export function createReplayer(reduce: Reduce, baseReduce: Reduce = reduce) {
       // 그 유닛의 다음 행동이 "지금 군의 유닛이 아니다"로 거부됐다 — 기보는 정상인데 재생만 깨진 것이다.
       // 기록 이벤트 전체를 오버레이 — 전부 절대값(hpAfter·count·좌표) 또는 멱등이라 base 재계산분과
       // 겹쳐도 수렴한다. 부분집합 필터는 훅의 사망(UnitDie)류를 놓친다.
-      const next = baseReduce(state, step.action, sequenceSource(step.rolls ?? []));
-      return applyEventList(next, step.events);
+      const strike = (STRIKE_ACTIONS as readonly string[]).includes(step.action.type);
+      const runAction = (from: GameState, events: readonly BattleEvent[]): GameState =>
+        strike ?
+          applyEvents(from, step.action as StrikeAction, events)
+        : applyEventList(baseReduce(from, step.action, sequenceSource(step.rolls ?? [])), events);
+      // ★스크립트가 **이 행동으로 페이즈를 닫은** 경우(m002 `行動後フェイズ終了`, events/index.ts):
+      //   라이브는 여기서 진짜 endPhase를 이어 돌린다. 재생이 `phase` 필드만 옮기면
+      //   활성화 리셋(acted·moved·broken·인게이지 턴·지형회복·상태 에이징)과 **턴 랩**이 통째로 빠져
+      //   전 유닛의 acted가 남고 다음 자군 행동이 거부된다 — 생성한 기보가 재생되지 않는다.
+      //   ☠**행동 종류로 가르지 않는다**: 종전엔 공격류 5종에만 걸려 있어 move·wait·guard·trade·
+      //     destroy·visit·engage가 페이즈를 닫으면 같은 결손이 조용히 났다(스크립트 변수는 행동을 안 가린다).
+      //   ⇒ endPhase 스텝과 같은 계약: 행동을 먼저 끝내고, 그 자리에서 baseReduce로 페이즈를 닫고,
+      //     기록 이벤트를 절대값으로 덮는다(라이브 순서 그대로).
+      const cut = step.events.findIndex((e) => e.type === "phase");
+      if (cut < 0) return runAction(state, step.events);
+      const acted = runAction(state, step.events.slice(0, cut));
+      return applyEventList(closePhase(acted, step.events, cut), step.events.slice(cut));
     }
     return reduce(state, step.action, sequenceSource(step.rolls ?? []));
   }

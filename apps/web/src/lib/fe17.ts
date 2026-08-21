@@ -567,20 +567,77 @@ export function unitStats(unit: DisposUnit, difficulty: Difficulty): StatBlock |
 
 /* ── 유닛 스킬 (dispos Sid + 인물 CommonSids + 장착 엠블렘 絆 레벨 싱크로) ── */
 
+/** 직업 StyleName → skills.json 스타일 분기 필드(SkillData.m_StyleSkills의 데이터 원형). */
+const STYLE_SKILL_FIELD: Record<string, string> = {
+  連携スタイル: "CooperationSkill",
+  隠密スタイル: "CovertSkill",
+  竜族スタイル: "DragonSkill",
+  魔法スタイル: "MagicSkill",
+  騎馬スタイル: "HorseSkill",
+  重装スタイル: "HeavySkill",
+  気功スタイル: "PranaSkill",
+  飛行スタイル: "FlySkill",
+};
+
+/**
+ * 스타일 분기 치환 — `SkillData.GetStyleSkill`(0x248D920)을 `SkillArray.Commit`(0x2485A10)이
+ * **수집된 모든 카테고리의 행에** 거는 파생이다(il2cpp/SKILL_ENGINE.md §3 표 17행).
+ * 인게이지 기술의 최종 치환(`GetEngageAttack` 0x2341A6C)도 같은 층이라 스킬·기술이 한 함수를 쓴다.
+ * ☠빈 열은 "치환 없음"이다 — 없으면 본체가 정답이고, 임의 행으로 채우면 다른 스킬이 조용히 붙는다.
+ */
+const styleVariantSid = (sid: string, styleName: string | undefined): string => {
+  const field = STYLE_SKILL_FIELD[styleName ?? ""];
+  if (field === undefined) return sid;
+  const variant = (skills[sid] as Record<string, unknown> | undefined)?.[field];
+  return typeof variant === "string" && skills[variant] !== undefined ? variant : sid;
+};
+
+/** dispos 유닛의 직업 스타일 — 스킬 스타일 분기의 입력(jobs.xml StyleName). */
+const unitStyleName = (unit: DisposUnit): string | undefined => jobs[unit.jid]?.StyleName;
+
 const SKILL_ROW_FIELDS = [
-  "Sid", "Timing", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
+  // ☠Order를 빠뜨리면 웹 사영을 거친 행만 정렬 키를 잃어 실행 순서가 배열 순서로 돌아간다
+  //   (엔진 테스트는 그대로 그린이라 안 잡힌다 — skills.timing-filter에서 이미 한 번 난 사고 유형).
+  // ☠Cycle이 빠지면 부여층이 전투 로컬(0)과 유닛 영속(!=0)을 못 가른다 — 영속 부여가 전투 사본에 섞인다.
+  "Sid", "Timing", "Order", "Cycle", "Stand", "Action", "Condition", "ActNames", "ActOperations", "ActValues",
   "GiveSids", "GiveTarget", "Target", "Power", "Removable", "RangeI", "RangeO",
   "Efficacy", "EfficacyValue", "EfficacyIgnore",
 ] as const;
 
+/**
+ * 0이 곧 엔진 기본값이라 **안 실어도 값이 같은** 필드 — 유닛마다 반복되는 0은 보드 JSON 예산만 먹는다.
+ * ☠계약은 엔진이 소유한다: `skills.ts`가 `skill.Order ?? 0` · `(row.Cycle ?? 0) === 0`으로 읽는 두 자리뿐이다.
+ *   Timing은 여기 못 넣는다 — `passesFilter`가 `undefined`(무검사 통과)와 `0`(전투 밖 = 탈락)을 **다르게** 읽는다.
+ */
+const SKILL_ROW_DEFAULT_ZERO = new Set<string>(["Order", "Cycle"]);
+
+/**
+ * GiveSids 해소 깊이 — 신속 사슬이 `SID_カウンター` → `…ダメージ５０％` → `SID_神速発動済み`로 2단이라 3이면 족하다.
+ * 상한이 곧 순환 가드다(자기 자신을 주는 행이 있어도 여기서 멈춘다).
+ */
+const GIVE_DEPTH = 3;
+
 /** skills.json 행 → 엔진 SkillRow 슬림 사영(EnhanceValue.* 포함) — 아일랜드 직렬화 대상. */
-const slimSkill = (sid: string): SkillRow | undefined => {
+const slimSkill = (sid: string, depth = 0): SkillRow | undefined => {
   const row = skills[sid] as Record<string, unknown> | undefined;
   if (row === undefined) return undefined;
   const out: Record<string, unknown> = {};
-  for (const key of SKILL_ROW_FIELDS) if (row[key] !== undefined) out[key] = row[key];
+  for (const key of SKILL_ROW_FIELDS) {
+    if (row[key] === undefined) continue;
+    if (row[key] === 0 && SKILL_ROW_DEFAULT_ZERO.has(key)) continue;
+    out[key] = row[key];
+  }
   for (const key of Object.keys(row)) if (key.startsWith("EnhanceValue.")) out[key] = row[key];
   out["Sid"] = sid;
+  // ☠GiveSids는 **문자열**이라 엔진 혼자서는 아무것도 못 붙인다(엔진에 스킬 표가 없다 — 행은 유닛이 들고 다닌다).
+  //   정본 SkillData.GiveSkills(+0x238)도 이미 해소된 목록이므로 여기서 행으로 풀어 실어 보낸다.
+  //   안 실으면 부여층이 조용히 무발현으로 강하한다(신속이 정확히 그렇게 죽어 있었다).
+  if (depth < GIVE_DEPTH) {
+    const gives = ((row["GiveSids"] as string[] | undefined) ?? [])
+      .map((given) => slimSkill(given, depth + 1))
+      .filter((r): r is SkillRow => r !== undefined);
+    if (gives.length > 0) out["Gives"] = gives;
+  }
   return out as unknown as SkillRow;
 };
 
@@ -707,15 +764,21 @@ export const engageStateFor = (gid: string, bondLevel?: number): EngageState | u
 export function unitSkillRows(unit: DisposUnit): SkillRow[] {
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
-  const sids = [...new Set([...unit.sids, ...commons])];
-  return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+  const style = unitStyleName(unit);
+  const sids = [...new Set([...unit.sids, ...commons].map((sid) => styleVariantSid(sid, style)))];
+  return sids.map((sid) => slimSkill(sid)).filter((r): r is SkillRow => r !== undefined);
 }
 
-/** 엠블렘 싱크로 스킬 행 — 장착 중 상시 유효(문장사 패시브). */
+/**
+ * 엠블렘 싱크로 스킬 행 — 장착 중 상시 유효(문장사 패시브).
+ * ☠스타일 분기는 **받는 유닛**이 정한다(`GetStyleSkill`은 Commit 시점 = 유닛의 직업을 안다) —
+ * 그래서 SID 목록(`emblemSyncSids`)이 아니라 여기서 건다. 카무이 `SID_竜脈`이 그 자리다.
+ */
 export function unitSynchroSkillRows(unit: DisposUnit, bondLevel?: number): SkillRow[] | undefined {
   if (unit.gid === undefined) return undefined;
+  const style = unitStyleName(unit);
   const rows = emblemSyncSids(unit.gid, bondLevel)
-    .map(slimSkill)
+    .map((sid) => slimSkill(styleVariantSid(sid, style)))
     .filter((r): r is SkillRow => r !== undefined);
   return rows.length > 0 ? rows : undefined;
 }
@@ -756,8 +819,11 @@ export function unitEngagedSkillRows(unit: DisposUnit, bondLevel?: number): Skil
   if (engaged.length === 0) return undefined;
   const person = persons[unit.pid] as unknown as Record<string, unknown> | undefined;
   const commons = (person?.["CommonSids"] as string[] | undefined) ?? [];
-  const sids = [...new Set([...unit.sids, ...commons, ...engaged])];
-  return sids.map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+  const style = unitStyleName(unit);
+  // ☠스타일 분기는 EngageSid 치환(月の腕輪 → 日月の腕輪) **뒤**다 — 정본도 배열에 담은 뒤 Commit이 파생을 건다.
+  //   뤼에르(竜族スタイル)가 마르스의 SID_カウンター를 SID_カウンター_竜族으로 받는 자리가 여기다.
+  const sids = [...new Set([...unit.sids, ...commons, ...engaged].map((sid) => styleVariantSid(sid, style)))];
+  return sids.map((sid) => slimSkill(sid)).filter((r): r is SkillRow => r !== undefined);
 }
 
 /* ── 보드 아일랜드 props ─────────────────────────────────────
@@ -994,6 +1060,13 @@ export interface BoardProps {
         engagedSkills?: SkillRow[];
         engageWeapons?: BoardWeaponProp[];
         arts?: Record<string, EngageArt>;
+        /**
+         * StyleName → (원본 Sid → 스타일 변형 행) 치환표 — `GetStyleSkill` 그 자체의 모양이다.
+         * ☠여기는 **받을 유닛을 모르는 자리**(스크립트가 나중에 붙인다)라 사영이 스타일을 못 고른다.
+         * 치환되는 행만 싣고(전량 복제하면 스타일 수만큼 목록이 불어난다), 고르는 것은
+         * 소비처(eventWiring godUnit)가 `unit.style`로 한다.
+         */
+        styles?: Record<string, Record<string, SkillRow>>;
       }
     >;
     /**
@@ -1026,6 +1099,7 @@ export interface BoardProps {
     endPhase: string;
     enemyAuto: string;
     enemyAutoBlocked: string;
+    dangerAll: string;
     waitCmd: string;
     attackCmd: string;
     staffCmd: string;
@@ -1070,7 +1144,7 @@ export interface BoardProps {
       save: string; list: string; empty: string; drop: string; copy: string;
       saved: string; joined: string; steps: string; hint: string;
     };
-    logTags: { chain: string; counter: string; follow: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
+    logTags: { chain: string; counter: string; follow: string; extra: string; miss: string; brk: string; kill: string; crit: string; refresh: string; engage: string; disengage: string; warp: string; guard: string; spawn: string; join: string; despawn: string };
   };
 }
 
@@ -1118,7 +1192,7 @@ const attackWeaponProp = (iid: string, locale: Locale): BoardWeaponProp | undefi
     ...(Number(row["Secure"] ?? 0) !== 0 ? { dodge: Number(row["Secure"]) } : {}),
     ...((Number(row["Flag"] ?? 0) & ENGAGE_FLAG) !== 0 ? { engage: true as const } : {}),
     ...(() => {
-      const rows = (row.EquipSids ?? []).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+      const rows = (row.EquipSids ?? []).map((sid) => slimSkill(sid)).filter((r): r is SkillRow => r !== undefined);
       return rows.length > 0 ? { sids: rows } : {};
     })(),
     ...(() => {
@@ -1137,18 +1211,6 @@ export const attackWeapons = (unit: DisposUnit, locale: Locale): BoardWeaponProp
     if (prop !== undefined) list.push(prop);
   }
   return list;
-};
-
-/** 직업 StyleName → skills.json 스타일 분기 필드(SkillData.m_StyleSkills의 데이터 원형). */
-const STYLE_SKILL_FIELD: Record<string, string> = {
-  連携スタイル: "CooperationSkill",
-  隠密スタイル: "CovertSkill",
-  竜族スタイル: "DragonSkill",
-  魔法スタイル: "MagicSkill",
-  騎馬スタイル: "HorseSkill",
-  重装スタイル: "HeavySkill",
-  気功スタイル: "PranaSkill",
-  飛行スタイル: "FlySkill",
 };
 
 /**
@@ -1171,15 +1233,13 @@ export const emblemEngageArt = (gid: string, styleName: string | undefined, loca
   const baseSid =
     god === undefined ? undefined : String(god["EngageAttack"] ?? "") || (ENGAGE_ATTACK_SCAFFOLD[gid] ?? "");
   if (baseSid === undefined || baseSid === "" || skills[baseSid] === undefined) return undefined;
-  const field = STYLE_SKILL_FIELD[styleName ?? ""];
-  const variant = field === undefined ? undefined : (skills[baseSid] as Record<string, unknown>)[field];
-  const sid = typeof variant === "string" && skills[variant] !== undefined ? variant : baseSid;
+  const sid = styleVariantSid(baseSid, styleName);
   const row = skills[sid] as Record<string, unknown>;
   // ☠순서가 값을 정한다 — `SID_エンゲージ技_汎用設定`이 攻撃回数=1 같은 **기본값**을 `=`로 대입하므로
   //   기술 자신의 행이 **뒤에** 와야 한다(마르스 스타 러시 = 7타, 竜族 변형 9타). 앞에 두면 1타로 깎여
   //   프롤로그 마무리가 4피해 1타로 나갔다(2026-08-18 실측).
   const rows = [...((row["SyncSids"] as string[] | undefined) ?? []), sid]
-    .map(slimSkill)
+    .map((sid) => slimSkill(sid))
     .filter((r): r is SkillRow => r !== undefined);
   const equipIids = (row["EquipIids"] as string[] | undefined) ?? [];
   const weapons = equipIids.map((iid) => (iid === "IID_無し" ? null : (attackWeaponProp(iid, locale) ?? null)));
@@ -1566,22 +1626,38 @@ export function boardProps(
         const engageWeapons = emblemEngageWeapons(m[1], locale);
         // 기술은 스타일로 갈린다(STYLE_SKILL_FIELD) — 받을 유닛을 모르므로 **이 챕터에 실재하는 스타일만**
         // 해소해 싣는다(기본과 같은 결과는 싣지 않는다 = 종별 선형).
+        const chapterStyles = new Set(units.map((u) => u.style).filter((v): v is string => v !== undefined));
         const baseArt = emblemEngageArt(m[1], undefined, locale);
         const arts: Record<string, EngageArt> = baseArt === undefined ? {} : { "": baseArt };
-        for (const style of new Set(units.map((u) => u.style).filter((v): v is string => v !== undefined))) {
+        for (const style of chapterStyles) {
           const art = emblemEngageArt(m[1], style, locale);
           if (art !== undefined && art.sid !== baseArt?.sid) arts[style] = art;
         }
         // 문장사 패시브 — 싱크로(상시)와 인게이지 교체본(발동 중)을 **함께** 싣는다.
         // 없으면 Lua로 붙인 엠블렘이 게이지·무기·기술만 얻고 패시브는 조용히 사라진다.
-        const synchroSkills = emblemSyncSids(m[1]).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
-        const engagedSkills = emblemEngagedSids(m[1]).map(slimSkill).filter((r): r is SkillRow => r !== undefined);
+        const passiveSids = [...emblemSyncSids(m[1]), ...emblemEngagedSids(m[1])];
+        const synchroSkills = emblemSyncSids(m[1]).map((sid) => slimSkill(sid)).filter((r): r is SkillRow => r !== undefined);
+        const engagedSkills = emblemEngagedSids(m[1]).map((sid) => slimSkill(sid)).filter((r): r is SkillRow => r !== undefined);
+        // 스타일 분기(GetStyleSkill)는 기술만의 규칙이 아니다 — 迅走는 본체 이동 +5, 竜族 변형은 +6이다.
+        // 치환표만 싣는다: 목록을 스타일마다 복제하면 같은 행이 8벌로 불어난다(보드 JSON 예산 §11).
+        const styles: Record<string, Record<string, SkillRow>> = {};
+        for (const style of chapterStyles) {
+          const swap: Record<string, SkillRow> = {};
+          for (const sid of new Set(passiveSids)) {
+            const variant = styleVariantSid(sid, style);
+            if (variant === sid) continue;
+            const row = slimSkill(variant);
+            if (row !== undefined) swap[sid] = row;
+          }
+          if (Object.keys(swap).length > 0) styles[style] = swap;
+        }
         gods[m[1]] = {
           engage,
           ...(synchroSkills.length > 0 ? { synchroSkills } : {}),
           ...(engagedSkills.length > 0 ? { engagedSkills } : {}),
           ...(engageWeapons.length > 0 ? { engageWeapons } : {}),
           ...(Object.keys(arts).length > 0 ? { arts } : {}),
+          ...(Object.keys(styles).length > 0 ? { styles } : {}),
         };
         gidsUsed.add(m[1]);
       }
@@ -1658,6 +1734,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     endPhase: t.endPhase,
     enemyAuto: t.enemyAuto,
     enemyAutoBlocked: t.enemyAutoBlocked,
+    dangerAll: t.dangerAll,
     undoCmd: t.undoCmd,
     editCmd: t.editCmd,
     editExit: t.editExit,

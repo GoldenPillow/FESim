@@ -1,4 +1,5 @@
 import type { EventHost } from "@fesim/engine/events";
+import type { SkillRow } from "@fesim/shared";
 import type { BoardProps } from "./fe17";
 import { baseReduce, projectUnit, type EventWiring } from "./boardStore";
 
@@ -54,15 +55,22 @@ export function eventWiringFor(
           //   실어서 Lua로 붙인 엠블렘의 패시브가 통째로 죽어 있었다(m002 2회전 뤼미에르가 迅走 이동+5를
           //   못 받아 거리를 못 좁혔다 — 사용자 관측 2026-08-18). 오류도 경고도 없는 조용한 결손이었다.
           const engageArt = god.arts?.[unit.style ?? ""] ?? god.arts?.[""];
+          // 패시브도 스타일로 갈린다(GetStyleSkill) — 迅走 본체는 이동 +5, SID_迅走_竜族은 +6이다.
+          // 사영은 받을 유닛을 몰라 치환표만 싣는다(fe17.ts script.gods.styles) — 고르는 것은 여기다.
+          const swap = god.styles?.[unit.style ?? ""];
+          const styled = (rows?: SkillRow[]): SkillRow[] | undefined =>
+            rows === undefined || swap === undefined ? rows : rows.map((r) => swap[r.Sid] ?? r);
+          const synchroSkills = styled(god.synchroSkills);
+          const engagedSkills = styled(god.engagedSkills);
           return {
             gid,
             engage: { ...god.engage },
-            ...(god.synchroSkills !== undefined ? { synchroSkills: god.synchroSkills } : {}),
+            ...(synchroSkills !== undefined ? { synchroSkills } : {}),
             // engagedSkills는 **교체본**이다(effectiveSkills가 skills 대신 이것만 본다) — 사람 스킬을
             // 함께 담지 않으면 발동하는 순간 고유 스킬이 사라진다. Sid로 중복만 걷는다.
-            ...(god.engagedSkills !== undefined
+            ...(engagedSkills !== undefined
               ? {
-                  engagedSkills: [...(unit.skills ?? []), ...god.engagedSkills].filter(
+                  engagedSkills: [...(unit.skills ?? []), ...engagedSkills].filter(
                     (row, i, all) => all.findIndex((r) => r.Sid === row.Sid) === i,
                   ),
                 }

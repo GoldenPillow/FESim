@@ -107,6 +107,16 @@ export interface Indication {
   battleTimes: number;
 }
 
+/**
+ * `AIBattleSimulator$$IsPower0Attack`(0x1928E40) — 이 조합이 상대에게 **아무 일도 못 하는가**.
+ * `공격측 Power >= 1 && Hit > 0`이거나 연계공격 기대 데미지가 0보다 크면 false.
+ * 소비처 = `IsClever()`이거나 `RejectPower0Attack` 플래그가 선 유닛의 무기 후보 기각.
+ */
+export function isPower0Attack(offense: Indication, chainExpectation = 0): boolean {
+  if (offense.power >= 1 && offense.hit > 0) return false;
+  return !(chainExpectation > 0);
+}
+
 const MAX_SCENE_TIMES = 4;
 
 /**

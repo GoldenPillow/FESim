@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  allianceOf,
   attackRange,
   BAD_STATE,
+  baseBattleTimes,
+  battlePlan,
   canBreak,
   createAi,
   emptyAiMemory,
   canChainGuard,
   canDance,
   canterPower,
+  chainAttackers,
   chainGuardFor,
+  chainNumbers,
   destroyTargets,
   hasChainGuardSkill,
   effectiveWeapons,
-  forecastSide,
   hasBadState,
   itemTargets,
   makeCostAt,
@@ -28,6 +32,7 @@ import {
   warpDestinations,
   type AiDeficit,
   type BattleAction,
+  type BattleOrder,
   type BattleEvent,
   type BattleWeapon,
   type GameState,
@@ -69,10 +74,60 @@ import { readMapQuery, writeMapQuery } from "../lib/replayQuery";
 import CommandMenu from "./CommandMenu";
 import ItemPanel, { type ItemRow, type StatDelta } from "./ItemPanel";
 import { availableCommands, type CommandId } from "../lib/commands";
+import { alertTiles, threatArcs, threatIndex, type ThreatIndex } from "../lib/threat";
 import BoardView, { type BoardFx, type StrikeRow, type StrikeSummary } from "./BoardView";
 import "./board.css";
 // REPLAY 표지 전용 서체(사용자 지정) — 제작 경로에만 싣는다(열람 /s/ 번들에 폰트를 얹지 않는다).
 import "@fontsource/jetbrains-mono/latin-700.css";
+
+/**
+ * 그 행동이 지정한 무기 — ☠`before` 유닛의 장비는 **전투 직전 것**이라 못 믿는다.
+ * `attack` 액션은 무기 인덱스를 들고 오고(기보 재생·라이브 dispatch 둘 다) 리듀서는 그것을
+ * 장비 전환으로 처리한다(battle.ts `attacker.weapon = chosen`). 표시층도 같은 무기를 봐야 한다.
+ */
+export function actionWeapon(
+  before: GameState,
+  action: BattleAction,
+): { unit: string; weapon: BattleWeapon } | undefined {
+  if (action.type !== "attack" || action.weapon === undefined) return undefined;
+  const u = before.units.find((x) => x.id === action.unit);
+  const weapon = u === undefined ? undefined : effectiveWeapons(u)?.[action.weapon];
+  return weapon === undefined ? undefined : { unit: action.unit, weapon };
+}
+
+/**
+ * ★표시용 kind — 기보 `kind`는 **호환 불변식**이라 오더 인덱스 1을 무조건 `followUp`으로 적는다.
+ * 그 오더가 追撃条件(기저 `手番回数` = 2)에서 왔는지 신속(Timing 4에서 `+1`)에서 왔는지는 기보가
+ * 구분하지 않으므로 **화면에 쓸 때만** 기저 `手番回数`를 다시 물어 가른다 — 기저가 1이면 추격이 아니라 추가타다.
+ * ☠기저를 안 물으면 실기 앵커(뤼에르 8 + 4, 追撃条件 거짓)의 두 번째 타격이 "(추격)"으로 나간다.
+ * ☠거친 부분 = 기저 판정만 본다. `SID_切り返し`(Timing 3에서 `手番回数 = 2`)도 추가타로 적히는데,
+ *   현행 챕터 데이터에 그 스킬이 없어 미발현이다(있으면 Timing 3까지 돌린 값으로 기준을 올려야 한다).
+ * ☠`equipped` = 그 전투에서 실제로 쓴 무기(actionWeapon). 追撃条件은 `攻撃速度 = 速さ - max(武器の重さ - 体格, 0)`
+ *   위에 서 있어서 **무기가 바뀌면 기저 手番回数가 뒤집힌다** — 안 넘기면 m001 step34(철의 검 → 레이피어
+ *   전환 판)의 진짜 추격이 화면에 "(추가타)"로 나간다. 그 기보는 맵 진입 시 자동 재생된다.
+ */
+export function displayKindOf(
+  before: GameState,
+  ev: Extract<BattleEvent, { type: "strike" }>,
+  equipped?: { unit: string; weapon: BattleWeapon },
+): StrikeKind {
+  if (ev.kind !== "followUp" && ev.kind !== "counterFollowUp") return ev.kind;
+  const self = before.units.find((u) => u.id === ev.attacker);
+  const foe = before.units.find((u) => u.id === ev.defender);
+  if (self === undefined || foe === undefined) return ev.kind;
+  // 개시측 = 본공격을 낸 쪽. 반격 오더(counterFollowUp)의 주체는 전투를 걸지 않은 쪽이다.
+  const offense = ev.kind === "followUp";
+  const armed = (u: UnitState): UnitState =>
+    equipped !== undefined && u.id === equipped.unit ? { ...u, weapon: equipped.weapon } : u;
+  const view = (u: UnitState, initiator: boolean) => ({
+    ...toCombatant(armed(u), before.map, before.units, undefined, before.terrainPatches),
+    initiator,
+    striking: initiator === offense,
+  });
+  return baseBattleTimes(calculator, view(self, offense), view(foe, !offense)) >= 2 ? ev.kind
+    : offense ? "extra"
+    : "counterExtra";
+}
 
 /**
  * 보드 아일랜드 — 인터랙션 셸: 선택·호버·명령 배선만 하고 국면은 스토어(boardStore)가 소유한다.
@@ -108,6 +163,12 @@ export default function BoardIsland(props: BoardProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [targetId, setTargetId] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<Tile | undefined>(undefined);
+  /**
+   * 「위험 범위」 전체 표시 — 인게임 ZL(`MapPanelDangerAll.SetMode`). ★**기본 off**가 정본이다
+   * (튜토리얼 원문 *"ZL을 누르면 모든 적의 위험 범위를 한 번에 표시할 수 있습니다"*).
+   * 재현 아크는 반대로 기본 on이다 — 그쪽은 토글이 아니라 상시 표시가 정본이다.
+   */
+  const [dangerAll, setDangerAll] = useState(false);
   const [banner, setBanner] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
@@ -752,7 +813,9 @@ export default function BoardIsland(props: BoardProps) {
     //   좌표가 원위치면 잠정 이동한 자리의 지형 회피가 안 들어간다 — 능력표만 조용히 다른 수를 말한다.
     //   문장사 보정(싱크로 패시브·EnhanceValue)은 effectiveSkills가 이미 합류시킨다.
     const envOf = (w: typeof pick) =>
-      combatEnv(toCombatant({ ...selected, ...(selectedAt ?? {}), weapon: w }, game.map, game.units));
+      combatEnv(
+        toCombatant({ ...selected, ...(selectedAt ?? {}), weapon: w }, game.map, game.units, undefined, game.terrainPatches),
+      );
     const now = envOf(pick);
     const base = chosenWeapon === undefined ? undefined : envOf(chosenWeapon);
     const val = (env: ReturnType<typeof envOf>, formula: string) => Math.trunc(Number(calculator.eval(formula, env)));
@@ -814,6 +877,44 @@ export default function BoardIsland(props: BoardProps) {
     return { ...range, staff: warpTiles };
   }, [range, warpTiles]);
 
+  /**
+   * 위협 색인(적별 사정권 + 전체 합집합) — ★**국면 하나가 무효화 키**다(MP8 §5-2 사용자 결정).
+   * 인게임도 비트맵을 미리 구워 놓고 조회만 한다(`MapImageDanger`) — 커서 이동마다 적 N명 BFS를
+   * 돌면 INP 게이트를 정면으로 때린다. useMemo가 아니라 ref 캐시인 이유 = **아무도 안 볼 때는 안 굽는다**
+   * (리플레이 관전·아크 표적 없음·ZR off면 계산 자체가 일어나지 않는다).
+   * 실측 2026-08-21(node/vitest, 전 챕터 전수): 최악 g001 적 190명 8.7ms · 본편 최대 m017 47명 5.9ms ·
+   * 통상 본편(적 30~45명) 0.3~2.1ms. 국면당 1회.
+   * ☠**귀속 정정(2026-08-22)**: 이 페이지는 **제작 경로**다 — 열람 INP 게이트(100ms) 대상이 아니다.
+   * 열람 경로 정의는 `design/fesim_plan.md`가 *공유 링크 → 첫 화면 → 스테핑(`/s/`)*으로 못박았고
+   * 맵 보드는 그 밖이다(제작 경로 = 예산 관대). 4x CPU 스로틀 실기 측정 **104~160ms**로 게이트 값을
+   * 넘지만 그것이 결함이 아닌 이유가 이 귀속이다(측정 출처 = 적대적 검증 2026-08-22 · 본 갈래 미재현).
+   */
+  const threatCache = useRef<{ game: GameState; index: ThreatIndex } | undefined>(undefined);
+  const threatsOf = (g: GameState): ThreatIndex => {
+    if (threatCache.current?.game !== g) threatCache.current = { game: g, index: threatIndex(g, 0) };
+    return threatCache.current.index;
+  };
+
+  /**
+   * 아크의 표적 — 선택 자군, 없으면 커서가 가리킨 자군(`GetTargetUnit`). 우군(Force 2)도 표적이 된다.
+   * ☠기준 칸은 **그 유닛이 실제로 선 칸**이다(잠정 이동 칸이 아니다) — 우리는 전통 FE식 Indirect
+   * 조작만 있고 정본도 Indirect면 아크를 출발 칸에 고정한다(F3 §2 (2)).
+   * 게이트 = `MapSituation.IsHumanPlayer` — 리플레이 관전·적 페이즈에는 안 뜬다.
+   */
+  const arcTarget = useMemo(() => {
+    if (mode === "replay" || editing || game.phase !== 0 || game.outcome !== undefined) return undefined;
+    const u = selected ?? (hover === undefined ? undefined : byTile.get(tileKey(hover.x, hover.y)));
+    if (u === undefined || u.dead) return undefined;
+    return allianceOf(game.map, u.force) === allianceOf(game.map, 0) ? u : undefined;
+  }, [mode, editing, game, selected, hover, byTile]);
+
+  const arcs = useMemo(
+    () => (arcTarget === undefined ? undefined : threatArcs(game, threatsOf(game), arcTarget)),
+    [game, arcTarget],
+  );
+  const alerts = useMemo(() => (arcTarget === undefined ? undefined : alertTiles(game, arcTarget)), [game, arcTarget]);
+  const dangerTiles = useMemo(() => (dangerAll ? threatsOf(game).all : undefined), [dangerAll, game]);
+
   const forecast = useMemo(() => {
     if (staffMode === "interfere") return undefined; // 방해 지팡이 선택 중엔 교전 예보 대신 지팡이 예보
     if (selected === undefined || fcAt === undefined || fcTarget === undefined) return undefined;
@@ -850,18 +951,26 @@ export default function BoardIsland(props: BoardProps) {
     return { attacker: aU, target, ...combatForecast(game, aU, target, dist) };
   }, [mode, cursor, game]);
 
-  const describe = (events: BattleEvent[]): string[] => {
+  const describe = (events: BattleEvent[], before: GameState, action: BattleAction): string[] => {
     const t = labels.logTags;
+    const equipped = actionWeapon(before, action);
     return events
       .map((ev) => {
         const name = (id: string) => visuals.get(id)?.name ?? id;
         switch (ev.type) {
           case "strike": {
-            const tag =
-              ev.kind === "chain" ? ` (${t.chain})`
-              : ev.kind === "counter" ? ` (${t.counter})`
-              : ev.kind === "followUp" || ev.kind === "counterFollowUp" ? ` (${t.follow})`
-              : "";
+            // ☠StrikeKind 전수 사상 — 삼항으로 두면 새 kind가 **컴파일 에러 없이** 무라벨로 강하한다.
+            //   Record로 두면 kind가 늘 때 타입 검사가 여기를 가리킨다.
+            const tags: Record<StrikeKind, string> = {
+              attack: "",
+              counter: ` (${t.counter})`,
+              followUp: ` (${t.follow})`,
+              counterFollowUp: ` (${t.follow})`,
+              extra: ` (${t.extra})`,
+              counterExtra: ` (${t.counter}·${t.extra})`,
+              chain: ` (${t.chain})`,
+            };
+            const tag = tags[displayKindOf(before, ev, equipped)];
             return ev.hit
               ? `${name(ev.attacker)} → ${name(ev.defender)} ${ev.damage}${ev.crit ? ` ${t.crit}` : ""}${tag}`
               : `${name(ev.attacker)} ${t.miss}${tag}`;
@@ -936,33 +1045,45 @@ export default function BoardIsland(props: BoardProps) {
    * 자군이 때린 것 = 적 오른편(무기 파랑 · 대미지 빨강) · 자군이 맞은 것 = 자군 왼편(무기·대미지 빨강).
    * 색은 **누가 때렸나**, 자리는 **누가 맞았나**로 갈린다 — 우군(force 2)이 끼어도 규칙이 서 있다.
    * 다단 히트는 합치지 않고 한 줄씩, 필살은 노란 CRIT 카드를 덧붙이고, 빗나감(MISS)도 맞을 뻔한 쪽에만 선다.
-   * ☠무기는 strike 이벤트에 없다 — 타격 주체의 **전투 직전 장비**로 근사한다(인게이지 강제 무기는 미반영).
+   * ☠무기는 strike 이벤트에 없다 — 개시측은 **액션이 지정한 무기**(actionWeapon)를, 반격측은 전투 직전
+   *   장비를 쓴다(인게이지 강제 무기는 미반영). 개시측을 장비로 근사하면 무기 전환 판에서 이름과 kind가
+   *   둘 다 바뀐 무기를 못 따라간다(m001 step34 = 철의 검 → 레이피어).
    */
   const strikeSummaries = (
     events: readonly BattleEvent[],
     before: GameState,
     after: GameState,
+    action: BattleAction,
   ): readonly StrikeSummary[] | undefined => {
     const t = labels.logTags;
     const hits = events.filter((e): e is Extract<BattleEvent, { type: "strike" }> => e.type === "strike");
     if (hits.length === 0) return undefined;
+    const equipped = actionWeapon(before, action);
     const weaponOf = (id: string): string | undefined => {
+      if (equipped !== undefined && id === equipped.unit) return equipped.weapon.name;
       const u = before.units.find((x) => x.id === id) ?? after.units.find((x) => x.id === id);
       return u?.weapon?.name;
     };
-    const kindOf = (kind: StrikeKind): string | undefined =>
-      kind === "chain" ? t.chain
-      : kind === "counter" ? t.counter
-      : kind === "followUp" ? t.follow
-      : kind === "counterFollowUp" ? `${t.counter}·${t.follow}`
-      : undefined;
+    // ☠전수 사상(위 로그 태그와 같은 이유) — 새 kind에서 조용히 라벨이 사라지는 것을 타입이 막는다.
+    const KIND_LABELS: Record<StrikeKind, string | undefined> = {
+      attack: undefined,
+      counter: t.counter,
+      followUp: t.follow,
+      counterFollowUp: `${t.counter}·${t.follow}`,
+      extra: t.extra,
+      counterExtra: `${t.counter}·${t.extra}`,
+      chain: t.chain,
+    };
+    // 표시 kind로 한 번 걸러 읽는다 — 신속 추가타가 "추격"으로 적히던 자리(displayKindOf).
+    const kindOf = (e: Extract<BattleEvent, { type: "strike" }>): string | undefined =>
+      KIND_LABELS[displayKindOf(before, e, equipped)];
     const posOf = (id: string): UnitState | undefined =>
       after.units.find((u) => u.id === id) ?? before.units.find((u) => u.id === id);
     const rows = new Map<string, StrikeRow[]>();
     for (const e of hits) {
       const row: StrikeRow = {
         ...(weaponOf(e.attacker) !== undefined ? { weapon: weaponOf(e.attacker) } : {}),
-        ...(kindOf(e.kind) !== undefined ? { kind: kindOf(e.kind) } : {}),
+        ...(kindOf(e) !== undefined ? { kind: kindOf(e) } : {}),
         // 자군의 타격인가 — 무기 글자 색이 여기서 갈린다(파랑 = 우리 손, 빨강 = 상대 손).
         byPlayer: posOf(e.attacker)?.force === 0,
         miss: !e.hit,
@@ -1065,7 +1186,7 @@ export default function BoardIsland(props: BoardProps) {
 
     // ☠타격 요약은 fx와 수명이 다르다 — **행동마다** 갈아끼운다(연출 없는 수여도 지운다:
     //   안 지우면 남의 전투 표가 계속 붙어 있다). fx 쪽 1~2초 타이머와 섞지 않는 이유다.
-    setStrikes(strikeSummaries(events, before, after));
+    setStrikes(strikeSummaries(events, before, after, action));
 
     if (next.trail === undefined && next.pulse === undefined && next.ghosts === undefined) return;
     setFx(next);
@@ -1077,7 +1198,7 @@ export default function BoardIsland(props: BoardProps) {
     const next = store.getState().dispatch(action);
     if (next === prev) return prev;
     playEffects(action, next.events, prev, next);
-    const lines = describe(next.events);
+    const lines = describe(next.events, prev, action);
     if (lines.length > 0) setLog(lines);
     for (const ev of next.events) {
       if (ev.type === "phase") {
@@ -1443,6 +1564,13 @@ export default function BoardIsland(props: BoardProps) {
         >
           {labels.reset}
         </button>
+        <button
+          type="button"
+          className={dangerAll ? "on" : undefined}
+          onClick={() => setDangerAll((v) => !v)}
+        >
+          {labels.dangerAll}
+        </button>
         <button type="button" onClick={copyRecord}>
           {copied ? labels.copied : labels.copyRecord}
         </button>
@@ -1491,6 +1619,9 @@ export default function BoardIsland(props: BoardProps) {
         byTile={byTileView}
         visuals={visuals}
         range={boardRange}
+        danger={dangerTiles}
+        arcs={arcs}
+        alerts={alerts}
         path={path ?? fx?.trail}
         godFaces={props.godFaces}
         strikes={strikes}
@@ -1865,7 +1996,12 @@ export default function BoardIsland(props: BoardProps) {
             labels={labels}
           />
           <small className="fc-note">
-            {[forecast.guarded ? labels.logTags.guard : "", forecast.inRange ? "" : labels.currentPosNote]
+            {[
+              forecast.guarded ? labels.logTags.guard : "",
+              // 체인 몫은 잔여 HP에 이미 들어가 있다 — 몇 명이 얼마를 얹었는지 밝혀야 숫자가 읽힌다.
+              forecast.chain > 0 ? `${labels.logTags.chain} ×${forecast.chain} −${forecast.chainDamage}` : "",
+              forecast.inRange ? "" : labels.currentPosNote,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </small>
@@ -1896,7 +2032,18 @@ export default function BoardIsland(props: BoardProps) {
             incoming={replayForecast.attacker.force === 0}
             labels={labels}
           />
-          {replayForecast.guarded && <small className="fc-note">{labels.logTags.guard}</small>}
+          {(replayForecast.guarded || replayForecast.chain > 0) && (
+            <small className="fc-note">
+              {[
+                replayForecast.guarded ? labels.logTags.guard : "",
+                replayForecast.chain > 0
+                  ? `${labels.logTags.chain} ×${replayForecast.chain} −${replayForecast.chainDamage}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </small>
+          )}
         </div>
       )}
 
@@ -2015,39 +2162,120 @@ function MagnifierIcon({ plus }: { plus: boolean }) {
   );
 }
 
+/** 예보 패널이 그리는 한 측의 숫자 — 그 측 첫 오더의 값 + 手番回数(SideForecast 표시 부분집합). */
+export type ForecastNumbers = Pick<SideForecast, "damage" | "hitRate" | "critRate" | "battleTimes"> & {
+  /** 그 측 오더별 대미지(실행 순서). `damage`는 이 배열의 첫 값이다. */
+  damages: readonly number[];
+};
+
+/**
+ * 대미지 칸 꼬리표 — ★오더별 대미지가 **전부 같을 때만** `×N`을 쓴다.
+ * 이유 = `×N`은 "같은 대미지 N번"으로 읽히는데 신속 판은 마지막 오더가 `威力 * 0.5`라 그 읽기가 총합을
+ * 과대하게 만든다(대미지 칸만 보고 지르면 적이 산다). 갈리면 뒤 오더를 그대로 더해 적는다(`+5`).
+ * 오더별 전체 나열 대신 **첫 값 + 나머지 가산**으로 둔 것은 칸 폭이 한 줄이기 때문이다.
+ */
+export const strikeSuffix = (damages: readonly number[]): string =>
+  damages.length < 2 ? ""
+  : damages.every((d) => d === damages[0]) ? `×${damages.length}`
+  : damages.slice(1).map((d) => `+${d}`).join("");
+
 /**
  * 전투 예보 한 벌 — 발판·무기·대상이 정해지면 판정 입력이 같다.
  * ★플레이 예보와 **재생 예보가 같은 함수**를 쓴다(사용자 확정 원칙: 같은 수가 다르게 보이면 안 된다).
  * `counterDist` = 반격 사거리를 재는 거리(사거리 밖 호버는 "붙었다면"으로 읽어 무기 최대치를 넘긴다).
- * 예상 잔여 HP는 전 타격 명중 가정(인게임 예보 문법)이고 타격 순서는 엔진과 같다:
- * 본공격 → (생존·미브레이크 시) 반격 → 추격 → 반격측 추격. 브레이크면 반격 몰수. 체인어택 제외.
+ * 예상 잔여 HP는 전 타격 명중 가정(인게임 예보 문법)이다.
+ * ★타격 순서·오더별 배율은 **엔진 공용 함수 `battlePlan`이 단독으로 소유**한다 — 리듀서가 소비하는
+ *   바로 그 목록을 여기서도 그대로 소비하므로 두 층이 갈릴 코드 자체가 없다(종전엔 별개 루프였다).
+ * ☠체인어택은 그 목록 **밖**이라 따로 얹는다 — 종전엔 통째로 빠져 있었고 그만큼 예상 잔여 HP가
+ *   과대했다(실측: 기보 138 attack 스텝 중 9건이 2~4 과대). 정본도 빼지 않는다:
+ *   맵 예보는 `MapUIGauge.CalcBattleInfoForNormal`(0x2025920)이 `BattleCalculator.CalcSimulation`
+ *   (0x246D610)을 부른 뒤 `BattleInfoSide.NowHp`를 읽는 구조인데, `CalcSimulation`은
+ *   `PushSimulation`(명중 확정·필살 없음 — `SetSimulation` 0x1E8D2E0이 확률 델리게이트를
+ *   True/False로 갈아끼운다)만 걸고 **전투 계산을 통째로 돌린다**(CalcBranch → CalcOrders →
+ *   CalcChainAttack 0x246F690). 즉 인게임 예보 HP에는 체인 몫이 들어 있다.
  */
-function combatForecast(
+export function combatForecast(
   game: GameState,
   aU: UnitState,
   target: UnitState,
   counterDist: number,
-): { attack?: SideForecast; counter?: SideForecast; brk: boolean; selfHp: number; targetHp: number; guarded: boolean } {
-  const a = toCombatant(aU, game.map, game.units);
-  const d = toCombatant(target, game.map, game.units);
+): {
+  attack?: ForecastNumbers;
+  counter?: ForecastNumbers;
+  brk: boolean;
+  selfHp: number;
+  targetHp: number;
+  guarded: boolean;
+  /** 체인어택 참가자 수(0 = 없음) — 패널이 태그로 띄운다. */
+  chain: number;
+  /** 그 참가자들이 대상에게 넣는 확정 대미지 합 — 예상 잔여 HP에 이미 반영돼 있다. */
+  chainDamage: number;
+} {
+  // ☠`terrainPatches`(terrainSet 이벤트가 갈아끼운 칸)를 빼면 리듀서(battle.ts)와 지형 보정이 갈린다 —
+  //   현행 5챕터에 그 이벤트가 0건이라 대조로도 안 잡히는 잠복 결손이다.
+  const a = toCombatant(aU, game.map, game.units, undefined, game.terrainPatches);
+  const d = toCombatant(target, game.map, game.units, undefined, game.terrainPatches);
   const counterable =
     target.weapon !== undefined &&
     !target.broken &&
     counterDist >= target.weapon.rangeMin &&
     counterDist <= target.weapon.rangeMax;
-  const attack = aU.weapon !== undefined ? forecastSide(calculator, a, d) : undefined;
-  const counter = counterable ? forecastSide(calculator, d, a) : undefined;
   // 체인가드 — 대상이 지켜지면 본공격·추격 대미지는 가드에게 치환된다(판정 = 엔진 chainGuardFor 공용).
   const guarded = chainGuardFor(target, game.units) !== undefined;
-  const brk = attack !== undefined && attack.damage >= 1 && !guarded && canBreak(aU, target);
+  const armed = aU.weapon !== undefined;
+  let brk = false;
+  // 반격 게이트가 콜백인 이유 = 브레이크가 **첫 오더에서** 서면 그 자리에서 반격 슬롯이 닫히기 때문이다
+  // (리듀서도 같은 자리에서 같은 질문을 한다 — 목록이 지연 열거인 근거).
+  const plan = battlePlan(calculator, a, d, { counter: () => counterable && !brk });
+  // 명중·필살은 그 측 **첫 오더**의 값(인게임 예보 문법) · 대미지는 오더별로 모은다(배율이 오더마다 갈린다).
+  const first: [BattleOrder?, BattleOrder?] = [];
+  const damages: [number[], number[]] = [[], []];
   let targetHp = target.hp;
   let selfHp = aU.hp;
-  const counters = counter !== undefined && !brk;
-  if (attack !== undefined && !guarded) targetHp -= attack.damage;
-  if (counters && targetHp > 0) selfHp -= counter.damage;
-  if (attack?.followUp === true && !guarded && targetHp > 0) targetHp -= attack.damage;
-  if (counters && counter.followUp && targetHp > 0 && selfHp > 0) selfHp -= counter.damage;
-  return { attack, counter, brk, selfHp: Math.max(selfHp, 0), targetHp: Math.max(targetHp, 0), guarded };
+  let over = false; // 어느 쪽이 쓰러진 뒤 — 표시용 숫자는 계속 줍되 HP는 더 깎지 않는다
+  // 체인어택 — 리듀서는 오더 루프 **앞에서** 굴리고(battle.ts), 체인 타격은 체인가드 치환 대상이 아니다
+  // (`kind !== "chain"` 게이트). 그래서 guarded여도 이 몫은 그대로 들어간다.
+  const chainUnits = armed ? chainAttackers(aU, target, game.units) : [];
+  const chainDamage = chainUnits.reduce(
+    (sum, backup) =>
+      sum +
+      chainNumbers(calculator, toCombatant(backup, game.map, game.units, undefined, game.terrainPatches), d).damage,
+    0,
+  );
+  targetHp -= chainDamage;
+  if (targetHp <= 0) over = true;
+  for (const order of plan.orders) {
+    first[order.side] ??= order;
+    if (order.side === 0) {
+      if (!armed) continue;
+      damages[0].push(order.damage);
+      // 브레이크 = 확정 대미지 1 이상 + 상성 유리(전탄 명중 가정) — 패널은 brk면 반격 칸을 비운다.
+      if (!guarded && order.damage >= 1 && canBreak(aU, target)) brk = true;
+      if (over || guarded) continue;
+      targetHp -= order.damage;
+    } else {
+      damages[1].push(order.damage);
+      if (over) continue;
+      selfHp -= order.damage;
+    }
+    if (targetHp <= 0 || selfHp <= 0) over = true;
+  }
+  const numbers = (side: 0 | 1): ForecastNumbers | undefined => {
+    const o = first[side];
+    return o === undefined ? undefined : (
+      { damage: o.damage, hitRate: o.hitRate, critRate: o.critRate, battleTimes: plan.battleTimes[side], damages: damages[side] }
+    );
+  };
+  return {
+    attack: armed ? numbers(0) : undefined,
+    counter: numbers(1),
+    brk,
+    selfHp: Math.max(selfHp, 0),
+    targetHp: Math.max(targetHp, 0),
+    guarded,
+    chain: chainUnits.length,
+    chainDamage,
+  };
 }
 
 function ForecastSide({
@@ -2061,7 +2289,7 @@ function ForecastSide({
 }: {
   unit: UnitState;
   visual?: UnitVisual;
-  side?: SideForecast;
+  side?: ForecastNumbers;
   /** 예상 잔여 HP(전 타격 명중 가정) — 0 = 죽음 X 표기. */
   hpAfter: number;
   /** 이 전투로 브레이크될 예보(피격측 전용). */
@@ -2101,7 +2329,9 @@ function ForecastSide({
           {/* 실기 예보 문법 — 주는 쪽은 ›(파랑), 받는 쪽은 ‹(빨강). 방향을 색과 모양 둘로 말한다. */}
           {side?.damage !== undefined && <em className="fc-dir" aria-hidden="true">{incoming ? "‹" : "›"}</em>}
           {value(side?.damage)}
-          {side?.followUp === true && <em className="fc-x2">×2</em>}
+          {side !== undefined && strikeSuffix(side.damages) !== "" && (
+            <em className="fc-x2">{strikeSuffix(side.damages)}</em>
+          )}
         </dd>
         <dt>{labels.hit}</dt>
         <dd>{value(side?.hitRate)}</dd>

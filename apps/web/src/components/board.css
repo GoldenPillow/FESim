@@ -142,6 +142,7 @@
   pointer-events: none;
 }
 .board .layer.overlays,
+.board .layer.danger,
 .board .layer.structures,
 .board .layer.roofs,
 .board .layer.ghosts,
@@ -160,19 +161,83 @@
 .board .mark-defendArea { color: #a98fd0; }
 .board .mark-destroy { color: #d97a6f; }
 
-/* 인게임 문법: 파랑 = 이동 가능, 빨강 = 공격 범위(이동 불가·공격만 닿는 테두리) */
+/*
+  타일 오버레이 색 — ★**픽셀 정본**이다(F5_panel_colors.md §6-1, 실기 3장 역산 2026-08-20).
+  인게임 문법: 파랑 = 그 유닛의 이동 범위 · 빨강 = 그 유닛의 공격 범위. 뜻은 **커서가 누구를 가리키느냐**가
+  정한다(자군 지정 = 내 범위 · 적 지정 = 그 적의 위협 범위) — 붉은색이 두 뜻으로 겹치지 않는다.
+  별개 머티리얼은 ZR 분홍(.ov.danger) 하나뿐이다.
+
+  ☠**알파가 인게임 실측값보다 크다 — 일부러 그렇다.** 인게임은 선형광에서 합성하고 브라우저 CSS는
+  sRGB 감마 공간에서 합성한다. 우리 지형 팔레트 8종에 인게임 블렌드식을 먹여 만든 목표색을
+  감마 공간에서 최소제곱 근사한 (색, 알파)가 아래다(F5 §1-2 · §6-1, 근사 rms 8~10).
+*/
 .board .ov.move {
-  background: rgb(66 133 244 / 0.4);
-  box-shadow: inset 0 0 0 1px rgb(160 200 255 / 0.55);
+  background: rgb(101 136 255 / 0.55);
+  /* 안쪽 글로우 — 인게임 면은 평탄하지 않고 경계 쪽 네이티브 8~10px에서 색이 강해진다(F5 §3 (D)).
+     ☠존재·폭은 픽셀에서 뽑았지만 **8px 자체는 비계**(타일 47px 기준 환산) — 타일 크기 정책이 바뀌면 재환산. */
+  box-shadow: inset 0 0 8px rgb(101 136 255 / 0.6);
 }
 .board .ov.atk {
-  background: rgb(226 68 60 / 0.34);
-  box-shadow: inset 0 0 0 1px rgb(252 165 165 / 0.45);
+  background: rgb(255 82 64 / 0.46);
+  box-shadow: inset 0 0 8px rgb(255 82 64 / 0.6);
 }
-/* 초록 = 지팡이 범위(인게임 문법) — 이동·공격 타일과 겹치지 않는 잔여만 칠한다 */
+/* 초록 = 지팡이 범위(인게임 문법) — 이동·공격 타일과 겹치지 않는 잔여만 칠한다.
+   ☠**비계**: 지팡이 범위가 찍힌 인게임 스크린샷이 없다(초록은 FE 관례일 뿐 실측 아님).
+   제거 조건 = F5 §7-2 촬영(지팡이 유닛 선택 화면 + 같은 카메라의 커서-빈칸 클린 1장). */
 .board .ov.sta {
   background: rgb(74 200 110 / 0.34);
-  box-shadow: inset 0 0 0 1px rgb(160 240 185 / 0.5);
+}
+/*
+  범위 외곽선 — ★**칸마다 긋지 않는다.** 인게임은 연결된 영역의 **바깥 둘레에만** 선을 넣는다
+  (F5 §3 (D): 파랑 면 내부를 130px 연속으로 세로 절단해도 주기적 스파이크가 없다 = 내부 타일 구분선 부재).
+  종전 구현은 타일마다 inset box-shadow라 격자가 보였다 — 색만 F5 값으로 바꾸면 그 격자가 더 굵어진다.
+  색·굵기는 픽셀에서 뽑음(파랑 코어 #329CFF → 적합 rgb(78 149 255)/0.64 · 빨강 코어 #F34728 → rgb(238 62 59)/0.77,
+  네이티브 1~2px). 이동 면과 공격 면이 맞닿는 자리에 파랑선·빨강선이 나란히 서는 것도 실측 프로파일 그대로다.
+*/
+.board .range-edge {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.board .range-edge path {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.board .range-edge .e-move { stroke: rgb(78 149 255 / 0.64); }
+.board .range-edge .e-atk { stroke: rgb(238 62 59 / 0.77); }
+/* ☠지팡이 초록 테두리도 비계 — 면과 같은 제거 조건(F5 §7-2). */
+.board .range-edge .e-sta { stroke: rgb(160 240 185 / 0.5); }
+/*
+  ZR 전체 위험 범위 — 「위험 범위」(tutorial.xml TUTID_危険範囲)의 ZL 전체 표시분.
+  알파가 개별 표시(0.32~0.43)의 절반 수준이고 계열이 마젠타라 이동·공격 표시와 절대 안 헷갈린다 —
+  **배경 정보**라는 뜻이고 의도된 설계다(F5 §2 (C)).
+*/
+.board .ov.danger {
+  background: rgb(218 126 176 / 0.38);
+}
+/*
+  둘레 점선 — 실측 주기가 화면 깊이에 거의 무관하다(원경 14px · 근경 16px @2x) ⇒ **화면 공간 대시**다.
+  그래서 non-scaling-stroke로 타일 배율에서 떼어내고 네이티브 실측값(대시 3px / 간격 4.5px)을 그대로 쓴다.
+  ☠칸마다 긋지 않는다 — 인게임 면 내부엔 타일 구분선이 없다(F5 §3 (D)). 둘레 산출 = lib/threat regionOutline.
+*/
+.board .danger-edge {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.board .danger-edge path {
+  fill: none;
+  stroke: rgb(244 162 224 / 0.8);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .board .arrow {
@@ -197,6 +262,71 @@
 .board .arrow polygon {
   fill: #3f9ae0;
   opacity: 0.92;
+}
+
+/*
+  위협 아크 — 재현층(MapPanelTarget, F3 §1). *"지금 이 자군이 선 칸을 칠 수 있는 적"*을 적마다 한 줄,
+  방향은 **적 → 나**. ★**실선**이다.
+  ☠예지선(MP8 §4-4 치트 = *"그 적이 누구를 칠 것인가"*, D1 별건)은 **같은 곡선 문법을 쓰면 안 된다** —
+  두 선이 같은 모양이면 사용자가 "이 선이 무슨 뜻인가"를 영원히 못 읽는다(F3 §7 결론 1).
+  아래 `.arc.foresight`가 그 문법(점선)을 **예약**한 자리다 — 지금은 아무도 그 클래스를 만들지 않는다.
+
+  ☠**색·합성은 미확정이다**(F5 §3 (E): 가법 계열이라 단일 (색,알파)로 분리 불가) ⇒ 아래 색은 전부 **비계**.
+  제거 조건 = F5 §7-4 촬영(어두운 균일 배경 위를 길게 지나는 포물선 1장 + 같은 카메라의 포물선 없는 1장).
+  실측에서 그대로 가져온 것만: 굵기 네이티브 2~3px · **코어는 흰빛 · 가장자리는 붉다**(이미시브 리본).
+  미재현 = 길이 방향 감쇠(적 쪽 끝 세기가 중간부의 약 60%)와 텍스처 스크롤(커브가 프리팹 자산이라 주기 미판독).
+  ☠알파 호흡(opacity 맥동)은 **인게임에 없다**(F3 검증 A-1) — 넣으면 없는 것을 발명하는 것이다.
+*/
+.board .arcs {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.board .arc {
+  fill: none;
+  stroke: #f8ecf3;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 2px rgb(240 87 74 / 0.95)) drop-shadow(0 0 5px rgb(211 53 42 / 0.7));
+}
+/* 색 3분기 = 특효 > 필살 > 기본(SetMeshForGeneralAttack의 csel 사슬). 규칙은 정본, 색은 비계. */
+.board .arc.crit {
+  filter: drop-shadow(0 0 2px rgb(255 176 58 / 0.95)) drop-shadow(0 0 5px rgb(214 122 12 / 0.7));
+}
+.board .arc.efficacy {
+  filter: drop-shadow(0 0 2px rgb(255 79 208 / 0.95)) drop-shadow(0 0 5px rgb(178 30 140 / 0.7));
+}
+/* 인게이지 분기는 시안 — 인게임이 엠블렘 아이템 글자색을 시안으로 가르는 것(ItemData.Flags.Engage)에 맞췄다. */
+.board .arc.engage {
+  filter: drop-shadow(0 0 2px rgb(79 216 255 / 0.95)) drop-shadow(0 0 5px rgb(20 140 190 / 0.7));
+}
+/* ☠예약 — 예지선(D1) 전용 문법. 재현 아크는 절대 이 클래스를 쓰지 않는다. */
+.board .arc.foresight {
+  stroke-dasharray: 5 4;
+}
+
+/*
+  붉은 ! 배지 — 적 머리 위 풍선 슬롯(MapInfoGaugeSubLocatorRoot.MakeBalloonList).
+  채움 #D42D2D · 글리프 #F6F3F3 = **픽셀에서 뽑음**(F5 §3 (F), 두 장 독립 측정 일치 · UI 스프라이트라 불투명).
+  ☠뜨는 조건은 **미확정**이다(F3 §5 후보 3종) — 조건 쪽 비계는 lib/threat alertTiles가 소유한다.
+*/
+.board .layer.alerts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.board .alert-badge {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--tile) * 0.72);
+  width: calc(var(--tile) * 0.42);
+  height: calc(var(--tile) * 0.42);
+  transform: translateX(-50%);
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.55));
 }
 
 .board .cell {

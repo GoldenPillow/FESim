@@ -10,7 +10,7 @@
  * 산출 = data/fe17/rulebook/{rulebook.json, ko.md, en.md}
  * 실행 = ./dev rulebook   (신선도 게이트 = ./dev gate가 재생성분과 대조)
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
@@ -110,16 +110,137 @@ try {
     formulaNames.add(key);
     if (key.endsWith("計算")) formulaNames.add(key.slice(0, -2));
   }
+  /**
+   * 질의되는 값 이름 = 공식 파생명 + `相手の` 교차 소환(makeSkillModifier가 접두를 떼고 색인한다) +
+   * 엔진이 이름을 박아 부르는 자리(`flow("攻撃回数")` 등) + **`combatEnv` lookup 훅이 무는 이름**.
+   * ☠**손으로 적지 않는다** — 앞 둘은 엔진 소스에서 긁고, 마지막은 엔진에 직접 물어본다.
+   */
+  const queriedNames = new Set(formulaNames);
+  for (const name of [...queriedNames]) queriedNames.add(`${engine.OPPONENT_PREFIX}${name}`);
+  const engineSources = readdirSync(resolve(ROOT, "packages/engine/src"), { recursive: true })
+    .filter((p) => String(p).endsWith(".ts"))
+    .map((p) => src(`packages/engine/src/${p}`))
+    .join("\n");
+  for (const m of engineSources.matchAll(/\b(?:modify|flow)\(\s*"([^"]+)"/g)) queriedNames.add(m[1]);
+
+  /**
+   * ★`combatEnv`의 lookup 훅 — 순정 env가 그 이름에 **수**를 돌려줄 때만 modify가 걸린다
+   * (formula/combat.ts: `typeof value === "number" ? modify(name, value) : value`).
+   * 그래서 배선 판정은 엔진에 그대로 물어본다: 이름 목록을 손으로 적으면 다음 어휘 확장에서 바로 낡는다.
+   * ☠종전엔 원시 스탯을 통째로 뺐는데 오더 큐 배선(2026-08-19) 이후 훅이 실제로 소비한다 —
+   *   `守備`·`魔防`·`相手の魔防` 행이 **거짓 결손**으로 잡혀 있었다.
+   */
+  const PROBE_COMBATANT = {
+    stats: { maxHp: 30, hp: 30, str: 1, mag: 1, dex: 1, spd: 1, lck: 1, def: 1, res: 1, bld: 1 },
+    weapon: { might: 1, hit: 1, crit: 0, weight: 1, kind: 1 },
+    flow: { battleTimes: 1, totalOrder: 0 },
+  };
+  const probeEnv = engine.plainCombatEnv(PROBE_COMBATANT);
+  /**
+   * 조건식 프로브 env — ☠**상대가 있어야 한다**: `opponent()`가 없으면 `相手の~`가 통째로 미지 식별자가 되어
+   * 멀쩡한 행이 거짓 결손으로 잡힌다(plainCombatEnv는 foe 없이 부르면 opponent를 안 단다).
+   */
+  const condProbeEnv = engine.plainCombatEnv(PROBE_COMBATANT, PROBE_COMBATANT);
+  /**
+   * ★조건식이 사는가 — `wired`(ActNames 질의)만으로는 **절대 발동 못 하는 행**을 못 본다.
+   * 엔진은 조건 평가가 던지면 그 스킬을 통째로 건너뛰므로(skills.ts: catch → continue) 값이 아무리
+   * 실려 있어도 죽은 행이다. ☠목록을 손으로 적지 않는다 — 엔진의 `strictIdents`를 그대로 통과시켜 물어본다.
+   * 미지 이름은 0(함수는 0 반환)으로 덮고 다시 물어 **전수**를 모은다(한 번만 돌리면 첫 이름만 보인다).
+   */
+  const deadCondIdents = (condition) => {
+    if (!condition) return [];
+    const vars = new Map();
+    const fns = new Set();
+    const patch = (env) => ({
+      lookup: (n) => env.lookup(n) ?? vars.get(n),
+      call: (n, a) => env.call?.(n, a) ?? (fns.has(n) ? 0 : undefined),
+      opponent: env.opponent ? () => patch(env.opponent()) : undefined,
+    });
+    const found = [];
+    for (let guard = 0; guard <= 32; guard++) {
+      try {
+        engine.evaluateFormula(engine.parseFormula(condition), engine.strictIdents(patch(condProbeEnv)));
+        return found;
+      } catch (error) {
+        const message = String(error?.message ?? error);
+        const ident = /미지 식별자 "([^"]+)"/.exec(message);
+        const fn = /미지 함수 "([^"]+)"/.exec(message);
+        if (ident !== null && !vars.has(ident[1])) {
+          found.push(ident[1]);
+          vars.set(ident[1], 0);
+        } else if (fn !== null && !fns.has(fn[1])) {
+          found.push(`${fn[1]}()`);
+          fns.add(fn[1]);
+        } else {
+          // 식별자 부재가 아닌 평가 실패(심볼 산술 등)도 같은 사망이다 — 사유 문장을 그대로 싣는다.
+          found.push(message);
+          return found;
+        }
+      }
+    }
+    return found;
+  };
+  /**
+   * ☠훅이 값을 고쳐도 **그 대입이 국면에 써지지 않는** 이름 — `HP = min(HP+5, MaxHP)`(SID_回復)는
+   * 전투 계산 안의 HP만 바꾸고 유닛 HP에는 커밋되지 않는다. 배선으로 세면 회복·흡혈·자해 결손이
+   * 목록에서 통째로 사라진다(조용해진다). ★제거 조건 = 전투 해결층이 이 대입을 유닛 HP로 커밋하면 비운다.
+   */
+  const UNCOMMITTED_NAMES = new Set(["HP", "MaxHP"]);
+  const hookedName = (name) => {
+    const bare = name.startsWith(engine.OPPONENT_PREFIX) ? name.slice(engine.OPPONENT_PREFIX.length) : name;
+    return !UNCOMMITTED_NAMES.has(bare) && typeof probeEnv.lookup(bare) === "number";
+  };
+
   const ENHANCE_KEYS = ["Hp", "Str", "Tech", "Quick", "Luck", "Def", "Magic", "Mdef", "Phys", "Move"];
+  const WEAPON_LEVEL_KEYS = ["None", "Sword", "Lance", "Axe", "Bow", "Dagger", "Magic", "Rod", "Fist", "Special"];
+  const STYLE_KEYS = ["Cooperation", "Covert", "Dragon", "Magic", "Horse", "Heavy", "Prana", "Fly"];
+  /** 소비자가 실재하는 필드 — 이것만 "ActNames가 없어도 배선"이다(formula/combat.ts efficacyOf · battle.ts 재이동). */
+  const CONSUMED_FIELDS = ["Efficacy", "EfficacyValue", "EfficacyIgnore", "Removable"];
+  /** 값을 들고 있는데 **읽는 쪽이 없는** 필드 전수. GiveSids는 Timing 게이트가 있어 따로 판정한다. */
+  const UNREAD_FIELDS = [
+    "SyncSids", "ChangeSids", "RemoveSids",
+    ...STYLE_KEYS.map((k) => `${k}Skill`),
+    ...WEAPON_LEVEL_KEYS.map((k) => `WeaponLevel.${k}`),
+    "BadState", "BadIgnore", "WeaponProhibit", "VisionCount", "EnhanceLevel", "Work", "WorkValue",
+    "ZocType", "Rewarp", "MoveSelf", "MoveTarget", "RangeTarget", "RangeI", "RangeO", "RangeAdd",
+    "RangeExtend", "OverlapRange", "OverlapTerrain", "AroundName",
+  ];
+  /** 부여층이 열리는 Timing = 手番回数 패스 + 오더 개시. 엔진 상수를 그대로 쓴다(하드코딩하면 곧 낡는다). */
+  const GIVE_TIMINGS = new Set([...engine.BATTLE_TIMES_STAGES, engine.TIMING_ORDER_START]);
+  /** 전투층이 받아 주는 GiveTarget 전수 — 엔진 상수가 정본이다(하드코딩하면 곧 낡는다). */
+  const GIVE_TARGETS_APPLIED = engine.GIVE_TARGETS_APPLIED;
+  const nonDefault = (v) =>
+    Array.isArray(v) ? v.length > 0
+    : typeof v === "string" ? v !== "" && v !== "0"
+    : Number(v ?? 0) !== 0;
 
   const skillFacts = (sid) => {
     const row = skillTable[sid];
-    if (row === undefined) return { sid, missing: true, wired: false };
+    if (row === undefined) return { sid, missing: true, deficit: true, unreadFields: ["(행 없음)"] };
     const enhances = ENHANCE_KEYS.filter((k) => Number(row[`EnhanceValue.${k}`] ?? 0) !== 0)
       .map((k) => `${k}${row[`EnhanceValue.${k}`] > 0 ? "+" : ""}${row[`EnhanceValue.${k}`]}`);
     const acts = (row.ActNames ?? []).map((n, i) => `${n}${row.ActOperations?.[i] ?? "+"}${row.ActValues?.[i] ?? "0"}`);
-    const actWired = (row.ActNames ?? []).filter((n) => formulaNames.has(n));
-    const actDead = (row.ActNames ?? []).filter((n) => !formulaNames.has(n));
+    const queried = (n) => queriedNames.has(n) || hookedName(n);
+    const actWired = (row.ActNames ?? []).filter(queried);
+    const actDead = (row.ActNames ?? []).filter((n) => !queried(n));
+    // 항등식 Act 행(`HP = HP`)은 그 자체로 무해하지만 **비결손이라는 뜻이 아니다** —
+    // 실효 페이로드가 SyncSids 쪽에 있고 그 전개가 미배선이면 흡혈·부여가 통째로 잠든다(SID_陽光_闇).
+    const identityActs = (row.ActNames ?? []).filter(
+      (n, i) => row.ActOperations?.[i] === "=" && row.ActValues?.[i] === n,
+    );
+    const consumed = CONSUMED_FIELDS.filter((k) => Number(row[k] ?? 0) !== 0);
+    const unreadFields = UNREAD_FIELDS.filter((k) => nonDefault(row[k]));
+    const deadConds = deadCondIdents(row.Condition);
+    const gives = row.GiveSids ?? [];
+    // 부여층은 전투 로컬(Cycle 0) 행을 열린 Timing에서만 소비한다 — Timing 13(ブレイク時追撃)은 안 열린다.
+    // ☠GiveTarget도 본다 — 엔진 전투층은 0 Target·1 Self만 받고 2 Chain·3 Around·4 Dance는 버린다.
+    //   빠뜨리면 받을 그릇이 없는 행을 "읽힌다"로 세어 결손이 조용히 줄어든다(GIVE_TARGETS_APPLIED).
+    const giveRead =
+      GIVE_TIMINGS.has(Number(row.Timing ?? 0)) &&
+      GIVE_TARGETS_APPLIED.has(Number(row.GiveTarget ?? 0)) &&
+      gives.some((g) => Number(skillTable[g]?.Cycle ?? 0) === 0);
+    if (gives.length > 0 && !giveRead) unreadFields.unshift("GiveSids");
+    const payload = enhances.length > 0 || acts.length > 0 || consumed.length > 0;
     return {
       sid,
       name: nameKo[row.Name] ?? row.Name ?? sid,
@@ -127,8 +248,17 @@ try {
       ...(acts.length > 0 ? { act: acts } : {}),
       ...(row.Condition ? { condition: row.Condition } : {}),
       // 정적 보정이 있거나, 계산값 보정이 실제로 질의되는 공식이면 산다.
-      wired: enhances.length > 0 || actWired.length > 0,
+      wired: enhances.length > 0 || actWired.length > 0 || consumed.length > 0,
+      // ☠결손 = **읽히지 않는 값이 하나라도 남았는가**. 부분배선(한 행이 ActName 둘 중 하나만 살아 있는 것)도,
+      //   효과 필드가 아예 없어 다른 층이 소유하는 것도 전부 여기 걸린다(2026-08-19 MP8 G2 §F3·§F4).
+      //   ☠조건식이 던지는 행도 여기다 — 배선된 ActName을 들고도 **한 번도 발동하지 못한다**.
+      //   종전엔 그런 행이 `wired: true` · `deficit: false`로 실려 산출물이 장부와 반대말을 했다.
+      deficit: actDead.length > 0 || unreadFields.length > 0 || deadConds.length > 0 || !payload,
       ...(actDead.length > 0 ? { unreadActNames: actDead } : {}),
+      ...(deadConds.length > 0 ? { unreadCondIdents: deadConds } : {}),
+      ...(unreadFields.length > 0 ? { unreadFields } : {}),
+      ...(identityActs.length > 0 ? { identityActNames: identityActs } : {}),
+      ...(consumed.length > 0 ? { consumedFields: consumed } : {}),
     };
   };
 
@@ -152,26 +282,42 @@ try {
     .filter((e) => e.levels.length > 0);
 
   /**
-   * ☠아무도 안 읽는 패시브 = **효과 값을 들고 있는데 엔진이 그 이름을 질의하지 않는** 것만 센다.
-   * 효과 필드가 아예 없는 스킬(특효 마스크·GiveSids·조건부 부여 등 다른 경로로 작동)은
-   * 여기 넣지 않는다 — 넣으면 결손 목록이 부풀어 **진짜 결손이 묻힌다**.
+   * ☠아무도 안 읽는 패시브 = **효과 값을 들고 있는데 소비하는 쪽이 없는** 것 전부.
+   * 종전 기준에는 구멍이 둘 있었다(2026-08-19 MP8 G2, _mp8/G2_unwired_triage.md §F3·§F4) —
+   *   (A) `if (s.wired) continue`가 **부분배선을 통째로 건너뛰었다**: ActName 둘 중 하나만 살아도 배선으로 봐서
+   *       죽은 쪽이 결손 목록에 안 잡힌 채 잠들었다.
+   *   (B) `ActNames`가 없다는 이유로 82종을 "미판정"으로 면죄했는데 그중 **67종이 진짜 결손**이었다
+   *       (`SID_ブレイク時追撃`의 割込み 오더가 여기 묻혀 있었다). 진짜 비결손은 소비자가 실재하는 15종뿐이다.
+   * ⇒ 판정은 이제 소비 필드 화이트리스트(`CONSUMED_FIELDS`·`EnhanceValue`·질의되는 ActName)로만 면제한다.
    */
   const unwiredPassives = [];
-  const outOfScope = new Set();
+  const wiredSids = new Set();
   for (const e of emblems) {
     for (const lv of e.levels) {
       for (const kind of ["synchro", "engaged"]) {
         for (const s of lv[kind] ?? []) {
-          if (s.wired) continue;
-          if (s.unreadActNames === undefined) {
-            outOfScope.add(s.sid); // 이 판정 기준 밖(다른 메커니즘) — 결손이 아니라 미판정이다
+          if (!s.deficit) {
+            wiredSids.add(s.sid);
             continue;
           }
-          unwiredPassives.push({ gid: e.gid, bond: lv.bond, kind, sid: s.sid, name: s.name, unreadActNames: s.unreadActNames });
+          unwiredPassives.push({
+            gid: e.gid,
+            bond: lv.bond,
+            kind,
+            sid: s.sid,
+            name: s.name,
+            ...(s.unreadActNames ? { unreadActNames: s.unreadActNames } : {}),
+            ...(s.unreadCondIdents ? { unreadCondIdents: s.unreadCondIdents } : {}),
+            ...(s.unreadFields ? { unreadFields: s.unreadFields } : {}),
+            ...(s.identityActNames ? { identityActNames: s.identityActNames } : {}),
+            // 일부만 살아 있는 행 — 종전 기준이 통째로 버리던 자리다.
+            ...(s.wired ? { partial: true } : {}),
+          });
         }
       }
     }
   }
+  const unwiredSids = new Set(unwiredPassives.map((p) => p.sid));
 
   const section = (id, ko, en, generated, payload, sources = [], why) => ({
     id,
@@ -236,14 +382,32 @@ try {
       {
         note:
           "絆 레벨마다 붙는 싱크로(상시)·인게이지(발동 중) 패시브 전수. wired=false는 데이터는 있는데 " +
-          "엔진이 읽지 않는다는 뜻이다 — ActName이 calculator 공식 이름과 일치할 때만 질의되기 때문이다.",
+          "엔진이 읽지 않는다는 뜻이다 — ActName이 질의되는 값 이름과 일치하거나 소비 필드를 들었을 때만 산다. " +
+          "unreadCondIdents가 붙은 행은 배선은 됐지만 조건식이 미지 식별자로 던져 **한 번도 발동하지 못한다**.",
         emblems,
         unwiredCount: unwiredPassives.length,
+        unwiredSidCount: unwiredSids.size,
         unwired: unwiredPassives,
-        outOfScopeCount: outOfScope.size,
-        outOfScopeNote:
-          "효과 필드(EnhanceValue·ActNames)가 없어 이 기준으로는 판정할 수 없는 스킬 수. " +
-          "특효 마스크·GiveSids 등 다른 경로로 작동하며, 결손이라는 뜻이 아니다.",
+        wiredSidCount: wiredSids.size,
+        criteria: {
+          queriedNames: [...queriedNames].sort(),
+          consumedFields: CONSUMED_FIELDS,
+          unreadFields: UNREAD_FIELDS,
+          giveTimings: [...GIVE_TIMINGS],
+          giveTargets: [...GIVE_TARGETS_APPLIED],
+          hookedNames: [...new Set(
+            Object.values(skillTable).flatMap((r) => r.ActNames ?? []).filter(hookedName),
+          )].sort(),
+          note:
+            "☠결손 판정 = 소비자가 실재하는가. unreadActNames = 질의되지 않는 값 이름 · " +
+            "unreadFields = 읽는 쪽이 없는 필드 · unreadActNames·unreadFields 둘 다 없는데 등재됐다면 " +
+            "효과 필드 자체가 없다(다른 층 소유 = 그 층이 미배선). partial=true는 같은 행의 일부만 사는 자리다. " +
+            "identityActNames = 항등식 Act 행(`HP = HP`) — 그 행은 무해하나 실효 페이로드가 SyncSids 쪽에 있고 " +
+            "그 전개가 미배선이면 결손이다(SID_陽光_闇 = 흡혈 50%가 SID_陽光_回復에 있다). " +
+            "hookedNames = combatEnv lookup 훅이 무는 이름(엔진에 직접 물어본 값) — 원시 스탯이 여기 산다. " +
+            "☠HP·MaxHP는 훅이 값을 고쳐도 **유닛 HP로 커밋되지 않아** 제외했다(회복·흡혈·자해는 여전히 결손이다). " +
+            "giveTargets = 전투층이 받아 주는 GiveTarget(0 Target·1 Self) — 2 Chain·3 Around·4 Dance는 그릇이 없다.",
+        },
       },
       [
         { file: "data/fe17/tables/gods.json", what: "絆 성장표(SynchroSkills·EngageSkills)" },

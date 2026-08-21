@@ -22,7 +22,7 @@ import {
   type UnitState,
 } from "../battle.js";
 import type { Calculator } from "../formula/calculator.js";
-import { forecastSide } from "../formula/combat.js";
+import { battlePlan } from "../formula/combat.js";
 import { movementRange } from "../range.js";
 import {
   BLOW_SCORE,
@@ -33,9 +33,10 @@ import {
   terrainScoreAt,
 } from "./position.js";
 import { movePowerOf } from "./cause.js";
-import { battleScore, simulateBattle, type Indication } from "./score.js";
-import { moveLimitAllows, parseMoveLimit } from "./unit.js";
+import { battleScore, isPower0Attack, simulateBattle, type Indication } from "./score.js";
+import { isClever, moveLimitAllows, parseMoveLimit, rejectsPower0 } from "./unit.js";
 import { AI_FLAG, AI_THINK, ATTACK_FLAG, battleRateOf, BATTLE_RATE } from "./types.js";
+import type { AiRejectGate, AiRejection, AiTargetCandidate } from "@fesim/shared";
 
 /** `AI.IsRandom()`(0x19235D0) = `Random.System.GetValue(2) != 0` — 동점 50% 코인플립. */
 export const aiIsRandom = (rng: RandomSource): boolean => rng.next(2) !== 0;
@@ -101,12 +102,25 @@ export interface AttackEvaluation extends AttackPosition {
   decoy: boolean;
 }
 
+/**
+ * 결정 근거 수집기 — 있으면 표적 평가 층이 스코어·기각을 여기 적는다(없으면 종전대로 계산 후 버린다).
+ * ☠상위 N 자르기·정렬은 소비측(`createAi.next`)이 한다 — 이 층은 본 것을 그대로 적을 뿐이다.
+ */
+export interface AiTraceSink {
+  battleRate?: number;
+  battleRateForced?: boolean;
+  chosen?: string;
+  candidates: AiTargetCandidate[];
+  rejected: AiRejection[];
+}
+
 export interface AttackContext {
   state: GameState;
   calc: Calculator;
   supportEffects?: SupportEffects;
   rng: RandomSource;
   think: number;
+  trace?: AiTraceSink;
 }
 
 const key = (state: GameState, x: number, y: number): number => y * state.map.width + x;
@@ -117,33 +131,45 @@ function relocated(state: GameState, actor: UnitState, x: number, y: number): { 
   return { moved, units: state.units.map((u) => (u.id === actor.id ? moved : u)) };
 }
 
-/** 전투 1회의 명중 분포 — 엔진의 forecastSide를 그대로 쓴다(☠중복 구현 금지). */
-function indicationOf(
+/**
+ * 전투 한 판의 **양측** 명중 분포 — 엔진 공용 오더 목록(battlePlan)을 그대로 쓴다(☠중복 구현 금지).
+ * ☠종전엔 측마다 `forecastSide`를 따로 불러 (1) 상대 flow가 비어 `相手の手番回数` 교차 행이 죽고
+ *   (2) 반격측을 `striking: false`로 봐 Action 게이트가 뒤집혀 있었다 — 표적 평가가 조용히 어긋났다.
+ * `m_Power`는 정본도 라운드당 하나뿐이라 **그 측 첫 오더**의 값을 쓴다(오더별 배율은 목록이 안다).
+ */
+function indicationsOf(
   ctx: AttackContext,
   self: UnitState,
   foe: UnitState,
   units: readonly UnitState[],
-  canAct: boolean,
-): Indication {
-  if (!canAct) {
-    return { power: 0, miss: 1, hit: 0, critical: 0, actionCount: 1, battleTimes: 0 };
-  }
+  counterable: boolean,
+): { offense: Indication; defense: Indication } {
   const map = ctx.state.map;
   const patches = ctx.state.terrainPatches;
-  const a = { ...toCombatant(self, map, units, ctx.supportEffects, patches), initiator: true, striking: true };
-  const b = { ...toCombatant(foe, map, units, ctx.supportEffects, patches), initiator: false, striking: false };
-  const f = forecastSide(ctx.calc, a, b);
-  // 명중 롤 → 명중 시에만 필살 롤(엔진 계약) → 필살은 명중의 부분집합이다.
-  const hit = Math.min(Math.max(f.hitRate, 0), 100) / 100;
-  const crit = Math.min(Math.max(f.critRate, 0), 100) / 100;
-  return {
-    power: f.damage,
-    miss: 1 - hit,
-    hit: hit * (1 - crit),
-    critical: hit * crit,
-    actionCount: 1,
-    battleTimes: f.followUp ? 2 : 1,
-  };
+  const a = toCombatant(self, map, units, ctx.supportEffects, patches);
+  const b = toCombatant(foe, map, units, ctx.supportEffects, patches);
+  const plan = battlePlan(ctx.calc, a, b, { counter: () => counterable });
+  const idle = (): Indication => ({ power: 0, miss: 1, hit: 0, critical: 0, actionCount: 1, battleTimes: 0 });
+  const out = { offense: idle(), defense: idle() };
+  const seen = [false, false];
+  for (const order of plan.orders) {
+    if (seen[order.side]) continue;
+    seen[order.side] = true;
+    // 명중 롤 → 명중 시에만 필살 롤(엔진 계약) → 필살은 명중의 부분집합이다.
+    const hit = Math.min(Math.max(order.hitRate, 0), 100) / 100;
+    const crit = Math.min(Math.max(order.critRate, 0), 100) / 100;
+    const ind: Indication = {
+      power: order.damage,
+      miss: 1 - hit,
+      hit: hit * (1 - crit),
+      critical: hit * crit,
+      actionCount: 1,
+      battleTimes: plan.battleTimes[order.side],
+    };
+    if (order.side === 0) out.offense = ind;
+    else out.defense = ind;
+  }
+  return out;
 }
 
 const distanceOf = (ax: number, ay: number, bx: number, by: number): number =>
@@ -246,28 +272,35 @@ export function getAttackScore(
 ): AttackEvaluation | undefined {
   const weapons = effectiveWeapons(actor) ?? [];
   const rate = battleRateOf(actor.ai?.battleRate);
-  // ★플레이어 진영이 AI로 도는 국면(위임)은 항상 慎重 — 적턴 AI는 dispos 값 그대로.
-  const layout = actor.force === 0 ? BATTLE_RATE.chariness : rate;
+  // ★`IsClever()`(0x192A000)면 dispos 값을 무시하고 慎重 레이아웃을 강제한다(0x1928A24) —
+  //   조건은 **행동 진영이 플레이어와 동맹인가**라서 통상 챕터의 우군 NPC(force 2) 턴도 포함된다.
+  const clever = isClever(ctx.state);
+  const layout = clever ? BATTLE_RATE.chariness : rate;
+  // ★같은 게이트의 두 번째 효과(0x1956290·0x19562c0) — dispos 플래그가 꺼져 있어도 위력 0 후보를 버린다.
+  const rejectZeroPower = clever || rejectsPower0(actor, ctx.state.difficulty);
   const thinkBreak = ((actor.ai?.flag ?? 0) & AI_FLAG.break) !== 0;
   const thinkChain = ((actor.ai?.flag ?? 0) & AI_FLAG.chain) !== 0;
 
   const targetDecoy = hasBadState(target, BAD_STATE.decoy);
 
   let best: AttackEvaluation | undefined;
+  let rejected: AiRejectGate | undefined;
   for (let i = 0; i < weapons.length; i++) {
     const weapon = weapons[i]!;
     // ☠MagicOnly(2048)는 `item.Data.Attr == Magic` 판정인데 BattleWeapon에 Attr 사영이 없다 —
     // 이 필터를 쓰는 것은 방해(지팡이) 계열뿐이라 이 층에서는 발현하지 않는다(장부 assumed).
     const pos = getAttackPosition(ctx, actor, target, i, flag, image);
-    if (pos === undefined) continue;
+    if (pos === undefined) {
+      rejected ??= "noPosition";
+      continue;
+    }
 
     const { moved, units } = relocated(ctx.state, actor, pos.moveX, pos.moveY);
     const armed: UnitState = { ...moved, weapon };
     const armedUnits = units.map((u) => (u.id === armed.id ? armed : u));
     const d = distanceOf(pos.attackX, pos.attackY, target.x, target.y);
-    const offense = indicationOf(ctx, armed, target, armedUnits, true);
     // 반격 = 대상이 브레이크되지 않았고 자기 무기 사거리 안일 때만.
-    const defense = indicationOf(ctx, target, armed, armedUnits, !target.broken && inRange(target, d));
+    const { offense, defense } = indicationsOf(ctx, armed, target, armedUnits, !target.broken && inRange(target, d));
 
     const chainExpectation = thinkChain
       ? chainAttackers(armed, target, armedUnits).length > 0
@@ -281,7 +314,15 @@ export function getAttackScore(
       defenseHp: target.hp,
       chainExpectation,
     });
-    if (rejectsLowKill(ctx.think, sim.kill, targetDecoy)) continue;
+    // ☠유인(Decoy) 대상은 위력0·저확률 기각 **둘 다** 면제된다 — 0x1956664가 두 검사를 통째로 건너뛴다.
+    if (!targetDecoy && rejectZeroPower && isPower0Attack(offense, chainExpectation)) {
+      rejected = "power0";
+      continue;
+    }
+    if (rejectsLowKill(ctx.think, sim.kill, targetDecoy)) {
+      rejected = "lowKill";
+      continue;
+    }
 
     const score = battleScore({
       rate: layout,
@@ -304,6 +345,18 @@ export function getAttackScore(
       decoy: targetDecoy,
     };
     if (best === undefined || betterAttack(candidate, best, ctx.rng)) best = candidate;
+  }
+  if (ctx.trace !== undefined) {
+    ctx.trace.battleRate = layout;
+    ctx.trace.battleRateForced = clever;
+    if (best !== undefined) {
+      ctx.trace.candidates.push({
+        target: target.id, battle: best.battle, kill: best.kill, dead: best.dead,
+        expectation: best.expectation, x: best.moveX, y: best.moveY,
+      });
+    } else if (rejected !== undefined) {
+      ctx.trace.rejected.push({ target: target.id, gate: rejected });
+    }
   }
   return best;
 }

@@ -88,7 +88,7 @@ describe("장비 Enhance — toCombatant 한 곳에서만 얹는다", () => {
     const slowFoe = unit({ id: "e", force: 1, x: 1, y: 0, stats: { ...baseStats, spd: 7 }, weapon: plain });
     const bare = unit({ id: "a", force: 0, x: 0, y: 0, weapon: plain });
     const fast = unit({ id: "b", force: 0, x: 0, y: 0, weapon: mulagir });
-    expect(forecastSide(calc, toCombatant(bare, map), toCombatant(slowFoe, map)).followUp).toBe(false);
-    expect(forecastSide(calc, toCombatant(fast, map), toCombatant(slowFoe, map)).followUp).toBe(true);
+    expect(forecastSide(calc, toCombatant(bare, map), toCombatant(slowFoe, map)).battleTimes).toBe(1);
+    expect(forecastSide(calc, toCombatant(fast, map), toCombatant(slowFoe, map)).battleTimes).toBe(2);
   });
 });

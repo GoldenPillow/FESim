@@ -8,6 +8,7 @@ export {
   canBreak,
   canChainGuard,
   canDance,
+  chainAttackers,
   chainGuardFor,
   createReducer,
   canterPower,
@@ -80,8 +81,17 @@ export {
   type ReachableTile,
   type Tile,
 } from "./range.js";
-export { makeSkillModifier, staticEnhances, type SkillRow } from "./skills.js";
+export {
+  makeSkillModifier,
+  resolveGives,
+  SkillRecursionError,
+  staticEnhances,
+  strictIdents,
+  type SkillGive,
+  type SkillRow,
+} from "./skills.js";
 export type { ConsumableItem, EngageArt, EngageState, StaffItem } from "@fesim/shared";
+export type { AiReasoning, AiRejectGate, AiRejection, AiTargetCandidate } from "@fesim/shared";
 export {
   deriveStats,
   grownLevels,
@@ -91,7 +101,7 @@ export {
   type StatKey,
 } from "./stats.js";
 export { parseFormula, type FormulaNode, type BinaryOp } from "./formula/parser.js";
-export { evaluateFormula, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
+export { evaluateFormula, OPPONENT_PREFIX, type FormulaEnv, type FormulaValue } from "./formula/evaluate.js";
 export { createCalculator, type Calculator } from "./formula/calculator.js";
 export { hitThreshold10000, isHit, isProbability100 } from "./formula/probability.js";
 export { createAi, emptyAiMemory, type Ai, type AiDecision, type AiMemory } from "./ai/index.js";
@@ -142,6 +152,7 @@ export {
   getAttackPosition,
   getAttackScore,
   moveImageOf,
+  type AiTraceSink,
   type AttackContext,
   type AttackEvaluation,
   type AttackPosition,
@@ -168,6 +179,7 @@ export {
   AI_GUARD,
   battleScore,
   expectationScoreNormalize,
+  isPower0Attack,
   killProbability,
   killScoreNormalize,
   simulateBattle,
@@ -214,14 +226,30 @@ export {
   aiHasFlag,
   aiHealCondition,
   bandMembers,
+  isClever,
   moveLimitAllows,
   parseMoveLimit,
   rejectsPower0,
   type MoveLimitRect,
 } from "./ai/unit.js";
 export {
+  baseBattleTimes,
+  battlePlan,
+  battleTimesOf,
+  battleTimesStage,
+  BATTLE_TIMES_STAGES,
+  chainNumbers,
   combatEnv,
+  combatGives,
   forecastSide,
+  GIVE_TARGETS_APPLIED,
+  MAX_ORDERS,
+  ORDER_SLOTS,
+  plainCombatEnv,
+  TIMING_ORDER_START,
+  type BattleOrder,
+  type BattlePlan,
+  type BattlePlanOptions,
   type Combatant,
   type CombatantStats,
   type CombatantWeapon,

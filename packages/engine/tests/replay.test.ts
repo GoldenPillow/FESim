@@ -246,7 +246,8 @@ describe("★행동 중 페이즈 종료 — 라이브 == 재생 (관통)", () =
     const initial = state([
       unit({ id: "a", force: 0, x: 1, y: 0, weapon: sword }),
       unit({ id: "b", force: 0, x: 0, y: 2, weapon: sword }),
-      unit({ id: "e", force: 1, x: 2, y: 0, stats: foeStats, hp: 30, weapon: sword }),
+      // ☠`acted: true`가 이 시나리오의 **가드 그 자체**다 — 아래 "행동할 수 있다" 테스트 참조.
+      unit({ id: "e", force: 1, x: 2, y: 0, stats: foeStats, hp: 30, weapon: sword, acted: true }),
     ]);
     const action: BattleAction = { type: "attack", unit: "a", target: "e" };
     const rec = recordingSource(seq(...Array.from({ length: 20 }, (_, i) => (i * 13) % 100)));
@@ -275,10 +276,79 @@ describe("★행동 중 페이즈 종료 — 라이브 == 재생 (관통)", () =
     }
   });
 
+  /**
+   * ☠**이 테스트는 한동안 가짜 가드였다**(2026-08-19 교정). 적 `e`의 `acted`가 기본값 `false`라
+   * **수리 전에도 그린**이었다 — 재생이 활성화 리셋을 통째로 빼먹어도 `wait`이 통과한다.
+   * 그래서 A7(재생 `phase` 이벤트가 리셋을 안 한다)을 잡을 수 없었다: 테스트는 있는데 감시하지 않는 자리.
+   * ★교정 = 시나리오의 적을 `acted: true`로 세운다. 리셋이 없으면 그 플래그가 재생 국면에 남아
+   * `wait`이 "행동 완료 유닛"으로 거부되므로, **리셋을 빼는 순간 레드**가 된다.
+   */
   it("재생 뒤 새 진영의 유닛이 실제로 행동할 수 있다(거부되지 않는다)", () => {
     const { initial, step } = build();
+    expect(initial.units.find((u) => u.id === "e")!.acted).toBe(true); // 가드의 전제 — 무너지면 테스트가 무력해진다
     const replayed = replayer.applyStep(initial, step);
     const mover = replayed.units.find((u) => u.force === replayed.phase && !u.dead)!;
+    expect(mover.acted).toBe(false);
     expect(() => reduce(replayed, { type: "wait", unit: mover.id }, seq())).not.toThrow();
+  });
+
+  /**
+   * ★A7 잔여 구멍 — 위 수리는 `attack|engageAttack|staff|item|dance` **5종 화이트리스트**에만 걸려 있었다.
+   *
+   * 왜 위험했나: 스크립트는 행동 종류를 가리지 않고 페이즈를 닫는다(`行動後フェイズ終了`는 변수 하나다).
+   * `move·guard·engage·trade·destroy·visit·wait` 7종이 페이즈를 닫으면 재생은 일반 분기로 떨어져
+   * `phase` 필드만 옮긴다 — (1) 새 진영 `acted`가 안 풀리고 (2) 마지막 진영에서 **턴 랩이 통째로 빠진다**.
+   * 둘 다 오류가 아니라 조용한 어긋남이라, 다음 행동이 거부될 때까지(또는 영영) 안 드러난다.
+   * 3단계 기보 재생성의 선행이라 여기서 막는다.
+   */
+  describe("★행동 종류를 가리지 않는다 — 5종 화이트리스트 제거", () => {
+    /** 임의 행동 하나 + 그 자리에서 닫힌 페이즈 = 라이브가 만드는 한 스텝. */
+    const closing = (from: GameState, action: BattleAction) => {
+      const rec = recordingSource(seq(...Array.from({ length: 20 }, (_, i) => (i * 13) % 100)));
+      const acted = reduce(from, action, rec);
+      const closed = reduce(acted, { type: "endPhase" }, seq());
+      const rolls = rec.drain();
+      const step: EphemerisStep = {
+        action,
+        ...(rolls.length > 0 ? { rolls } : {}),
+        events: [...acted.events, ...closed.events],
+      };
+      return { step, live: closed };
+    };
+
+    const sameAsLive = (initial: GameState, action: BattleAction) => {
+      const { step, live } = closing(initial, action);
+      const replayed = replayer.applyStep(initial, step);
+      expect(replayed.phase).toBe(live.phase);
+      expect(replayed.turn).toBe(live.turn);
+      for (const u of live.units) {
+        const r = replayed.units.find((x) => x.id === u.id)!;
+        expect({ id: r.id, acted: r.acted, moved: r.moved }).toEqual({ id: u.id, acted: u.acted, moved: u.moved });
+      }
+      return { replayed, live };
+    };
+
+    it("wait이 페이즈를 닫아도 새 진영의 acted가 풀린다", () => {
+      const initial = state([
+        unit({ id: "a", force: 0, x: 1, y: 0, weapon: sword }),
+        unit({ id: "e", force: 1, x: 2, y: 0, stats: foeStats, hp: 30, weapon: sword, acted: true }),
+      ]);
+      const { replayed } = sameAsLive(initial, { type: "wait", unit: "a" });
+      expect(replayed.units.find((u) => u.id === "e")!.acted).toBe(false);
+    });
+
+    it("move가 마지막 진영에서 페이즈를 닫으면 턴이 넘어간다", () => {
+      const initial = {
+        ...state([
+          unit({ id: "a", force: 0, x: 1, y: 0, weapon: sword, acted: true }),
+          unit({ id: "e", force: 1, x: 2, y: 0, stats: foeStats, hp: 30, weapon: sword }),
+        ]),
+        phase: 1,
+      };
+      const { replayed } = sameAsLive(initial, { type: "move", unit: "e", x: 2, y: 1 });
+      expect(replayed.turn).toBe(2);
+      expect(replayed.phase).toBe(0);
+      expect(replayed.units.find((u) => u.id === "a")!.acted).toBe(false);
+    });
   });
 });

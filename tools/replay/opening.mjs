@@ -296,6 +296,14 @@ export function resolveStep(engine, game, step) {
     if (list[i] === undefined) {
       throw new OpeningError(`소모품 없음 — ${step.item.iid ?? step.item.index}(소지 ${list.map((c) => c.iid ?? c.name).join("/")})`);
     }
+    // ☠엔진은 **범위 회복(AddType 2)만** 배선했다(battle.ts item 케이스 = 정직 거부). 리듀서 throw는
+    //   "미배선 아이템 종류"만 말하고 어느 수순의 무엇인지는 안 말한다 — 여기서 사유를 붙여 먼저 거부한다.
+    //   미배선 예 = 특효약(7)·해독제(18)·능력치 약(31).
+    if (list[i].addType !== 2) {
+      throw new OpeningError(
+        `엔진 미배선 소모품 — ${label(self)}의 ${list[i].iid ?? list[i].name}(AddType ${list[i].addType} · 배선된 것은 범위 회복 2뿐)`,
+      );
+    }
     return { self, actions: [{ type: "item", unit: self.id, item: i }], terminal: true, note: `아이템 ${list[i].iid ?? list[i].name}` };
   }
   if (step.attack !== undefined) {
