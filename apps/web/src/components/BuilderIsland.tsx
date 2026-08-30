@@ -43,8 +43,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const legendClass = "text-[11px] font-medium uppercase tracking-[0.14em] text-muted";
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-end gap-x-5 gap-y-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-4 flex shrink-0 flex-wrap items-end gap-x-5 gap-y-3">
         <label className="flex flex-col gap-1">
           <span className={legendClass}>{labels.job}</span>
           <select className={selectClass} value={jid} onChange={(e) => setJid(e.target.value)}>
@@ -82,20 +82,20 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
         {job === undefined && <p className="pb-1 text-[11px] text-muted">{labels.joinedNote}</p>}
       </div>
 
-      <div className="max-h-[calc(100dvh-235px)] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
-        <table className="border-collapse text-[17px]">
+      <div className="min-h-0 flex-1 w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
+        <table className="border-collapse text-[14px] md:text-[17px]">
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 {job !== undefined && (
-                  <span className="flex flex-col justify-center gap-0.5 px-2 py-[18px] text-ink">
+                  <span className="flex flex-col justify-center gap-0.5 px-1 py-2 text-ink md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1">
                     <span className="uppercase">{job.nameEn}</span>
                     <span className="text-[14px]">{"\u00A0"}</span>
                   </span>
                 )}
               </th>
               <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-[18px] text-gold" title={labels.internalShort}>
+                <span className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 text-gold md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1" title={labels.internalShort}>
                   <span>IN.LV</span>
                   {job !== undefined && <span className="text-[14px]">{"\u00A0"}</span>}
                 </span>
@@ -104,20 +104,20 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 <th
                   key={key}
                   scope="col"
-                  className="sticky top-0 z-20 min-w-[5.5rem] bg-panel p-0 align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]"
+                  className="sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]"
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
                     type="button"
                     onClick={() => toggle(key)}
-                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-2 py-[18px] hover:bg-sunken"
+                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-1 py-2 hover:bg-sunken md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1"
                   >
                     <span className={sort?.key === key ? "text-gold" : "text-ink"} title={labels.stats[key]}>
                       {STAT_EN[key]}
                       {sort?.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                     </span>
                     {job !== undefined && (
-                      <span className="text-[14px] text-gold" title={labels.growth}>
+                      <span className="text-[12px] md:text-[14px] text-gold" title={labels.growth}>
                         {`${job.diffGrow[key]}%`}
                       </span>
                     )}
@@ -142,7 +142,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="inline-block w-[6em] truncate text-[17px] font-semibold text-ink">{row.name}</span>
+                      <span className="inline-block w-[5em] truncate md:w-[6em] text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>
@@ -154,7 +154,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   return (
                     <td
                       key={key}
-                      className={`min-w-[5.5rem] px-2 py-1 text-center font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
+                      className={`min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"}`}
                     >
                       {cell.text}
                     </td>

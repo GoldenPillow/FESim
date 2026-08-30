@@ -74,6 +74,17 @@ body {
 tr:hover .entry-wrap {
   filter: drop-shadow(0 0 2px var(--gold));
 }
+/* 모바일 — 카드가 화면 절반을 못 넘게 얼굴 스트립을 축소(비율 유지). */
+@media (max-width: 767px) {
+  .entry-face {
+    width: 4.4rem;
+    height: 1.85rem;
+  }
+  .entry-card {
+    gap: 0.4rem;
+    padding: 2px 8px 2px 3px;
+  }
+}
 .entry-card {
   display: flex;
   align-items: center;
