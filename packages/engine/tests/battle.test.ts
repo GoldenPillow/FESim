@@ -1050,6 +1050,24 @@ describe("手番回数 오더 큐 + 전투 로컬 부여층(신속)", () => {
   });
 
   /**
+   * ★실기 절대 앵커 **8 + 4**(m002 뤼에르 인게이지+레이피어, 사용자 스크린샷 2026-08-19 — MP8 §10-6).
+   * ☠기보 파일에 매달았던 종전 앵커(corpus.test.ts)는 기보 재생성으로 **두 번째로** 죽었다
+   * (rules/seams.md §6 — 2026-08-22·2026-08-31 재발). 실기 수치를 기보 비의존 고정판으로 옮긴다:
+   * 같은 기전(신속 오더 절반)에서 절대치 8 → 4가 그대로 서야 실기와 산식이 함께 잡힌다.
+   */
+  it("★실기 절대 앵커 — 대미지 8이면 추가타는 정확히 4다 (기보 비의존 고정판)", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, stats: { ...baseStats, def: baseStats.def + 2 } }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "followUp"]);
+    const [first, , extra] = damagesOf(next);
+    expect(first).toBe(8);
+    expect(extra).toBe(4);
+  });
+
+  /**
    * 왜 위험한가: 50% 조건은 `総手番回数 == 手番回数 - 1`이라 **오더마다 관측값이 0,1,2…로 올라가야만**
    * 마지막 한 번에서 참이 된다. 증가를 오더 시작에 두면 영원히 거짓이 되고(추가타가 전부 100%),
    * 手番回数를 오더마다 다시 굴리면 신속이 매 오더 +1 되어 발산한다 — 둘 다 오류 없이 조용하다.
