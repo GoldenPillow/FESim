@@ -7,7 +7,7 @@ import {
   type StatBlock,
   type StatKey,
 } from "@fesim/engine";
-import type { BuilderCharProp, BuilderJobProp, BuilderProps } from "./fe17";
+import type { BuilderCharProp, BuilderJobProp, BuilderProps } from "../../lib/fe17";
 
 /**
  * 캐릭터 빌더 표시층 — 클라이언트 안전 순수 함수(☠fe17.ts는 타입만 참조한다).
