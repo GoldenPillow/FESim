@@ -40,7 +40,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[13px] text-ink focus:outline-none focus-visible:outline-2";
-  const legendClass = "text-[11px] font-medium uppercase tracking-[0.14em] text-muted";
+  const legendClass = "text-[13px] font-medium text-muted";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
