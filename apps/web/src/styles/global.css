@@ -96,16 +96,16 @@ tr:hover .entry-wrap {
    ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
 @media (max-width: 767px) {
   .builder-table {
-    font-size: 11px !important;
+    font-size: 10.5px !important;
   }
   .builder-table .stat-col {
     min-width: 0 !important;
   }
   .builder-table .stat-col button {
-    padding: 4px 3px !important;
+    padding: 4px 2px !important;
   }
   .builder-table td.stat-col {
-    padding: 4px 3px !important;
+    padding: 4px 2px !important;
   }
   /* 직업 선택 시 코너 클래스명이 첫 열을 밀어 가로 스크롤을 만든다 — 드롭다운에 이미 보이므로 숨김. */
   .builder-table .corner-job {
@@ -126,8 +126,8 @@ tr:hover .entry-wrap {
     padding: 2px 3px;
   }
   .entry-face {
-    width: 4.5rem;
-    height: 1.89rem;
+    width: 6.2rem;
+    height: 2.6rem;
   }
   .entry-name {
     display: none;

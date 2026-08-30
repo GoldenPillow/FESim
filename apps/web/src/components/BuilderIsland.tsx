@@ -94,7 +94,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   </span>
                 )}
               </th>
-              <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
+              <th className="inlv-col sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 text-gold md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1" title={labels.internalShort}>
                   <span>IN.LV</span>
                   {job !== undefined && <span className="text-[14px]">{"\u00A0"}</span>}
