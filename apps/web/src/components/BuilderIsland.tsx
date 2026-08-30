@@ -78,7 +78,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                 <th
                   key={key}
                   scope="col"
-                  className="px-1 py-1 font-normal"
+                  className="min-w-[6.5rem] px-1 py-1 font-normal"
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -114,7 +114,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={54} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="whitespace-nowrap text-[15px] font-semibold text-ink">{row.name}</span>
+                      <span className="inline-block w-[6em] truncate text-[15px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>
@@ -126,7 +126,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                   return (
                     <td
                       key={key}
-                      className={`px-2 py-1 text-right ${cell.capped ? "font-semibold text-cap" : "text-ink"}`}
+                      className={`min-w-[6.5rem] px-2 py-1 text-right font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
                     >
                       {cell.text}
                     </td>
