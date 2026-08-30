@@ -209,6 +209,18 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
     expect(lueur.maxLevel).toBe(20);
   });
 
+  it("boardPropsFor — 레벨업 rate 클래스 몫(growthJob = job.DiffGrow)이 자군에 실린다 (2026-08-31 수리)", () => {
+    // 왜 위험한가: 이 필드가 없으면 엔진 levelUpGrowthRate가 개인 단독으로 조용히 강하해
+    // 전 캠페인 레벨업이 클래스 성장분만큼 과소했다(오류도 경고도 없었다 — LEVELUP_GROW.md).
+    // 앵커 = triangleattack Alear HP 레벨당 +0.7 = 개인 60 + 신룡의 아이 DiffGrow.Hp 10.
+    const props = boardPropsFor("m003", "ko");
+    const lueur = props.units.find((u) => u.pid === "PID_リュール")!;
+    expect(lueur.growthJob).toEqual({ hp: 10, str: 10, mag: 0, dex: 10, spd: 15, lck: 5, def: 10, res: 10, bld: 5 });
+    // 적·우군에는 싣지 않는다(레벨업이 자군 한정 — 챕터 JSON 예산).
+    const enemy = props.units.find((u) => u.force !== 0)!;
+    expect(enemy.growthJob).toBeUndefined();
+  });
+
   it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {
     const props = boardPropsFor("m003", "ko");
     expect(props.objects.some((o) => o.crest === true && o.x === 9 && o.y === 10)).toBe(true);

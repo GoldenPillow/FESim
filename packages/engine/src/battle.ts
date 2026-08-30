@@ -26,7 +26,7 @@ import type { FormulaEnv } from "./formula/evaluate.js";
 import { isHit, isProbability100 } from "./formula/probability.js";
 import { IMPASSABLE, movementRange, type MoveType } from "./range.js";
 import { makeSkillModifier, type SkillGive, type SkillRow } from "./skills.js";
-import { STAT_KEYS, type StatBlock } from "./stats.js";
+import { levelUpGrowthRate, STAT_KEYS, type StatBlock } from "./stats.js";
 
 /**
  * 전투 해결·턴 진행 — 계약: (국면, 행동, 난수소스) → 국면. 순수·불변.
@@ -98,8 +98,13 @@ export interface UnitState {
   engageWeapons?: BattleWeapon[];
   /** 인게이지 기술 스냅숏(스타일 분기 해소 후) — engageAttack 액션의 실행물. 산출은 데이터층 소관. */
   engageArt?: EngageArt;
-  /** 레벨업 확률 성장률(%) — 없으면 레벨업 시 스탯 상승 없음. */
+  /** 개인 성장률(person.Grow 원본) — 고정 성장 누적기 **초기값**이자 레벨업 rate의 개인 몫. */
   growth?: StatBlock;
+  /**
+   * 레벨업 rate의 클래스 몫(현재 job.DiffGrow — 자군 한정 사영, LEVELUP_GROW.md).
+   * ☠자동레벨(deriveStats)의 DiffGrowN/H/L과 **다른 필드**다. rate = growth + growthJob(합산).
+   */
+  growthJob?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit). 지정 시 성장이 여기서 막힌다 — 미지정이면 무제한. */
   cap?: StatBlock;
   /**
@@ -683,12 +688,13 @@ const GROW_ATTEMPTS = 4;
 function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
   let best: Partial<StatBlock> = {};
   let bestCount = 0;
+  // rate = 개인 + 직업 DiffGrow 합산(Clamp 0..255) — Fixed 분기와 같은 배열을 읽는다(LEVELUP_GROW.md).
+  const rates = levelUpGrowthRate(unit.growth, unit.growthJob, effectiveSkills(unit));
   for (let attempt = 0; attempt < GROW_ATTEMPTS; attempt++) {
     const gains: Partial<StatBlock> = {};
     let count = 0;
     for (const key of STAT_KEYS) {
-      // 성장률 상한은 255다 — 100 절사가 아니다(person.Grow 실측 최대 105).
-      let grow = Math.min(Math.max(unit.growth?.[key] ?? 0, 0), 255);
+      let grow = rates[key];
       if (grow === 0) continue;
       const cap = unit.cap?.[key];
       const room = (): boolean => cap === undefined || unit.stats[key] + (gains[key] ?? 0) < cap;
@@ -722,9 +728,11 @@ function rollGrowth(unit: UnitState, rng: RandomSource): Partial<StatBlock> {
  */
 function fixedGrowth(unit: UnitState): { gains: Partial<StatBlock>; acc: Partial<StatBlock> } {
   const gains: Partial<StatBlock> = {};
+  // ☠acc 초기값 = person.Grow 원본 — 아래 rate(합산)와 다른 값이다(겸용 금지, LEVELUP_GROW.md).
   const acc: Partial<StatBlock> = { ...(unit.growthAcc ?? unit.growth ?? {}) };
+  const rates = levelUpGrowthRate(unit.growth, unit.growthJob, effectiveSkills(unit));
   for (const key of STAT_KEYS) {
-    const grow = Math.min(Math.max(unit.growth?.[key] ?? 0, 0), 255);
+    const grow = rates[key];
     if (grow === 0) continue;
     const cap = unit.cap?.[key];
     if (cap !== undefined && unit.stats[key] >= cap) continue;

@@ -166,6 +166,7 @@ export function projectUnit(
     engageArt: su?.engageArt ?? u.engageArt,
     skills: su?.skills ?? u.skills,
     growth: u.growth,
+    ...(u.growthJob !== undefined ? { growthJob: u.growthJob } : {}),
     ...(su?.growthAcc !== undefined ? { growthAcc: su.growthAcc } : {}),
     ...(u.cap !== undefined ? { cap: u.cap } : {}),
     ...(u.maxLevel !== undefined ? { maxLevel: u.maxLevel } : {}),

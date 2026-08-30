@@ -1,4 +1,4 @@
-# FESim Rulebook — fe17 / fe17-14
+# FESim Rulebook — fe17 / fe17-15
 
 ☠**Generated document.** `./dev rulebook` extracts it from code — hand edits are lost on regeneration.
 
@@ -9,7 +9,7 @@
   "coordinates": "인게임 (X, Z) — 좌하단 원점. 표기 정본 = apps/web/src/lib/grid.ts coordLabel",
   "phases": "force 오름차순 순환(0 자군 · 1 적군 · 2 우군). 한 바퀴 = 1턴",
   "activation": "유닛당 이동 1회 + 행동 1회. 행동이 재이동 창을 연다(moved 해제)",
-  "ruleVersion": "fe17-14"
+  "ruleVersion": "fe17-15"
 }
 ```
 
@@ -420,7 +420,7 @@
 ```json
 {
   "constants": {
-    "RULE_VERSION": "fe17-14",
+    "RULE_VERSION": "fe17-15",
     "INIT_SPIN": 20,
     "BAD_STATE": {
       "silence": 32,
@@ -20457,6 +20457,9 @@
         "이월 누적기가 있으면 그것이 초기값을 대체한다(재생·인계 복원 통로)",
         "성장률 250이면 한 레벨에 2 오른다(누적 500 → 255 클램프 → +2, 잔여 55)",
         "상한에 닿은 스탯은 누적조차 하지 않는다(게이트가 루프 진입 전 1회)",
+        "레벨업 rate = 개인 + 직업 DiffGrow 합산 · acc 초기값은 개인 원본(합산 아님)",
+        "努力の才(Work=2 · '*' · 2) — 직업 몫만 2배가 된다(개인 몫은 그대로)",
+        "Random 경로도 같은 합산 rate를 쓴다(Fixed/Random이 같은 배열을 읽는다 — 판독 확정)",
         "난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)",
         "신속이 없으면 순서·롤 소비가 종전과 같다 (공격측 추격 / 방어측 추격)",
         "신속: 手番回数 2 · 추격 없음 → [attack, counter, followUp]이고 추가타가 정확히 절반이다",

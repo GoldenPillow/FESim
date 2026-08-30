@@ -628,6 +628,12 @@ const slimSkill = (sid: string, depth = 0): SkillRow | undefined => {
     out[key] = row[key];
   }
   for (const key of Object.keys(row)) if (key.startsWith("EnhanceValue.")) out[key] = row[key];
+  // CalcWork 변조 축(Work 2 = 레벨업 클래스 성장 몫, 努力の才) — 1252행이 0이라 비영일 때만 싣는다.
+  if (typeof row["Work"] === "number" && row["Work"] !== 0) {
+    out["Work"] = row["Work"];
+    out["WorkOperation"] = row["WorkOperation"];
+    out["WorkValue"] = row["WorkValue"];
+  }
   out["Sid"] = sid;
   // ☠GiveSids는 **문자열**이라 엔진 혼자서는 아무것도 못 붙인다(엔진에 스킬 표가 없다 — 행은 유닛이 들고 다닌다).
   //   정본 SkillData.GiveSkills(+0x238)도 이미 해소된 목록이므로 여기서 행으로 풀어 실어 보낸다.
@@ -984,8 +990,10 @@ export interface BoardUnitProp {
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
-  /** 인물 성장률(%) — 자군 레벨업 롤. */
+  /** 인물 성장률(%) — 자군 레벨업 rate의 개인 몫이자 고정 누적기 초기값. */
   growth?: StatBlock;
+  /** 레벨업 rate의 클래스 몫(현재 job.DiffGrow — 자군 한정). ☠자동레벨의 DiffGrowN/H/L과 다른 필드다. */
+  growthJob?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit) — 성장 게이트의 입력. 없으면 무제한 성장이 된다. */
   cap?: StatBlock;
   /** 직업 최대 레벨(job.MaxLevel) — 도달 시 경험치 정지. */
@@ -1466,7 +1474,16 @@ export function boardProps(
       growth: person === undefined ? undefined : statBlock(person, "Grow."),
       // 성장 게이트 입력은 자군에만 싣는다 — 경험치·레벨업이 자군 한정이라(battle.ts grantExp)
       // 적·우군에 실으면 소비처 없이 유닛당 9숫자가 늘어 챕터 JSON 예산(§11)을 밀어낸다.
-      ...(v.unit.force === 0 ? { cap: unitCap(v.unit), maxLevel: job?.MaxLevel } : {}),
+      ...(v.unit.force === 0
+        ? {
+            cap: unitCap(v.unit),
+            maxLevel: job?.MaxLevel,
+            // 레벨업 rate의 클래스 몫(LEVELUP_GROW.md) — 개인 단독 사영이던 결손을 2026-08-31 수리.
+            ...(job !== undefined
+              ? { growthJob: statBlock(job as unknown as Record<string, unknown>, "DiffGrow.") }
+              : {}),
+          }
+        : {}),
       style: job?.StyleName,
       skills: skillRows.length > 0 ? skillRows : undefined,
       ai: v.unit.ai,

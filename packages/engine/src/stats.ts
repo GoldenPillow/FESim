@@ -7,9 +7,50 @@
  * ☠**성장률 소스는 택일이다** — `person.Grow`가 전 0이면 `job.BaseGrow`(+난이도 델타), 아니면 `person.Grow`.
  * 합산이 아니다. 일반 적 1379행이 person.Grow 전 0이라 이 갈래가 없으면 **적이 통째로 약해진다**.
  */
-import { STAT_KEYS, type StatBlock } from "@fesim/shared";
+import { STAT_KEYS, type SkillRow, type StatBlock } from "@fesim/shared";
 
 export { STAT_KEYS, type StatBlock, type StatKey } from "@fesim/shared";
+
+/**
+ * CalcWork 변조(SkillData.CalcWork 0x2489350, 5-way 0x24893D8) — 같은 Work 축 스킬은
+ * 순차 체이닝(SkillArray.CalcWork 0x24891D0). 배선된 소비처 = Work 2(JobGrowChange —
+ * 레벨업 클래스 성장 몫, 努力の才 x2). ItemHealScale 축은 미배선(장부 actions.staff).
+ */
+export function calcWork(value: number, work: number, skills?: readonly SkillRow[]): number {
+  let v = value;
+  for (const row of skills ?? []) {
+    if (row.Work !== work) continue;
+    const w = row.WorkValue ?? 0;
+    if (row.WorkOperation === "=") v = w;
+    else if (row.WorkOperation === "+") v = w + v;
+    else if (row.WorkOperation === "-") v = v - w;
+    else if (row.WorkOperation === "*") v = w * v;
+    else if (row.WorkOperation === "/") v = w === 0 ? v : v / w;
+  }
+  return v;
+}
+
+/**
+ * 레벨업 성장률 조립 — 정본 = `Unit.LevelUp`(0x1A3A040) 전단 + `Unit.GetCapabilityGrow`(0x1A2FF20),
+ * 판독 = `~/fesim_data/extracted/il2cpp/LEVELUP_GROW.md`. **Fixed/Random 공용**이고,
+ * 자동레벨(deriveStats)의 "택일"과 **다른 경로·다른 필드**다 — 여기는 개인 + 현재 직업 DiffGrow **합산**.
+ * ☠누적기 초기값(person.Grow 원본)과 다른 값이다 — 겸용하면 첫 레벨업이 어긋난다
+ * (2026-08-31 수리 전이 정확히 그 상태였다: 개인 단독이라 전 캠페인 레벨업이 클래스 몫만큼 과소).
+ * 미배선 = 택일 갈래 job.BaseGrow(발현 = 자군에 person.Grow 전0 유닛, 현행 로스터 전무) ·
+ * 무기 GrowRatio(비영 5종 전부 DLC 엠블렘 무기 — 무DLC 정책상 미발현).
+ */
+export function levelUpGrowthRate(
+  personGrowth: StatBlock | undefined,
+  jobGrow: StatBlock | undefined,
+  workSkills?: readonly SkillRow[],
+): StatBlock {
+  const out = {} as StatBlock;
+  for (const key of STAT_KEYS) {
+    const jobDelta = calcWork(jobGrow?.[key] ?? 0, 2, workSkills);
+    out[key] = clamp(Math.trunc((personGrowth?.[key] ?? 0) + jobDelta), 0, 255);
+  }
+  return out;
+}
 
 export interface DeriveStatsInput {
   jobBase: StatBlock;
