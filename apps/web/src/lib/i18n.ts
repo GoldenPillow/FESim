@@ -137,6 +137,10 @@ export interface BuilderLabels {
   starsphere: string;
   /** 스포일러 체커 라벨 — 켜면 후반(모브·베일)·사룡의 장 캐릭터 표시(기본 숨김, localStorage 저장). */
   showSpoilers: string;
+  /** 멀티클래스 비교 추가 버튼 — 누르면 아래에 직업 선택기가 한 줄 늘어난다. */
+  addCompare: string;
+  /** 비교 선택기 제거 버튼의 접근성 라벨. */
+  removeCompare: string;
   /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
   growth: string;
   /** 직업 미선택 안내(합류 시점 값이라는 사실). */
@@ -313,13 +317,15 @@ export const UI: Record<Locale, Strings> = {
     builder: {
       title: "Character Builder",
       intro:
-        "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment.",
+        "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment. Promotion happens as soon as the minimum level requirement is met.",
       job: "Class",
       jobNone: "No class",
       internal: "Internal level",
       internalShort: "Int. Lv",
       starsphere: "Starsphere (+15% growths)",
       showSpoilers: "Show spoiler + Fell Xenologue (DLC) characters",
+      addCompare: "Multiclass compare",
+      removeCompare: "Remove comparison",
       growth: "Growth",
       joinedNote: "No class selected — showing each unit as they join.",
       cappedNote: "Highlighted values have reached the stat cap.",
@@ -475,13 +481,16 @@ export const UI: Record<Locale, Strings> = {
     },
     builder: {
       title: "캐릭터 빌더",
-      intro: "상급직과 내부 레벨을 고르면 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준.",
+      intro:
+        "상급직과 내부 레벨을 고르면 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준. 전직은 최소 레벨 조건 만족 시 즉시 전직.",
       job: "클래스",
       jobNone: "직업 미선택",
       internal: "내부 레벨",
       internalShort: "내부레벨",
       starsphere: "성옥의 가호 (+15% 성장)",
       showSpoilers: "스포일러 캐릭터 + DLC 사룡의장 표시",
+      addCompare: "멀티클래스 비교",
+      removeCompare: "비교 제거",
       growth: "성장률",
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",

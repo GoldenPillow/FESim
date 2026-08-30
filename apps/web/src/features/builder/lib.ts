@@ -121,16 +121,33 @@ export function builderRows(
 }
 
 /**
- * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
- * Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
+ * 멀티클래스 비교 — 캐릭터당 [직업별 라인] 묶음(선택 순서 = 라인 순서 = 헤더 성장률 행 순서).
+ * 직업 미선택(빈 배열)은 합류 상태 1라인. ☠직업별 builderRows는 같은 로스터를 돌므로 zip이 안전하다.
  */
-export function sortBuilderRows(rows: readonly BuilderRow[], sort: BuilderSort | undefined): BuilderRow[] {
-  const out = [...rows];
+export function builderRowGroups(
+  props: Pick<BuilderProps, "chars" | "joinJobs">,
+  jobs: readonly BuilderJobProp[],
+  targetInternal: number,
+  extraSkills?: readonly SkillRow[],
+): BuilderRow[][] {
+  if (jobs.length === 0) return builderRows(props, undefined, targetInternal, extraSkills).map((r) => [r]);
+  const perJob = jobs.map((job) => builderRows(props, job, targetInternal, extraSkills));
+  return perJob[0]!.map((_, i) => perJob.map((rows) => rows[i]!));
+}
+
+/**
+ * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
+ * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
+ */
+export function sortRowGroups(groups: readonly BuilderRow[][], sort: BuilderSort | undefined): BuilderRow[][] {
+  const out = [...groups];
   out.sort((a, b) => {
-    const group = Number(a.ineligible) - Number(b.ineligible);
+    const first = a[0]!;
+    const second = b[0]!;
+    const group = Number(first.ineligible) - Number(second.ineligible);
     if (group !== 0) return group;
     if (sort === undefined) return 0;
-    const diff = a.cells[sort.key].value - b.cells[sort.key].value;
+    const diff = first.cells[sort.key].value - second.cells[sort.key].value;
     return sort.dir === "asc" ? diff : -diff;
   });
   return out;

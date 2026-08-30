@@ -1815,9 +1815,8 @@ export interface BuilderCharProp {
 
 export interface BuilderJobProp extends GrowthPathJob {
   jid: string;
+  /** 로케일 직업명 — 헤더 성장률 행에 게시(멀티클래스 개편으로 영문 코너 폐지, 2026-08-31). */
   name: string;
-  /** 영문 직업명 — 헤더 코너(카드 열 위) 표기는 로케일 무관 영어(사용자 결정 2026-08-31). */
-  nameEn: string;
   /** 전용직의 가능 캐릭터(정확히 1명 — Q3: 가능자 상단 표시) — 범용은 undefined. */
   uniquePid?: string;
 }
@@ -1939,7 +1938,6 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     targetJobs.push({
       jid,
       name: label(locale, String(r["Name"])) ?? jid,
-      nameEn: label("en", String(r["Name"])) ?? jid,
       ...path,
       ...(uniquePid !== undefined ? { uniquePid } : {}),
       sort: Number(r["Sort"] ?? 0),
