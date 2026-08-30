@@ -1820,6 +1820,8 @@ export interface BuilderJobProp extends GrowthPathJob {
 
 export interface BuilderProps {
   locale: Locale;
+  /** 星玉の加護 행(Work 3 = TotalGrowChange +15) — 빌더 체커가 켜면 전 캐릭터 workSkills에 얹는다. */
+  starsphere?: SkillRow;
   /** 합류순(본편 사슬 + 외전은 개방 시점(unlock) 뒤 삽입) — 초기 정렬의 정본. */
   chars: BuilderCharProp[];
   /** 합류 직업 단면(jid → 경로 입력) — chars.joinJid가 참조. limit는 job.Limit 원값. */
@@ -1853,6 +1855,11 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       for (const pid of notes[chapterMapId(para.cid)]?.joins ?? []) order.push(pid);
     }
   }
+  // DLC(사룡의 장) 5인 — E챕터 chapternotes.joins가 전부 빈 배열이라(보상 합류가 이벤트 데이터 밖)
+  // 뤼에르와 같은 명시 예외로 잇는다. DLC 제외 해제 = 2026-08-31 사용자 지시.
+  order.push("PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン");
+  // 이름 기반 얼굴 폴백 — 정본 pid 매핑이 없는 DLC 5인용(파일명 = Name에서 MPID_ 제거).
+  const facePaths = new Set(Object.values(manifest.faces ?? {}));
   const chars: BuilderCharProp[] = [];
   for (const pid of order) {
     const person = persons[pid] as unknown as Record<string, unknown> | undefined;
@@ -1871,13 +1878,17 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     });
     // ☠얼굴은 pid 직결로 읽는다 — toView의 sharedFaces 히스토그램은 DLC 위장 pid와의 파일 공유로
     //   본편 14명을 아이콘으로 강등시킨다(2026-08-31 조사) — 빌더에는 그 은폐 로직이 필요 없다.
-    const face = assetHref(manifest.faces?.[pid]);
+    const nameFace = `assets/faces/${String(person["Name"] ?? "").replace(/^MPID_/, "")}.webp`;
+    const face = assetHref(manifest.faces?.[pid] ?? (facePaths.has(nameFace) ? nameFace : undefined));
     chars.push({
       pid,
       name: label(locale, String(person["Name"])) ?? pid,
       ...(face !== undefined ? { face } : {}),
       joinLevel: Number(person["Level"] ?? 1),
-      internalOffset: Number(person["InternalLevel"] ?? 0),
+      // 내부 레벨 base = person.InternalLevel, 0이면 job.InternalLevel 폴백(内部レベル計算 정본 — B0-3).
+      internalOffset:
+        Number(person["InternalLevel"] ?? 0) ||
+        Number((jobs[String(person["Jid"])] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
       personGrowth: statBlock(person, "Grow."),
       personOffset: statBlock(person, "OffsetL."),
       personLimit: statBlock(person, "Limit."),
@@ -1908,9 +1919,9 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     if (Number(r["Rank"] ?? 0) !== 1) continue;
     const flag = Number(r["Flag"] ?? 0);
     const low = reachedBy.get(jid);
-    // 범용 = Flag 11 + 도달(인챈트·메이지캐넌은 도달 불가 = DLC 계열, 제외 — 설계 §7) ·
-    // 전용 = Flag 1 + 도달 · Flag 0 = 적 전용 변형(플레이어 비대상).
-    if ((flag !== 11 && flag !== 1) || low === undefined) continue;
+    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌 포함 — DLC 제외 해제 2026-08-31) ·
+    // 전용 = Flag 1 + 승급망 도달(가능자 판정) · Flag 0 = 적 전용 변형(플레이어 비대상).
+    if (!(flag === 11 || (flag === 1 && low !== undefined))) continue;
     const path = pathJobOf(jid);
     if (path === undefined) continue;
     const uniquePid = flag === 1 ? chars.find((c) => c.joinJid === low || c.joinJid === jid)?.pid : undefined;
@@ -1923,5 +1934,21 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     });
   }
   targetJobs.sort((a, b) => a.sort - b.sort);
-  return { locale, chars, joinJobs, targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job) };
+  const star = skills["SID_星玉の加護"] as Record<string, unknown> | undefined;
+  return {
+    locale,
+    ...(typeof star?.["Work"] === "number" && star["Work"] !== 0
+      ? {
+          starsphere: {
+            Sid: "SID_星玉の加護",
+            Work: Number(star["Work"]),
+            WorkOperation: String(star["WorkOperation"]),
+            WorkValue: Number(star["WorkValue"]),
+          } as SkillRow,
+        }
+      : {}),
+    chars,
+    joinJobs,
+    targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
+  };
 }

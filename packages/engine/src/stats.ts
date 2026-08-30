@@ -14,7 +14,8 @@ export { STAT_KEYS, type StatBlock, type StatKey } from "@fesim/shared";
 /**
  * CalcWork 변조(SkillData.CalcWork 0x2489350, 5-way 0x24893D8) — 같은 Work 축 스킬은
  * 순차 체이닝(SkillArray.CalcWork 0x24891D0). 배선된 소비처 = Work 2(JobGrowChange —
- * 레벨업 클래스 성장 몫, 努力の才 x2). ItemHealScale 축은 미배선(장부 actions.staff).
+ * 레벨업 클래스 성장 몫, 努力の才 x2) · Work 3(TotalGrowChange — 합산 총 성장률, 星玉の加護 +15).
+ * ItemHealScale(Work 1) 축은 미배선(장부 actions.staff).
  */
 export function calcWork(value: number, work: number, skills?: readonly SkillRow[]): number {
   let v = value;
@@ -47,7 +48,9 @@ export function levelUpGrowthRate(
   const out = {} as StatBlock;
   for (const key of STAT_KEYS) {
     const jobDelta = calcWork(jobGrow?.[key] ?? 0, 2, workSkills);
-    out[key] = clamp(Math.trunc((personGrowth?.[key] ?? 0) + jobDelta), 0, 255);
+    // Work 3 = 합산 총량 변조(TotalGrowChange — 星玉の加護 +15). 클램프 전에 붙는다.
+    const total = calcWork((personGrowth?.[key] ?? 0) + jobDelta, 3, workSkills);
+    out[key] = clamp(Math.trunc(total), 0, 255);
   }
   return out;
 }
@@ -153,12 +156,16 @@ export interface GrowthPathInput {
   targetJob: GrowthPathJob;
   /** 합류 표시 레벨(person.Level). */
   joinLevel: number;
-  /** person.InternalLevel — 합류 내부 레벨(1기점) = internalOffset + joinLevel. */
+  /**
+   * 내부 레벨 base — person.InternalLevel, 0이면 job.InternalLevel 폴백(内部レベル計算 정본).
+   * 합류 내부 레벨 = clamp(base + joinLevel − 1, 0, 50) — **0기점**(성장 레벨 수).
+   * ☠1기점 표기 폐기(2026-08-31 사용자 앵커: 모브 = 20 + 12 − 1 = 31, triangleattack 위첨자 동일).
+   */
   internalOffset: number;
   personGrowth: StatBlock;
   /** 난이도 선택된 인물 오프셋(OffsetN/H/L). */
   personOffset: StatBlock;
-  /** 목표 내부 레벨(1기점 = 총 성장 레벨 수). */
+  /** 목표 내부 레벨(0기점 = 총 성장 레벨 수 — 40이면 레벨업 40회 누적 상태). */
   targetInternal: number;
   /** CalcWork 변조 스킬(努力の才 등 Work 비영 행만) — 레벨업 rate의 클래스 몫에 걸린다. */
   workSkills?: readonly SkillRow[];
@@ -171,7 +178,7 @@ export interface GrowthPathResult {
   acc: StatBlock;
   /** 캡에 막힌 스탯(누적 정지 상태 — UI 캡 색 신호). */
   capped: StatKey[];
-  /** 도달 내부 레벨(1기점). 목표 미달이면 합류 상태 그대로다(강등 없음). */
+  /** 도달 내부 레벨(0기점 = 성장 레벨 수). 목표 미달이면 합류 상태 그대로다(강등 없음). */
   internal: number;
   /** 전직이 성립했는가 — false면 stats는 합류 직업 기준(목표 직업 미반영). */
   promoted: boolean;
@@ -186,7 +193,8 @@ const PROMOTE_LEVEL = 10;
  * 레벨업 rate·누적기는 전투 엔진과 같은 답변자(levelUpGrowthRate·동일 게이트 의미론)를 쓴다.
  */
 export function growthPath(input: GrowthPathInput): GrowthPathResult {
-  const joinInternal = input.internalOffset + input.joinLevel;
+  // 内部レベル計算 = clamp(base + 레벨 − 1, 0, 50) — 루나틱 상한(B0-3).
+  const joinInternal = clamp(input.internalOffset + input.joinLevel - 1, 0, 50);
   const baseCap = autoGrowBaseCapability({
     jobBase: input.joinJob.base,
     jobRank: input.joinJob.rank,

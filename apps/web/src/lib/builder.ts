@@ -3,6 +3,7 @@ import {
   growthPath,
   mergeStatCap,
   type GrowthPathJob,
+  type SkillRow,
   type StatBlock,
   type StatKey,
 } from "@fesim/engine";
@@ -26,7 +27,7 @@ export interface BuilderRow {
   pid: string;
   name: string;
   face?: string;
-  /** 도달 내부 레벨(1기점). */
+  /** 도달 내부 레벨(0기점 = 성장 레벨 수 — 内部レベル計算 정본, 모브 앵커 31). */
   internal: number;
   /** 목표 직업 값이 실제로 반영됐는가 — false면 합류 상태 표시(괄호·흐림). */
   projected: boolean;
@@ -55,12 +56,14 @@ export function builderRow(
   joinJob: GrowthPathJob,
   job: BuilderJobProp | undefined,
   targetInternal: number,
+  extraSkills?: readonly SkillRow[],
 ): BuilderRow {
   const ineligible = job !== undefined && job.uniquePid !== undefined && job.uniquePid !== char.pid;
   const asJoined = job === undefined || ineligible;
   const join = withPersonCap(joinJob, char.personLimit);
   const target = asJoined ? join : withPersonCap(job, char.personLimit);
-  const goal = asJoined ? char.internalOffset + char.joinLevel : targetInternal;
+  // 합류 내부(0기점) = base + 레벨 − 1 — growthPath의 산식과 같은 값을 목표로 줘야 "합류 상태"가 된다.
+  const goal = asJoined ? char.internalOffset + char.joinLevel - 1 : targetInternal;
   const path = growthPath({
     joinJob: join,
     targetJob: target,
@@ -69,7 +72,10 @@ export function builderRow(
     personGrowth: char.personGrowth,
     personOffset: char.personOffset,
     targetInternal: goal,
-    ...(char.workSkills !== undefined ? { workSkills: char.workSkills } : {}),
+    ...(() => {
+      const workSkills = [...(char.workSkills ?? []), ...(extraSkills ?? [])];
+      return workSkills.length > 0 ? { workSkills } : {};
+    })(),
   });
   const capped = new Set(path.capped);
   const cells = {} as Record<StatKey, BuilderCell>;
@@ -99,12 +105,13 @@ export function builderRows(
   props: Pick<BuilderProps, "chars" | "joinJobs">,
   job: BuilderJobProp | undefined,
   targetInternal: number,
+  extraSkills?: readonly SkillRow[],
 ): BuilderRow[] {
   const rows: BuilderRow[] = [];
   for (const char of props.chars) {
     const joinJob = props.joinJobs[char.joinJid];
     if (joinJob === undefined) continue;
-    rows.push(builderRow(char, joinJob, job, targetInternal));
+    rows.push(builderRow(char, joinJob, job, targetInternal, extraSkills));
   }
   return rows;
 }

@@ -929,6 +929,17 @@ describe("고정 성장 — GrowMode.Fixed 누적기", () => {
     expect(grown.growthAcc?.str).toBe(40);
   });
 
+  it("星玉の加護(Work=3 · '+' · 15) — 합산 총 성장률에 +15가 붙는다(TotalGrowChange)", () => {
+    const grown = levelUp({
+      growth: { ...zeroGrowth, str: 60 },
+      growthJob: { ...zeroGrowth, str: 10 },
+      skills: [{ Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow],
+    });
+    // rate = (60 + 10) + 15 = 85 → acc 60 + 85 = 145 → +1, 잔여 45 (무스킬이면 잔여 30 — 구분점).
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.growthAcc?.str).toBe(45);
+  });
+
   it("Random 경로도 같은 합산 rate를 쓴다(Fixed/Random이 같은 배열을 읽는다 — 판독 확정)", () => {
     // 개인 40 + 직업 60 = 100 → 확정 +1(잔여 롤 없음). 개인 단독(40)이면 rng가 실패값이라 +0 — 구분점.
     const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };

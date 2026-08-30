@@ -198,12 +198,13 @@ describe("growthPath — 성장 경로(빌더 B1)", () => {
       joinJob: pathJob(), targetJob: pathJob({ diffGrow: gp.sb({ str: 10 }) }),
       joinLevel: 10, internalOffset: 0,
       personGrowth: gp.sb({ str: 10 }), personOffset: gp.sb(),
-      targetInternal: 15,
+      targetInternal: 14,
     });
-    // 합류 자동레벨 9렙분 = roundGrow(10*9=90) = 1 → 전직 후 5렙업: acc 10 + 20*5 = 110 → +1, 잔여 10.
+    // 합류 자동레벨 9렙분 = roundGrow(10*9=90) = 1 · 합류 내부 = 10-1 = 9(0기점) →
+    // 전직 후 5렙업: acc 10 + 20*5 = 110 → +1, 잔여 10.
     expect(r.stats.str).toBe(2);
     expect(r.acc.str).toBe(10);
-    expect(r.internal).toBe(15);
+    expect(r.internal).toBe(14);
     expect(r.promoted).toBe(true);
   });
 
@@ -213,7 +214,7 @@ describe("growthPath — 성장 경로(빌더 B1)", () => {
       targetJob: pathJob({ base: gp.sb({ str: 5 }) }),
       joinLevel: 10, internalOffset: 0,
       personGrowth: gp.sb({ str: 50, hp: 10 }), personOffset: gp.sb(),
-      targetInternal: 10, // 전직 직후 상태(추가 렙업 0)
+      targetInternal: 9, // 전직 직후 상태(합류 내부 9 = 추가 렙업 0)
     });
     // 합류 표시 = 2 + roundGrow(50*9=450)=5 → 7. 전직 후 = 5 + 5 = 10 (차분 +3).
     expect(r.stats.str).toBe(10);
@@ -243,7 +244,7 @@ describe("growthPath — 성장 경로(빌더 B1)", () => {
       targetInternal: 20,
     });
     expect(r.promoted).toBe(false);
-    expect(r.internal).toBe(25);
+    expect(r.internal).toBe(24); // 20 + 5 - 1 (0기점)
     // 상급직 합류 자동레벨 = 5+19-1 = 23렙분: roundGrow(5*23=115)=1 → 표시 3+1=4 (targetJob Base 9는 미적용).
     expect(r.stats.str).toBe(4);
   });
@@ -254,7 +255,7 @@ describe("growthPath — 성장 경로(빌더 B1)", () => {
       targetJob: pathJob({ diffGrow: gp.sb() }),
       joinLevel: 8, internalOffset: 0,
       personGrowth: gp.sb({ hp: 10 }), personOffset: gp.sb(),
-      targetInternal: 12,
+      targetInternal: 11,
     });
     // 전직 전 2렙업 rate 50: acc 0→50→100 = +1. 전직 후 2렙업 rate 0: 변화 없음.
     expect(r.stats.str).toBe(1);
@@ -267,10 +268,10 @@ describe("growthPath — 성장 경로(빌더 B1)", () => {
       joinJob: pathJob(), targetJob: pathJob({ diffGrow: gp.sb({ str: 10 }) }),
       joinLevel: 10, internalOffset: 0,
       personGrowth: gp.sb({ str: 10 }), personOffset: gp.sb(),
-      targetInternal: 15,
+      targetInternal: 14,
       workSkills: [{ Sid: "SID_努力の才", Work: 2, WorkOperation: "*", WorkValue: 2 }],
     });
-    // rate = 10 + 10*2 = 30 → acc 10 + 150 = 160 → +1, 잔여 60 (무스킬이면 잔여 10 — 구분점).
+    // rate = 10 + 10*2 = 30 → 5렙업 acc 10 + 150 = 160 → +1, 잔여 60 (무스킬이면 잔여 10 — 구분점).
     expect(r.stats.str).toBe(2);
     expect(r.acc.str).toBe(60);
   });

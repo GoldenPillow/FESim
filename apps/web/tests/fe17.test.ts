@@ -983,8 +983,11 @@ describe("예보 대미지 표기 — 오더별로 다르면 ×N을 안 쓴다 (
 describe("builderPropsFor — 캐릭터 빌더 사영", () => {
   const props = builderPropsFor("ko");
 
-  it("본편 로스터 36명 · 합류순(뤼에르 선두, 외전은 개방 시점 삽입)", () => {
-    expect(props.chars).toHaveLength(36);
+  it("로스터 41명(본편 36 + 사룡의 장 5 — DLC 해제 2026-08-31) · 합류순(뤼에르 선두, 외전은 개방 시점 삽입)", () => {
+    expect(props.chars).toHaveLength(41);
+    expect(props.chars.slice(-5).map((c) => c.pid)).toEqual([
+      "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
+    ]);
     expect(props.chars[0]!.pid).toBe("PID_リュール");
     const pids = props.chars.map((c) => c.pid);
     // 장(s001, 개방 = M005 클리어)은 m004 합류(루이)와 m006 합류(유나카) 사이.
@@ -999,9 +1002,10 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(lueur.internalOffset).toBe(0);
     for (const c of props.chars) {
       expect(c.name).not.toMatch(/^PID_/);
-      expect(c.face).toBeDefined();
       expect(props.joinJobs[c.joinJid]).toBeDefined();
     }
+    // ☠결손 1건 박제: 라팔만 facethumb 번들에 스프라이트가 없다 — 늘어나면 파이프라인 회귀다.
+    expect(props.chars.filter((c) => c.face === undefined).map((c) => c.pid)).toEqual(["PID_ラファール"]);
   });
 
   it("장(Jean)만 努力の才(Work=2)를 workSkills로 든다", () => {
@@ -1010,12 +1014,12 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
   });
 
-  it("직업 드롭다운 = 범용 18 + 전용 9 (인챈트·메이지캐넌 제외, 한글명, 전용은 가능자 1명)", () => {
-    expect(props.targetJobs).toHaveLength(27);
+  it("직업 드롭다운 = 범용 20 + 전용 9 (DLC 해제로 인챈트·메이지캐넌 포함, 한글명, 전용은 가능자 1명)", () => {
+    expect(props.targetJobs).toHaveLength(29);
     const jids = props.targetJobs.map((j) => j.jid);
     expect(jids).toContain("JID_セイジ");
-    expect(jids).not.toContain("JID_エンチャント");
-    expect(jids).not.toContain("JID_マージカノン");
+    expect(jids).toContain("JID_エンチャント");
+    expect(jids).toContain("JID_マージカノン");
     const dragonKing = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
     expect(dragonKing.uniquePid).toBe("PID_リュール");
     expect(dragonKing.name).toBe("신룡의 왕");
@@ -1024,6 +1028,20 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지");
+  });
+
+  it("내부 레벨 base = person → job 폴백 (사용자 앵커: 모브 = 20 + 12 − 1 = 31)", () => {
+    const mauvier = props.chars.find((c) => c.pid === "PID_モーヴ")!;
+    expect(mauvier.joinLevel).toBe(12);
+    expect(mauvier.internalOffset).toBe(20);
+    const gregory = props.chars.find((c) => c.pid === "PID_グレゴリー")!;
+    expect(gregory.internalOffset).toBe(20);
+  });
+
+  it("성옥의 가호 행(Work 3 · +15)이 props에 실린다 — 체커의 데이터 정본", () => {
+    expect(props.starsphere?.Work).toBe(3);
+    expect(props.starsphere?.WorkOperation).toBe("+");
+    expect(props.starsphere?.WorkValue).toBe(15);
   });
 });
 
@@ -1050,7 +1068,7 @@ describe("B5 대조 표본 — Alear 소수부까지", () => {
     Object.fromEntries(STAT_KEYS.map((k) => [k, r.stats[k] + r.acc[k] / 100]));
 
   it("합류 초기 행(신룡의 아이 Lv1) = 22.6/6.35/0.2/5.45/7.5/5.25/5.4/3.25/4.05", () => {
-    const d = display(run(props.joinJobs[alear.joinJid]!, alear.internalOffset + alear.joinLevel));
+    const d = display(run(props.joinJobs[alear.joinJid]!, alear.internalOffset + alear.joinLevel - 1));
     expect(d["hp"]).toBeCloseTo(22.6, 5);
     expect(d["str"]).toBeCloseTo(6.35, 5);
     expect(d["mag"]).toBeCloseTo(0.2, 5);
@@ -1064,7 +1082,7 @@ describe("B5 대조 표본 — Alear 소수부까지", () => {
 
   it("내부 10 전직 직후 행(신룡의 왕 Lv1) = 30.9/12.4/3/12.4/14.35/8.95/10.9/8.4/7.95", () => {
     const target = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
-    const r = run(target, 10);
+    const r = run(target, 9); // 0기점 — triangleattack 표기 Lv1^(9)와 동일
     expect(r.promoted).toBe(true);
     const d = display(r);
     expect(d["hp"]).toBeCloseTo(30.9, 5);

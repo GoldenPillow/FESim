@@ -16,15 +16,21 @@ export interface BuilderIslandProps extends BuilderProps {
   labels: BuilderLabels;
 }
 
-export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: BuilderIslandProps) {
+const STAT_EN: Record<StatKey, string> = {
+  hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
+};
+
+export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere, labels }: BuilderIslandProps) {
   const [jid, setJid] = useState("");
   const [internal, setInternal] = useState(40);
   const [sort, setSort] = useState<BuilderSort | undefined>(undefined);
+  const [star, setStar] = useState(false);
 
   const job = targetJobs.find((j) => j.jid === jid);
+  const extraSkills = star && starsphere !== undefined ? [starsphere] : undefined;
   const rows = useMemo(
-    () => sortBuilderRows(builderRows({ chars, joinJobs }, job, internal), sort),
-    [chars, joinJobs, job, internal, sort],
+    () => sortBuilderRows(builderRows({ chars, joinJobs }, job, internal, extraSkills), sort),
+    [chars, joinJobs, job, internal, sort, extraSkills],
   );
 
   // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다.
@@ -61,18 +67,29 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
           </select>
         </label>
 
+        {starsphere !== undefined && (
+          <label className="flex items-center gap-1.5 pb-1.5 text-[12px] text-ink">
+            <input
+              type="checkbox"
+              checked={star}
+              onChange={(e) => setStar(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--gold)]"
+            />
+            {labels.starsphere}
+          </label>
+        )}
         <p className="pb-1 text-[11px] text-muted">{job === undefined ? labels.joinedNote : labels.cappedNote}</p>
       </div>
 
       <div className="max-h-[78vh] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
         <table className="border-collapse text-[15px]">
-          <thead>
+          <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-2 text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className={legendClass}>{chars.length}</span>
               </th>
               <th className="sticky top-0 z-20 bg-panel px-2 py-2 text-center font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className={`${legendClass} text-gold`}>{labels.internalShort}</span>
+                <span className={`${legendClass} text-gold`} title={labels.internalShort}>IN.LV</span>
               </th>
               {STAT_KEYS.map((key) => (
                 <th
@@ -86,8 +103,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                     onClick={() => toggle(key)}
                     className="flex w-full flex-col items-center gap-0.5 rounded px-1 py-1 hover:bg-sunken"
                   >
-                    <span className={sort?.key === key ? "text-gold" : "text-ink"}>
-                      {labels.stats[key]}
+                    <span className={sort?.key === key ? "text-gold" : "text-ink"} title={labels.stats[key]}>
+                      {STAT_EN[key]}
                       {sort?.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                     </span>
                     <span className="text-[11px] text-muted" title={labels.growth}>

@@ -133,6 +133,8 @@ export interface BuilderLabels {
   internal: string;
   /** 표 헤더용 짧은 표기. */
   internalShort: string;
+  /** 성옥의 가호 체커 라벨(+15% 총 성장). */
+  starsphere: string;
   /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
   growth: string;
   /** 직업 미선택 안내(합류 시점 값이라는 사실). */
@@ -314,6 +316,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "No class",
       internal: "Internal level",
       internalShort: "Int. Lv",
+      starsphere: "Starsphere (+15% growths)",
       growth: "Growth",
       joinedNote: "No class selected — showing each unit as they join.",
       cappedNote: "Highlighted values have reached the stat cap.",
@@ -474,6 +477,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "직업 미선택",
       internal: "내부 레벨",
       internalShort: "내부 Lv",
+      starsphere: "성옥의 가호 (+15% 성장)",
       growth: "성장률",
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",

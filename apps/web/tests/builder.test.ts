@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAT_KEYS, type GrowthPathJob, type StatBlock } from "@fesim/engine";
+import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
 import { builderRows, sortBuilderRows } from "../src/lib/builder";
 import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
 
@@ -55,7 +55,7 @@ describe("표시치 — 정수 스탯 + 누적기/100", () => {
     const [row] = builderRows(propsOf([char("a")]), undefined, 40);
     expect(row?.cells.hp.text).toBe("20.6");
     expect(row?.cells.str.text).toBe("5.5");
-    expect(row?.internal).toBe(1);
+    expect(row?.internal).toBe(0); // 0기점(성장 레벨 수) — 内部レベル計算 정본
     expect(row?.projected).toBe(false);
   });
 
@@ -63,14 +63,15 @@ describe("표시치 — 정수 스탯 + 누적기/100", () => {
     const [row] = builderRows(propsOf([char("a")]), HIGH, 11);
     expect(row?.internal).toBe(11);
     expect(row?.projected).toBe(true);
-    expect(row?.cells.hp.text).toBe("31.6");
-    expect(row?.cells.str.text).toBe("12.7");
+    // 0기점: 합류 내부 0 → 기본직 9렙업 + 전직 + 2렙업 = 11회 누적.
+    expect(row?.cells.hp.text).toBe("32.3");
+    expect(row?.cells.str.text).toBe("13.4");
   });
 
   it("합류 내부 레벨이 목표보다 높으면 합류 상태 그대로(강등 없음)", () => {
     const late = char("late", { internalOffset: 20, joinLevel: 5 });
     const [row] = builderRows(propsOf([late]), HIGH, 10);
-    expect(row?.internal).toBe(25);
+    expect(row?.internal).toBe(24); // 20 + 5 - 1
     expect(row?.projected).toBe(false);
   });
 });
@@ -128,7 +129,7 @@ describe("전용직", () => {
     expect(rows[0]?.ineligible).toBe(false);
     expect(rows[0]?.projected).toBe(true);
     expect(rows.slice(1).every((r) => r.ineligible)).toBe(true);
-    expect(rows[1]?.internal).toBe(1);
+    expect(rows[1]?.internal).toBe(0);
     expect(rows[1]?.cells.hp.text).toBe("20.6");
   });
 
@@ -149,5 +150,16 @@ describe("반올림 자리", () => {
     const high6: BuilderJobProp = { ...HIGH, jid: "JID_high6", base: block({ hp: 22, str: 6 }), rank: 0 };
     const rows = builderRows({ chars: [c], joinJobs: { JID_high6: high6 } }, undefined, 1);
     expect(rows[0]!.cells.str.text).toBe("6.4");
+  });
+});
+
+describe("성옥의 가호(extraSkills)", () => {
+  it("체커 스킬이 전 구간 rate에 +15를 얹는다(Work 3 = TotalGrowChange)", () => {
+    const star = { Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow;
+    const base = builderRows(propsOf([char("a")]), HIGH, 11)[0]!;
+    const boosted = builderRows(propsOf([char("a")]), HIGH, 11, [star])[0]!;
+    // str rate 50/70 → 65/85: acc0 50 + 65x9 + 85x2 = 805 → +8, 잔여 5 → 15.05 → "15.1".
+    expect(base.cells.str.text).toBe("13.4");
+    expect(boosted.cells.str.text).toBe("15.1");
   });
 });
