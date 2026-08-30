@@ -114,21 +114,78 @@ tr:hover .entry-wrap {
   .builder-table .grow-note {
     font-size: 10px !important;
   }
+  /* IN.LV 열은 숨기고 그 폭만큼 포트레이트를 키운다(2026-08-31 세로 수정). */
   .builder-table .inlv-col {
-    padding: 2px 3px !important;
+    display: none !important;
   }
   .builder-table th[scope="row"] {
-    padding: 2px 3px !important;
+    padding: 2px 2px !important;
   }
   .entry-card {
     gap: 0;
-    padding: 2px 4px;
+    padding: 2px 3px;
   }
   .entry-face {
-    width: 3.3rem;
-    height: 1.4rem;
+    width: 4.5rem;
+    height: 1.89rem;
   }
   .entry-name {
     display: none;
+  }
+}
+
+/* 가로 모드(높이 520px 이하) — 사용자 결정 2026-08-31: **PC 풀피쳐 그대로 + 모두 펼침**(세로와 작동 다름).
+   안쪽 스크롤 없이 페이지 스크롤 하나로 상하좌우 이동, 표 헤더는 상단바(3.5rem) 아래 고정.
+   ☠세로 모바일 블록(max-width 767)이 좁은 가로폰에 새므로 PC값을 명시 복원한다. */
+@media (max-height: 520px) {
+  .builder-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .builder-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .builder-table thead th {
+    top: 3.5rem;
+  }
+  .builder-table {
+    font-size: 17px !important;
+  }
+  .builder-table .stat-col {
+    min-width: 5.5rem !important;
+  }
+  .builder-table .stat-col button {
+    padding: 18px 8px !important;
+  }
+  .builder-table td.stat-col {
+    padding: 4px 8px !important;
+  }
+  .builder-table .inlv-col {
+    display: table-cell !important;
+    padding: 4px 8px !important;
+  }
+  .builder-table th[scope="row"] {
+    padding: 3px 8px !important;
+  }
+  .builder-table .corner-job {
+    display: flex !important;
+  }
+  .builder-table .grow-note {
+    font-size: 14px !important;
+  }
+  .entry-card {
+    gap: 0.55rem;
+    padding: 3px 12px 3px 4px;
+  }
+  .entry-face {
+    width: 6.6rem;
+    height: 2.75rem;
+  }
+  .entry-name {
+    display: inline-block;
+    width: 6em !important;
+    font-size: 17px !important;
   }
 }
