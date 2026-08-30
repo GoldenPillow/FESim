@@ -20791,6 +20791,7 @@
       "id": "movement.range-terrain-cost",
       "label": {
         "en": "Movement range from terrain cost (255 = impassable)",
+        "ja": "地形コストによる移動範囲(255 = 進入不可)",
         "ko": "지형 코스트 이동 범위(255 = 진입 불가)"
       },
       "status": "anchored",
@@ -20800,6 +20801,7 @@
       "id": "movement.once-per-activation",
       "label": {
         "en": "One move per activation",
+        "ja": "1行動につき移動1回",
         "ko": "활성화당 이동 1회"
       },
       "status": "anchored",
@@ -20809,6 +20811,7 @@
       "id": "movement.canter-distance",
       "label": {
         "en": "Canter: N tiles after acting (skill Removable)",
+        "ja": "再移動: 行動後Nマス(skills.json Removable)",
         "ko": "재이동: 행동 후 N칸(skills.json Removable)"
       },
       "status": "anchored",
@@ -20818,6 +20821,7 @@
       "id": "movement.canter-terrain-cost",
       "label": {
         "en": "Canter obeys terrain cost",
+        "ja": "再移動にも地形コストを適用",
         "ko": "재이동에 지형 코스트 적용"
       },
       "status": "anchored",
@@ -20827,6 +20831,7 @@
       "id": "movement.block-enemy",
       "label": {
         "en": "Cannot pass through non-allied units",
+        "ja": "非同盟軍のユニットは通過不可",
         "ko": "비동맹 진영 통과 불가"
       },
       "status": "anchored",
@@ -20836,6 +20841,7 @@
       "id": "movement.pass-ally",
       "label": {
         "en": "Pass through allied forces, cannot stop on them",
+        "ja": "同盟軍は通過可・停止不可",
         "ko": "동맹 진영 통과 가능·정지 불가"
       },
       "status": "anchored",
@@ -20845,6 +20851,7 @@
       "id": "movement.block-third-force",
       "label": {
         "en": "Enemy and third force block each other",
+        "ja": "敵軍↔友軍は相互に通過不可",
         "ko": "적군↔우군 상호 차단"
       },
       "status": "anchored",
@@ -20854,6 +20861,7 @@
       "id": "movement.pending-move",
       "label": {
         "en": "Move is provisional until an action commits it",
+        "ja": "行動確定までは移動が仮(再配置自由・原点で取消)",
         "ko": "행동 확정 전 잠정 이동(자유 재배치·원점 취소)"
       },
       "status": "anchored",
@@ -20863,6 +20871,7 @@
       "id": "movement.structures",
       "label": {
         "en": "Structures (doors, walls) affect passability",
+        "ja": "構造物(扉・壁)の通行判定",
         "ko": "구조물(문·벽) 통행 반영"
       },
       "status": "implemented",
@@ -20872,6 +20881,7 @@
       "id": "movement.multi-tile-unit",
       "label": {
         "en": "Multi-tile units (BmapSize)",
+        "ja": "複数マス占有ユニット(BmapSize)",
         "ko": "다칸 유닛(BmapSize)"
       },
       "status": "absent",
@@ -20881,6 +20891,7 @@
       "id": "movement.warp",
       "label": {
         "en": "Warp and other staff/item movement",
+        "ja": "杖・アイテムによる移動(ワープ等)",
         "ko": "지팡이·아이템 이동(워프 등)"
       },
       "status": "implemented",
@@ -20890,6 +20901,7 @@
       "id": "movement.move-first",
       "label": {
         "en": "Departure-tile movement bonus (MoveFirst)",
+        "ja": "出発マスの移動力補正(MoveFirst)",
         "ko": "출발 칸 이동력 보정(MoveFirst)"
       },
       "status": "implemented",
@@ -20899,6 +20911,7 @@
       "id": "movement.zoc",
       "label": {
         "en": "Zone of control (skill-driven only)",
+        "ja": "支配領域(ZOC — スキル由来のみ)",
         "ko": "제어영역(ZOC — 스킬 전용)"
       },
       "status": "absent",
@@ -20908,6 +20921,7 @@
       "id": "actions.wait",
       "label": {
         "en": "Wait ends the unit's action",
+        "ja": "待機 = 行動終了",
         "ko": "대기 = 행동 완료"
       },
       "status": "implemented",
@@ -20917,6 +20931,7 @@
       "id": "actions.attack",
       "label": {
         "en": "Attack command and battle resolution",
+        "ja": "攻撃コマンド・戦闘処理",
         "ko": "공격 명령·전투 해결"
       },
       "status": "anchored",
@@ -20926,6 +20941,7 @@
       "id": "actions.staff",
       "label": {
         "en": "Staves (heal, warp, status)",
+        "ja": "杖(回復・ワープ・状態異常)",
         "ko": "지팡이(회복·워프·상태)"
       },
       "status": "implemented",
@@ -20935,6 +20951,7 @@
       "id": "actions.items",
       "label": {
         "en": "Item use (vulneraries etc.)",
+        "ja": "アイテム使用(傷薬等)",
         "ko": "아이템 사용(회복약 등)"
       },
       "status": "implemented",
@@ -20944,6 +20961,7 @@
       "id": "actions.trade",
       "label": {
         "en": "Trade and convoy",
+        "ja": "交換・輸送隊",
         "ko": "교환·수송대"
       },
       "status": "implemented",
@@ -20953,6 +20971,7 @@
       "id": "actions.interact",
       "label": {
         "en": "Chests, villages, doors",
+        "ja": "宝箱・民家・扉の操作",
         "ko": "상자·민가·문 상호작용"
       },
       "status": "deferred",
@@ -20962,6 +20981,7 @@
       "id": "actions.talk",
       "label": {
         "en": "Talk command",
+        "ja": "会話コマンド",
         "ko": "대화 커맨드"
       },
       "status": "deferred",
@@ -20971,6 +20991,7 @@
       "id": "actions.dance",
       "label": {
         "en": "Dance (grant another action)",
+        "ja": "踊り(再行動の付与)",
         "ko": "춤(재행동 부여)"
       },
       "status": "implemented",
@@ -20980,6 +21001,7 @@
       "id": "actions.engage",
       "label": {
         "en": "Engage activation command",
+        "ja": "エンゲージ発動コマンド",
         "ko": "인게이지 발동 명령"
       },
       "status": "implemented",
@@ -20989,6 +21011,7 @@
       "id": "actions.engage-attack",
       "label": {
         "en": "Engage attack (art) command",
+        "ja": "エンゲージ技(攻撃技)",
         "ko": "인게이지 기술(공격기)"
       },
       "status": "assumed",
@@ -20998,6 +21021,7 @@
       "id": "actions.engage-subcommands",
       "label": {
         "en": "Engage sub-commands (rewarp/rod/charge/wait/summon)",
+        "ja": "エンゲージ下位コマンド(リワープ・ロッド・チャージ・待機・召喚)",
         "ko": "인게이지 세부기(리워프·로드·차지·대기·소환)"
       },
       "status": "absent",
@@ -21007,6 +21031,7 @@
       "id": "actions.destroy",
       "label": {
         "en": "Destroy terrain/structures",
+        "ja": "破壊(構造物を壊す)",
         "ko": "파괴(구조물 부수기)"
       },
       "status": "anchored",
@@ -21016,6 +21041,7 @@
       "id": "actions.cannon",
       "label": {
         "en": "Cannon (fire from terrain)",
+        "ja": "大砲(砲撃)",
         "ko": "대포(포격)"
       },
       "status": "absent",
@@ -21025,6 +21051,7 @@
       "id": "actions.torch",
       "label": {
         "en": "Torch (fog vision)",
+        "ja": "たいまつの点灯/消灯",
         "ko": "횃불 켜기/끄기"
       },
       "status": "deferred",
@@ -21034,6 +21061,7 @@
       "id": "actions.guard",
       "label": {
         "en": "Chain guard assignment",
+        "ja": "チェインガードの指定",
         "ko": "체인가드 지정"
       },
       "status": "implemented",
@@ -21043,6 +21071,7 @@
       "id": "actions.enchant",
       "label": {
         "en": "Enchant item/weapon",
+        "ja": "エンチャント(強化付与)",
         "ko": "인챈트(강화 부여)"
       },
       "status": "absent",
@@ -21052,6 +21081,7 @@
       "id": "actions.command-skills",
       "label": {
         "en": "Skill-granted map commands",
+        "ja": "スキル由来のマップコマンド(汎用)",
         "ko": "스킬 파생 맵 커맨드(범용)"
       },
       "status": "absent",
@@ -21061,6 +21091,7 @@
       "id": "actions.transporter",
       "label": {
         "en": "Transporter station",
+        "ja": "輸送ステーション(部隊編成)",
         "ko": "수송정거장"
       },
       "status": "deferred",
@@ -21070,6 +21101,7 @@
       "id": "actions.god-change",
       "label": {
         "en": "God (emblem ring) change on map",
+        "ja": "紋章士(指輪)変更コマンド",
         "ko": "문장(반지) 변경 커맨드"
       },
       "status": "deferred",
@@ -21079,6 +21111,7 @@
       "id": "combat.forecast-formulas",
       "label": {
         "en": "Forecast numbers from Calculator.xml DSL",
+        "ja": "戦闘予測の数値 = calculator.xml DSLを直接実行",
         "ko": "예보 수치 = calculator.xml DSL 직접 실행"
       },
       "status": "anchored",
@@ -21088,6 +21121,7 @@
       "id": "combat.true-hit",
       "label": {
         "en": "True hit model (displayed 50+ = sin hybrid)",
+        "ja": "命中の実確率(表示50以上 = sinハイブリッド)",
         "ko": "명중 실확률(표시 50 이상 = sin 하이브리드)"
       },
       "status": "anchored",
@@ -21097,6 +21131,7 @@
       "id": "combat.crit-multiplier",
       "label": {
         "en": "Critical = 3x damage",
+        "ja": "必殺 = ダメージ3倍",
         "ko": "필살 = 데미지 3배"
       },
       "status": "anchored",
@@ -21106,6 +21141,7 @@
       "id": "combat.damage-truncation",
       "label": {
         "en": "Damage integerization points (truncate toward zero)",
+        "ja": "ダメージの整数化地点(0方向へ切り捨て)",
         "ko": "대미지 정수화 지점(0 방향 절삭)"
       },
       "status": "anchored",
@@ -21115,6 +21151,7 @@
       "id": "combat.skill-sort-key",
       "label": {
         "en": "Skill execution order (SortKey)",
+        "ja": "スキル実行順(SortKey順)",
         "ko": "스킬 실행 순서(SortKey 정렬)"
       },
       "status": "absent",
@@ -21124,6 +21161,7 @@
       "id": "combat.rng-source",
       "label": {
         "en": "RNG source (xorshift128, per-stream)",
+        "ja": "乱数源(xorshift128・ストリーム別)",
         "ko": "난수원(xorshift128·스트림별)"
       },
       "status": "anchored",
@@ -21133,6 +21171,7 @@
       "id": "combat.crit-rng",
       "label": {
         "en": "General probability check (linear, 0.001% step)",
+        "ja": "一般確率判定(必殺・発動 — 線形・0.001%刻み)",
         "ko": "일반 확률 판정(필살·발동 — 선형·0.001% 해상도)"
       },
       "status": "anchored",
@@ -21142,6 +21181,7 @@
       "id": "combat.forecast-determinism",
       "label": {
         "en": "Forecast/AI simulation is deterministic (RNG bypass)",
+        "ja": "戦闘予測・AIシミュは決定論的(乱数バイパス)",
         "ko": "예보·AI 시뮬은 결정론(난수 우회)"
       },
       "status": "anchored",
@@ -21151,6 +21191,7 @@
       "id": "combat.follow-up",
       "label": {
         "en": "Follow-up attack from calculator formula",
+        "ja": "追撃判定 = calculatorの公式",
         "ko": "추격 판정 = calculator 공식"
       },
       "status": "anchored",
@@ -21160,6 +21201,7 @@
       "id": "combat.followup-durability-cap",
       "label": {
         "en": "Follow-up capped by remaining weapon durability",
+        "ja": "追撃は武器の残り耐久が上限",
         "ko": "추격의 잔여 내구 상한"
       },
       "status": "absent",
@@ -21169,6 +21211,7 @@
       "id": "combat.counter-range-gate",
       "label": {
         "en": "Counter-attack eligibility gates",
+        "ja": "反撃可能条件(射程・状態・武器)",
         "ko": "반격 가능 조건(사거리·상태·무기)"
       },
       "status": "absent",
@@ -21178,6 +21221,7 @@
       "id": "combat.interrupt-order",
       "label": {
         "en": "Interrupt order (Break follow-up)",
+        "ja": "割込みオーダー — ブレイク時の追撃",
         "ko": "割込み(가로채기) 오더 — 브레이크 시 추격"
       },
       "status": "absent",
@@ -21187,6 +21231,7 @@
       "id": "combat.chain-attack-accuracy",
       "label": {
         "en": "Chain attack accuracy: base 80, skills override via '='",
+        "ja": "チェインアタック命中率 = 基本80固定、スキルが=演算で上書き",
         "ko": "체인 어택 명중률 = 기본 80 고정, 스킬이 = 연산으로 덮어씀"
       },
       "status": "anchored",
@@ -21196,6 +21241,7 @@
       "id": "combat.chain-attack-damage-cut",
       "label": {
         "en": "Chain attack damage taken cut to 20%",
+        "ja": "チェインアタックの被ダメージ = 20%に減衰",
         "ko": "체인 어택 받는 대미지 = 20%로 감쇠"
       },
       "status": "anchored",
@@ -21205,6 +21251,7 @@
       "id": "combat.strike-order",
       "label": {
         "en": "Strike order: chain, attack, counter, follow-ups",
+        "ja": "攻撃順: チェイン→本攻撃→反撃→追撃→敵追撃",
         "ko": "타격 순서: 체인→본공격→반격→추격→적추격"
       },
       "status": "anchored",
@@ -21214,6 +21261,7 @@
       "id": "combat.strike-count",
       "label": {
         "en": "Multi-strike per engagement turn (attack count 2+)",
+        "ja": "攻撃回数(2以上)",
         "ko": "타격 횟수(攻撃回数 2 이상)"
       },
       "status": "absent",
@@ -21223,6 +21271,7 @@
       "id": "combat.turn-count",
       "label": {
         "en": "Engagement turn count model",
+        "ja": "手番回数(交戦ターン数)モデル",
         "ko": "手番回数(교전 턴 수) 모델"
       },
       "status": "implemented",
@@ -21232,6 +21281,7 @@
       "id": "combat.order-flow-skills",
       "label": {
         "en": "Order-altering flow skills (Vantage etc.)",
+        "ja": "順序変更系スキル(待ち伏せ等)",
         "ko": "순서 변경 흐름 스킬(待ち伏せ 등)"
       },
       "status": "absent",
@@ -21241,6 +21291,7 @@
       "id": "combat.advantage",
       "label": {
         "en": "Weapon triangle (sword>axe>lance, arts>bow/knife/tome)",
+        "ja": "相性(剣>斧>槍>剣・体術>弓/短剣/魔道書)",
         "ko": "상성(검>도끼>창>검·체술>활/단검/마도서)"
       },
       "status": "anchored",
@@ -21250,6 +21301,7 @@
       "id": "combat.advantage-skills",
       "label": {
         "en": "Advantage-conditional skills",
+        "ja": "相性条件スキル(武器相性激化・相性激化)",
         "ko": "상성 조건 스킬(武器相性激化·相性激化)"
       },
       "status": "absent",
@@ -21259,6 +21311,7 @@
       "id": "combat.break",
       "label": {
         "en": "Break: advantage + hit forfeits counters",
+        "ja": "ブレイク: 相性有利+命中で反撃を奪う",
         "ko": "브레이크: 상성 유리+명중 = 반격 몰수"
       },
       "status": "implemented",
@@ -21268,6 +21321,7 @@
       "id": "combat.break-immunity",
       "label": {
         "en": "Break immunity (armored style, null skill)",
+        "ja": "ブレイク無効(重装スタイル・無効スキル)",
         "ko": "브레이크 면역(중장 스타일·무효 스킬)"
       },
       "status": "implemented",
@@ -21277,6 +21331,7 @@
       "id": "combat.break-recovery",
       "label": {
         "en": "Break recovery: after one defended combat, or own phase start",
+        "ja": "ブレイク解除 = 被攻撃戦闘1回の直後、または自軍フェイズ開始時",
         "ko": "브레이크 해제 = 피격 전투 1회 직후 또는 자기 군 페이즈 시작"
       },
       "status": "anchored",
@@ -21286,6 +21341,7 @@
       "id": "combat.chain-attack",
       "label": {
         "en": "Chain attack (backup style in range)",
+        "ja": "チェインアタック(連携スタイル・射程内から参加)",
         "ko": "체인어택(연계 스타일·사거리 내 협공)"
       },
       "status": "anchored",
@@ -21295,6 +21351,7 @@
       "id": "combat.chain-guard",
       "label": {
         "en": "Chain guard",
+        "ja": "チェインガード",
         "ko": "체인가드"
       },
       "status": "assumed",
@@ -21304,6 +21361,7 @@
       "id": "combat.engage-guard",
       "label": {
         "en": "Engage guard",
+        "ja": "エンゲージガード",
         "ko": "엔게이지 가드"
       },
       "status": "absent",
@@ -21313,6 +21371,7 @@
       "id": "combat.engage-attack-damage-type",
       "label": {
         "en": "Engage-technique damage is a distinct type (separately mitigable)",
+        "ja": "エンゲージ技のダメージ = 独立した種別(個別に軽減対象)",
         "ko": "인게이지 기술 대미지 = 독립 유형(별도 감쇠 대상)"
       },
       "status": "assumed",
@@ -21322,6 +21381,7 @@
       "id": "combat.smash",
       "label": {
         "en": "Smash weapons (knockback, no first strike)",
+        "ja": "スマッシュ武器(押し出し・先制不可)",
         "ko": "스매시 무기(밀치기·선공 불가)"
       },
       "status": "absent",
@@ -21331,6 +21391,7 @@
       "id": "combat.weight-build-overflow",
       "label": {
         "en": "Weight-over-build damage bonus (physical, cap +5)",
+        "ja": "重さ超過ダメージ = min(武器の重さ-体格, 5)、物理限定",
         "ko": "무게 초과 대미지 = min(무기 무게-체격, 5), 물리 한정"
       },
       "status": "anchored",
@@ -21340,6 +21401,7 @@
       "id": "combat.effectiveness",
       "label": {
         "en": "Effectiveness (armored, cavalry, flying, dragon)",
+        "ja": "特効(重装・騎馬・飛行・竜族等)",
         "ko": "특효(중장·기병·비병·용족 등)"
       },
       "status": "implemented",
@@ -21349,6 +21411,7 @@
       "id": "combat.terrain-bonus",
       "label": {
         "en": "Terrain avoid/defense bonuses",
+        "ja": "地形の回避・守備補正",
         "ko": "지형 회피·방어 보정"
       },
       "status": "anchored",
@@ -21358,6 +21421,7 @@
       "id": "combat.effectiveness-ignore",
       "label": {
         "en": "Effectiveness immunity/negation",
+        "ja": "特効無効(加護・バリア)",
         "ko": "특효 무효(가호·배리어)"
       },
       "status": "absent",
@@ -21367,6 +21431,7 @@
       "id": "combat.terrain-asymmetric",
       "label": {
         "en": "Force-asymmetric terrain modifiers",
+        "ja": "自軍/敵軍で非対称な地形補正(瘴気等)",
         "ko": "자군/적군 비대칭 지형 보정(瘴気 등)"
       },
       "status": "implemented",
@@ -21376,6 +21441,7 @@
       "id": "combat.support-bonus",
       "label": {
         "en": "Support (bond) bonuses (adjacent only)",
+        "ja": "支援(絆)補正 — 隣接1マスのみ",
         "ko": "지원(인연) 보정 — 인접 1타일"
       },
       "status": "absent",
@@ -21385,6 +21451,7 @@
       "id": "combat.status-effects",
       "label": {
         "en": "Status effects (poison, freeze, ...)",
+        "ja": "状態異常(毒・フリーズ等)",
         "ko": "상태이상(독·동결 등)"
       },
       "status": "absent",
@@ -21394,6 +21461,7 @@
       "id": "combat.status-staff",
       "label": {
         "en": "Staff statuses: freeze, silence, stun (apply/duration/gates)",
+        "ja": "杖の状態異常 — 移動不可・沈黙・スタン(付与・持続・ゲート)",
         "ko": "지팡이 상태이상 — 이동불가·침묵·기절(부여·지속·게이트)"
       },
       "status": "implemented",
@@ -21403,6 +21471,7 @@
       "id": "combat.status-fang-curse",
       "label": {
         "en": "Fang curse: max HP -5 per stack, 4 discrete tiers",
+        "ja": "牙の呪い — 最大HP-5ずつ4段階(-5/-10/-15/-20)",
         "ko": "송곳니의 저주 — 최대 HP -5씩 4단(-5/-10/-15/-20)"
       },
       "status": "anchored",
@@ -21412,6 +21481,7 @@
       "id": "combat.staff-hit",
       "label": {
         "en": "Offensive staff hit/avoid",
+        "ja": "妨害杖の命中・回避",
         "ko": "방해 지팡이 명중·회피"
       },
       "status": "anchored",
@@ -21421,6 +21491,7 @@
       "id": "combat.range-hit-falloff",
       "label": {
         "en": "Range-based hit falloff (-10 per tile from range 4)",
+        "ja": "遠距離の命中減衰(射程4から1マスごとに-10)",
         "ko": "원거리 명중 감쇠(4칸부터 칸당 -10)"
       },
       "status": "assumed",
@@ -21430,6 +21501,7 @@
       "id": "combat.hp-stock",
       "label": {
         "en": "Boss HP stocks (multi-phase revival)",
+        "ja": "ボスのHPストック(多段復活)",
         "ko": "보스 HP 스톡(다단부활)"
       },
       "status": "absent",
@@ -21439,6 +21511,7 @@
       "id": "combat.scripted-modifiers",
       "label": {
         "en": "Script-injected combat modifiers",
+        "ja": "スクリプト注入の戦闘補正",
         "ko": "스크립트 주입 전투 보정"
       },
       "status": "absent",
@@ -21448,6 +21521,7 @@
       "id": "combat.kill-bonus",
       "label": {
         "en": "Kill bonus drops",
+        "ja": "撃破ボーナスのドロップ",
         "ko": "격파 보너스 드롭"
       },
       "status": "absent",
@@ -21457,6 +21531,7 @@
       "id": "combat.exp",
       "label": {
         "en": "EXP from calculator formulas and tables",
+        "ja": "経験値 = calculatorの原文公式+テーブル",
         "ko": "경험치 = calculator 원문 공식+테이블"
       },
       "status": "assumed",
@@ -21466,6 +21541,7 @@
       "id": "combat.exp-table-clamp",
       "label": {
         "en": "EXP table out-of-domain = boundary clamp",
+        "ja": "経験値テーブルの定義域外 = 境界クランプ",
         "ko": "경험치 테이블 정의역 밖 = 경계 클램프"
       },
       "status": "assumed",
@@ -21475,6 +21551,7 @@
       "id": "combat.exp-staff",
       "label": {
         "en": "Staff EXP",
+        "ja": "杖の経験値",
         "ko": "지팡이 경험치"
       },
       "status": "anchored",
@@ -21484,6 +21561,7 @@
       "id": "combat.exp-dance",
       "label": {
         "en": "Dance EXP",
+        "ja": "踊りの経験値",
         "ko": "춤 경험치"
       },
       "status": "absent",
@@ -21493,6 +21571,7 @@
       "id": "combat.exp-chain-guard",
       "label": {
         "en": "Chain guard EXP",
+        "ja": "チェインガードの経験値",
         "ko": "체인가드 경험치"
       },
       "status": "implemented",
@@ -21502,6 +21581,7 @@
       "id": "combat.exp-summon",
       "label": {
         "en": "Summon EXP",
+        "ja": "召喚の経験値",
         "ko": "소환 경험치"
       },
       "status": "absent",
@@ -21511,6 +21591,7 @@
       "id": "combat.exp-enchant",
       "label": {
         "en": "Enchant EXP",
+        "ja": "エンチャントの経験値",
         "ko": "인챈트 경험치"
       },
       "status": "absent",
@@ -21520,6 +21601,7 @@
       "id": "combat.exp-arena",
       "label": {
         "en": "Arena EXP branch",
+        "ja": "闘技場の経験値分岐",
         "ko": "투기장 경험치 분기"
       },
       "status": "absent",
@@ -21529,6 +21611,7 @@
       "id": "combat.levelup-growth",
       "label": {
         "en": "Level-up growth (cap gate, retry up to 4)",
+        "ja": "レベルアップ成長 — 上限ゲート・最大4回まで再抽選",
         "ko": "레벨업 성장 — 상한 게이트·최대 4시도 재굴림"
       },
       "status": "anchored",
@@ -21538,6 +21621,7 @@
       "id": "combat.max-level",
       "label": {
         "en": "Max level stops EXP",
+        "ja": "最大レベル = 経験値停止",
         "ko": "최대 레벨 = 경험치 정지"
       },
       "status": "anchored",
@@ -21547,6 +21631,7 @@
       "id": "units.stat-derivation",
       "label": {
         "en": "Stat derivation model",
+        "ja": "能力値算出モデル(兵種Base+Offset+成長)",
         "ko": "스탯 산출 모델(직업Base+Offset+성장)"
       },
       "status": "anchored",
@@ -21556,6 +21641,7 @@
       "id": "units.stat-derivation-edge",
       "label": {
         "en": "Stat cap/floor and AutoGrowOffset handling",
+        "ja": "能力値の上限(job+person Limit)・下限0・AutoGrowOffset",
         "ko": "스탯 상한(job+person Limit)·하한 0·AutoGrowOffset"
       },
       "status": "assumed",
@@ -21565,6 +21651,7 @@
       "id": "units.internal-level-cap",
       "label": {
         "en": "Internal level cap on promotion",
+        "ja": "内部レベル上限(クラスチェンジ時)",
         "ko": "내부 레벨 상한(전직 시)"
       },
       "status": "absent",
@@ -21574,6 +21661,7 @@
       "id": "units.move-enhance",
       "label": {
         "en": "Move stat bonuses (EnhanceValue.Move)",
+        "ja": "移動力補正(EnhanceValue.Move)",
         "ko": "이동력 보정(EnhanceValue.Move)"
       },
       "status": "implemented",
@@ -21583,6 +21671,7 @@
       "id": "units.difficulty-skills",
       "label": {
         "en": "Per-difficulty skill sets (Normal/Hard/LunaticSids)",
+        "ja": "難易度別スキル(Normal/Hard/LunaticSids)",
         "ko": "난이도별 스킬(Normal/Hard/LunaticSids)"
       },
       "status": "absent",
@@ -21592,6 +21681,7 @@
       "id": "units.style-grant-skills",
       "label": {
         "en": "Battle-style granted skills",
+        "ja": "戦闘スタイル付与スキル(隠密・魔法等)",
         "ko": "전투 스타일 부여 스킬(은밀·마법 등)"
       },
       "status": "absent",
@@ -21601,6 +21691,7 @@
       "id": "units.job-skills",
       "label": {
         "en": "Job skills (innate/learning/lunatic)",
+        "ja": "兵種スキル(Skills・LearningSkill・LunaticSkill)",
         "ko": "병과 스킬(Skills·LearningSkill·LunaticSkill)"
       },
       "status": "absent",
@@ -21610,6 +21701,7 @@
       "id": "units.job-growth",
       "label": {
         "en": "Generic enemy growth from job",
+        "ja": "一般敵の成長ソース(job.BaseGrow)",
         "ko": "일반 적 성장 소스(job.BaseGrow)"
       },
       "status": "absent",
@@ -21619,6 +21711,7 @@
       "id": "units.weapon-proficiency",
       "label": {
         "en": "Weapon aptitude and rank",
+        "ja": "武器適性・武器レベル(Aptitude)",
         "ko": "무기 적성·랭크(Aptitude)"
       },
       "status": "absent",
@@ -21628,6 +21721,7 @@
       "id": "units.promotion",
       "label": {
         "en": "Class promotion tree",
+        "ja": "クラスチェンジ体系(HighJob/LowJob)",
         "ko": "전직 체계(HighJob/LowJob)"
       },
       "status": "absent",
@@ -21637,6 +21731,7 @@
       "id": "units.skirmish-generation",
       "label": {
         "en": "Skirmish enemy generation",
+        "ja": "遭遇戦の敵生成(encount.xml)",
         "ko": "조우전 적 생성(encount.xml)"
       },
       "status": "absent",
@@ -21646,6 +21741,7 @@
       "id": "units.meal-buff",
       "label": {
         "en": "Meal stat buffs (Somniel cooking)",
+        "ja": "食事バフ(料理による能力値補正)",
         "ko": "식사 버프(요리 스탯 보정)"
       },
       "status": "absent",
@@ -21655,6 +21751,7 @@
       "id": "units.difficulty-scaling",
       "label": {
         "en": "Per-difficulty levels and stats from dispos",
+        "ja": "難易度別のレベル・能力値(dispos・Offset)",
         "ko": "난이도별 레벨·스탯(dispos·Offset)"
       },
       "status": "anchored",
@@ -21664,6 +21761,7 @@
       "id": "units.divine-paralogue-level",
       "label": {
         "en": "Divine Paralogue enemy level scaling (runtime)",
+        "ja": "神竜の章(g001~g006)の敵レベル実行時スケーリング",
         "ko": "신룡의 장(g001~g006) 적 레벨 런타임 스케일링"
       },
       "status": "anchored",
@@ -21673,6 +21771,7 @@
       "id": "units.chapter-preset-roster",
       "label": {
         "en": "Per-chapter preset party state (level, promotion, inventory, sync)",
+        "ja": "章ごとのプリセット部隊状態(レベル・クラスチェンジ・持ち物・シンクロ)",
         "ko": "챕터별 프리셋 파티 상태(레벨·승급·소지품·싱크로)"
       },
       "status": "assumed",
@@ -21682,6 +21781,7 @@
       "id": "units.equipped-weapon",
       "label": {
         "en": "Equipped weapon = first attack weapon in inventory",
+        "ja": "装備武器 = 持ち物の最初の攻撃武器",
         "ko": "장비 무기 = 소지품 첫 공격 무기"
       },
       "status": "assumed",
@@ -21691,6 +21791,7 @@
       "id": "skills.static-enhance",
       "label": {
         "en": "Static stat bonuses (EnhanceValue)",
+        "ja": "静的な能力値補正(EnhanceValue)",
         "ko": "정적 스탯 보정(EnhanceValue)"
       },
       "status": "anchored",
@@ -21700,6 +21801,7 @@
       "id": "skills.act-values",
       "label": {
         "en": "Combat value modifiers (ActNames DSL)",
+        "ja": "計算値補正(ActNames DSL — 小数保持・表示は切り捨て)",
         "ko": "계산값 보정(ActNames DSL — 소수 유지·표시 내림)"
       },
       "status": "anchored",
@@ -21709,6 +21811,7 @@
       "id": "skills.timing-filter",
       "label": {
         "en": "Skill activation filters (Stand/Action/Timing)",
+        "ja": "スキル発動フィルタ(Stand/Action/Timing)の遵守",
         "ko": "스킬 발동 필터(Stand/Action/Timing) 준수"
       },
       "status": "anchored",
@@ -21718,6 +21821,7 @@
       "id": "skills.opponent-act",
       "label": {
         "en": "Opponent-side value modifiers",
+        "ja": "相手側の計算値補正(相手の~ ActName)",
         "ko": "상대측 계산값 보정(相手の~ ActName)"
       },
       "status": "assumed",
@@ -21727,6 +21831,7 @@
       "id": "skills.raw-stat-act",
       "label": {
         "en": "Raw-stat ActNames bypass hooks",
+        "ja": "生の能力値ActName(力・魔力等を直接補正)",
         "ko": "원시 스탯 ActName(힘·마력 등 직접 보정)"
       },
       "status": "assumed",
@@ -21736,6 +21841,7 @@
       "id": "skills.sync-sids",
       "label": {
         "en": "SyncSids/SyncConditions expansion",
+        "ja": "SyncSids・SyncConditionsの展開",
         "ko": "SyncSids·SyncConditions 전개"
       },
       "status": "absent",
@@ -21745,6 +21851,7 @@
       "id": "skills.condition-fallback",
       "label": {
         "en": "Unknown condition identifiers fall back to not-applied",
+        "ja": "未知の条件識別子 = 未適用に降格",
         "ko": "미지 조건 식별자 = 미적용 강하"
       },
       "status": "assumed",
@@ -21754,6 +21861,7 @@
       "id": "skills.give-sids-battle-local",
       "label": {
         "en": "Battle-local granted skills (Cycle 0)",
+        "ja": "戦闘ローカル付与(Cycle 0 — 同一戦闘内の連鎖)",
         "ko": "전투 로컬 부여(Cycle 0 — 신속 사슬)"
       },
       "status": "implemented",
@@ -21763,6 +21871,7 @@
       "id": "skills.give-sids",
       "label": {
         "en": "Granted skills persisting after battle (GiveSids)",
+        "ja": "戦闘後も持続する付与(GiveSids — Cycle != 0)",
         "ko": "전투 후 영속 부여(GiveSids — Cycle != 0)"
       },
       "status": "deferred",
@@ -21772,6 +21881,7 @@
       "id": "skills.aura-give",
       "label": {
         "en": "Aura grants from nearby units (Timing=20)",
+        "ja": "周囲からのオーラ付与(Timing=20 — 他ユニットが与えるスキル)",
         "ko": "주위 오라 부여(Timing=20 — 타 유닛이 주는 스킬)"
       },
       "status": "absent",
@@ -21781,6 +21891,7 @@
       "id": "skills.style-variant",
       "label": {
         "en": "Style-variant skill branches",
+        "ja": "スタイル分岐スキル(兵種別の変種)",
         "ko": "스타일 분기 스킬(병종별 변형)"
       },
       "status": "implemented",
@@ -21790,6 +21901,7 @@
       "id": "skills.orphan-sids",
       "label": {
         "en": "Orphan SIDs (event-granted, no static source)",
+        "ja": "孤児SID(静的ソース無し — イベント付与と推定)",
         "ko": "고아 SID(정적 소스 없음 — 이벤트 부여 추정)"
       },
       "status": "absent",
@@ -21799,6 +21911,7 @@
       "id": "skills.source-collection",
       "label": {
         "en": "Skill collection sources (12 categories)",
+        "ja": "スキル収集ソース(Categorys 12種)",
         "ko": "스킬 수집 소스(Categorys 12종)"
       },
       "status": "absent",
@@ -21808,6 +21921,7 @@
       "id": "skills.duplicate-priority",
       "label": {
         "en": "Duplicate rejection and Priority override",
+        "ja": "重複排除・Priorityによる上位置換",
         "ko": "중복 배제·Priority 상하위 교체"
       },
       "status": "absent",
@@ -21817,6 +21931,7 @@
       "id": "skills.layer-exclusive",
       "label": {
         "en": "Layer exclusive slots (A/B/C/D)",
+        "ja": "Layer排他スロット(A/B/C/D)",
         "ko": "Layer 배타 슬롯(A/B/C/D)"
       },
       "status": "absent",
@@ -21826,6 +21941,7 @@
       "id": "skills.flow-hooks",
       "label": {
         "en": "Combat-flow hooks (damage, counts, exp, ...)",
+        "ja": "戦闘フローのフック(ダメージ・回数・取得経験等)",
         "ko": "전투 흐름 훅(ダメージ·回数·取得経験 등)"
       },
       "status": "absent",
@@ -21835,6 +21951,7 @@
       "id": "skills.around-ops",
       "label": {
         "en": "Aura operations (AroundName/Operation/Value)",
+        "ja": "オーラ演算(AroundName・Operation・Value)",
         "ko": "오라 연산(AroundName·Operation·Value)"
       },
       "status": "absent",
@@ -21844,6 +21961,7 @@
       "id": "skills.work-ops",
       "label": {
         "en": "Work-field operations",
+        "ja": "Workフィールド演算(5種)",
         "ko": "Work 필드 연산(5종)"
       },
       "status": "absent",
@@ -21853,6 +21971,7 @@
       "id": "skills.weapon-level-merge",
       "label": {
         "en": "WeaponLevel merged by max per slot",
+        "ja": "武器レベル補正 = スロット別の最大値でマージ",
         "ko": "무기 레벨 보정 = 슬롯별 최댓값 병합"
       },
       "status": "absent",
@@ -21862,6 +21981,7 @@
       "id": "skills.enhance-level",
       "label": {
         "en": "EnhanceLevel = summed gate (>=1)",
+        "ja": "EnhanceLevel = 合算1以上のゲート",
         "ko": "EnhanceLevel = 합산 1 이상 게이트"
       },
       "status": "absent",
@@ -21871,6 +21991,7 @@
       "id": "skills.crit-unknown",
       "label": {
         "en": "Lueur +5 crit = Vander's aura (identified)",
+        "ja": "リュール必殺+5 = ヴァンドレの白の忠誠オーラ(解明済み)",
         "ko": "뤼에르 필살 +5 = 반데르 白の忠誠 오라(규명 완료)"
       },
       "status": "absent",
@@ -21880,6 +22001,7 @@
       "id": "emblem.sync-stats",
       "label": {
         "en": "Sync stat bonuses via skills",
+        "ja": "シンクロの能力値補正(スキル経由)",
         "ko": "싱크로 스탯 보정(스킬 경유)"
       },
       "status": "anchored",
@@ -21889,6 +22011,7 @@
       "id": "emblem.sync-bond-level",
       "label": {
         "en": "Sync skills = union of bond levels 1..N (highest per series)",
+        "ja": "シンクロスキル = 絆1..Nの和集合・同系統は最高レベル",
         "ko": "싱크로 스킬 = 絆 1..N 합집합·동계열 최고 레벨"
       },
       "status": "anchored",
@@ -21898,6 +22021,7 @@
       "id": "emblem.chapter-bond-level",
       "label": {
         "en": "Per-chapter emblem bond level baseline",
+        "ja": "章ごとの紋章士の絆レベル基準値",
         "ko": "챕터별 엠블렘 絆 레벨 기본값"
       },
       "status": "absent",
@@ -21907,6 +22031,7 @@
       "id": "emblem.engage-activation",
       "label": {
         "en": "Engage activation, meter, duration",
+        "ja": "エンゲージ発動・カウント・持続",
         "ko": "인게이지 발동·카운트·지속"
       },
       "status": "implemented",
@@ -21916,6 +22041,7 @@
       "id": "emblem.engage-kit",
       "label": {
         "en": "Engage weapons and engage skills",
+        "ja": "紋章士の武器・エンゲージ技",
         "ko": "엠블렘 무기·인게이지 기술"
       },
       "status": "deferred",
@@ -21925,6 +22051,7 @@
       "id": "emblem.bond-ring",
       "label": {
         "en": "Bond rings (stats, S-rank skills)",
+        "ja": "絆の指輪(能力値補正・Sランクスキル)",
         "ko": "絆지환(스탯 보정·S랭크 스킬)"
       },
       "status": "absent",
@@ -21934,6 +22061,7 @@
       "id": "emblem.inheritance",
       "label": {
         "en": "Skill inheritance (cost, availability)",
+        "ja": "スキル継承(コスト・可否)",
         "ko": "스킬 계승(비용·가능 여부)"
       },
       "status": "absent",
@@ -21943,6 +22071,7 @@
       "id": "emblem.doubles-multiplier",
       "label": {
         "en": "Doubles/afterimage stat multiplier",
+        "ja": "残像(分身)の能力値倍率",
         "ko": "잔상(분신) 능력 배율"
       },
       "status": "absent",
@@ -21952,6 +22081,7 @@
       "id": "emblem.crest-tile",
       "label": {
         "en": "Emblem energy tile effect",
+        "ja": "紋章気の効果",
         "ko": "紋章氣(문장기) 효과"
       },
       "status": "assumed",
@@ -21961,6 +22091,7 @@
       "id": "weapons.attack-kinds",
       "label": {
         "en": "Attack weapon kinds (staves excluded)",
+        "ja": "攻撃武器の判別(Kind 1~6・8・9、杖を除く)",
         "ko": "공격 무기 판별(Kind 1~6·8·9, 지팡이 제외)"
       },
       "status": "anchored",
@@ -21970,6 +22101,7 @@
       "id": "weapons.range-union",
       "label": {
         "en": "Attack range = union of RangeI..RangeO",
+        "ja": "射程 = RangeI..RangeOの和集合",
         "ko": "사거리 = RangeI..RangeO 합집합"
       },
       "status": "anchored",
@@ -21979,6 +22111,7 @@
       "id": "weapons.magic-split",
       "label": {
         "en": "Magic damage detection (Kind 6 or flag)",
+        "ja": "魔法ダメージの判別(Kind 6またはFlag bit16)",
         "ko": "마법 데미지 판별(Kind 6 또는 Flag bit16)"
       },
       "status": "anchored",
@@ -21988,6 +22121,7 @@
       "id": "weapons.equip-enhance",
       "label": {
         "en": "Equipped item stat enhancement (Enhance.*)",
+        "ja": "装備アイテムの能力値強化(Enhance.*)",
         "ko": "장비 아이템 능력치 강화(Enhance.*)"
       },
       "status": "anchored",
@@ -21997,6 +22131,7 @@
       "id": "weapons.cannon-hit-model",
       "label": {
         "en": "Cannon (bullet) weapons: dedicated hit formula and range falloff",
+        "ja": "砲弾武器専用の命中式と距離減衰",
         "ko": "포탄 무기 전용 명중식과 거리 감쇠"
       },
       "status": "absent",
@@ -22006,6 +22141,7 @@
       "id": "weapons.equip-sids",
       "label": {
         "en": "Weapon/item granted skills (EquipSids)",
+        "ja": "武器・アイテム付与スキル(EquipSids)",
         "ko": "무기·아이템 부여 스킬(EquipSids)"
       },
       "status": "absent",
@@ -22015,6 +22151,7 @@
       "id": "weapons.add-effect-schema",
       "label": {
         "en": "Item add-effect schema (AddTarget x AddRange x AddType x AddPower x AddSids)",
+        "ja": "アイテム付加効果スキーマ(AddTarget×AddRange×AddType×AddPower×AddSids)",
         "ko": "아이템 부가효과 스키마(AddTarget×AddRange×AddType×AddPower×AddSids)"
       },
       "status": "anchored",
@@ -22024,6 +22161,7 @@
       "id": "weapons.enchant-by-weapon-name",
       "label": {
         "en": "Enchant applies to all weapons sharing a name, lasts until map end",
+        "ja": "エンチャント = 同名武器すべてに適用、マップ終了まで持続",
         "ko": "인챈트 = 동명(同名) 무기 전체 적용, 맵 종료까지 지속"
       },
       "status": "anchored",
@@ -22033,6 +22171,7 @@
       "id": "weapons.tonic-level-scaling",
       "label": {
         "en": "Tonic items scale stat gain by unit level",
+        "ja": "トニック系アイテム = ユニットのレベルに比例した能力値上昇",
         "ko": "토닉류 아이템 = 유닛 레벨에 비례한 스탯 상승"
       },
       "status": "absent",
@@ -22042,6 +22181,7 @@
       "id": "weapons.forge-engrave",
       "label": {
         "en": "Forging and engraving bonuses",
+        "ja": "錬成・刻印の補正",
         "ko": "연성·각인 보정"
       },
       "status": "absent",
@@ -22051,6 +22191,7 @@
       "id": "turn.phase-cycle",
       "label": {
         "en": "Phase cycle and turn increment",
+        "ja": "フェイズ循環(生存軍のみ)・自軍に戻るとターン加算",
         "ko": "페이즈 순환(생존 군만)·자군 복귀 시 턴 증가"
       },
       "status": "implemented",
@@ -22060,6 +22201,7 @@
       "id": "turn.activation-reset",
       "label": {
         "en": "Phase start resets acted/moved/broken",
+        "ja": "フェイズ開始時に行動・移動・ブレイクをリセット",
         "ko": "페이즈 복귀 시 행동·이동·브레이크 리셋"
       },
       "status": "implemented",
@@ -22069,6 +22211,7 @@
       "id": "turn.terrain-heal",
       "label": {
         "en": "Terrain heal/damage at turn start",
+        "ja": "地形による回復・ダメージ(ターン開始時)",
         "ko": "지형 회복·피해(턴 시작)"
       },
       "status": "anchored",
@@ -22078,6 +22221,7 @@
       "id": "turn.chapter-hold-level",
       "label": {
         "en": "Chapter hold level (Fell Xenologue)",
+        "ja": "章の固定レベル(邪竜の章 HoldLevel)",
         "ko": "챕터 고정 레벨(사룡의 장 HoldLevel)"
       },
       "status": "absent",
@@ -22087,6 +22231,7 @@
       "id": "turn.rewind",
       "label": {
         "en": "Time crystal rewind (limits, script gating)",
+        "ja": "巻き戻し(竜の時水晶 — 回数制限・スクリプト制御)",
         "ko": "되감기(시간의 수정 — 한도·스크립트 통제)"
       },
       "status": "absent",
@@ -22096,6 +22241,7 @@
       "id": "turn.map-gimmicks",
       "label": {
         "en": "Map gimmicks (spread, hazards, collapse)",
+        "ja": "マップギミック(拡散・危険マス・崩落等)",
         "ko": "맵 기믹(확산·위험타일·붕괴 등)"
       },
       "status": "absent",
@@ -22105,6 +22251,7 @@
       "id": "turn.victory-rout",
       "label": {
         "en": "Rout victory / player wipe defeat",
+        "ja": "敵全滅 = 勝利・自軍全滅 = 敗北",
         "ko": "적 전멸 = 승리 · 자군 전멸 = 패배"
       },
       "status": "implemented",
@@ -22114,6 +22261,7 @@
       "id": "turn.victory-objectives",
       "label": {
         "en": "Chapter-specific objectives",
+        "ja": "章固有の勝利条件",
         "ko": "챕터 고유 승리 조건"
       },
       "status": "deferred",
@@ -22123,6 +22271,7 @@
       "id": "turn.reinforcements",
       "label": {
         "en": "Reinforcements (turn/condition spawns)",
+        "ja": "増援(ターン・条件で出現)",
         "ko": "증원(턴·조건 등장)"
       },
       "status": "deferred",
@@ -22132,6 +22281,7 @@
       "id": "turn.enemy-ai",
       "label": {
         "en": "Automatic enemy phase AI",
+        "ja": "敵フェイズAIの自動進行",
         "ko": "적턴 AI 자동 진행"
       },
       "status": "assumed",
@@ -22141,6 +22291,7 @@
       "id": "turn.delegate",
       "label": {
         "en": "Delegate (auto-battle)",
+        "ja": "おまかせ(自動進行)",
         "ko": "위임(자동진행)"
       },
       "status": "deferred",
@@ -22150,6 +22301,7 @@
       "id": "ai.routine-vocabulary",
       "label": {
         "en": "AI routine opcode programs",
+        "ja": "AIルーチン(オペコードプログラム141種)",
         "ko": "AI 루틴(옵코드 프로그램 141종)"
       },
       "status": "implemented",
@@ -22159,6 +22311,7 @@
       "id": "ai.data-projection",
       "label": {
         "en": "AI field projection completeness",
+        "ja": "AIフィールド射影の完全性",
         "ko": "AI 필드 사영 완결성"
       },
       "status": "implemented",
@@ -22168,6 +22321,7 @@
       "id": "ai.move-limit",
       "label": {
         "en": "AI movement boxes (hard constraint)",
+        "ja": "AI移動制限ボックス(AI_MoveLimit)",
         "ko": "AI 이동 제한 박스(AI_MoveLimit)"
       },
       "status": "implemented",
@@ -22177,6 +22331,7 @@
       "id": "ai.band-activation",
       "label": {
         "en": "Band-linked AI activation",
+        "ja": "バンド連動の起動(AI_BandNo)",
         "ko": "밴드 연동 기동(AI_BandNo)"
       },
       "status": "implemented",
@@ -22186,6 +22341,7 @@
       "id": "ai.sub-routine-swap",
       "label": {
         "en": "Conditional AI routine swap",
+        "ja": "条件付きサブAIの差し替え",
         "ko": "조건부 서브 AI 치환"
       },
       "status": "implemented",
@@ -22195,6 +22351,7 @@
       "id": "ai.opcode-interpreter",
       "label": {
         "en": "AI opcode interpreter (slot order, Active gates)",
+        "ja": "AIオペコードインタプリタ(スロット順・Activeゲート)",
         "ko": "AI 옵코드 인터프리터(슬롯 순서·Active 게이트)"
       },
       "status": "implemented",
@@ -22204,6 +22361,7 @@
       "id": "ai.move-hero",
       "label": {
         "en": "MV_Hero (89): chase the protagonist",
+        "ja": "MV_Hero(89) — 主人公を追跡",
         "ko": "MV_Hero(89) — 주인공 추격"
       },
       "status": "anchored",
@@ -22213,6 +22371,7 @@
       "id": "ai.mind-village",
       "label": {
         "en": "MI_Village (62): head for villages (to destroy)",
+        "ja": "MI_Village(62) — 民家へ向かう(破壊目的)",
         "ko": "MI_Village(62) — 민가로 향한다(파괴 목적)"
       },
       "status": "assumed",
@@ -22222,6 +22381,7 @@
       "id": "ai.attack-scoring",
       "label": {
         "en": "AI target scoring (bitfield lexicographic)",
+        "ja": "AIの標的評価(ビットフィールドの辞書式比較)",
         "ko": "AI 표적 평가(비트필드 사전식 비교)"
       },
       "status": "assumed",
@@ -22231,6 +22391,7 @@
       "id": "ai.order-multiplier",
       "label": {
         "en": "Per-order damage multipliers in AI target scoring",
+        "ja": "AI標的評価にオーダー別の倍率を反映",
         "ko": "AI 표적 평가의 오더별 배율 반영"
       },
       "status": "anchored",
@@ -22240,6 +22401,7 @@
       "id": "ai.attack-position",
       "label": {
         "en": "AI attack-position scoring",
+        "ja": "AIの攻撃位置評価(辞書式整数)",
         "ko": "AI 공격 위치 평가(사전식 정수)"
       },
       "status": "assumed",
@@ -22249,6 +22411,7 @@
       "id": "ai.action-handlers",
       "label": {
         "en": "AI action handler bodies",
+        "ja": "AI行動ハンドラの本体",
         "ko": "AI 행동 핸들러 본문"
       },
       "status": "assumed",
@@ -22258,6 +22421,7 @@
       "id": "events.engine",
       "label": {
         "en": "Event engine (full Lua runtime)",
+        "ja": "イベントエンジン(Luaの完全実行)",
         "ko": "이벤트 엔진(풀 Lua 실행)"
       },
       "status": "implemented",
@@ -22267,6 +22431,7 @@
       "id": "events.triggers",
       "label": {
         "en": "Event triggers (inspectors)",
+        "ja": "イベントトリガ(インスペクタ26種)",
         "ko": "이벤트 트리거(인스펙터 26종)"
       },
       "status": "assumed",
@@ -22276,6 +22441,7 @@
       "id": "events.dispos",
       "label": {
         "en": "Event spawn (Dispos) & initial placement",
+        "ja": "イベントスポーン(Dispos)・初期配置",
         "ko": "이벤트 스폰(Dispos)·초기 배치"
       },
       "status": "anchored",
@@ -22285,6 +22451,7 @@
       "id": "units.dispos-difficulty-flag",
       "label": {
         "en": "Dispos difficulty mask (Flag bits N/H/L)",
+        "ja": "dispos難易度マスク(Flag N/H/Lビット)",
         "ko": "dispos 난이도 마스크(Flag N/H/L 비트)"
       },
       "status": "anchored",
@@ -22294,6 +22461,7 @@
       "id": "events.variables",
       "label": {
         "en": "Game variables (GameVariable)",
+        "ja": "ゲーム変数(GameVariable)",
         "ko": "게임 변수(GameVariable)"
       },
       "status": "assumed",
@@ -22303,6 +22471,7 @@
       "id": "events.win-rules",
       "label": {
         "en": "Win/lose rules",
+        "ja": "勝敗規則(章固有)",
         "ko": "승패 규칙(챕터 고유)"
       },
       "status": "assumed",
@@ -22312,6 +22481,7 @@
       "id": "events.ai-rewrite",
       "label": {
         "en": "Event AI rewrite (record only)",
+        "ja": "イベントAIの再設定(記録のみ)",
         "ko": "이벤트 AI 재설정(기록만)"
       },
       "status": "deferred",
