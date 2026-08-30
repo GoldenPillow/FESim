@@ -93,10 +93,18 @@ export {
 export type { ConsumableItem, EngageArt, EngageState, StaffItem } from "@fesim/shared";
 export type { AiReasoning, AiRejectGate, AiRejection, AiTargetCandidate } from "@fesim/shared";
 export {
+  autoGrowBaseCapability,
+  calcWork,
   deriveStats,
   grownLevels,
+  growthPath,
+  levelUpGrowthRate,
+  mergeStatCap,
   STAT_KEYS,
   type DeriveStatsInput,
+  type GrowthPathInput,
+  type GrowthPathJob,
+  type GrowthPathResult,
   type StatBlock,
   type StatKey,
 } from "./stats.js";

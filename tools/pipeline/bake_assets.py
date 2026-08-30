@@ -246,6 +246,32 @@ def bake_gods(data: Path, faces: dict) -> int:
     return 0
 
 
+def bake_roster_faces(data: Path, faces: dict) -> None:
+    """챕터 dispos에 등장하지 않는 플레이어블(사룡의 장 보상 합류 5인) 얼굴 보강.
+
+    챕터 단위 베이크는 dispos 출현 유닛만 훑어 이들의 정본 pid가 영영 빠진다 —
+    빌더 로스터(apps/web fe17.ts builderPropsFor의 명시 5인)와 같은 목록을 정본 pid로 직결 등재한다.
+    (2026-08-31, 라팔 얼굴 결손이 발단 — 스프라이트 Rafale는 번들에 실재했다.)
+    """
+    persons = json.loads((data / "tables" / "persons.json").read_text(encoding="utf-8"))
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    face_dir = data / "assets" / "faces"
+    for pid in ("PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン"):
+        person = persons.get(pid)
+        if person is None:
+            continue
+        key = (person.get("Name") or "").removeprefix("MPID_")
+        if key not in faces:
+            print(f"roster face missing in bundle: {pid}({key})", file=sys.stderr)
+            continue
+        dest = face_dir / f"{key}.webp"
+        if not dest.is_file():
+            write_webp(faces[key].read().image.convert("RGBA"), dest)
+        manifest.setdefault("faces", {})[pid] = f"assets/faces/{key}.webp"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chapter", default="M002")
@@ -266,6 +292,7 @@ def main() -> int:
 
     assets = load_assets(args.romfs)
     failed = bake_gods(args.data, assets["faces"])
+    bake_roster_faces(args.data, assets["faces"])
     for chapter in chapters:
         failed += 1 if bake(args, chapter, assets) else 0
 

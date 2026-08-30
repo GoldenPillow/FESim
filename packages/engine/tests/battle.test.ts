@@ -902,6 +902,61 @@ describe("고정 성장 — GrowMode.Fixed 누적기", () => {
     expect(grown.growthAcc?.str).toBe(60); // 초기값(person.Grow) 그대로 — 가산조차 없다
   });
 
+  /**
+   * ☠수리 배선(2026-08-31, 빌더 B0-1 판독 — LEVELUP_GROW.md): 레벨업 rate는 개인 단독이 아니라
+   * **개인(택일 base) + 현재 직업 DiffGrow** 합산이다(Unit.GetCapabilityGrow 0x1A2FF20 — Fixed/Random 공용).
+   * 종전에는 개인만 써서 전 캠페인 레벨업이 클래스 성장분만큼 과소했고, 오류도 경고도 없었다.
+   * acc 초기값(person.Grow 원본)과 rate는 **다른 값**이다 — 겸용하면 첫 레벨업이 어긋난다.
+   */
+  it("레벨업 rate = 개인 + 직업 DiffGrow 합산 · acc 초기값은 개인 원본(합산 아님)", () => {
+    const grown = levelUp({
+      growth: { ...zeroGrowth, str: 60 },
+      growthJob: { ...zeroGrowth, str: 10 },
+    });
+    // acc0 = 60(개인 원본) + rate 70 = 130 → +1, 잔여 30. 합산 초기값(70)이었다면 잔여 40 — 구분점.
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.growthAcc?.str).toBe(30);
+  });
+
+  it("努力の才(Work=2 · '*' · 2) — 직업 몫만 2배가 된다(개인 몫은 그대로)", () => {
+    const grown = levelUp({
+      growth: { ...zeroGrowth, str: 60 },
+      growthJob: { ...zeroGrowth, str: 10 },
+      skills: [{ Sid: "SID_努力の才", Work: 2, WorkOperation: "*", WorkValue: 2 } as SkillRow],
+    });
+    // rate = 60 + 10*2 = 80 → acc 60+80 = 140 → +1, 잔여 40.
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.growthAcc?.str).toBe(40);
+  });
+
+  it("星玉の加護(Work=3 · '+' · 15) — 합산 총 성장률에 +15가 붙는다(TotalGrowChange)", () => {
+    const grown = levelUp({
+      growth: { ...zeroGrowth, str: 60 },
+      growthJob: { ...zeroGrowth, str: 10 },
+      skills: [{ Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow],
+    });
+    // rate = (60 + 10) + 15 = 85 → acc 60 + 85 = 145 → +1, 잔여 45 (무스킬이면 잔여 30 — 구분점).
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+    expect(grown.growthAcc?.str).toBe(45);
+  });
+
+  it("Random 경로도 같은 합산 rate를 쓴다(Fixed/Random이 같은 배열을 읽는다 — 판독 확정)", () => {
+    // 개인 40 + 직업 60 = 100 → 확정 +1(잔여 롤 없음). 개인 단독(40)이면 rng가 실패값이라 +0 — 구분점.
+    const enemy = { hp: 1, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 5 };
+    const s = state([
+      unit({
+        id: "a", force: 0, x: 0, y: 0, weapon: sword, exp: 95,
+        growth: { ...zeroGrowth, str: 40 },
+        growthJob: { ...zeroGrowth, str: 60 },
+      }),
+      unit({ id: "e", force: 1, x: 1, y: 0, stats: enemy, hp: 1, weapon: sword }),
+    ]);
+    const never: RandomSource = { next: () => 99999 };
+    const grown = reduce({ ...s, growMode: "random" }, { type: "attack", unit: "a", target: "e" }, never)
+      .units.find((u) => u.id === "a")!;
+    expect(grown.stats.str).toBe(baseStats.str + 1);
+  });
+
   it("난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)", () => {
     let consumed = 0;
     const rng: RandomSource = { next: () => { consumed += 1; return 0; } };
@@ -992,6 +1047,24 @@ describe("手番回数 오더 큐 + 전투 로컬 부여층(신속)", () => {
     const [first, , extra] = damagesOf(next);
     expect(extra).toBe(first / 2);
     expect(first).toBe(10); // 攻撃力 15 - 相手の防御力 5
+  });
+
+  /**
+   * ★실기 절대 앵커 **8 + 4**(m002 뤼에르 인게이지+레이피어, 사용자 스크린샷 2026-08-19 — MP8 §10-6).
+   * ☠기보 파일에 매달았던 종전 앵커(corpus.test.ts)는 기보 재생성으로 **두 번째로** 죽었다
+   * (rules/seams.md §6 — 2026-08-22·2026-08-31 재발). 실기 수치를 기보 비의존 고정판으로 옮긴다:
+   * 같은 기전(신속 오더 절반)에서 절대치 8 → 4가 그대로 서야 실기와 산식이 함께 잡힌다.
+   */
+  it("★실기 절대 앵커 — 대미지 8이면 추가타는 정확히 4다 (기보 비의존 고정판)", () => {
+    const s = state([
+      unit({ id: "a", force: 0, x: 0, y: 0, weapon: sword, skills: [skillRow("SID_カウンター")] }),
+      unit({ id: "e", force: 1, x: 1, y: 0, weapon: sword, stats: { ...baseStats, def: baseStats.def + 2 } }),
+    ]);
+    const next = reduce(s, { type: "attack", unit: "a", target: "e" }, counting());
+    expect(kindsOf(next)).toEqual(["attack", "counter", "followUp"]);
+    const [first, , extra] = damagesOf(next);
+    expect(first).toBe(8);
+    expect(extra).toBe(4);
   });
 
   /**

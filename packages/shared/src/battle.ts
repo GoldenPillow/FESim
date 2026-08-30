@@ -123,6 +123,15 @@ export interface SkillRow {
   EfficacyValue?: number;
   /** 특효 무시 마스크 — 대상 보유 스킬 합집합이 공격자 Efficacy를 지운다(特効無効 127·バリア 32). */
   EfficacyIgnore?: number;
+  /**
+   * CalcWork 변조 축(SkillData.CalcWork 0x2489350) — **2 = JobGrowChange**(레벨업 클래스 성장 몫, 努力の才 —
+   * LEVELUP_GROW.md 판독 확정). 다른 축(ItemHealScale·TotalGrowChange)은 값 미판독·미배선.
+   * 0/미지정 = 변조 없음(1252행이 0이라 사영은 비영일 때만 싣는다).
+   */
+  Work?: number;
+  /** CalcWork 연산자 — "=" WorkValue 치환 · "+" 가산 · "-" v-WorkValue · "*" 배율 · "/" 나눗셈. */
+  WorkOperation?: string;
+  WorkValue?: number;
   [key: string]: unknown;
 }
 

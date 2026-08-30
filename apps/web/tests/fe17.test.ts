@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { growthPath, mergeStatCap, STAT_KEYS, type GrowthPathJob, type GrowthPathResult } from "@fesim/engine";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -207,6 +208,18 @@ describe("인게이지 효과 사영 (MP1-4b) — EngagedSkills·EngageSid 치�
     // 뤼에르(JID_神竜ノ子) 상한 = job.Limit + person.Limit 실값(Lv99 산출은 이 상한에 못 닿는 스탯이 있다).
     expect(lueur.cap).toEqual({ hp: 68, str: 42, mag: 25, dex: 37, spd: 44, lck: 35, def: 35, res: 25, bld: 13 });
     expect(lueur.maxLevel).toBe(20);
+  });
+
+  it("boardPropsFor — 레벨업 rate 클래스 몫(growthJob = job.DiffGrow)이 자군에 실린다 (2026-08-31 수리)", () => {
+    // 왜 위험한가: 이 필드가 없으면 엔진 levelUpGrowthRate가 개인 단독으로 조용히 강하해
+    // 전 캠페인 레벨업이 클래스 성장분만큼 과소했다(오류도 경고도 없었다 — LEVELUP_GROW.md).
+    // 앵커 = triangleattack Alear HP 레벨당 +0.7 = 개인 60 + 신룡의 아이 DiffGrow.Hp 10.
+    const props = boardPropsFor("m003", "ko");
+    const lueur = props.units.find((u) => u.pid === "PID_リュール")!;
+    expect(lueur.growthJob).toEqual({ hp: 10, str: 10, mag: 0, dex: 10, spd: 15, lck: 5, def: 10, res: 10, bld: 5 });
+    // 적·우군에는 싣지 않는다(레벨업이 자군 한정 — 챕터 JSON 예산).
+    const enemy = props.units.find((u) => u.force !== 0)!;
+    expect(enemy.growthJob).toBeUndefined();
   });
 
   it("boardPropsFor — m003 紋章氣가 crest 플래그로 실린다(엔진 국면 crests의 초기값)", () => {
@@ -905,21 +918,30 @@ describe("★앵커 m001 step34 — 무기 전환이 낀 추격 판", () => {
     );
     const store = createBoardStore(props, { file }, file.setup, eventWiringFor(props, eventsMod, commons));
     const session = store.getState().replay!;
-    const step = file.log[34]!;
-    expect(step.action).toMatchObject({ type: "attack", unit: "u8", target: "u11", weapon: 1 });
+    // ☠스텝 번호를 박제하지 않는다(rules/seams.md §6 — 기보가 다시 만들어지면 앵커가 사라진다).
+    //   발현 조건(비장비 무기 지정 + 추격 타격)으로 판을 찾는다 — 없으면 그때가 진짜 레드다.
+    const idx = file.log.findIndex(
+      (s) =>
+        s.action.type === "attack" &&
+        ((s.action as { weapon?: number }).weapon ?? 0) > 0 &&
+        (s.events ?? []).some((e) => e.type === "strike" && e.kind === "followUp"),
+    );
+    expect(idx).toBeGreaterThan(-1);
+    const step = file.log[idx]!;
 
-    const before = replayer.stateAt(session.timeline, 34);
-    expect(before.units.find((u) => u.id === "u8")?.weapon?.name).toBe("철의 검"); // 전투 직전 장비
+    const before = replayer.stateAt(session.timeline, idx);
+    const actor = before.units.find((u) => u.id === (step.action as { unit: string }).unit);
     const equipped = actionWeapon(before, step.action);
-    expect(equipped?.weapon.name).toBe("레이피어");
+    expect(equipped?.weapon.name).toBeDefined();
+    expect(equipped?.weapon.name).not.toBe(actor?.weapon?.name); // 전환이 낀 판이어야 결함이 발현한다
 
     const hits = (step.events ?? []).filter(
       (e): e is Extract<typeof e, { type: "strike" }> => e.type === "strike",
     );
-    expect(hits.map((h) => h.kind)).toEqual(["attack", "followUp", "extra"]);
-    expect(displayKindOf(before, hits[1]!, equipped)).toBe("followUp");
-    // 종전 근사(무기 미전달) — 같은 타격이 추가타로 강하한다. 이 줄이 결함의 실물이다.
-    expect(displayKindOf(before, hits[1]!)).toBe("extra");
+    const followUp = hits.find((h) => h.kind === "followUp")!;
+    expect(displayKindOf(before, followUp, equipped)).toBe("followUp");
+    // 종전 근사(무기 미전달) — 같은 타격이 추격 아닌 것으로 강하한다. 이 줄이 결함의 실물이다.
+    expect(displayKindOf(before, followUp)).not.toBe("followUp");
   }, 30000);
 });
 
@@ -959,5 +981,129 @@ describe("예보 대미지 표기 — 오더별로 다르면 ×N을 안 쓴다 (
     expect(strikeSuffix(fc.attack!.damages)).toBe("+5");
     // 한 번뿐인 오더에는 아무것도 안 붙는다(종전과 같다).
     expect(strikeSuffix([10])).toBe("");
+  });
+});
+
+/**
+ * 캐릭터 빌더 사영(builderPropsFor — avg_stats_builder B2).
+ * 왜 위험한가: 로스터·전용직 판정이 데이터 규칙(joins 역참조·Flag·승급망)에 걸려 있어
+ * 규칙이 어긋나면 빌더 표가 조용히 사람을 빠뜨리거나 DLC 직업을 섞는다.
+ */
+describe("builderPropsFor — 캐릭터 빌더 사영", () => {
+  const props = builderPropsFor("ko");
+
+  it("로스터 41명(본편 36 + 사룡의 장 5 — DLC 해제 2026-08-31) · 합류순(뤼에르 선두, 외전은 개방 시점 삽입)", () => {
+    expect(props.chars).toHaveLength(41);
+    expect(props.chars.slice(-5).map((c) => c.pid)).toEqual([
+      "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
+    ]);
+    expect(props.chars[0]!.pid).toBe("PID_リュール");
+    const pids = props.chars.map((c) => c.pid);
+    // 장(s001, 개방 = M005 클리어)은 m004 합류(루이)와 m006 합류(유나카) 사이.
+    expect(pids.indexOf("PID_ジャン")).toBeGreaterThan(pids.indexOf("PID_ルイ"));
+    expect(pids.indexOf("PID_ジャン")).toBeLessThan(pids.indexOf("PID_ユナカ"));
+  });
+
+  it("뤼에르 개인 성장률 실값 + 얼굴 직결 + 전원 이름·얼굴 보유", () => {
+    const lueur = props.chars[0]!;
+    expect(lueur.personGrowth).toEqual({ hp: 60, str: 35, mag: 20, dex: 45, spd: 50, lck: 25, def: 40, res: 25, bld: 5 });
+    expect(lueur.joinLevel).toBe(1);
+    expect(lueur.internalOffset).toBe(0);
+    for (const c of props.chars) {
+      expect(c.name).not.toMatch(/^PID_/);
+      expect(props.joinJobs[c.joinJid]).toBeDefined();
+    }
+    // 얼굴 전원 보유 — 라팔 결손은 베이크 필터(챕터 출현 유닛 한정)가 원인이었고
+    // bake_roster_faces 보강으로 해소됐다(스프라이트 Rafale는 번들에 실재). 재발 = 파이프라인 회귀.
+    expect(props.chars.filter((c) => c.face === undefined).map((c) => c.pid)).toEqual([]);
+  });
+
+  it("장(Jean)만 努力の才(Work=2)를 workSkills로 든다", () => {
+    const jean = props.chars.find((c) => c.pid === "PID_ジャン")!;
+    expect(jean.workSkills?.map((s) => s.Sid)).toEqual(["SID_努力の才"]);
+    expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
+  });
+
+  it("직업 드롭다운 = 범용 20 + 전용 9 (DLC 해제로 인챈트·메이지캐넌 포함, 한글명, 전용은 가능자 1명)", () => {
+    expect(props.targetJobs).toHaveLength(29);
+    const jids = props.targetJobs.map((j) => j.jid);
+    expect(jids).toContain("JID_セイジ");
+    expect(jids).toContain("JID_エンチャント");
+    expect(jids).toContain("JID_マージカノン");
+    const dragonKing = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
+    expect(dragonKing.uniquePid).toBe("PID_リュール");
+    expect(dragonKing.name).toBe("신룡의 왕");
+    const uniques = props.targetJobs.filter((j) => j.uniquePid !== undefined);
+    expect(uniques).toHaveLength(9);
+    const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
+    expect(sage.uniquePid).toBeUndefined();
+    expect(sage.name).toBe("세이지");
+    expect(sage.nameEn).toBe("Sage"); // 헤더 코너 영문 표기의 데이터 정본
+  });
+
+  it("내부 레벨 base = person → job 폴백 (사용자 앵커: 모브 = 20 + 12 − 1 = 31)", () => {
+    const mauvier = props.chars.find((c) => c.pid === "PID_モーヴ")!;
+    expect(mauvier.joinLevel).toBe(12);
+    expect(mauvier.internalOffset).toBe(20);
+    const gregory = props.chars.find((c) => c.pid === "PID_グレゴリー")!;
+    expect(gregory.internalOffset).toBe(20);
+  });
+
+  it("성옥의 가호 행(Work 3 · +15)이 props에 실린다 — 체커의 데이터 정본", () => {
+    expect(props.starsphere?.Work).toBe(3);
+    expect(props.starsphere?.WorkOperation).toBe("+");
+    expect(props.starsphere?.WorkValue).toBe(15);
+  });
+});
+
+/**
+ * B5 대조 표본 — triangleattack Average Stats(Fixed mode·Show decimals) Alear 열.
+ * 외부 참고 정본(설계 결정 2026-08-31: 어긋나면 우리 데이터가 진실 — 차이는 보고만).
+ * 사영(builderPropsFor) → 엔진(growthPath) → 표시값(stats + acc/100)의 관통 앵커라서
+ * 어느 층이 바뀌어도 소수부 단위로 깨진다(합산 rate·acc 초기값·전직 Base 교체를 한 번에 잡는다).
+ */
+describe("B5 대조 표본 — Alear 소수부까지", () => {
+  const props = builderPropsFor("ko");
+  const alear = props.chars[0]!;
+  const run = (target: GrowthPathJob, targetInternal: number): GrowthPathResult =>
+    growthPath({
+      joinJob: { ...props.joinJobs[alear.joinJid]!, limit: mergeStatCap(props.joinJobs[alear.joinJid]!.limit, alear.personLimit) },
+      targetJob: { ...target, limit: mergeStatCap(target.limit, alear.personLimit) },
+      joinLevel: alear.joinLevel,
+      internalOffset: alear.internalOffset,
+      personGrowth: alear.personGrowth,
+      personOffset: alear.personOffset,
+      targetInternal,
+    });
+  const display = (r: GrowthPathResult): Record<string, number> =>
+    Object.fromEntries(STAT_KEYS.map((k) => [k, r.stats[k] + r.acc[k] / 100]));
+
+  it("합류 초기 행(신룡의 아이 Lv1) = 22.6/6.35/0.2/5.45/7.5/5.25/5.4/3.25/4.05", () => {
+    const d = display(run(props.joinJobs[alear.joinJid]!, alear.internalOffset + alear.joinLevel - 1));
+    expect(d["hp"]).toBeCloseTo(22.6, 5);
+    expect(d["str"]).toBeCloseTo(6.35, 5);
+    expect(d["mag"]).toBeCloseTo(0.2, 5);
+    expect(d["dex"]).toBeCloseTo(5.45, 5);
+    expect(d["spd"]).toBeCloseTo(7.5, 5);
+    expect(d["lck"]).toBeCloseTo(5.25, 5);
+    expect(d["def"]).toBeCloseTo(5.4, 5);
+    expect(d["res"]).toBeCloseTo(3.25, 5);
+    expect(d["bld"]).toBeCloseTo(4.05, 5);
+  });
+
+  it("내부 10 전직 직후 행(신룡의 왕 Lv1) = 30.9/12.4/3/12.4/14.35/8.95/10.9/8.4/7.95", () => {
+    const target = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
+    const r = run(target, 9); // 0기점 — triangleattack 표기 Lv1^(9)와 동일
+    expect(r.promoted).toBe(true);
+    const d = display(r);
+    expect(d["hp"]).toBeCloseTo(30.9, 5);
+    expect(d["str"]).toBeCloseTo(12.4, 5);
+    expect(d["mag"]).toBeCloseTo(3, 5);
+    expect(d["dex"]).toBeCloseTo(12.4, 5);
+    expect(d["spd"]).toBeCloseTo(14.35, 5);
+    expect(d["lck"]).toBeCloseTo(8.95, 5);
+    expect(d["def"]).toBeCloseTo(10.9, 5);
+    expect(d["res"]).toBeCloseTo(8.4, 5);
+    expect(d["bld"]).toBeCloseTo(7.95, 5);
   });
 });

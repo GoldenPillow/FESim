@@ -56,6 +56,6 @@ FE 전략 시뮬레이터·공유 플랫폼. 체스판(시뮬레이터)이 간�
 | 데이터 파이프라인 | tools/pipeline/ 머리말 · data/ 산출 스키마(shared 타입) · ~/fesim_data/extracted(추출본·보고서, 저장소 밖) |
 | 공유 킷·배포 | rules/deploy.md(채널·승격) · workers/api/ (M3~) · apps/web/src/components/ |
 | 계획·이력 | design/fesim_plan.md(§0 체크리스트 = todo 정본) · registers/decisions.md(최신이 맨 아래) · rules/design-lifecycle.md |
-| 작업 규약 | `rules/seams.md` — 큰 코드에서 결손이 조용히 자라지 않게(이중화 금지 집행·답변자 1개·기계 감사, 2026-08-22) |
+| 작업 규약 | `rules/seams.md` — 큰 코드에서 결손이 조용히 자라지 않게(2026-08-22) · `rules/feature-ui.md` — 작은 피쳐의 분리 배포·폴더링·반응형 규약(2026-08-31) |
 
 *결정 변경 시 이 파일 + registers/decisions.md 동시 갱신. ☠이 파일에 상태·수치 박제 금지.*

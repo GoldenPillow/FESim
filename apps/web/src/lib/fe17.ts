@@ -2,8 +2,10 @@ import type { ChapterData, ConsumableItem, DisposUnit, EngageArt, EngageState, M
 import {
   MOVE_TYPES,
   deriveStats,
+  mergeStatCap,
   moveBase,
   staticEnhances,
+  type GrowthPathJob,
   type MoveType,
   type AiCommand,
   type AiSnapshot,
@@ -13,6 +15,7 @@ import {
 } from "@fesim/engine";
 import godsRaw from "../../../../data/fe17/tables/gods.json?raw";
 import chapterlistRaw from "../../../../data/fe17/tables/chapterlist.json?raw";
+import chapternotesRaw from "../../../../data/fe17/tables/chapternotes.json?raw";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -514,17 +517,9 @@ const statBlock = (row: Record<string, unknown>, prefix: string): StatBlock => {
   return out;
 };
 
-/** 스탯 상한 = job.xml Limit(직업 캡) + person.xml Limit(개인 보정, s8 -120..120) — 합산 후 클램프. */
-const statCap = (job: Record<string, unknown>, person: Record<string, unknown>): StatBlock => {
-  const jobLimit = statBlock(job, "Limit.");
-  const personLimit = statBlock(person, "Limit.");
-  const out = {} as StatBlock;
-  for (const key of Object.keys(STAT_FIELDS) as (keyof StatBlock)[]) {
-    // Clamp(jobLimit + personLimit, 0, 255) — GetCapabilityLimit 0x1A30B60(person Limit은 음수 가능).
-    out[key] = Math.min(Math.max(jobLimit[key] + personLimit[key], 0), 255);
-  }
-  return out;
-};
+/** 스탯 상한 = job.Limit + person.Limit — 합성 답변자는 엔진 mergeStatCap(빌더와 공용, 복제 금지). */
+const statCap = (job: Record<string, unknown>, person: Record<string, unknown>): StatBlock =>
+  mergeStatCap(statBlock(job, "Limit."), statBlock(person, "Limit."));
 
 /** 유닛의 스탯 상한 — 성장 게이트(rollGrowth)의 입력. 인물·직업 테이블 미비 시 undefined. */
 export function unitCap(unit: DisposUnit): StatBlock | undefined {
@@ -628,6 +623,12 @@ const slimSkill = (sid: string, depth = 0): SkillRow | undefined => {
     out[key] = row[key];
   }
   for (const key of Object.keys(row)) if (key.startsWith("EnhanceValue.")) out[key] = row[key];
+  // CalcWork 변조 축(Work 2 = 레벨업 클래스 성장 몫, 努力の才) — 1252행이 0이라 비영일 때만 싣는다.
+  if (typeof row["Work"] === "number" && row["Work"] !== 0) {
+    out["Work"] = row["Work"];
+    out["WorkOperation"] = row["WorkOperation"];
+    out["WorkValue"] = row["WorkValue"];
+  }
   out["Sid"] = sid;
   // ☠GiveSids는 **문자열**이라 엔진 혼자서는 아무것도 못 붙인다(엔진에 스킬 표가 없다 — 행은 유닛이 들고 다닌다).
   //   정본 SkillData.GiveSkills(+0x238)도 이미 해소된 목록이므로 여기서 행으로 풀어 실어 보낸다.
@@ -984,8 +985,10 @@ export interface BoardUnitProp {
   levels: Record<Difficulty, number>;
   /** 직업 내부레벨(상급 20) — 경험치 레벨차 근사 입력. */
   internalLevel: number;
-  /** 인물 성장률(%) — 자군 레벨업 롤. */
+  /** 인물 성장률(%) — 자군 레벨업 rate의 개인 몫이자 고정 누적기 초기값. */
   growth?: StatBlock;
+  /** 레벨업 rate의 클래스 몫(현재 job.DiffGrow — 자군 한정). ☠자동레벨의 DiffGrowN/H/L과 다른 필드다. */
+  growthJob?: StatBlock;
   /** 스탯 상한(job.Limit + person.Limit) — 성장 게이트의 입력. 없으면 무제한 성장이 된다. */
   cap?: StatBlock;
   /** 직업 최대 레벨(job.MaxLevel) — 도달 시 경험치 정지. */
@@ -1466,7 +1469,16 @@ export function boardProps(
       growth: person === undefined ? undefined : statBlock(person, "Grow."),
       // 성장 게이트 입력은 자군에만 싣는다 — 경험치·레벨업이 자군 한정이라(battle.ts grantExp)
       // 적·우군에 실으면 소비처 없이 유닛당 9숫자가 늘어 챕터 JSON 예산(§11)을 밀어낸다.
-      ...(v.unit.force === 0 ? { cap: unitCap(v.unit), maxLevel: job?.MaxLevel } : {}),
+      ...(v.unit.force === 0
+        ? {
+            cap: unitCap(v.unit),
+            maxLevel: job?.MaxLevel,
+            // 레벨업 rate의 클래스 몫(LEVELUP_GROW.md) — 개인 단독 사영이던 결손을 2026-08-31 수리.
+            ...(job !== undefined
+              ? { growthJob: statBlock(job as unknown as Record<string, unknown>, "DiffGrow.") }
+              : {}),
+          }
+        : {}),
       style: job?.StyleName,
       skills: skillRows.length > 0 ? skillRows : undefined,
       ai: v.unit.ai,
@@ -1776,4 +1788,170 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
     saves: t.saves,
     logTags: t.logTags,
   });
+}
+
+/* ── 캐릭터 빌더 사영 (design/avg_stats_builder.md B2) ──
+   섬(BuilderIsland)은 여기서 만든 직렬화 props만 받는다 — 원천 테이블은 클라이언트에 싣지 않는다.
+   계산 답변자는 엔진(growthPath·mergeStatCap·levelUpGrowthRate) — 여기는 테이블 필드 → 입력 사상만. */
+
+export interface BuilderCharProp {
+  pid: string;
+  name: string;
+  face?: string;
+  joinLevel: number;
+  /** person.InternalLevel — 합류 내부 레벨(1기점) = internalOffset + joinLevel. */
+  internalOffset: number;
+  personGrowth: StatBlock;
+  /** 루나틱 고정(OffsetL) — 설계 결정 Q1(2026-08-31). */
+  personOffset: StatBlock;
+  /** 개인 캡 보정(s8 음수 가능) — 섬이 mergeStatCap(job.limit, personLimit)으로 합성한다. */
+  personLimit: StatBlock;
+  joinJid: string;
+  /** CalcWork 변조 스킬(Work 비영 — 장 努力の才) — growthPath workSkills 입력. */
+  workSkills?: SkillRow[];
+}
+
+export interface BuilderJobProp extends GrowthPathJob {
+  jid: string;
+  name: string;
+  /** 영문 직업명 — 헤더 코너(카드 열 위) 표기는 로케일 무관 영어(사용자 결정 2026-08-31). */
+  nameEn: string;
+  /** 전용직의 가능 캐릭터(정확히 1명 — Q3: 가능자 상단 표시) — 범용은 undefined. */
+  uniquePid?: string;
+}
+
+export interface BuilderProps {
+  locale: Locale;
+  /** 星玉の加護 행(Work 3 = TotalGrowChange +15) — 빌더 체커가 켜면 전 캐릭터 workSkills에 얹는다. */
+  starsphere?: SkillRow;
+  /** 합류순(본편 사슬 + 외전은 개방 시점(unlock) 뒤 삽입) — 초기 정렬의 정본. */
+  chars: BuilderCharProp[];
+  /** 합류 직업 단면(jid → 경로 입력) — chars.joinJid가 참조. limit는 job.Limit 원값. */
+  joinJobs: Record<string, GrowthPathJob>;
+  /** 드롭다운 목록(Sort 순): 범용 + 전용. limit는 job.Limit 원값(개인 보정은 섬이 합성). */
+  targetJobs: BuilderJobProp[];
+}
+
+const pathJobOf = (jid: string): GrowthPathJob | undefined => {
+  const job = jobs[jid] as unknown as Record<string, unknown> | undefined;
+  if (job === undefined) return undefined;
+  return {
+    base: statBlock(job, "Base."),
+    limit: statBlock(job, "Limit."),
+    // ☠레벨업 rate의 클래스 몫 = 공용 DiffGrow — 자동레벨의 DiffGrowN/H/L(난이도별)이 아니다.
+    diffGrow: statBlock(job, "DiffGrow."),
+    rank: Number(job["Rank"] ?? 0),
+  };
+};
+
+export function builderPropsFor(locale: Locale): BuilderProps {
+  const notes = parse<Record<string, { joins?: string[] }>>(chapternotesRaw);
+  // 합류순 = 본편 사슬 순서 + 외전은 개방 챕터(unlock) 바로 뒤. 뤼에르만 join 이벤트가 없다(m000 상주).
+  const order: string[] = ["PID_リュール"];
+  for (const entry of chapterList) {
+    if (entry.category !== "main") continue;
+    for (const pid of notes[chapterMapId(entry.cid)]?.joins ?? []) order.push(pid);
+    const tail = entry.cid.replace(/^CID_/, "");
+    for (const para of chapterList) {
+      if (para.category !== "paralogue" || para.unlock !== tail) continue;
+      for (const pid of notes[chapterMapId(para.cid)]?.joins ?? []) order.push(pid);
+    }
+  }
+  // DLC(사룡의 장) 5인 — E챕터 chapternotes.joins가 전부 빈 배열이라(보상 합류가 이벤트 데이터 밖)
+  // 뤼에르와 같은 명시 예외로 잇는다. DLC 제외 해제 = 2026-08-31 사용자 지시.
+  order.push("PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン");
+  // 이름 기반 얼굴 폴백 — 정본 pid 매핑이 없는 DLC 5인용(파일명 = Name에서 MPID_ 제거).
+  const facePaths = new Set(Object.values(manifest.faces ?? {}));
+  const chars: BuilderCharProp[] = [];
+  for (const pid of order) {
+    const person = persons[pid] as unknown as Record<string, unknown> | undefined;
+    if (person === undefined) continue;
+    const workSkills = ((person["CommonSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+      const row = skills[sid] as Record<string, unknown> | undefined;
+      if (typeof row?.["Work"] !== "number" || row["Work"] === 0) return [];
+      return [
+        {
+          Sid: sid,
+          Work: Number(row["Work"]),
+          WorkOperation: String(row["WorkOperation"]),
+          WorkValue: Number(row["WorkValue"]),
+        } as SkillRow,
+      ];
+    });
+    // ☠얼굴은 pid 직결로 읽는다 — toView의 sharedFaces 히스토그램은 DLC 위장 pid와의 파일 공유로
+    //   본편 14명을 아이콘으로 강등시킨다(2026-08-31 조사) — 빌더에는 그 은폐 로직이 필요 없다.
+    const nameFace = `assets/faces/${String(person["Name"] ?? "").replace(/^MPID_/, "")}.webp`;
+    const face = assetHref(manifest.faces?.[pid] ?? (facePaths.has(nameFace) ? nameFace : undefined));
+    chars.push({
+      pid,
+      name: label(locale, String(person["Name"])) ?? pid,
+      ...(face !== undefined ? { face } : {}),
+      joinLevel: Number(person["Level"] ?? 1),
+      // 내부 레벨 base = person.InternalLevel, 0이면 job.InternalLevel 폴백(内部レベル計算 정본 — B0-3).
+      internalOffset:
+        Number(person["InternalLevel"] ?? 0) ||
+        Number((jobs[String(person["Jid"])] as unknown as Record<string, unknown> | undefined)?.["InternalLevel"] ?? 0),
+      personGrowth: statBlock(person, "Grow."),
+      personOffset: statBlock(person, "OffsetL."),
+      personLimit: statBlock(person, "Limit."),
+      joinJid: String(person["Jid"]),
+      ...(workSkills.length > 0 ? { workSkills } : {}),
+    });
+  }
+  const joinJobs: Record<string, GrowthPathJob> = {};
+  for (const c of chars) {
+    if (joinJobs[c.joinJid] === undefined) {
+      const job = pathJobOf(c.joinJid);
+      if (job !== undefined) joinJobs[c.joinJid] = job;
+    }
+  }
+  // 승급망 도달 = 기본직(Rank 0)의 HighJob1/2 합집합. ☠LowJob 필드는 Jid가 아니라 MSBT 라벨이다.
+  const reachedBy = new Map<string, string>();
+  for (const [jid, row] of Object.entries(jobs)) {
+    const r = row as unknown as Record<string, unknown>;
+    if (Number(r["Rank"] ?? 0) !== 0) continue;
+    for (const f of ["HighJob1", "HighJob2"]) {
+      const high = r[f];
+      if (typeof high === "string" && high.startsWith("JID_") && !reachedBy.has(high)) reachedBy.set(high, jid);
+    }
+  }
+  const targetJobs: (BuilderJobProp & { sort: number })[] = [];
+  for (const [jid, row] of Object.entries(jobs)) {
+    const r = row as unknown as Record<string, unknown>;
+    if (Number(r["Rank"] ?? 0) !== 1) continue;
+    const flag = Number(r["Flag"] ?? 0);
+    const low = reachedBy.get(jid);
+    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌 포함 — DLC 제외 해제 2026-08-31) ·
+    // 전용 = Flag 1 + 승급망 도달(가능자 판정) · Flag 0 = 적 전용 변형(플레이어 비대상).
+    if (!(flag === 11 || (flag === 1 && low !== undefined))) continue;
+    const path = pathJobOf(jid);
+    if (path === undefined) continue;
+    const uniquePid = flag === 1 ? chars.find((c) => c.joinJid === low || c.joinJid === jid)?.pid : undefined;
+    targetJobs.push({
+      jid,
+      name: label(locale, String(r["Name"])) ?? jid,
+      nameEn: label("en", String(r["Name"])) ?? jid,
+      ...path,
+      ...(uniquePid !== undefined ? { uniquePid } : {}),
+      sort: Number(r["Sort"] ?? 0),
+    });
+  }
+  targetJobs.sort((a, b) => a.sort - b.sort);
+  const star = skills["SID_星玉の加護"] as Record<string, unknown> | undefined;
+  return {
+    locale,
+    ...(typeof star?.["Work"] === "number" && star["Work"] !== 0
+      ? {
+          starsphere: {
+            Sid: "SID_星玉の加護",
+            Work: Number(star["Work"]),
+            WorkOperation: String(star["WorkOperation"]),
+            WorkValue: Number(star["WorkValue"]),
+          } as SkillRow,
+        }
+      : {}),
+    chars,
+    joinJobs,
+    targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
+  };
 }

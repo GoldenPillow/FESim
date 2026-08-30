@@ -69,27 +69,5 @@ describe("코퍼스 — 전투 예보 (M003 뤼에르 vs 소드 파이터)", () 
   });
 });
 
-/**
- * ★실기 앵커 절대 수치 — m002 인게이지·레이피어 **8 + 4**(사용자 스크린샷 2026-08-19, MP8 §10-6).
- * 저장소 기보가 그 국면을 싣고 있으므로 여기서 **파일의 실값을 그대로** 확인한다.
- *
- * ☠**왜 위험한가**: 이 수치는 手番回数 오더 큐(fe17-14)가 재현한 유일한 실기 앵커인데
- * 2026-08-20까지 `corpus.test.ts` 참조가 0건이었다 — 기보 신선도 게이트(`replay:verify --deep`)는
- * *"기보가 지금 엔진과 일치하는가"*만 보므로 **엔진과 기보가 함께 틀려지면 조용히 통과한다**.
- * 배율이 0.5에서 미끄러지거나 추가타가 사라져도 레드가 안 나던 자리다(MP8 §10-7-(15)).
- */
-describe("코퍼스 — 기보 절대 앵커 (M002 인게이지 추가타)", () => {
-  const m002: { log: { events?: { type: string; attacker?: string; kind?: string; damage?: number }[] }[] } =
-    JSON.parse(readFileSync(new URL("../../../data/fe17/replays/m002.eph.json", import.meta.url), "utf-8"));
-
-  it("추가타가 실린 타격은 정확히 1건이고 그 수치는 8 + 4다", () => {
-    const strikes = m002.log
-      .map((step) => (step.events ?? []).filter((e) => e.type === "strike"))
-      .filter((es) => es.some((e) => e.kind === "followUp"));
-    expect(strikes.length).toBe(1); // §10-5 기준선 "인게이지 중 추가타 m002 1회"
-    expect(strikes[0].map((e) => [e.kind, e.damage])).toEqual([
-      ["attack", 8],
-      ["followUp", 4],
-    ]);
-  });
-});
+// ★8+4 실기 절대 앵커는 battle.test.ts "기보 비의존 고정판"으로 이관(2026-08-31).
+// ☠기보 파일에 매단 앵커는 재생성 때마다 죽는다(rules/seams.md §6 — 2026-08-22·2026-08-31 두 번 실증).

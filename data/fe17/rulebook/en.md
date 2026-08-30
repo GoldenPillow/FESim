@@ -1,4 +1,4 @@
-# FESim Rulebook — fe17 / fe17-14
+# FESim Rulebook — fe17 / fe17-15
 
 ☠**Generated document.** `./dev rulebook` extracts it from code — hand edits are lost on regeneration.
 
@@ -9,7 +9,7 @@
   "coordinates": "인게임 (X, Z) — 좌하단 원점. 표기 정본 = apps/web/src/lib/grid.ts coordLabel",
   "phases": "force 오름차순 순환(0 자군 · 1 적군 · 2 우군). 한 바퀴 = 1턴",
   "activation": "유닛당 이동 1회 + 행동 1회. 행동이 재이동 창을 연다(moved 해제)",
-  "ruleVersion": "fe17-14"
+  "ruleVersion": "fe17-15"
 }
 ```
 
@@ -420,7 +420,7 @@
 ```json
 {
   "constants": {
-    "RULE_VERSION": "fe17-14",
+    "RULE_VERSION": "fe17-15",
     "INIT_SPIN": 20,
     "BAD_STATE": {
       "silence": 32,
@@ -20457,9 +20457,14 @@
         "이월 누적기가 있으면 그것이 초기값을 대체한다(재생·인계 복원 통로)",
         "성장률 250이면 한 레벨에 2 오른다(누적 500 → 255 클램프 → +2, 잔여 55)",
         "상한에 닿은 스탯은 누적조차 하지 않는다(게이트가 루프 진입 전 1회)",
+        "레벨업 rate = 개인 + 직업 DiffGrow 합산 · acc 초기값은 개인 원본(합산 아님)",
+        "努力の才(Work=2 · '*' · 2) — 직업 몫만 2배가 된다(개인 몫은 그대로)",
+        "星玉の加護(Work=3 · '+' · 15) — 합산 총 성장률에 +15가 붙는다(TotalGrowChange)",
+        "Random 경로도 같은 합산 rate를 쓴다(Fixed/Random이 같은 배열을 읽는다 — 판독 확정)",
         "난수를 한 톨도 쓰지 않는다(Random 모드와 소비 계약이 다르다)",
         "신속이 없으면 순서·롤 소비가 종전과 같다 (공격측 추격 / 방어측 추격)",
         "신속: 手番回数 2 · 추격 없음 → [attack, counter, followUp]이고 추가타가 정확히 절반이다",
+        "★실기 절대 앵커 — 대미지 8이면 추가타는 정확히 4다 (기보 비의존 고정판)",
         "추격 + 신속(手番回数 3) → 마지막 오더 하나만 절반이다",
         "방어측 신속: 공격측 1회 · 방어측 2회 → [attack, counter, counterFollowUp]이고 반격 추가타가 절반",
         "부여가 전투 밖으로 안 샌다 — 다음 전투도 같은 8+4를 낸다 · 유닛 스킬은 불변",
@@ -21527,7 +21532,7 @@
         "ko": "레벨업 성장 — 상한 게이트·최대 4시도 재굴림"
       },
       "status": "anchored",
-      "evidence": "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · ★☠**상한 사영 배선(2026-08-18, MP5 5-0)**: 종전엔 엔진에 게이트가 있어도 `UnitState.cap`을 채우는 코드가 저장소에 없어 **런타임에서 게이트가 항상 통과**했다(BoardUnitProp에 필드 자체가 부재 — `fe17.ts statCap`은 초기 스탯 산출 입력으로만 쓰였다). 챕터가 늘 새 판이라 미발현이었고 캠페인 인계를 켜면 즉시 무한 성장이 된다. 배선 = `unitCap` → `BoardUnitProp.cap` → `projectUnit` → `UnitState.cap` · **자군 한정 사영**(경험치·레벨업이 자군 한정 = grantExp force 0 게이트, 전 유닛에 실으면 챕터 JSON 예산 §11을 넘긴다 — e006.ko 실측 52.6KB gz > 50KB) · 부수 정정 = `statCap`에 `Clamp(0,255)` 추가(GetCapabilityLimit 0x1A30B60 — person Limit은 -3까지 음수) · 앵커 = fe17.test.ts 뤼에르 cap 실값 · boardStore.test.ts 국면 사영 · ★**GrowMode.Fixed 배선(2026-08-18, MP5 5-1)** = 종전 '미배선'이 해소됐다. ☠**서비스 기본은 Fixed다**(사용자 지시 3 — 인게임도 메인 메뉴 `MainMenuSequence.GrowModeSelectMenuSequence`로 고르는 실재 모드라 이탈이 아니다). 코드 확정 알고리즘(STATS_GROWTH §2-3(c)) = `g!=0` → `if (현재 >= 상한) continue`(**게이트가 루프 진입 전 1회** — 캡에 닿은 스탯은 누적조차 없다) → `acc = Min(acc+g, 255)` → `while (acc > 99) { +1; acc -= 100 }` · ☠**누적기 초기값 = person.Grow**(`Unit.CreateImpl1` 0x1A08944가 9회 대입 — 0이 아니다. 첫 레벨업이 그만큼 빠르다) · 엔진 = `GameState.growMode`(부재 = fixed) 분기 + `UnitState.growthAcc`(부재 = growth가 초기값) + `levelUp` 이벤트 `acc` 절대값 스냅숏(재생·인계 복원 통로) · **난수 미소비**라 Random과 소비 계약이 다르다 ⇒ RULE_VERSION fe17-8 범프 + m002 기보 재생성(84스텝·verified·결손 0) · 앵커 = battle.test.ts 6건(초기값·미달 누적·이월 복원·255 클램프·캡 게이트·무소비) · Random 경로는 정본으로 보존(같은 게임의 다른 모드) · 미배선 = 성장률 변조 스킬(努力の才 *2·星玉の加護 +15)·무기 GrowRatio"
+      "evidence": "★IL2CPP 코드 확정(2026-08-17, il2cpp/STATS_GROWTH.md — App.Unit.LevelUp RVA 0x1A3A040 GrowMode.Random): 스탯별로 floor(grow/100) 확정 가산 + 잔여 grow%100 1롤이고, **증가 1회마다 상한(GetCapabilityLimit) 게이트**를 통과해야 반영된다(확정분도 캡을 못 뚫는다) · 성장률은 0..255 클램프(100 절사 아님) · **획득 스탯이 abort(2) 미만이면 최대 4시도까지 재굴림하고 최선 시도를 채택**(Unit.LevelUpRetryMax=4·GrowAbortCount=2, 난수는 시도 간 이어짐) — 0~1스탯 레벨업 확률이 크게 낮아지므로 육성 시뮬 분포에 직결 · 확률 판정 해상도 = 0.001%(percent*1000 > rand%100000), 잔여 0이면 난수 미소모 · 엔진 배선 = battle.ts rollGrowth + UnitState.cap(테스트 5건) · ★☠**상한 사영 배선(2026-08-18, MP5 5-0)**: 종전엔 엔진에 게이트가 있어도 `UnitState.cap`을 채우는 코드가 저장소에 없어 **런타임에서 게이트가 항상 통과**했다(BoardUnitProp에 필드 자체가 부재 — `fe17.ts statCap`은 초기 스탯 산출 입력으로만 쓰였다). 챕터가 늘 새 판이라 미발현이었고 캠페인 인계를 켜면 즉시 무한 성장이 된다. 배선 = `unitCap` → `BoardUnitProp.cap` → `projectUnit` → `UnitState.cap` · **자군 한정 사영**(경험치·레벨업이 자군 한정 = grantExp force 0 게이트, 전 유닛에 실으면 챕터 JSON 예산 §11을 넘긴다 — e006.ko 실측 52.6KB gz > 50KB) · 부수 정정 = `statCap`에 `Clamp(0,255)` 추가(GetCapabilityLimit 0x1A30B60 — person Limit은 -3까지 음수) · 앵커 = fe17.test.ts 뤼에르 cap 실값 · boardStore.test.ts 국면 사영 · ★**GrowMode.Fixed 배선(2026-08-18, MP5 5-1)** = 종전 '미배선'이 해소됐다. ☠**서비스 기본은 Fixed다**(사용자 지시 3 — 인게임도 메인 메뉴 `MainMenuSequence.GrowModeSelectMenuSequence`로 고르는 실재 모드라 이탈이 아니다). 코드 확정 알고리즘(STATS_GROWTH §2-3(c)) = `g!=0` → `if (현재 >= 상한) continue`(**게이트가 루프 진입 전 1회** — 캡에 닿은 스탯은 누적조차 없다) → `acc = Min(acc+g, 255)` → `while (acc > 99) { +1; acc -= 100 }` · ☠**누적기 초기값 = person.Grow**(`Unit.CreateImpl1` 0x1A08944가 9회 대입 — 0이 아니다. 첫 레벨업이 그만큼 빠르다) · 엔진 = `GameState.growMode`(부재 = fixed) 분기 + `UnitState.growthAcc`(부재 = growth가 초기값) + `levelUp` 이벤트 `acc` 절대값 스냅숏(재생·인계 복원 통로) · **난수 미소비**라 Random과 소비 계약이 다르다 ⇒ RULE_VERSION fe17-8 범프 + m002 기보 재생성(84스텝·verified·결손 0) · 앵커 = battle.test.ts 6건(초기값·미달 누적·이월 복원·255 클램프·캡 게이트·무소비) · Random 경로는 정본으로 보존(같은 게임의 다른 모드) · ★☠**rate 합산 수리(2026-08-31, RULE_VERSION fe17-15 — 빌더 B0-1 판독 il2cpp/LEVELUP_GROW.md)**: 레벨업 rate는 개인 단독이 아니라 **(person.Grow 택일 base) + job.DiffGrow(CalcWork Work=2 훅 통과) + 무기 GrowRatio, Clamp(0,255)**이고 Fixed/Random이 같은 배열을 읽는다(Unit.GetCapabilityGrow 0x1A2FF20). 종전엔 개인 단독이라 **전 캠페인 레벨업이 클래스 몫만큼 조용히 과소**였다(자동레벨 '택일'은 다른 필드 DiffGrowN/H/L — 그쪽은 여전히 옳다). 배선 = stats.ts levelUpGrowthRate+calcWork(하나의 답변자, Fixed/Random 공용 소비)·UnitState.growthJob 사영(자군 한정, fe17.ts DiffGrow.)·slimSkill Work/WorkOperation/WorkValue(비영만)·努力の才 x2 그 훅으로 배선. 앵커 = battle.test.ts 합산 3건(acc 초기값 = person.Grow 원본과 rate 겸용 금지 구분점 포함) + fe17.test.ts 사영 실값(뤼에르 DiffGrow — triangleattack Alear HP +0.7/렙 = 60+10 교차 일치) · 미배선 잔여 = 星玉の加護 +15(DLC 티키)·무기 GrowRatio(비영 5종 전부 DLC 엠블렘 무기 — 무DLC 정책상 미발현)·택일 갈래 job.BaseGrow 사영(발현 = 자군에 person.Grow 전0 유닛, 현행 전무)"
     },
     {
       "id": "combat.max-level",

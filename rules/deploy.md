@@ -7,9 +7,10 @@
 
 | 채널 | 주소 | 갱신 조건 |
 |---|---|---|
-| 스테이블(공개) | https://fesim.goldenpillow7.workers.dev | **명시 지시 시에만** `./dev promote` |
-| 베타(관리자 전용) | https://beta-fesim.goldenpillow7.workers.dev | main 머지마다 자동 |
-| 브랜치 프리뷰 | `<버전해시8>-fesim.goldenpillow7.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
+| 스테이블(공개) | https://fesim.emblemengage.workers.dev | **명시 지시 시에만** `./dev promote` |
+| 베타(관리자 전용) | https://beta-fesim.emblemengage.workers.dev | main 머지마다 자동 |
+| ★빌더 단독(공개, ☠비계) | https://fb.emblemengage.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 빌더를 본체 공개 채널로 흡수(개발 완료 병합)할 때 워커·설정·이 행을 함께 폐기 |
+| 브랜치 프리뷰 | `<버전해시8>-fesim.emblemengage.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
 
 ## 흐름
 

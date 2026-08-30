@@ -175,3 +175,104 @@ describe("적 자동성장 — 성장률 택일(person.Grow 전 0 → job.BaseGr
     expect(personPath.str).toBe(0); // 20% × 2 = 0.4 → 0 (델타 미적용)
   });
 });
+
+/**
+ * 성장 경로(growthPath) — 캐릭터 빌더 B1. 합류(자동레벨) → [기본직 10까지] → 전직(Base/Limit 교체,
+ * BaseCapability·누적기 불변) → 목표 내부 레벨까지 고정 성장 누적(rate = 개인 + 현재 직업 DiffGrow).
+ * 왜 위험한가: 이 경로가 정본과 어긋나면 빌더 표가 통째로 거짓말을 하는데, 셀마다 오류가
+ * 눈에 안 띈다(triangleattack 대조 표본이 B5 게이트인 이유).
+ */
+import { growthPath, type GrowthPathJob } from "@fesim/engine";
+
+const gp = {
+  sb: (over: Partial<StatBlock> = {}): StatBlock =>
+    ({ hp: 0, str: 0, mag: 0, dex: 0, spd: 0, lck: 0, def: 0, res: 0, bld: 0, ...over }),
+};
+const wide = gp.sb({ hp: 99, str: 99, mag: 99, dex: 99, spd: 99, lck: 99, def: 99, res: 99, bld: 99 });
+const pathJob = (over: Partial<GrowthPathJob> = {}): GrowthPathJob =>
+  ({ base: gp.sb(), limit: wide, diffGrow: gp.sb(), rank: 0, ...over });
+
+describe("growthPath — 성장 경로(빌더 B1)", () => {
+  it("사용자 앵커: 개인 10 + 클래스 10 = 5렙업에 +1 (누적기 초기값 = 개인 원본)", () => {
+    const r = growthPath({
+      joinJob: pathJob(), targetJob: pathJob({ diffGrow: gp.sb({ str: 10 }) }),
+      joinLevel: 10, internalOffset: 0,
+      personGrowth: gp.sb({ str: 10 }), personOffset: gp.sb(),
+      targetInternal: 14,
+    });
+    // 합류 자동레벨 9렙분 = roundGrow(10*9=90) = 1 · 합류 내부 = 10-1 = 9(0기점) →
+    // 전직 후 5렙업: acc 10 + 20*5 = 110 → +1, 잔여 10.
+    expect(r.stats.str).toBe(2);
+    expect(r.acc.str).toBe(10);
+    expect(r.internal).toBe(14);
+    expect(r.promoted).toBe(true);
+  });
+
+  it("전직 = Base 교체 + BaseCapability 보존 (신Base − 구Base 차분이 그대로 반영)", () => {
+    const r = growthPath({
+      joinJob: pathJob({ base: gp.sb({ str: 2 }) }),
+      targetJob: pathJob({ base: gp.sb({ str: 5 }) }),
+      joinLevel: 10, internalOffset: 0,
+      personGrowth: gp.sb({ str: 50, hp: 10 }), personOffset: gp.sb(),
+      targetInternal: 9, // 전직 직후 상태(합류 내부 9 = 추가 렙업 0)
+    });
+    // 합류 표시 = 2 + roundGrow(50*9=450)=5 → 7. 전직 후 = 5 + 5 = 10 (차분 +3).
+    expect(r.stats.str).toBe(10);
+    expect(r.promoted).toBe(true);
+  });
+
+  it("캡에 막힌 스탯은 누적 정지 + capped 표시 (게이트가 루프 진입 전 1회)", () => {
+    const r = growthPath({
+      joinJob: pathJob(),
+      targetJob: pathJob({ diffGrow: gp.sb({ str: 90 }), limit: { ...wide, str: 6 } }),
+      joinLevel: 10, internalOffset: 0,
+      personGrowth: gp.sb({ str: 60 }), personOffset: gp.sb(),
+      targetInternal: 40,
+    });
+    // 합류 5(=roundGrow(540)) → 렙업 rate 150: 6에서 캡 → 이후 누적조차 없음.
+    expect(r.stats.str).toBe(6);
+    expect(r.capped).toContain("str");
+    expect(r.capped).not.toContain("hp");
+  });
+
+  it("합류 내부 레벨 ≥ 목표면 강등 없이 합류 상태 그대로(전직 없음)", () => {
+    const r = growthPath({
+      joinJob: pathJob({ base: gp.sb({ str: 3 }), rank: 1 }),
+      targetJob: pathJob({ base: gp.sb({ str: 9 }) }),
+      joinLevel: 5, internalOffset: 20,
+      personGrowth: gp.sb({ str: 5, hp: 10 }), personOffset: gp.sb(),
+      targetInternal: 20,
+    });
+    expect(r.promoted).toBe(false);
+    expect(r.internal).toBe(24); // 20 + 5 - 1 (0기점)
+    // 상급직 합류 자동레벨 = 5+19-1 = 23렙분: roundGrow(5*23=115)=1 → 표시 3+1=4 (targetJob Base 9는 미적용).
+    expect(r.stats.str).toBe(4);
+  });
+
+  it("10 미만 합류: 전직 전은 합류 직업 DiffGrow, 후는 목표 직업 DiffGrow", () => {
+    const r = growthPath({
+      joinJob: pathJob({ diffGrow: gp.sb({ str: 50 }) }),
+      targetJob: pathJob({ diffGrow: gp.sb() }),
+      joinLevel: 8, internalOffset: 0,
+      personGrowth: gp.sb({ hp: 10 }), personOffset: gp.sb(),
+      targetInternal: 11,
+    });
+    // 전직 전 2렙업 rate 50: acc 0→50→100 = +1. 전직 후 2렙업 rate 0: 변화 없음.
+    expect(r.stats.str).toBe(1);
+    expect(r.acc.str).toBe(0);
+    expect(r.promoted).toBe(true);
+  });
+
+  it("努力の才(Work=2 x2)가 클래스 몫만 키운다", () => {
+    const r = growthPath({
+      joinJob: pathJob(), targetJob: pathJob({ diffGrow: gp.sb({ str: 10 }) }),
+      joinLevel: 10, internalOffset: 0,
+      personGrowth: gp.sb({ str: 10 }), personOffset: gp.sb(),
+      targetInternal: 14,
+      workSkills: [{ Sid: "SID_努力の才", Work: 2, WorkOperation: "*", WorkValue: 2 }],
+    });
+    // rate = 10 + 10*2 = 30 → 5렙업 acc 10 + 150 = 160 → +1, 잔여 60 (무스킬이면 잔여 10 — 구분점).
+    expect(r.stats.str).toBe(2);
+    expect(r.acc.str).toBe(60);
+  });
+});

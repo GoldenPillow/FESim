@@ -1,0 +1,31 @@
+---
+import Base from "../../../layouts/Base.astro";
+import TopBar from "../../../components/TopBar.astro";
+import BuilderIsland from "../../../features/builder/BuilderIsland";
+import "../../../features/builder/builder.css";
+import { builderPropsFor } from "../../../lib/fe17";
+import { DEFAULT_LOCALE, LOCALES, UI, isLocale, type Locale } from "../../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const b = UI[locale].builder;
+---
+
+<Base locale={locale} title={`${b.title} — FESim`}>
+  <Fragment slot="head">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" />
+  </Fragment>
+  <TopBar locale={locale} context={b.title} home={false} />
+
+  <main class="builder-main mx-auto flex h-[calc(100dvh-3.5rem)] w-fit max-w-full flex-col overflow-hidden px-1 py-4 sm:px-6 md:py-6 [@media(max-height:520px)]:py-2">
+    <h1 class="text-[18px] font-semibold tracking-[0.06em] text-ink">{b.title}</h1>
+    <p class="mb-5 mt-1 text-[14.5px] text-muted [@media(max-height:520px)]:hidden">{b.intro}</p>
+
+    <BuilderIsland {...builderPropsFor(locale)} labels={b} client:load />
+  </main>
+</Base>

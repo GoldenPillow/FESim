@@ -231,5 +231,12 @@ PYEOF
   promote)  shift
             ID="${1:-$(npx wrangler versions list --json 2>/dev/null | python3 -c 'import json,sys;vs=json.load(sys.stdin);vs.sort(key=lambda v:v["metadata"]["created_on"]);print(vs[-1]["id"])')}"
             npx wrangler versions deploy "$ID@100%" -y ;;
-  *)        echo "usage: ./dev done [--dry-run]|gate|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  builder:publish)
+            # 빌더 단독 채널(☠비계 — rules/deploy.md §빌더 채널). 경량 게이트 = 타입 + 웹 테스트만 —
+            # 본체 게이트(기보·룰북)와 분리해 작은 피쳐를 마감 절차 없이 낸다(2026-08-31 사용자 결정).
+            check && pnpm -C apps/web exec vitest run || { echo "☠ builder:publish 중단: 경량 게이트 레드"; exit 1; }
+            pnpm -C apps/web build || exit 1
+            "$WRANGLER" deploy -c "$ROOT/wrangler.builder.jsonc" \
+              && echo "== builder:publish: https://fb.emblemengage.workers.dev/ko/fe17/builder ==" ;;
+  *)        echo "usage: ./dev done [--dry-run]|gate|builder:publish|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac
