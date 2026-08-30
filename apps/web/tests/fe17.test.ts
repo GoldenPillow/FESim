@@ -918,21 +918,30 @@ describe("★앵커 m001 step34 — 무기 전환이 낀 추격 판", () => {
     );
     const store = createBoardStore(props, { file }, file.setup, eventWiringFor(props, eventsMod, commons));
     const session = store.getState().replay!;
-    const step = file.log[34]!;
-    expect(step.action).toMatchObject({ type: "attack", unit: "u8", target: "u11", weapon: 1 });
+    // ☠스텝 번호를 박제하지 않는다(rules/seams.md §6 — 기보가 다시 만들어지면 앵커가 사라진다).
+    //   발현 조건(비장비 무기 지정 + 추격 타격)으로 판을 찾는다 — 없으면 그때가 진짜 레드다.
+    const idx = file.log.findIndex(
+      (s) =>
+        s.action.type === "attack" &&
+        ((s.action as { weapon?: number }).weapon ?? 0) > 0 &&
+        (s.events ?? []).some((e) => e.type === "strike" && e.kind === "followUp"),
+    );
+    expect(idx).toBeGreaterThan(-1);
+    const step = file.log[idx]!;
 
-    const before = replayer.stateAt(session.timeline, 34);
-    expect(before.units.find((u) => u.id === "u8")?.weapon?.name).toBe("철의 검"); // 전투 직전 장비
+    const before = replayer.stateAt(session.timeline, idx);
+    const actor = before.units.find((u) => u.id === (step.action as { unit: string }).unit);
     const equipped = actionWeapon(before, step.action);
-    expect(equipped?.weapon.name).toBe("레이피어");
+    expect(equipped?.weapon.name).toBeDefined();
+    expect(equipped?.weapon.name).not.toBe(actor?.weapon?.name); // 전환이 낀 판이어야 결함이 발현한다
 
     const hits = (step.events ?? []).filter(
       (e): e is Extract<typeof e, { type: "strike" }> => e.type === "strike",
     );
-    expect(hits.map((h) => h.kind)).toEqual(["attack", "followUp", "extra"]);
-    expect(displayKindOf(before, hits[1]!, equipped)).toBe("followUp");
-    // 종전 근사(무기 미전달) — 같은 타격이 추가타로 강하한다. 이 줄이 결함의 실물이다.
-    expect(displayKindOf(before, hits[1]!)).toBe("extra");
+    const followUp = hits.find((h) => h.kind === "followUp")!;
+    expect(displayKindOf(before, followUp, equipped)).toBe("followUp");
+    // 종전 근사(무기 미전달) — 같은 타격이 추격 아닌 것으로 강하한다. 이 줄이 결함의 실물이다.
+    expect(displayKindOf(before, followUp)).not.toBe("followUp");
   }, 30000);
 });
 

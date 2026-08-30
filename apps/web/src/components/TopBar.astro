@@ -6,19 +6,22 @@ interface Props {
   locale: Locale;
   context?: string;
   sub?: string;
+  /** false = 로고를 링크 없이 렌더 — 빌더 단독 채널이 본체로 못 나가게(rules/deploy.md §빌더 채널). */
+  home?: boolean;
 }
-const { locale, context, sub } = Astro.props;
+const { locale, context, sub, home = true } = Astro.props;
+const Logo = home ? "a" : "span";
 const t = UI[locale];
 const path = Astro.url.pathname.replace(/^\/(en|ko)(?=\/|$)/, "");
 ---
 
 <header class="sticky top-0 z-10 border-b border-rule bg-ground/85 backdrop-blur">
   <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
-    <a href={`/${locale}/`} class="group shrink-0" title={t.chapterSelect}>
+    <Logo href={home ? `/${locale}/` : undefined} class="group shrink-0" title={home ? t.chapterSelect : undefined}>
       <span class="block text-[15px] font-semibold tracking-[0.14em] text-ink">FESim</span>
       <span class="block h-px w-full bg-gold opacity-70 transition-opacity group-hover:opacity-100"
       ></span>
-    </a>
+    </Logo>
 
     {
       context && (

@@ -26,6 +26,7 @@ const LOW: GrowthPathJob = {
 const HIGH: BuilderJobProp = {
   jid: "JID_high",
   name: "상급직",
+  nameEn: "High",
   base: block({ hp: 24, str: 7 }),
   limit: block({ hp: 80, str: 40 }),
   diffGrow: block({ hp: 10, str: 20 }),
