@@ -89,8 +89,11 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span aria-hidden="true"></span>
               </th>
-              <th className="sticky top-0 z-20 bg-panel px-2 py-1 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className="text-gold" title={labels.internalShort}>IN.LV</span>
+              <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
+                <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-gold" title={labels.internalShort}>
+                  <span>IN.LV</span>
+                  {job !== undefined && <span className="text-[12px]">{"\u00A0"}</span>}
+                </span>
               </th>
               {STAT_KEYS.map((key) => (
                 <th
@@ -108,9 +111,11 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {STAT_EN[key]}
                       {sort?.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                     </span>
-                    <span className="text-[12px] text-muted" title={labels.growth}>
-                      {job === undefined ? " " : `${job.diffGrow[key]}%`}
-                    </span>
+                    {job !== undefined && (
+                      <span className="text-[12px] text-muted" title={labels.growth}>
+                        {`${job.diffGrow[key]}%`}
+                      </span>
+                    )}
                   </button>
                 </th>
               ))}
