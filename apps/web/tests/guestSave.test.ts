@@ -4,9 +4,13 @@ import {
   clampZoom,
   clearSlot,
   loadSlot,
+  loadShowGrowth,
   loadShowSpoilers,
+  loadStarsphere,
   loadZoom,
+  saveShowGrowth,
   saveShowSpoilers,
+  saveStarsphere,
   saveSlot,
   saveZoom,
   slotKey,
@@ -117,6 +121,22 @@ describe("스포일러 표시 저장(빌더 체커)", () => {
     expect(loadShowSpoilers()).toBe(false);
     use(memoryStorage("setItem"));
     expect(() => saveShowSpoilers(true)).not.toThrow();
+  });
+
+  /** 체커는 전부 브라우저 저장(2026-08-31 사용자 지시) — 성옥·고유 성장도 같은 왕복·강하 규약. */
+  it("성옥의 가호·고유 성장 체커 — 왕복 저장, 기본 false, 이물은 기본으로 강하", () => {
+    const storage = memoryStorage();
+    use(storage);
+    expect(loadStarsphere()).toBe(false);
+    expect(loadShowGrowth()).toBe(false);
+    saveStarsphere(true);
+    saveShowGrowth(true);
+    expect(loadStarsphere()).toBe(true);
+    expect(loadShowGrowth()).toBe(true);
+    storage.setItem("fesim:ui:starsphere", "junk");
+    expect(loadStarsphere()).toBe(false);
+    use(memoryStorage("getItem"));
+    expect(loadShowGrowth()).toBe(false);
   });
 });
 

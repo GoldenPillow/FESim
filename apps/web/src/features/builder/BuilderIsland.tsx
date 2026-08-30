@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
 import { builderRowGroups, nextSort, sortRowGroups, type BuilderCompare, type BuilderSort } from "./lib";
 import type { BuilderProps } from "../../lib/fe17";
-import { loadShowSpoilers, saveShowSpoilers } from "../../lib/guestSave";
+import {
+  loadShowGrowth,
+  loadShowSpoilers,
+  loadStarsphere,
+  saveShowGrowth,
+  saveShowSpoilers,
+  saveStarsphere,
+} from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
 
 /**
@@ -35,11 +42,16 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const [slots, setSlots] = useState<BuilderSlot[]>([{ jid: "" }]);
   const [internal, setInternal] = useState(40);
   const [sort, setSort] = useState<BuilderSort | undefined>(undefined);
+  // 체커는 전부 localStorage 저장(2026-08-31 사용자 지시) — SSG HTML은 기본값(전부 off)으로 굽고
+  // 저장값은 하이드레이션 뒤에 읽는다(SSR 불일치 방지).
   const [star, setStar] = useState(false);
   const [showGrowth, setShowGrowth] = useState(false);
-  // SSG HTML은 항상 숨김 상태로 굽는다 — 저장값은 하이드레이션 뒤에 읽는다(SSR 불일치 방지).
   const [showSpoilers, setShowSpoilers] = useState(false);
-  useEffect(() => setShowSpoilers(loadShowSpoilers()), []);
+  useEffect(() => {
+    setStar(loadStarsphere());
+    setShowGrowth(loadShowGrowth());
+    setShowSpoilers(loadShowSpoilers());
+  }, []);
 
   const compares: BuilderCompare[] = useMemo(
     () =>
@@ -139,7 +151,10 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               <input
                 type="checkbox"
                 checked={star}
-                onChange={(e) => setStar(e.target.checked)}
+                onChange={(e) => {
+                  setStar(e.target.checked);
+                  saveStarsphere(e.target.checked);
+                }}
                 className="h-3.5 w-3.5 accent-[var(--gold)]"
               />
               {labels.starsphere}
@@ -149,7 +164,10 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             <input
               type="checkbox"
               checked={showGrowth}
-              onChange={(e) => setShowGrowth(e.target.checked)}
+              onChange={(e) => {
+                setShowGrowth(e.target.checked);
+                saveShowGrowth(e.target.checked);
+              }}
               className="h-3.5 w-3.5 accent-[var(--pgrow)]"
             />
             {labels.personalGrowth}

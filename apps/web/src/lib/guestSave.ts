@@ -176,26 +176,38 @@ export function loadZoom(): number {
   return Number.isFinite(zoom) && zoom >= ZOOM_MIN && zoom <= ZOOM_MAX ? clampZoom(zoom) : ZOOM_DEFAULT;
 }
 
-/* ── 스포일러 표시 — 빌더 체커 1값. 기본 = 숨김: 첫 방문(저장 없음)에 후반·DLC 캐릭터가
-   보이면 방지가 아니다. ☠"1"만 표시로 읽는다 — 이물·손상 값이 표시로 새면 조용한 스포일러다. */
+/* ── 빌더 체커 저장 — 체커는 전부 localStorage 부울린(2026-08-31 사용자 지시, rules/feature-ui.md).
+   ☠"1"/"0"만 유효로 읽는다 — 이물·예외는 각 체커의 안전 기본값으로 강하한다
+   (스포일러 표시가 새면 조용한 스포일러다). */
 
-const SPOILER_KEY = "fesim:ui:spoilers";
-
-export function saveShowSpoilers(show: boolean): void {
+const savePref = (key: string, on: boolean): void => {
   try {
-    storage()?.setItem(SPOILER_KEY, show ? "1" : "0");
+    storage()?.setItem(key, on ? "1" : "0");
   } catch {
     // 쿼터·프라이빗 모드 = 저장 스킵.
   }
-}
+};
 
-export function loadShowSpoilers(): boolean {
+const loadPref = (key: string, fallback: boolean): boolean => {
   try {
-    return storage()?.getItem(SPOILER_KEY) === "1";
+    const v = storage()?.getItem(key);
+    return v === "1" ? true : v === "0" ? false : fallback;
   } catch {
-    return false;
+    return fallback;
   }
-}
+};
+
+const SPOILER_KEY = "fesim:ui:spoilers";
+const STAR_KEY = "fesim:ui:starsphere";
+const PGROWTH_KEY = "fesim:ui:pgrowth";
+
+export const saveShowSpoilers = (show: boolean): void => savePref(SPOILER_KEY, show);
+/** 기본 = 숨김: 첫 방문(저장 없음)에 후반·DLC 캐릭터가 보이면 방지가 아니다. */
+export const loadShowSpoilers = (): boolean => loadPref(SPOILER_KEY, false);
+export const saveStarsphere = (on: boolean): void => savePref(STAR_KEY, on);
+export const loadStarsphere = (): boolean => loadPref(STAR_KEY, false);
+export const saveShowGrowth = (on: boolean): void => savePref(PGROWTH_KEY, on);
+export const loadShowGrowth = (): boolean => loadPref(PGROWTH_KEY, false);
 
 /* ── 넘버링 세이브 — 사용자가 찍은 지점의 보관. ☠자동 저장(fesim:eph:*)과 다른 축이다:
    저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 **번호가 붙어 남는** 보관이다.
