@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
-import { builderRows, sortBuilderRows, type BuilderSort } from "../lib/builder";
-import type { BuilderProps } from "../lib/fe17";
-import type { BuilderLabels } from "../lib/i18n";
+import { builderRows, sortBuilderRows, type BuilderSort } from "./lib";
+import type { BuilderProps } from "../../lib/fe17";
+import type { BuilderLabels } from "../../lib/i18n";
 
 /**
  * 캐릭터 빌더 — "상급직 하나 x 전 캐릭터" 비교표(design/avg_stats_builder.md §4).
  * 입력 테이블은 빌드 타임(builderPropsFor)이 직렬화해 주고, 직업 x 내부 레벨 조합은 곱집합이라
- * 여기서 계산한다. 계산은 lib/builder(→ 엔진 growthPath)가 소유하고 이 파일은 표시만 한다.
+ * 여기서 계산한다. 계산은 features/builder/lib(→ 엔진 growthPath)가 소유하고 이 파일은 표시만 한다.
  */
 
 const INTERNAL_LEVELS = [10, 15, 20, 25, 30, 35, 40, 45, 50];

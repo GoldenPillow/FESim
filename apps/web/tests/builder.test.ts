@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
-import { builderRows, sortBuilderRows } from "../src/lib/builder";
+import { builderRows, sortBuilderRows } from "../src/features/builder/lib";
 import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
 
 /**

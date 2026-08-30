@@ -1,0 +1,127 @@
+/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
+   테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
+.entry-wrap {
+  filter: drop-shadow(0 0 1px var(--rule));
+}
+tr:hover .entry-wrap {
+  filter: drop-shadow(0 0 2px var(--gold));
+}
+.entry-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 3px;
+  background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
+  padding: 3px 12px 3px 4px;
+}
+.entry-face {
+  /* 원본 = 176x74 눈 스트립(인게임 facethumb) — 비율 그대로 보여야 얼굴이 안 잘린다. */
+  width: 6.6rem;
+  height: 2.75rem;
+  object-fit: cover;
+  -webkit-mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
+  mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
+}
+
+/* 세로 모바일(사용자 결정 2026-08-31: 세로 우선) — 얼굴 절반·이름 숨김(얼굴로 식별)·
+   전 스탯 무스크롤 한 화면. md: 유틸과 겨루는 자리라 이 레이어가 이긴다(!important).
+   ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
+@media (max-width: 767px) {
+  .builder-table {
+    font-size: 12px !important;
+  }
+  .builder-table .stat-col {
+    min-width: 0 !important;
+  }
+  .builder-table .stat-col button {
+    padding: 4px 3px !important;
+  }
+  .builder-table td.stat-col {
+    padding: 4px 3px !important;
+  }
+  /* 직업 선택 시 코너 클래스명이 첫 열을 밀어 가로 스크롤을 만든다 — 드롭다운에 이미 보이므로 숨김. */
+  .builder-table .corner-job {
+    display: none;
+  }
+  .builder-table .grow-note {
+    font-size: 11px !important;
+  }
+  /* IN.LV 열은 숨기고 그 폭만큼 포트레이트를 키운다(2026-08-31 세로 수정). */
+  .builder-table .inlv-col {
+    display: none !important;
+  }
+  .builder-table th[scope="row"] {
+    padding: 2px 2px !important;
+  }
+  .entry-card {
+    gap: 0;
+    padding: 2px 3px;
+  }
+  .entry-face {
+    width: 4.65rem;
+    height: 1.95rem;
+  }
+  .entry-name {
+    display: none;
+  }
+}
+
+/* 가로 모드(높이 520px 이하) — 사용자 결정 2026-08-31: **PC 풀피쳐 그대로 + 모두 펼침**(세로와 작동 다름).
+   안쪽 스크롤 없이 페이지 스크롤 하나로 상하좌우 이동, 표 헤더는 상단바(3.5rem) 아래 고정.
+   ☠세로 모바일 블록(max-width 767)이 좁은 가로폰에 새므로 PC값을 명시 복원한다. */
+@media (max-height: 520px) {
+  .builder-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .builder-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* 상단바는 밀려나가고 스탯 헤더만 최상단 고정(사용자 결정 — 한 줄 낭비 제거). 빌더 페이지 한정. */
+  body:has(.builder-main) header {
+    position: static !important;
+  }
+  .builder-table thead th {
+    top: 0 !important;
+  }
+  .builder-table {
+    font-size: 17px !important;
+  }
+  .builder-table .stat-col {
+    min-width: 5.5rem !important;
+  }
+  .builder-table .stat-col button {
+    padding: 18px 8px !important;
+  }
+  .builder-table td.stat-col {
+    padding: 4px 8px !important;
+  }
+  .builder-table .inlv-col {
+    display: table-cell !important;
+    padding: 4px 8px !important;
+  }
+  .builder-table th[scope="row"] {
+    padding: 3px 8px !important;
+  }
+  .builder-table .corner-job {
+    display: flex !important;
+  }
+  .builder-table .grow-note {
+    font-size: 14px !important;
+  }
+  .entry-card {
+    gap: 0.55rem;
+    padding: 3px 12px 3px 4px;
+  }
+  .entry-face {
+    width: 6.6rem;
+    height: 2.75rem;
+  }
+  .entry-name {
+    display: inline-block;
+    width: 6em !important;
+    font-size: 17px !important;
+  }
+}
