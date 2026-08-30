@@ -88,7 +88,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 {job !== undefined && (
-                  <span className="flex flex-col justify-center gap-0.5 px-1 py-2 text-ink md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1">
+                  <span className="corner-job flex flex-col justify-center gap-0.5 px-1 py-2 text-ink md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1">
                     <span className="uppercase">{job.nameEn}</span>
                     <span className="text-[14px]">{"\u00A0"}</span>
                   </span>
@@ -117,7 +117,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {sort?.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                     </span>
                     {job !== undefined && (
-                      <span className="text-[12px] md:text-[14px] text-gold" title={labels.growth}>
+                      <span className="grow-note text-[12px] md:text-[14px] text-gold" title={labels.growth}>
                         {`${job.diffGrow[key]}%`}
                       </span>
                     )}

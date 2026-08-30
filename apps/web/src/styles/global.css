@@ -102,10 +102,17 @@ tr:hover .entry-wrap {
     min-width: 0 !important;
   }
   .builder-table .stat-col button {
-    padding: 4px 2px !important;
+    padding: 4px 3px !important;
   }
   .builder-table td.stat-col {
-    padding: 4px 2px !important;
+    padding: 4px 3px !important;
+  }
+  /* 직업 선택 시 코너 클래스명이 첫 열을 밀어 가로 스크롤을 만든다 — 드롭다운에 이미 보이므로 숨김. */
+  .builder-table .corner-job {
+    display: none;
+  }
+  .builder-table .grow-note {
+    font-size: 10px !important;
   }
   .builder-table .inlv-col {
     padding: 2px 3px !important;
