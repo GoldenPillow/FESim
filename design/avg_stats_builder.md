@@ -12,10 +12,10 @@ target: apps/web(메인 랜딩 + 빌더 페이지) + packages/engine(성장 경�
 ## 0. 체크리스트
 
 - [ ] **B0 선행 판독·판정 (구현 착수 게이트 — ☠이거 전에 코드 금지)** — 상세 = §6
-  - [ ] B0-1 ★레벨업 성장률 소스: 개인 단독인가, 개인+클래스(BaseGrow) 합산인가 (`App.Unit.LevelUp` 0x1A3A040 Fixed 분기의 rate 게터 판독). ☠합산이 정본이면 **현행 엔진도 결손**(fixedGrowth가 개인만 소비 — `battle.ts:723` + 사영 `fe17.ts:1466`) ⇒ MP 선두 이동 룰 발동(CLAUDE.md)
-  - [ ] B0-2 범용/전용 상급직 판정 필드 확정 (드롭다운 목록의 기계 판정 근거)
-  - [ ] B0-3 내부 레벨 정의 대조: 표시식 = person.InternalLevel + Level, clamp 상한(calculator.json `内部レベル計算`, 난이도별)과 전직 시 clamp(5-4 판독) 정합
-  - [ ] B0-4 전직 스탯 치환 재확인: 5-4 판독(레벨 1·Exp 0·누적 성장분 보존·내부레벨 clamp) = "스탯 − 구직업 Base + 신직업 Base" 등가인지 (mp5_campaign §2-10 BaseCapability 그릇과 같은 뿌리)
+  - [x] B0-1 ★레벨업 성장률 소스 (2026-08-31 종결 — **합산 확정. 단 클래스 필드는 BaseGrow가 아니라 `job.DiffGrow`**) — rate = (person.Grow 전0이면 job.BaseGrow 택일 base) + job.DiffGrow(스킬 Work=2 JobGrowChange 훅 통과 — Jean 努力の才 x2의 대상) + 무기 GrowRatio, Clamp(0,255) · Fixed/Random **공용** · ★acc 초기값 = person.Grow **원본**(rate와 다른 값 — 겸용 금지). ☠**현행 엔진 결손 확정**(`fe17.ts:1466` 개인 단독 사영 · `battle.ts:725` acc·rate 겸용) ⇒ 플랜 §0 MP 선두 등재(수리 착수는 승인 후). ⚠자동레벨 "택일"(stats.ts)은 다른 필드(DiffGrowN/H/L)라 여전히 옳다 — 두 경로를 섞지 말 것. 판독 = `~/fesim_data/extracted/il2cpp/LEVELUP_GROW.md`
+  - [x] B0-2 범용/전용 상급직 판정 (2026-08-31 종결) — 판정 필드 = jobs.json `Flag`: Rank=1 & Flag=11 → **범용 20종** · Flag=1 → **전용 9종**(신룡의 왕 + 왕족 계승직 8) · Flag=0 → 적 전용/중복(플레이어 비대상). 전용직 "가능자" 판정 = 승급망 도달(전용 하급직 1:1 사슬 — LowJob/HighJob 역참조). ⚠인챈트·메이지캐넌은 Flag=11이나 LowJob 없음(미배치 계열 추정) — 구현 시 제외 여부 확정. 근거 = `~/fesim_data/extracted/fidelity_gaps/H_job_person.md` §2-3
+  - [x] B0-3 내부 레벨 정의 (2026-08-31 종결) — 정본 = calculator.json `内部レベル計算` = clamp(내부레벨 + 레벨 − 1, 0, N30/H40/**L50**), base = person.InternalLevel(0이면 job.InternalLevel 폴백), 전직 시 재계산·저장(`Unit.ClassChange` 0x1A3C7B0). ☠기존 결손 재확인 = 웹 사영 `fe17.ts:1465`가 job.InternalLevel만 읽음(장부 `units.internal-level-cap` absent · mp5 §2 결손 6 기재) — **빌더는 그 사영을 쓰지 않고 정본 산식을 소비**한다. 표기 규약 = §2. 근거 = `~/fesim_data/extracted/il2cpp/STATS_GROWTH.md` §2-6
+  - [x] B0-4 전직 스탯 치환 (2026-08-31 종결 — **치환식 반증**) — 정본 = 표시 스탯 `Clamp(job.Base + BaseCapability, 0, job.Limit) + Enhance`이고, 전직은 **job(Base/Limit)만 교체, BaseCapability 불변**. "스탯 − 구Base + 신Base" 역산은 캡이 섞이면 동치가 깨진다(mp5 §2 결손 10과 일치) ⇒ ★**B1 경로 함수는 BaseCapability 그릇을 직접 든다**(§2 — 5-4 전직 구현과 같은 그릇 = 선행 겸용). HP는 현재HP만 min 클램프(최대치 계산엔 무관)·Move는 통상 합성. 근거 = STATS_GROWTH.md §2-1·§2-6(디스어셈블 인용)
 - [ ] B1 엔진: 성장 경로 함수 1개 (합류→전직→목표 내부 레벨, §2 모델) — `fixedGrowth` 재사용(승격·이동, ☠복제 금지) + TDD(실기·SerenesForest 대조 앵커)
 - [ ] B2 사영: 빌더 데이터 빌드타임 가공 (로스터 36명 x 상급직 목록, `fe17.ts` 관례 = 아일랜드엔 직렬화 props만) + shared에 Person/Job 소비 필드 타입 정식화(`as unknown` 캐스팅 걷기)
 - [ ] B3 빌더 페이지 UI (`/[locale]/fe17/builder`) — §4
@@ -43,11 +43,13 @@ target: apps/web(메인 랜딩 + 빌더 페이지) + packages/engine(성장 경�
 
 ## 2. 계산 모델 (경로 의미론 — 이 문서가 소유하는 유일한 "설계")
 
-캐릭터별로 아래 3구간을 잇는다. 수식·상수는 코드가 정본(§3의 답변자만 호출).
+**그릇 = BaseCapability**(성장 누적 + 인물 오프셋 — B0-4 정본). 어느 시점이든 표시 스탯 = `Clamp(현재 job.Base + BaseCapability, 0, job.Limit)`. 캐릭터별로 아래 3구간을 잇는다. 수식·상수는 코드가 정본(§3의 답변자만 호출).
 
-1. **합류 스탯**: 합류 (직업, 레벨, 난이도 오프셋)에서 `deriveStats`로 산출 — 인게임 영입 스탯과 동일 모델(36명 전수 일치 검증 완료). 합류 내부 레벨 = InternalLevel + Level (B0-3에서 확정)
-2. **전직 전 구간**: 합류 직업이 기본직이고 레벨 < 10이면, 10까지 레벨업을 `fixedGrowth`로 누적(누적기 초기값 = person.Grow — 5-1 판독). 레벨 10 도달 또는 즉시 전직 조건이면 다음 구간
-3. **전직 + 목표 구간**: 선택 상급직으로 전직(스탯 치환 = B0-4 확정 모델, 레벨→1·내부 레벨 유지) 후, 내부 레벨이 목표(디폴트 40)에 닿을 때까지 레벨업 누적. 캡은 `fixedGrowth` 게이트 그대로(캡 도달 스탯은 누적조차 안 함 — 이 상태가 곧 "캡 색 표시" 신호)
+1. **합류 상태**: 합류 (직업, 레벨, 루나틱 오프셋)에서 BaseCapability를 자동레벨 모델(`deriveStats`의 성장분+오프셋 항 — 36명 전수 일치 검증 완료)로 구성
+2. **전직 전 구간**: 합류 직업이 기본직이고 레벨 < 10이면, 10까지 레벨업을 `fixedGrowth` 기전으로 누적(캡 도달 스탯은 누적조차 안 함). ★레벨업 rate = B0-1 정본(개인 택일 base + **현재 직업 DiffGrow** + 스킬 JobGrowChange 훅), acc 초기값 = person.Grow 원본. 무기 GrowRatio는 빌더 미적용(장비 미지정 가정 — 잘하면 되는 층 판단, 명기). 레벨 10 도달 또는 이미 10 이상이면 다음 구간
+3. **전직 + 목표 구간**: 선택 상급직으로 전직 = **job(Base/Limit)만 교체, BaseCapability 불변, 레벨→1, 내부 레벨 재계산·저장**(B0-4·B0-3). 이후 내부 레벨이 목표(디폴트 40)에 닿을 때까지 레벨업 누적. 캡 게이트에 걸린 스탯 = "캡 색 표시" 신호
+
+**내부 레벨 표기 규약**(잘하면 되는 층 — 우리 판단): 정본 산식(`内部レベル計算`, 0기점 clamp)을 소비하되, **표시는 1기점**(= 총 성장 레벨 수: 뤼에르 Lv1 합류 = 내부 1, 목표 40 = 레벨업 39회 누적). 인게임은 내부 레벨을 화면에 안 보여주므로 기점은 우리 규약이고, 산식·clamp(루나틱 상한 50)는 정본을 따른다.
 
 경계 처리:
 - 합류 내부 레벨 > 목표: 강등 없음 — 합류 상태 그대로 표시하고 행에 표식(툴팁류)
@@ -60,9 +62,10 @@ target: apps/web(메인 랜딩 + 빌더 페이지) + packages/engine(성장 경�
 |---|---|---|
 | 합류 시점 스탯 | `deriveStats` `packages/engine/src/stats.ts:54` | 그대로 호출 |
 | 레벨업 1회 성장 | `fixedGrowth` `packages/engine/src/battle.ts:723` (비export·전투 결합) | export 승격 or stats.ts로 **이동**(복제 금지) |
-| 전직 스탯 치환 | 5-4 판독(플랜 §0)·mp5_campaign §2-10 — 코드 미실현 | B1에서 신설(5-4 전직 구현이 설 때 같은 함수를 쓴다) |
+| 전직(BaseCapability 그릇) | 정본 판독 = `~/fesim_data/extracted/il2cpp/STATS_GROWTH.md` §2-6 — 코드 미실현(mp5 §2-10) | B1에서 신설(5-4 전직 구현이 설 때 같은 그릇·같은 함수를 쓴다) |
 | 스탯 캡 | `unitCap` `apps/web/src/lib/fe17.ts:530` (job.Limit 계열) | 소비. 엔진 승격은 5-4와 함께 판단 |
-| 내부 레벨 | `calculator.json` `内部レベル計算` + person.InternalLevel | B0-3 확정 후 소비 |
+| 내부 레벨 | `calculator.json` `内部レベル計算` (base = person.InternalLevel, job 폴백) | 정본 산식 소비 — ☠기존 웹 사영(`fe17.ts:1465` job만)은 쓰지 않는다 |
+| 범용/전용 상급직 판정 | jobs.json `Rank`+`Flag` (B0-2) + 승급망 역참조 | B2 빌드타임 판정 |
 | 한글 캐릭터·직업명 | `data/fe17/names/ko.json` + `label()` `fe17.ts:200` | 그대로 호출 |
 | 얼굴 포트레이트 | `data/fe17/assets/faces/*.webp` (M1 facethumb 로스터와 동일 소스) | 그대로 소비 |
 | Person/Job 스키마 | 현재 `fe17.ts` 로컬 부분 타입 + 캐스팅 우회 | B2에서 shared 타입 정식화(소비 필드만) |
@@ -87,16 +90,16 @@ target: apps/web(메인 랜딩 + 빌더 페이지) + packages/engine(성장 경�
 
 ## 6. 선행 판독 상세 (B0 — 미판독 가정은 구현 전 판독 선행, MP3 관례)
 
-1. **B0-1 레벨업 성장률 소스** — 이 기능의 전제가 걸려 있다: 사용자 요구(직업 선택이 성장에 반영)는 "레벨업 성장 = 개인+클래스 합산"일 때 자연 성립한다. 그런데 합류 자동레벨(`deriveStats`)은 **택일**이 판독·검증된 정본이다(stats.ts 머리말). 자동레벨과 수동 레벨업이 다른 게터를 쓸 가능성이 높으나 **추측 금지** — LevelUp 본문에서 rate 소스를 읽는다. 판독 결과에 따라:
-   - 합산 정본 ⇒ 빌더는 개인+선택직업 BaseGrow로 누적 + **현행 엔진 fixedGrowth 결손 수리**(캠페인 5-1 파급 — 관통 테스트 동반)
-   - 단독 정본 ⇒ 직업 선택은 Base 치환·캡에만 반영 — 헤더 성장률 표기 의미를 사용자와 재협의
-2. **B0-2 범용 상급직 판정** — jobs.json Rank=1 중 전용직(신룡의 왕 등) 구분 필드 확정(Flag/UniqueItems/Person 연결 등 후보 — 조사 1건)
-3. **B0-3 내부 레벨 정의·clamp** — 표시식과 상한(난이도별 50/40/30)이 우리 표기와 정합인지
-4. **B0-4 전직 치환식** — "스탯 − 구직업 Base + 신직업 Base" 등가 확인(HP·이동·시야 포함 여부)
+4건 전부 2026-08-31 종결 — 결론은 §0 B0 체크리스트가 소유(근거 경로 포함). 빌더에 걸리는 귀결만 요약:
+
+1. **B0-1 (합산 확정)** — 사용자 요구(직업 선택이 성장에 반영)가 정본으로 성립. 헤더 성장률 표기 = **선택 직업 DiffGrow**(클래스 성장률), 행별 누적은 개인+DiffGrow 합산. ☠현행 엔진 결손 동시 적발 — 플랜 §0 MP 선두 등재(수리는 승인 후, B1과 같은 정본 소비)
+2. **B0-2** — 드롭다운 = 범용 20종 + 전용 9종(가능자 상단), 인챈트·메이지캐넌은 구현 시 제외 여부 확정
+3. **B0-3** — 내부 레벨은 정본 산식 소비 + 1기점 표기(§2)
+4. **B0-4** — B1 경로 함수는 BaseCapability 그릇 기반(§2) — 5-4 전직 구현의 선행 겸용
 
 ## 7. 미결
 
 질문 게이트 Q1~Q4는 2026-08-31 전건 종결(답은 §1에 흡수). 남은 미결:
 
 - 전용직 선택 시 **불가 캐릭터의 표시 방식** — 하단 회색(채택 시작값) vs 숨김. 확정 = 구현 후 사용자 화면 확인
-- B0-1 판독 결과가 "개인 단독"이면 헤더 성장률 표기 의미 재협의 (§6-1)
+- 인챈트·메이지캐넌(Flag=11이나 LowJob 없음 — 미배치 계열 추정) 드롭다운 제외 여부 — 구현 시 데이터로 확정
