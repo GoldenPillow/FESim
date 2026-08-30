@@ -99,6 +99,7 @@ export {
   grownLevels,
   growthPath,
   levelUpGrowthRate,
+  mergeStatCap,
   STAT_KEYS,
   type DeriveStatsInput,
   type GrowthPathInput,

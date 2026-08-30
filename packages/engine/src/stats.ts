@@ -128,6 +128,16 @@ export function deriveStats(input: DeriveStatsInput): StatBlock {
   return out;
 }
 
+/**
+ * 스탯 상한 합성 = Clamp(job.Limit + person.Limit, 0, 255) — GetCapabilityLimit 0x1A30B60
+ * (person Limit은 s8 음수 가능). 웹 사영(statCap)과 빌더가 같은 답변자를 쓴다(☠복제 금지).
+ */
+export function mergeStatCap(jobLimit: StatBlock, personLimit: StatBlock): StatBlock {
+  const out = {} as StatBlock;
+  for (const key of STAT_KEYS) out[key] = clamp(jobLimit[key] + personLimit[key], 0, 255);
+  return out;
+}
+
 /** 성장 경로의 직업 단면 — base/limit는 표시 합성 입력, diffGrow는 레벨업 rate의 클래스 몫(공용 DiffGrow). */
 export interface GrowthPathJob {
   base: StatBlock;

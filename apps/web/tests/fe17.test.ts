@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, bondScaffold, boardPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -971,5 +971,57 @@ describe("예보 대미지 표기 — 오더별로 다르면 ×N을 안 쓴다 (
     expect(strikeSuffix(fc.attack!.damages)).toBe("+5");
     // 한 번뿐인 오더에는 아무것도 안 붙는다(종전과 같다).
     expect(strikeSuffix([10])).toBe("");
+  });
+});
+
+/**
+ * 캐릭터 빌더 사영(builderPropsFor — avg_stats_builder B2).
+ * 왜 위험한가: 로스터·전용직 판정이 데이터 규칙(joins 역참조·Flag·승급망)에 걸려 있어
+ * 규칙이 어긋나면 빌더 표가 조용히 사람을 빠뜨리거나 DLC 직업을 섞는다.
+ */
+describe("builderPropsFor — 캐릭터 빌더 사영", () => {
+  const props = builderPropsFor("ko");
+
+  it("본편 로스터 36명 · 합류순(뤼에르 선두, 외전은 개방 시점 삽입)", () => {
+    expect(props.chars).toHaveLength(36);
+    expect(props.chars[0]!.pid).toBe("PID_リュール");
+    const pids = props.chars.map((c) => c.pid);
+    // 장(s001, 개방 = M005 클리어)은 m004 합류(루이)와 m006 합류(유나카) 사이.
+    expect(pids.indexOf("PID_ジャン")).toBeGreaterThan(pids.indexOf("PID_ルイ"));
+    expect(pids.indexOf("PID_ジャン")).toBeLessThan(pids.indexOf("PID_ユナカ"));
+  });
+
+  it("뤼에르 개인 성장률 실값 + 얼굴 직결 + 전원 이름·얼굴 보유", () => {
+    const lueur = props.chars[0]!;
+    expect(lueur.personGrowth).toEqual({ hp: 60, str: 35, mag: 20, dex: 45, spd: 50, lck: 25, def: 40, res: 25, bld: 5 });
+    expect(lueur.joinLevel).toBe(1);
+    expect(lueur.internalOffset).toBe(0);
+    for (const c of props.chars) {
+      expect(c.name).not.toMatch(/^PID_/);
+      expect(c.face).toBeDefined();
+      expect(props.joinJobs[c.joinJid]).toBeDefined();
+    }
+  });
+
+  it("장(Jean)만 努力の才(Work=2)를 workSkills로 든다", () => {
+    const jean = props.chars.find((c) => c.pid === "PID_ジャン")!;
+    expect(jean.workSkills?.map((s) => s.Sid)).toEqual(["SID_努力の才"]);
+    expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
+  });
+
+  it("직업 드롭다운 = 범용 18 + 전용 9 (인챈트·메이지캐넌 제외, 한글명, 전용은 가능자 1명)", () => {
+    expect(props.targetJobs).toHaveLength(27);
+    const jids = props.targetJobs.map((j) => j.jid);
+    expect(jids).toContain("JID_セイジ");
+    expect(jids).not.toContain("JID_エンチャント");
+    expect(jids).not.toContain("JID_マージカノン");
+    const dragonKing = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
+    expect(dragonKing.uniquePid).toBe("PID_リュール");
+    expect(dragonKing.name).toBe("신룡의 왕");
+    const uniques = props.targetJobs.filter((j) => j.uniquePid !== undefined);
+    expect(uniques).toHaveLength(9);
+    const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
+    expect(sage.uniquePid).toBeUndefined();
+    expect(sage.name).toBe("세이지");
   });
 });
