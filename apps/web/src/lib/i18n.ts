@@ -331,7 +331,7 @@ export const UI: Record<Locale, Strings> = {
       personalGrowth: "Show personal growths",
       removeCompare: "Remove comparison",
       growth: "Growth",
-      joinedNote: "No class selected — showing each unit as they join.",
+      joinedNote: "No class selected — each unit at their join-time level.",
       cappedNote: "Highlighted values have reached the stat cap.",
       unavailable: "Cannot reach this class",
       stats: {
@@ -498,7 +498,7 @@ export const UI: Record<Locale, Strings> = {
       personalGrowth: "個人成長率を表示",
       removeCompare: "比較を削除",
       growth: "成長率",
-      joinedNote: "クラス未選択 — 各キャラクターの加入時点の値です。",
+      joinedNote: "クラス未選択 — 各キャラクターの加入時点レベル",
       cappedNote: "色の違う値はステータス上限に到達した値です。",
       unavailable: "このクラスにはなれない",
       stats: {
@@ -663,7 +663,7 @@ export const UI: Record<Locale, Strings> = {
       personalGrowth: "고유 성장률 표시",
       removeCompare: "비교 제거",
       growth: "성장률",
-      joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
+      joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 레벨",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",
       unavailable: "이 직업으로 갈 수 없음",
       stats: {

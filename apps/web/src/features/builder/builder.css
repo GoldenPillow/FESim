@@ -28,6 +28,23 @@ tbody:hover .entry-wrap {
    전 스탯 무스크롤 한 화면. md: 유틸과 겨루는 자리라 이 레이어가 이긴다(!important).
    ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
 @media (max-width: 767px) {
+  /* 펼침 모드(2026-08-31 사용자 지시 — 가로와 동일 작동): 안쪽 스크롤박스 제거, 페이지 스크롤 하나.
+     상단바는 밀려나가고 표 헤더(1행 + 성장률 행)만 최상단 고정. 밀도 압축(아래 규칙들)은 유지한다. */
+  .builder-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .builder-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body:has(.builder-main) header {
+    position: static !important;
+  }
+  .builder-table thead tr:first-child th {
+    top: 0 !important;
+  }
   .builder-table {
     font-size: 12px !important;
   }
