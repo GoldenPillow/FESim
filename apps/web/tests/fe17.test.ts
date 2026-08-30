@@ -1059,6 +1059,16 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     ]);
   });
 
+  /**
+   * 왜 위험한가: 로케일 사전은 names/<locale>.json → DICTS → label 3층 배선이라
+   * 한 층이 빠져도 pid 폴백으로 조용히 렌더된다 — ja 추가(2026-08-31 en·ja·ko)를 관통으로 박제.
+   */
+  it("ja 로케일 — 빌더 사영이 일본어 이름을 낸다", () => {
+    const ja = builderPropsFor("ja");
+    expect(ja.chars[0]!.name).toBe("リュール");
+    expect(ja.targetJobs.find((j) => j.jid === "JID_セイジ")!.name).toBe("セイジ");
+  });
+
   it("성옥의 가호 행(Work 3 · +15)이 props에 실린다 — 체커의 데이터 정본", () => {
     expect(props.starsphere?.Work).toBe(3);
     expect(props.starsphere?.WorkOperation).toBe("+");

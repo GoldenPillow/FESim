@@ -2,7 +2,7 @@
 // ☠비계: 개발 완료·본체 병합 시 이 워커와 wrangler.builder.jsonc를 폐기한다(제거 조건 = deploy.md).
 // 같은 빌드 산출물(dist/client)을 쓰되 허용목록 밖은 전부 404 — fesim 본체(맵·기보·랜딩) 진입 차단.
 const ALLOW = [
-  /^\/(ko|en)\/fe17\/builder\/?$/,
+  /^\/(ko|en|ja)\/fe17\/builder\/?$/,
   /^\/_astro\//,
   /^\/fe17\/assets\/faces\//,
 ];
@@ -10,7 +10,7 @@ const ALLOW = [
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/" || /^\/(ko|en)\/?$/.test(url.pathname)) {
+    if (url.pathname === "/" || /^\/(ko|en|ja)\/?$/.test(url.pathname)) {
       return Response.redirect(new URL("/ko/fe17/builder", url), 302);
     }
     if (ALLOW.some((re) => re.test(url.pathname))) return env.ASSETS.fetch(request);

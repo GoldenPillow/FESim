@@ -15,7 +15,8 @@ export type FidelityStatus =
 export interface FidelityEntry {
   /** "movement.once-per-activation" 형식 — 첫 세그먼트가 카테고리다. */
   id: string;
-  label: { en: string; ko: string };
+  /** ja는 선택 — 현지화는 사용자 지시 시에만, 마감 게이트 비차단(2026-08-31). 없으면 표시층이 en 폴백. */
+  label: { en: string; ja?: string; ko: string };
   status: FidelityStatus;
   /** 근거·앵커 포인터(테스트명·코퍼스 케이스·도움말 키·결정 기록). */
   evidence?: string;
@@ -23,7 +24,7 @@ export interface FidelityEntry {
 
 export interface FidelityCategory {
   id: string;
-  label: { en: string; ko: string };
+  label: { en: string; ja?: string; ko: string };
 }
 
 export const FIDELITY_CATEGORIES: readonly FidelityCategory[] = [

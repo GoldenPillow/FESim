@@ -20,6 +20,7 @@ import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
 import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
+import namesJaRaw from "../../../../data/fe17/names/ja.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
 import { UI, type Locale, type Strings } from "./i18n";
 
@@ -146,6 +147,7 @@ const godsTable = parse<GodsTable>(godsRaw);
 
 const DICTS: Record<Locale, Record<string, string>> = {
   en: parse<Record<string, string>>(namesEnRaw),
+  ja: parse<Record<string, string>>(namesJaRaw),
   ko: parse<Record<string, string>>(namesKoRaw),
 };
 

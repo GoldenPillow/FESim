@@ -1,5 +1,5 @@
 ---
-/** 비로케일 경로 진입점 — navigator.language로 en|ko 분기(기본 en). */
+/** 비로케일 경로 진입점 — navigator.language로 en|ja|ko 분기(기본 en). */
 interface Props {
   target: string;
 }
@@ -15,7 +15,8 @@ const { target } = Astro.props;
     <link rel="canonical" href={`/en${target}`} />
     <title>FESim</title>
     <script is:inline define:vars={{ target }}>
-      const lang = (navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";
+      const nav = (navigator.language || "en").toLowerCase();
+      const lang = nav.startsWith("ko") ? "ko" : nav.startsWith("ja") ? "ja" : "en";
       location.replace(`/${lang}${target}`);
     </script>
     <noscript><meta http-equiv="refresh" content={`0; url=/en${target}`} /></noscript>

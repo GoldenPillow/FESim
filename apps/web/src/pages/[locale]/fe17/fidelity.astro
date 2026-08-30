@@ -13,7 +13,7 @@ const t = UI[locale];
 const f = t.fidelity;
 const summary = fidelitySummary();
 const groups = FIDELITY_CATEGORIES.map((c) => ({
-  label: c.label[locale],
+  label: c.label[locale] ?? c.label.en,
   entries: FIDELITY.filter((e) => fidelityCategoryOf(e) === c.id),
 })).filter((g) => g.entries.length > 0);
 const STATUSES = ["anchored", "implemented", "assumed", "absent", "deferred"] as const;
@@ -46,7 +46,7 @@ const STATUSES = ["anchored", "implemented", "assumed", "absent", "deferred"] as
             {g.entries.map((e) => (
               <li title={e.evidence}>
                 <i class={`dot ${e.status}`} />
-                <span class="name">{e.label[locale]}</span>
+                <span class="name">{e.label[locale] ?? e.label.en}</span>
                 <span class={`chip ${e.status}`}>{f.statusNames[e.status]}</span>
               </li>
             ))}
