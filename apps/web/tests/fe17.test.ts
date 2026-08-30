@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
 import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { growthPath, mergeStatCap, STAT_KEYS, type GrowthPathJob, type GrowthPathResult } from "@fesim/engine";
 
 /**
  * fe17 어댑터 — 정본 테이블(persons/jobs/gods.json)을 엔진 입력으로 사상하는 층.
@@ -1023,5 +1024,57 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지");
+  });
+});
+
+/**
+ * B5 대조 표본 — triangleattack Average Stats(Fixed mode·Show decimals) Alear 열.
+ * 외부 참고 정본(설계 결정 2026-08-31: 어긋나면 우리 데이터가 진실 — 차이는 보고만).
+ * 사영(builderPropsFor) → 엔진(growthPath) → 표시값(stats + acc/100)의 관통 앵커라서
+ * 어느 층이 바뀌어도 소수부 단위로 깨진다(합산 rate·acc 초기값·전직 Base 교체를 한 번에 잡는다).
+ */
+describe("B5 대조 표본 — Alear 소수부까지", () => {
+  const props = builderPropsFor("ko");
+  const alear = props.chars[0]!;
+  const run = (target: GrowthPathJob, targetInternal: number): GrowthPathResult =>
+    growthPath({
+      joinJob: { ...props.joinJobs[alear.joinJid]!, limit: mergeStatCap(props.joinJobs[alear.joinJid]!.limit, alear.personLimit) },
+      targetJob: { ...target, limit: mergeStatCap(target.limit, alear.personLimit) },
+      joinLevel: alear.joinLevel,
+      internalOffset: alear.internalOffset,
+      personGrowth: alear.personGrowth,
+      personOffset: alear.personOffset,
+      targetInternal,
+    });
+  const display = (r: GrowthPathResult): Record<string, number> =>
+    Object.fromEntries(STAT_KEYS.map((k) => [k, r.stats[k] + r.acc[k] / 100]));
+
+  it("합류 초기 행(신룡의 아이 Lv1) = 22.6/6.35/0.2/5.45/7.5/5.25/5.4/3.25/4.05", () => {
+    const d = display(run(props.joinJobs[alear.joinJid]!, alear.internalOffset + alear.joinLevel));
+    expect(d["hp"]).toBeCloseTo(22.6, 5);
+    expect(d["str"]).toBeCloseTo(6.35, 5);
+    expect(d["mag"]).toBeCloseTo(0.2, 5);
+    expect(d["dex"]).toBeCloseTo(5.45, 5);
+    expect(d["spd"]).toBeCloseTo(7.5, 5);
+    expect(d["lck"]).toBeCloseTo(5.25, 5);
+    expect(d["def"]).toBeCloseTo(5.4, 5);
+    expect(d["res"]).toBeCloseTo(3.25, 5);
+    expect(d["bld"]).toBeCloseTo(4.05, 5);
+  });
+
+  it("내부 10 전직 직후 행(신룡의 왕 Lv1) = 30.9/12.4/3/12.4/14.35/8.95/10.9/8.4/7.95", () => {
+    const target = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
+    const r = run(target, 10);
+    expect(r.promoted).toBe(true);
+    const d = display(r);
+    expect(d["hp"]).toBeCloseTo(30.9, 5);
+    expect(d["str"]).toBeCloseTo(12.4, 5);
+    expect(d["mag"]).toBeCloseTo(3, 5);
+    expect(d["dex"]).toBeCloseTo(12.4, 5);
+    expect(d["spd"]).toBeCloseTo(14.35, 5);
+    expect(d["lck"]).toBeCloseTo(8.95, 5);
+    expect(d["def"]).toBeCloseTo(10.9, 5);
+    expect(d["res"]).toBeCloseTo(8.4, 5);
+    expect(d["bld"]).toBeCloseTo(7.95, 5);
   });
 });
