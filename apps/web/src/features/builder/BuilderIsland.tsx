@@ -111,7 +111,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           type="button"
           onClick={() => setJids((s) => [...s, ""])}
           disabled={jids.length >= MAX_JOBS}
-          className="rounded bg-[var(--gold)] px-3 py-[5px] text-[14px] font-bold text-black hover:brightness-110 disabled:opacity-40"
+          className="rounded px-3 py-[5px] text-[14px] font-bold text-gold hover:bg-sunken disabled:opacity-40"
         >
           {`+ ${labels.addCompare}`}
         </button>
@@ -168,8 +168,9 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
         {/* ☠border-collapse 금지 — collapse 모델에서는 sticky 헤더 셀의 배경 페인트가 스크롤에 뒤처져
             본문 글자가 헤더를 뚫고 비친다(가로폰 실측, Chromium). 구분선은 셀이 소유한다. */}
         <table className="builder-table border-separate [border-spacing:0] text-[14px] md:text-[17px]">
-          <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
-            <tr ref={headRowRef}>
+          {/* 모노 폰트는 1행(스탯명)만 — 성장률 행은 본문과 같은 서체(2026-08-31 사용자 지시). */}
+          <thead>
+            <tr ref={headRowRef} className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className="corner-label block px-1 text-muted md:px-2">Character</span>
               </th>
@@ -204,12 +205,12 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 // 성장률 행 — 본문 각 캐릭터의 ji번째 라인과 같은 직업(builderRowGroups의 순서 동치).
                 <tr key={`${job.jid}-${ji}`} className="job-row" ref={ji === 0 ? jobRowRef : undefined}>
                   <th scope="row" style={{ top }} className="sticky left-0 z-30 bg-panel px-3 py-[3px] text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]">
-                    <span className="job-name block truncate px-1 text-[13px] font-semibold text-ink md:px-2 md:text-[15px]">{job.name}</span>
+                    <span className="job-name block truncate px-1 text-[15px] font-semibold text-ink md:px-2 md:text-[17px]">{job.name}</span>
                   </th>
                   <td style={{ top }} className="inlv-col sticky z-20 bg-panel shadow-[inset_0_-1px_0_var(--rule)]" />
                   {STAT_KEYS.map((key) => (
                     <td key={key} style={{ top }} className="stat-col sticky z-20 bg-panel px-1 py-[3px] text-center shadow-[inset_0_-1px_0_var(--rule)]">
-                      <span className="grow-note text-[12px] text-gold md:text-[14px]" title={labels.growth}>
+                      <span className="grow-note font-bold text-gold" title={labels.growth}>
                         {`${job.diffGrow[key]}%`}
                       </span>
                     </td>
@@ -222,6 +223,9 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             const first = g[0]!;
             // 캐릭터 사이 구분선 = 각 묶음 첫 라인 셀의 border-t(첫 묶음 제외) — separate 모델에서 tr 보더는 안 그려진다.
             const sep = gi > 0 ? "border-t border-rule" : "";
+            // 멀티 모드는 라인마다 단일 모드 행 높이만큼 여백(2026-08-31 사용자 지시 — 답답함 방지,
+            // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
+            const roomy = g.length > 1 ? "py-[15px]" : "py-1";
             return (
               <tbody key={first.pid} className="group">
                 {g.map((row, li) => (
@@ -242,7 +246,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                         </span>
                       </th>
                     )}
-                    <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 ? sep : ""}`}>
+                    <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 ? sep : ""}`}>
                       {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                     </td>
                     {STAT_KEYS.map((key) => {
@@ -250,7 +254,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       return (
                         <td
                           key={key}
-                          className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 ? sep : ""}`}
+                          className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 ? sep : ""}`}
                         >
                           {cell.text}
                         </td>
