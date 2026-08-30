@@ -64,14 +64,14 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
         <p className="pb-1 text-[11px] text-muted">{job === undefined ? labels.joinedNote : labels.cappedNote}</p>
       </div>
 
-      <div className="max-h-[78vh] overflow-auto rounded border border-rule bg-panel">
+      <div className="max-h-[78vh] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
         <table className="border-collapse text-[15px]">
           <thead>
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-2 text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className={legendClass}>{chars.length}</span>
               </th>
-              <th className="sticky top-0 z-20 bg-panel px-2 py-2 text-right font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
+              <th className="sticky top-0 z-20 bg-panel px-2 py-2 text-center font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className={`${legendClass} text-gold`}>{labels.internalShort}</span>
               </th>
               {STAT_KEYS.map((key) => (
@@ -84,7 +84,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                   <button
                     type="button"
                     onClick={() => toggle(key)}
-                    className="flex w-full flex-col items-end gap-0.5 rounded px-1 py-1 hover:bg-sunken"
+                    className="flex w-full flex-col items-center gap-0.5 rounded px-1 py-1 hover:bg-sunken"
                   >
                     <span className={sort?.key === key ? "text-gold" : "text-ink"}>
                       {labels.stats[key]}
@@ -118,7 +118,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                     </span>
                   </span>
                 </th>
-                <td className={`px-2 py-1 text-right text-gold ${row.projected ? "" : "opacity-55"}`}>
+                <td className={`px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"}`}>
                   {row.projected ? row.internal : `(${row.internal})`}
                 </td>
                 {STAT_KEYS.map((key) => {
@@ -126,7 +126,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                   return (
                     <td
                       key={key}
-                      className={`min-w-[5.5rem] px-2 py-1 text-right font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
+                      className={`min-w-[5.5rem] px-2 py-1 text-center font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
                     >
                       {cell.text}
                     </td>
