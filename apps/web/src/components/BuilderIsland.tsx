@@ -64,21 +64,21 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
         <p className="pb-1 text-[11px] text-muted">{job === undefined ? labels.joinedNote : labels.cappedNote}</p>
       </div>
 
-      <div className="overflow-x-auto rounded border border-rule bg-panel">
+      <div className="max-h-[78vh] overflow-auto rounded border border-rule bg-panel">
         <table className="border-collapse text-[15px]">
           <thead>
             <tr className="border-b border-rule">
-              <th className="sticky left-0 z-10 bg-panel px-3 py-2 text-left font-normal" scope="col">
+              <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-2 text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className={legendClass}>{chars.length}</span>
               </th>
-              <th className="px-2 py-2 text-right font-normal" scope="col">
+              <th className="sticky top-0 z-20 bg-panel px-2 py-2 text-right font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className={`${legendClass} text-gold`}>{labels.internalShort}</span>
               </th>
               {STAT_KEYS.map((key) => (
                 <th
                   key={key}
                   scope="col"
-                  className="min-w-[6.5rem] px-1 py-1 font-normal"
+                  className="sticky top-0 z-20 min-w-[5.5rem] bg-panel px-1 py-1 font-normal shadow-[inset_0_-1px_0_var(--rule)]"
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -126,7 +126,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                   return (
                     <td
                       key={key}
-                      className={`min-w-[6.5rem] px-2 py-1 text-right font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
+                      className={`min-w-[5.5rem] px-2 py-1 text-right font-bold ${cell.capped ? "text-cap" : "text-ink"}`}
                     >
                       {cell.text}
                     </td>
