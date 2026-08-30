@@ -23,7 +23,7 @@
   --muted: #909dab;
   --gold: #d9b878;
   /* 스탯 상한 도달 표지색 — 강조색(gold)과 붙어 있으면 "캡"이 안 읽힌다(빌더 표). */
-  --cap: #e07a5f;
+  --cap: #3fd873;
   /* 리플레이 표지색 — 강조색(gold)과 겹치면 "재생 중"이 안 읽힌다. */
   --replay: #5b9dff;
   --board-frame: #3a444f;
@@ -39,7 +39,7 @@
   --ink: #171d24;
   --muted: #5b6773;
   --gold: #96712c;
-  --cap: #b1452a;
+  --cap: #1e9e50;
   --replay: #1f5fd0;
   --board-frame: #b9c2cc;
   --board-shadow: 0 18px 40px -24px rgb(23 29 36 / 0.55);
@@ -78,16 +78,15 @@ tr:hover .entry-wrap {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  border-radius: 3px;
   background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
-  padding: 3px 22px 3px 4px;
+  padding: 3px 12px 3px 4px;
 }
 .entry-face {
   /* 원본 = 176x74 눈 스트립(인게임 facethumb) — 비율 그대로 보여야 얼굴이 안 잘린다. */
   width: 6.6rem;
   height: 2.75rem;
   object-fit: cover;
-  clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
   -webkit-mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
   mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
 }
