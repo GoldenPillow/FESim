@@ -22,8 +22,8 @@ const b = UI[locale].builder;
   <TopBar locale={locale} context={b.title} />
 
   <main class="mx-auto w-fit max-w-full px-4 py-6 sm:px-6">
-    <h1 class="text-[15px] font-semibold tracking-[0.06em] text-ink">{b.title}</h1>
-    <p class="mb-5 mt-1 text-[12px] text-muted">{b.intro}</p>
+    <h1 class="text-[18px] font-semibold tracking-[0.06em] text-ink">{b.title}</h1>
+    <p class="mb-5 mt-1 text-[14.5px] text-muted">{b.intro}</p>
 
     <BuilderIsland {...builderPropsFor(locale)} labels={b} client:load />
   </main>
