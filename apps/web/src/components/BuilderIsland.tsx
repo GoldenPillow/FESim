@@ -87,7 +87,12 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span aria-hidden="true"></span>
+                {job !== undefined && (
+                  <span className="flex flex-col justify-center gap-0.5 px-2 py-[18px] text-ink">
+                    <span className="uppercase">{job.nameEn}</span>
+                    <span className="text-[12px]">{"\u00A0"}</span>
+                  </span>
+                )}
               </th>
               <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-[18px] text-gold" title={labels.internalShort}>
@@ -137,7 +142,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="inline-block w-[6em] truncate text-[16.5px] font-semibold text-ink">{row.name}</span>
+                      <span className="inline-block w-[6em] truncate text-[19px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>

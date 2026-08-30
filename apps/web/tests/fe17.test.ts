@@ -1029,6 +1029,7 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지");
+    expect(sage.nameEn).toBe("Sage"); // 헤더 코너 영문 표기의 데이터 정본
   });
 
   it("내부 레벨 base = person → job 폴백 (사용자 앵커: 모브 = 20 + 12 − 1 = 31)", () => {
