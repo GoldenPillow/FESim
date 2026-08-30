@@ -79,10 +79,10 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             {labels.starsphere}
           </label>
         )}
-        <p className="pb-1 text-[11px] text-muted">{job === undefined ? labels.joinedNote : labels.cappedNote}</p>
+        {job === undefined && <p className="pb-1 text-[11px] text-muted">{labels.joinedNote}</p>}
       </div>
 
-      <div className="max-h-[78vh] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
+      <div className="max-h-[calc(100dvh-235px)] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
         <table className="border-collapse text-[17px]">
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
@@ -90,14 +90,14 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 {job !== undefined && (
                   <span className="flex flex-col justify-center gap-0.5 px-2 py-[18px] text-ink">
                     <span className="uppercase">{job.nameEn}</span>
-                    <span className="text-[12px]">{"\u00A0"}</span>
+                    <span className="text-[14px]">{"\u00A0"}</span>
                   </span>
                 )}
               </th>
               <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
                 <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-[18px] text-gold" title={labels.internalShort}>
                   <span>IN.LV</span>
-                  {job !== undefined && <span className="text-[12px]">{"\u00A0"}</span>}
+                  {job !== undefined && <span className="text-[14px]">{"\u00A0"}</span>}
                 </span>
               </th>
               {STAT_KEYS.map((key) => (
@@ -117,7 +117,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {sort?.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                     </span>
                     {job !== undefined && (
-                      <span className="text-[12px] text-muted" title={labels.growth}>
+                      <span className="text-[14px] text-gold" title={labels.growth}>
                         {`${job.diffGrow[key]}%`}
                       </span>
                     )}
