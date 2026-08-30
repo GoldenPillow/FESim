@@ -65,7 +65,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
       </div>
 
       <div className="overflow-x-auto rounded border border-rule bg-panel">
-        <table className="w-full border-collapse text-[15px]">
+        <table className="border-collapse text-[15px]">
           <thead>
             <tr className="border-b border-rule">
               <th className="sticky left-0 z-10 bg-panel px-3 py-2 text-left font-normal" scope="col">
@@ -107,14 +107,14 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
               >
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 min-w-[12rem] bg-panel px-2 py-[3px] text-left font-normal group-hover:bg-sunken"
+                  className="sticky left-0 z-10 bg-panel px-2 py-[3px] text-left font-normal group-hover:bg-sunken"
                 >
                   <span className="entry-wrap block">
                     <span className="entry-card">
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={54} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="truncate text-[15px] font-semibold text-ink">{row.name}</span>
+                      <span className="whitespace-nowrap text-[15px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>
