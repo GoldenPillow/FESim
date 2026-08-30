@@ -140,6 +140,8 @@ export interface BuilderLabels {
   showSpoilers: string;
   /** 멀티클래스 비교 추가 버튼 — 누르면 아래에 직업 선택기가 한 줄 늘어난다. */
   addCompare: string;
+  /** 고유 성장률 체커 — 켜면 캐릭터 블록 첫 줄에 개인 성장률(블루)이 선다(기존 행은 한 칸씩 밀림). */
+  personalGrowth: string;
   /** 비교 선택기 제거 버튼의 접근성 라벨. */
   removeCompare: string;
   /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
@@ -326,6 +328,7 @@ export const UI: Record<Locale, Strings> = {
       starsphere: "Starsphere (+15% growths)",
       showSpoilers: "Show spoiler + Fell Xenologue (DLC) characters",
       addCompare: "Multiclass compare",
+      personalGrowth: "Show personal growths",
       removeCompare: "Remove comparison",
       growth: "Growth",
       joinedNote: "No class selected — showing each unit as they join.",
@@ -492,6 +495,7 @@ export const UI: Record<Locale, Strings> = {
       starsphere: "星玉の加護 (+15% 成長)",
       showSpoilers: "ネタバレキャラ + DLC邪竜の章を表示",
       addCompare: "マルチクラス比較",
+      personalGrowth: "個人成長率を表示",
       removeCompare: "比較を削除",
       growth: "成長率",
       joinedNote: "クラス未選択 — 各キャラクターの加入時点の値です。",
@@ -656,6 +660,7 @@ export const UI: Record<Locale, Strings> = {
       starsphere: "성옥의 가호 (+15% 성장)",
       showSpoilers: "스포일러 캐릭터 + DLC 사룡의장 표시",
       addCompare: "멀티클래스 비교",
+      personalGrowth: "고유 성장률 표시",
       removeCompare: "비교 제거",
       growth: "성장률",
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",

@@ -120,18 +120,23 @@ export function builderRows(
   return rows;
 }
 
+/** 비교 슬롯 — 직업 + 그 슬롯의 목표 내부 레벨(0기점 · 2026-08-31: 슬롯마다 선택기, 기본은 1번 추종). */
+export interface BuilderCompare {
+  job: BuilderJobProp;
+  internal: number;
+}
+
 /**
- * 멀티클래스 비교 — 캐릭터당 [직업별 라인] 묶음(선택 순서 = 라인 순서 = 헤더 성장률 행 순서).
- * 직업 미선택(빈 배열)은 합류 상태 1라인. ☠직업별 builderRows는 같은 로스터를 돌므로 zip이 안전하다.
+ * 멀티클래스 비교 — 캐릭터당 [슬롯별 라인] 묶음(선택 순서 = 라인 순서 = 헤더 성장률 행 순서).
+ * 직업 미선택(빈 배열)은 합류 상태 1라인. ☠슬롯별 builderRows는 같은 로스터를 돌므로 zip이 안전하다.
  */
 export function builderRowGroups(
   props: Pick<BuilderProps, "chars" | "joinJobs">,
-  jobs: readonly BuilderJobProp[],
-  targetInternal: number,
+  compares: readonly BuilderCompare[],
   extraSkills?: readonly SkillRow[],
 ): BuilderRow[][] {
-  if (jobs.length === 0) return builderRows(props, undefined, targetInternal, extraSkills).map((r) => [r]);
-  const perJob = jobs.map((job) => builderRows(props, job, targetInternal, extraSkills));
+  if (compares.length === 0) return builderRows(props, undefined, 0, extraSkills).map((r) => [r]);
+  const perJob = compares.map((c) => builderRows(props, c.job, c.internal, extraSkills));
   return perJob[0]!.map((_, i) => perJob.map((rows) => rows[i]!));
 }
 

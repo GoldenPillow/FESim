@@ -103,7 +103,7 @@ describe("정렬", () => {
     char("b", { personOffset: block({ hp: 5 }) }),
     char("c", { personOffset: block({ hp: 2 }) }),
   ];
-  const groups = builderRowGroups(propsOf(roster), [], 40);
+  const groups = builderRowGroups(propsOf(roster), []);
 
   it("미지정 = 입력 순서(합류순) 유지", () => {
     expect(sortRowGroups(groups, undefined).map((g) => g[0]!.pid)).toEqual(["a", "b", "c"]);
@@ -134,7 +134,7 @@ describe("전용직", () => {
    * 표 전체가 "가능한 빌드"라는 거짓 전제를 판다. 불가 행은 합류 상태 값으로 남기고 표식만 단다.
    */
   it("가능자가 최상단, 불가 행은 하단에 합류 상태 값으로 남는다", () => {
-    const rows = sortRowGroups(builderRowGroups(propsOf(roster), [UNIQUE], 40), undefined).map((g) => g[0]!);
+    const rows = sortRowGroups(builderRowGroups(propsOf(roster), [{ job: UNIQUE, internal: 40 }]), undefined).map((g) => g[0]!);
     expect(rows.map((r) => r.pid)).toEqual(["b", "a", "c"]);
     expect(rows[0]?.ineligible).toBe(false);
     expect(rows[0]?.projected).toBe(true);
@@ -144,7 +144,7 @@ describe("전용직", () => {
   });
 
   it("정렬을 걸어도 가능자 그룹이 먼저다", () => {
-    const rows = sortRowGroups(builderRowGroups(propsOf(roster), [UNIQUE], 40), { key: "hp", dir: "desc" }).map((g) => g[0]!);
+    const rows = sortRowGroups(builderRowGroups(propsOf(roster), [{ job: UNIQUE, internal: 40 }]), { key: "hp", dir: "desc" }).map((g) => g[0]!);
     expect(rows[0]?.pid).toBe("b");
     expect(rows.slice(1).map((r) => r.pid)).toEqual(["c", "a"]);
   });
@@ -164,7 +164,7 @@ describe("멀티클래스 비교 (builderRowGroups)", () => {
    * 헤더의 성장률 행과 본문 라인이 조용히 뒤바뀐 채 그럴듯한 수치를 보인다.
    */
   it("캐릭터당 직업 수만큼 라인, 순서는 선택 순서 그대로", () => {
-    const groups = builderRowGroups(propsOf([char("a"), char("b")]), [HIGH, HIGH2], 11);
+    const groups = builderRowGroups(propsOf([char("a"), char("b")]), [{ job: HIGH, internal: 11 }, { job: HIGH2, internal: 11 }]);
     expect(groups).toHaveLength(2);
     for (const g of groups) {
       expect(g).toHaveLength(2);
@@ -176,15 +176,23 @@ describe("멀티클래스 비교 (builderRowGroups)", () => {
     expect(groups[0]![1]!.cells.hp.text).not.toBe(groups[0]![0]!.cells.hp.text);
   });
 
+  /** 슬롯마다 내부 레벨 선택기(2026-08-31) — 라인 i는 슬롯 i의 내부 레벨을 따라야 한다. */
+  it("슬롯별 내부 레벨 — 같은 직업이라도 슬롯 레벨이 다르면 라인 값이 갈린다", () => {
+    const groups = builderRowGroups(propsOf([char("a")]), [{ job: HIGH, internal: 11 }, { job: HIGH, internal: 39 }]);
+    expect(groups[0]![0]!.internal).toBe(11);
+    expect(groups[0]![1]!.internal).toBe(39);
+    expect(groups[0]![1]).toEqual(builderRows(propsOf([char("a")]), HIGH, 39)[0]);
+  });
+
   it("직업 미선택(빈 배열) = 합류 상태 1라인", () => {
-    const groups = builderRowGroups(propsOf([char("a")]), [], 40);
+    const groups = builderRowGroups(propsOf([char("a")]), []);
     expect(groups).toEqual([[expect.objectContaining({ pid: "a", projected: false })]]);
   });
 
   it("정렬·전용직 상단 규칙은 첫 직업 라인이 정한다", () => {
     const roster = [char("a"), char("b", { personOffset: block({ hp: 5 }) })];
     // HIGH2 라인(둘째)에서는 a와 b의 차이가 없어도 첫 라인(HIGH) hp 내림차순 = b 먼저.
-    const sorted = sortRowGroups(builderRowGroups(propsOf(roster), [HIGH, HIGH2], 11), { key: "hp", dir: "desc" });
+    const sorted = sortRowGroups(builderRowGroups(propsOf(roster), [{ job: HIGH, internal: 11 }, { job: HIGH2, internal: 11 }]), { key: "hp", dir: "desc" });
     expect(sorted.map((g) => g[0]!.pid)).toEqual(["b", "a"]);
   });
 });
