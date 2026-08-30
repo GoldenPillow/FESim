@@ -1809,6 +1809,8 @@ export interface BuilderCharProp {
   joinJid: string;
   /** CalcWork 변조 스킬(Work 비영 — 장 努力の才) — growthPath workSkills 입력. */
   workSkills?: SkillRow[];
+  /** 스포일러 표식(본편 후반 2인 + 사룡의 장 5인) — 체커 꺼짐(기본)이면 섬이 표에서 뺀다. */
+  spoiler?: true;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -1831,6 +1833,12 @@ export interface BuilderProps {
   /** 드롭다운 목록(Sort 순): 범용 + 전용. limit는 job.Limit 원값(개인 보정은 섬이 합성). */
   targetJobs: BuilderJobProp[];
 }
+
+/** 스포일러 명단(2026-08-31 사용자 지정) — 본편 후반 합류(모브 m021·베일 m022) + 사룡의 장 5인. */
+const SPOILER_PIDS = new Set([
+  "PID_モーヴ", "PID_ヴェイル",
+  "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
+]);
 
 const pathJobOf = (jid: string): GrowthPathJob | undefined => {
   const job = jobs[jid] as unknown as Record<string, unknown> | undefined;
@@ -1896,6 +1904,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       personLimit: statBlock(person, "Limit."),
       joinJid: String(person["Jid"]),
       ...(workSkills.length > 0 ? { workSkills } : {}),
+      ...(SPOILER_PIDS.has(pid) ? { spoiler: true as const } : {}),
     });
   }
   const joinJobs: Record<string, GrowthPathJob> = {};

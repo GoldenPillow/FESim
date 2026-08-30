@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
-import { builderRows, sortBuilderRows, type BuilderSort } from "./lib";
+import { builderRows, nextSort, sortBuilderRows, type BuilderSort } from "./lib";
 import type { BuilderProps } from "../../lib/fe17";
+import { loadShowSpoilers, saveShowSpoilers } from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
 
 /**
@@ -25,18 +26,24 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const [internal, setInternal] = useState(40);
   const [sort, setSort] = useState<BuilderSort | undefined>(undefined);
   const [star, setStar] = useState(false);
+  // SSG HTML은 항상 숨김 상태로 굽는다 — 저장값은 하이드레이션 뒤에 읽는다(SSR 불일치 방지).
+  const [showSpoilers, setShowSpoilers] = useState(false);
+  useEffect(() => setShowSpoilers(loadShowSpoilers()), []);
 
   const job = targetJobs.find((j) => j.jid === jid);
   const extraSkills = star && starsphere !== undefined ? [starsphere] : undefined;
+  const visibleChars = useMemo(
+    () => (showSpoilers ? chars : chars.filter((c) => c.spoiler !== true)),
+    [chars, showSpoilers],
+  );
   const rows = useMemo(
     // 표기는 1기점(사용자 결정 2026-08-31) — 계산·정본은 0기점이라 여기서만 ±1 변환한다.
-    () => sortBuilderRows(builderRows({ chars, joinJobs }, job, internal - 1, extraSkills), sort),
-    [chars, joinJobs, job, internal, sort, extraSkills],
+    () => sortBuilderRows(builderRows({ chars: visibleChars, joinJobs }, job, internal - 1, extraSkills), sort),
+    [visibleChars, joinJobs, job, internal, sort, extraSkills],
   );
 
-  // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다.
-  const toggle = (key: StatKey): void =>
-    setSort((s) => (s?.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
+  // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다. 3클릭째 = 합류순 복귀.
+  const toggle = (key: StatKey): void => setSort((s) => nextSort(s, key));
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
@@ -79,6 +86,18 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             {labels.starsphere}
           </label>
         )}
+        <label className="flex items-center gap-1.5 pb-1.5 text-[12px] text-ink">
+          <input
+            type="checkbox"
+            checked={showSpoilers}
+            onChange={(e) => {
+              setShowSpoilers(e.target.checked);
+              saveShowSpoilers(e.target.checked);
+            }}
+            className="h-3.5 w-3.5 accent-[var(--gold)]"
+          />
+          {labels.showSpoilers}
+        </label>
         {job === undefined && <p className="pb-1 text-[11px] text-muted">{labels.joinedNote}</p>}
       </div>
 

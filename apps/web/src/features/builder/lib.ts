@@ -41,6 +41,10 @@ export interface BuilderSort {
   dir: "asc" | "desc";
 }
 
+/** 헤더 클릭 순환 — 내림 → 오름 → 초기화(합류순 = undefined). 다른 열 클릭은 그 열 내림부터. */
+export const nextSort = (sort: BuilderSort | undefined, key: StatKey): BuilderSort | undefined =>
+  sort?.key !== key ? { key, dir: "desc" } : sort.dir === "desc" ? { key, dir: "asc" } : undefined;
+
 /** 상한 = job.Limit + person.Limit(mergeStatCap 정본) — ☠job.Limit 단독으로 계산하면 도달 불가 수치가 표에 선다. */
 const withPersonCap = (job: GrowthPathJob, personLimit: StatBlock): GrowthPathJob => ({
   ...job,

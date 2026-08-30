@@ -1049,6 +1049,17 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(gregory.internalOffset).toBe(20);
   });
 
+  /**
+   * 왜 위험한가: 명단은 pid 문자열 직결이라 오타 하나면 그 캐릭터가 조용히 필터를 새어 나간다 —
+   * 스포일러 방지는 새는 순간 기능 전체가 무의미해지므로 명단 전체를 박제한다.
+   */
+  it("스포일러 표식 — 본편 후반 2인(모브·베일) + 사룡의 장 5인만 (2026-08-31 사용자 지정)", () => {
+    expect(props.chars.filter((c) => c.spoiler === true).map((c) => c.pid)).toEqual([
+      "PID_モーヴ", "PID_ヴェイル",
+      "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
+    ]);
+  });
+
   it("성옥의 가호 행(Work 3 · +15)이 props에 실린다 — 체커의 데이터 정본", () => {
     expect(props.starsphere?.Work).toBe(3);
     expect(props.starsphere?.WorkOperation).toBe("+");

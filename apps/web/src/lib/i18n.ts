@@ -135,6 +135,8 @@ export interface BuilderLabels {
   internalShort: string;
   /** 성옥의 가호 체커 라벨(+15% 총 성장). */
   starsphere: string;
+  /** 스포일러 체커 라벨 — 켜면 후반(모브·베일)·사룡의 장 캐릭터 표시(기본 숨김, localStorage 저장). */
+  showSpoilers: string;
   /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
   growth: string;
   /** 직업 미선택 안내(합류 시점 값이라는 사실). */
@@ -317,6 +319,7 @@ export const UI: Record<Locale, Strings> = {
       internal: "Internal level",
       internalShort: "Int. Lv",
       starsphere: "Starsphere (+15% growths)",
+      showSpoilers: "Show spoiler + Fell Xenologue (DLC) characters",
       growth: "Growth",
       joinedNote: "No class selected — showing each unit as they join.",
       cappedNote: "Highlighted values have reached the stat cap.",
@@ -478,6 +481,7 @@ export const UI: Record<Locale, Strings> = {
       internal: "내부 레벨",
       internalShort: "내부레벨",
       starsphere: "성옥의 가호 (+15% 성장)",
+      showSpoilers: "스포일러 캐릭터 + DLC 사룡의장 표시",
       growth: "성장률",
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",

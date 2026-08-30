@@ -176,6 +176,27 @@ export function loadZoom(): number {
   return Number.isFinite(zoom) && zoom >= ZOOM_MIN && zoom <= ZOOM_MAX ? clampZoom(zoom) : ZOOM_DEFAULT;
 }
 
+/* ── 스포일러 표시 — 빌더 체커 1값. 기본 = 숨김: 첫 방문(저장 없음)에 후반·DLC 캐릭터가
+   보이면 방지가 아니다. ☠"1"만 표시로 읽는다 — 이물·손상 값이 표시로 새면 조용한 스포일러다. */
+
+const SPOILER_KEY = "fesim:ui:spoilers";
+
+export function saveShowSpoilers(show: boolean): void {
+  try {
+    storage()?.setItem(SPOILER_KEY, show ? "1" : "0");
+  } catch {
+    // 쿼터·프라이빗 모드 = 저장 스킵.
+  }
+}
+
+export function loadShowSpoilers(): boolean {
+  try {
+    return storage()?.getItem(SPOILER_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /* ── 넘버링 세이브 — 사용자가 찍은 지점의 보관. ☠자동 저장(fesim:eph:*)과 다른 축이다:
    저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 **번호가 붙어 남는** 보관이다.
    번호의 쓸모 = 대화 앵커("세이브 7의 국면") — 그래서 번호는 절대 재사용하지 않는다. */

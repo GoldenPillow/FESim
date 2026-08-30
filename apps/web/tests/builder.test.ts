@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
-import { builderRows, sortBuilderRows } from "../src/features/builder/lib";
+import { builderRows, nextSort, sortBuilderRows } from "../src/features/builder/lib";
 import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
 
 /**
@@ -113,6 +113,16 @@ describe("정렬", () => {
   it("내림/오름 토글이 표시값 숫자 기준으로 뒤집힌다", () => {
     expect(sortBuilderRows(rows, { key: "hp", dir: "desc" }).map((r) => r.pid)).toEqual(["b", "c", "a"]);
     expect(sortBuilderRows(rows, { key: "hp", dir: "asc" }).map((r) => r.pid)).toEqual(["a", "c", "b"]);
+  });
+
+  /** 2단 토글(내림↔오름)에는 "정렬 풀기"가 없었다 — 합류순으로 돌아올 길은 새로고침뿐이었다. */
+  it("헤더 클릭 3단 순환 — 내림 → 오름 → 초기화(합류순), 다른 열은 내림부터 (2026-08-31 사용자 지시)", () => {
+    const first = nextSort(undefined, "hp");
+    expect(first).toEqual({ key: "hp", dir: "desc" });
+    const second = nextSort(first, "hp");
+    expect(second).toEqual({ key: "hp", dir: "asc" });
+    expect(nextSort(second, "hp")).toBeUndefined();
+    expect(nextSort(second, "str")).toEqual({ key: "str", dir: "desc" });
   });
 });
 

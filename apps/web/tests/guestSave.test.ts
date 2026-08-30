@@ -4,7 +4,9 @@ import {
   clampZoom,
   clearSlot,
   loadSlot,
+  loadShowSpoilers,
   loadZoom,
+  saveShowSpoilers,
   saveSlot,
   saveZoom,
   slotKey,
@@ -89,6 +91,32 @@ describe("게스트 저장", () => {
     expect(loadSlot(KEY)).toBeUndefined();
     use(memoryStorage("removeItem"));
     expect(() => clearSlot(KEY)).not.toThrow();
+  });
+});
+
+describe("스포일러 표시 저장(빌더 체커)", () => {
+  /**
+   * 왜 위험한가: 기본이 "표시"거나 이물 값이 표시로 새면 첫 방문·손상 저장소에서
+   * 후반·DLC 캐릭터가 그대로 보인다 — 방지 기능은 한 번 새면 되돌릴 수 없다.
+   */
+  it("왕복 — 기본 = 숨김(false), 저장한 부울린이 그대로 돌아온다", () => {
+    use(memoryStorage());
+    expect(loadShowSpoilers()).toBe(false);
+    saveShowSpoilers(true);
+    expect(loadShowSpoilers()).toBe(true);
+    saveShowSpoilers(false);
+    expect(loadShowSpoilers()).toBe(false);
+  });
+
+  it("이물 값·localStorage 예외는 기본(숨김)으로 강하하고 저장 실패는 무해화된다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    storage.setItem("fesim:ui:spoilers", "yes");
+    expect(loadShowSpoilers()).toBe(false);
+    use(memoryStorage("getItem"));
+    expect(loadShowSpoilers()).toBe(false);
+    use(memoryStorage("setItem"));
+    expect(() => saveShowSpoilers(true)).not.toThrow();
   });
 });
 
