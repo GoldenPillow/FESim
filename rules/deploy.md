@@ -9,7 +9,7 @@
 |---|---|---|
 | 스테이블(공개) | https://fesim.emblemengage.workers.dev | **명시 지시 시에만** `./dev promote` |
 | 베타(관리자 전용) | https://beta-fesim.emblemengage.workers.dev | main 머지마다 자동 |
-| ★빌더 단독(공개, ☠비계) | https://fb.emblemengage.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 빌더를 본체 공개 채널로 흡수(개발 완료 병합)할 때 워커·설정·이 행을 함께 폐기 |
+| ★빌더 단독(공개, ☠비계) | https://fb.emblemengage.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 빌더를 본체 공개 채널로 흡수할 때 워커를 **301 리다이렉트 스텁으로 격하**(폐기 금지 — 배포된 링크가 죽는다. §피쳐 채널 원칙) |
 | 브랜치 프리뷰 | `<버전해시8>-fesim.emblemengage.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
 
 ## 흐름
@@ -68,6 +68,16 @@
 - 링크 등재(M3 = 운영자 수동): `./dev link:put <id> <eph.json>` (기본 원격, `--local` = 로컬 상태)
 - 로컬 검증: `pnpm -C apps/web build` → `wrangler dev -c apps/web/dist/server/wrangler.json --persist-to .wrangler/state` → `./dev link:put <id> <file> --local` (같은 persist 경로여야 dev가 읽음)
 - pnpm `allowBuilds.workerd` 필요(pnpm-workspace.yaml 등재됨) — 없으면 로컬 실행 불가
+
+## 피쳐 채널 원칙 (2026-08-31 사용자 확정)
+
+- ★**피쳐의 정본(영구 안내) 주소 = 본체 오리진 경로**(`/{locale}/fe17/<피쳐>`) — fesim이 대표이고
+  피쳐는 그 안에 폴더링된다(구조 정본 = rules/feature-ui.md, 실물 예 = features/builder). 차후 도메인
+  구입 시 본체 워커에 바인딩만 하면 경로가 불변이라 재작업이 없다.
+- **분리 워커(fb.* 등)는 스테이블 미포함 기간의 임시 선공개 채널로 한정.** 본체 흡수 시
+  ☠폐기가 아니라 **301 리다이렉트 스텁으로 격하**(경로 보존) — 유저에게 배포된 링크를 영구히 지킨다.
+- ☠**저장물(localStorage)은 오리진 귀속이라 이사하지 않는다** — 실데이터를 저장하는 피쳐는
+  처음부터 본체 오리진에서 낸다(임시 워커에는 가벼운 설정값만 허용).
 
 ## 원칙
 
