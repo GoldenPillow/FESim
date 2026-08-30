@@ -1004,8 +1004,9 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
       expect(c.name).not.toMatch(/^PID_/);
       expect(props.joinJobs[c.joinJid]).toBeDefined();
     }
-    // ☠결손 1건 박제: 라팔만 facethumb 번들에 스프라이트가 없다 — 늘어나면 파이프라인 회귀다.
-    expect(props.chars.filter((c) => c.face === undefined).map((c) => c.pid)).toEqual(["PID_ラファール"]);
+    // 얼굴 전원 보유 — 라팔 결손은 베이크 필터(챕터 출현 유닛 한정)가 원인이었고
+    // bake_roster_faces 보강으로 해소됐다(스프라이트 Rafale는 번들에 실재). 재발 = 파이프라인 회귀.
+    expect(props.chars.filter((c) => c.face === undefined).map((c) => c.pid)).toEqual([]);
   });
 
   it("장(Jean)만 努力の才(Work=2)를 workSkills로 든다", () => {

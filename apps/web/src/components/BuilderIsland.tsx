@@ -90,7 +90,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 <span aria-hidden="true"></span>
               </th>
               <th className="sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-gold" title={labels.internalShort}>
+                <span className="flex flex-col items-center justify-center gap-0.5 px-2 py-[18px] text-gold" title={labels.internalShort}>
                   <span>IN.LV</span>
                   {job !== undefined && <span className="text-[12px]">{"\u00A0"}</span>}
                 </span>
@@ -105,7 +105,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   <button
                     type="button"
                     onClick={() => toggle(key)}
-                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-2 py-2 hover:bg-sunken"
+                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-2 py-[18px] hover:bg-sunken"
                   >
                     <span className={sort?.key === key ? "text-gold" : "text-ink"} title={labels.stats[key]}>
                       {STAT_EN[key]}
