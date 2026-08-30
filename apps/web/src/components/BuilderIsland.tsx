@@ -107,20 +107,15 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
               >
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 min-w-[9.5rem] bg-panel px-3 py-1 text-left font-normal group-hover:bg-sunken"
+                  className="sticky left-0 z-10 min-w-[12rem] bg-panel px-2 py-[3px] text-left font-normal group-hover:bg-sunken"
                 >
-                  <span className="flex items-center gap-2">
-                    {row.face !== undefined && (
-                      <img
-                        src={row.face}
-                        alt=""
-                        width={32}
-                        height={32}
-                        loading="lazy"
-                        className="h-8 w-8 shrink-0 rounded-sm object-cover"
-                      />
-                    )}
-                    <span className="truncate text-ink">{row.name}</span>
+                  <span className="entry-wrap block">
+                    <span className="entry-card">
+                      {row.face !== undefined && (
+                        <img src={row.face} alt="" width={54} height={44} loading="lazy" className="entry-face shrink-0" />
+                      )}
+                      <span className="truncate text-[17px] font-semibold text-ink">{row.name}</span>
+                    </span>
                   </span>
                 </th>
                 <td className={`px-2 py-1 text-right text-gold ${row.projected ? "" : "opacity-55"}`}>

@@ -65,3 +65,26 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형: 사선 평행사변형 + 얼굴 + 이름).
+   테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
+.entry-wrap {
+  filter: drop-shadow(0 0 1px var(--rule));
+}
+tr:hover .entry-wrap {
+  filter: drop-shadow(0 0 2px var(--gold));
+}
+.entry-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
+  padding: 3px 16px 3px 4px;
+}
+.entry-face {
+  width: 3.4rem;
+  height: 2.75rem;
+  object-fit: cover;
+  clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+}
