@@ -237,6 +237,6 @@ PYEOF
             check && pnpm -C apps/web exec vitest run || { echo "☠ builder:publish 중단: 경량 게이트 레드"; exit 1; }
             pnpm -C apps/web build || exit 1
             "$WRANGLER" deploy -c "$ROOT/wrangler.builder.jsonc" \
-              && echo "== builder:publish: https://fesim-builder.emblemengage.workers.dev/ko/fe17/builder ==" ;;
+              && echo "== builder:publish: https://fb.emblemengage.workers.dev/ko/fe17/builder ==" ;;
   *)        echo "usage: ./dev done [--dry-run]|gate|builder:publish|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac
