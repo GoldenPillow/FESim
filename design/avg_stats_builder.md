@@ -16,11 +16,11 @@ target: apps/web(메인 랜딩 + 빌더 페이지) + packages/engine(성장 경�
   - [x] B0-2 범용/전용 상급직 판정 (2026-08-31 종결) — 판정 필드 = jobs.json `Flag`: Rank=1 & Flag=11 → **범용 20종** · Flag=1 → **전용 9종**(신룡의 왕 + 왕족 계승직 8) · Flag=0 → 적 전용/중복(플레이어 비대상). 전용직 "가능자" 판정 = 승급망 도달(전용 하급직 1:1 사슬 — LowJob/HighJob 역참조). ⚠인챈트·메이지캐넌은 Flag=11이나 LowJob 없음(미배치 계열 추정) — 구현 시 제외 여부 확정. 근거 = `~/fesim_data/extracted/fidelity_gaps/H_job_person.md` §2-3
   - [x] B0-3 내부 레벨 정의 (2026-08-31 종결) — 정본 = calculator.json `内部レベル計算` = clamp(내부레벨 + 레벨 − 1, 0, N30/H40/**L50**), base = person.InternalLevel(0이면 job.InternalLevel 폴백), 전직 시 재계산·저장(`Unit.ClassChange` 0x1A3C7B0). ☠기존 결손 재확인 = 웹 사영 `fe17.ts:1465`가 job.InternalLevel만 읽음(장부 `units.internal-level-cap` absent · mp5 §2 결손 6 기재) — **빌더는 그 사영을 쓰지 않고 정본 산식을 소비**한다. 표기 규약 = §2. 근거 = `~/fesim_data/extracted/il2cpp/STATS_GROWTH.md` §2-6
   - [x] B0-4 전직 스탯 치환 (2026-08-31 종결 — **치환식 반증**) — 정본 = 표시 스탯 `Clamp(job.Base + BaseCapability, 0, job.Limit) + Enhance`이고, 전직은 **job(Base/Limit)만 교체, BaseCapability 불변**. "스탯 − 구Base + 신Base" 역산은 캡이 섞이면 동치가 깨진다(mp5 §2 결손 10과 일치) ⇒ ★**B1 경로 함수는 BaseCapability 그릇을 직접 든다**(§2 — 5-4 전직 구현과 같은 그릇 = 선행 겸용). HP는 현재HP만 min 클램프(최대치 계산엔 무관)·Move는 통상 합성. 근거 = STATS_GROWTH.md §2-1·§2-6(디스어셈블 인용). ★데이터 재검증(2026-08-31 사용자 지시): 별도 전직 보너스 테이블·공식은 tables/ 전 파일·job.xml 124필드·calculator.json에 **부재**, 神竜ノ子→神竜ノ王 Base 차분 = triangleattack 표기 +N 9종 전수 일치(이동 +1 포함 — 순수 Base 교체로 전부 설명)
-- [ ] B1 엔진: 성장 경로 함수 1개 (합류→전직→목표 내부 레벨, §2 모델) — `fixedGrowth` 재사용(승격·이동, ☠복제 금지) + TDD(실기·SerenesForest 대조 앵커)
-- [ ] B2 사영: 빌더 데이터 빌드타임 가공 (로스터 36명 x 상급직 목록, `fe17.ts` 관례 = 아일랜드엔 직렬화 props만) + shared에 Person/Job 소비 필드 타입 정식화(`as unknown` 캐스팅 걷기)
-- [ ] B3 빌더 페이지 UI (`/[locale]/fe17/builder`) — §4
-- [ ] B4 메인페이지 (`/[locale]/`) — §5. ★열람 경로이므로 무거운 아일랜드 금지(정적 위주)
-- [ ] B5 게이트 — 관통 테스트 1개(캐릭터 1명 양끝값: 합류 초기치 → 세이지 내부 40 산출을 UI 직전 데이터에서 확인) + **triangleattack 대조 표본**(Alear HP 열 소수부 포함 — §2 교차 검증 앵커. ☠어긋나면 우리 데이터가 진실, 차이는 보고만) + `./dev gate` 그린
+- [x] B1 엔진 (2026-08-31) — `growthPath`(BaseCapability 그릇) + `autoGrowBaseCapability` 추출 + `levelUpGrowthRate`·`calcWork`(레벨업 결손 수리와 답변자 공유, RULE_VERSION fe17-15). TDD 9건
+- [x] B2 사영 (2026-08-31) — `builderPropsFor`(로스터 36·합류순·전용직 9 매핑·努力の才 workSkills·얼굴 pid 직결) + `mergeStatCap` 엔진 승격. 테스트 4건
+- [x] B3 빌더 UI (2026-08-31) — `/[locale]/fe17/builder` + `BuilderIsland` + `lib/builder.ts`(표시층: 소수 1자리 half-up 정수 산술·캡 정수·정렬 토글·전용직 가능자 상단/불가 하단 회색). 신설 토큰 `--cap` 1개. 테스트 10건
+- [x] B4 메인페이지 (2026-08-31) — `/[locale]/` 허브형(소개·전투·캐릭터·데이터 4섹션, 무JS) + 루트 리다이렉트·TopBar 로고 → 랜딩
+- [x] B5 게이트 (2026-08-31) — 관통 = triangleattack Alear 대조 표본 2건(합류·전직 직후, 소수부까지 일치) + growthJob 사영 실값. 전 테스트 622+181 그린·타입 그린. ⚠`./dev gate`의 replay 축만 레드 = 기보 5건 fe17-15 낡음(규약대로 등재만 — 재생성은 사용자 지시 대기)
 
 ## 1. 사용자 확정 결정 (2026-08-31)
 

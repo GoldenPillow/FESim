@@ -1,4 +1,4 @@
-import type { FidelityStatus } from "@fesim/shared";
+import type { FidelityStatus, StatKey } from "@fesim/shared";
 
 export const LOCALES = ["en", "ko"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -115,6 +115,39 @@ export interface Strings {
   categories: { main: string; paralogue: string; divine: string; fell: string };
   focus: FocusLabels;
   fidelity: FidelityLabels;
+  builder: BuilderLabels;
+  home: HomeLabels;
+}
+
+/**
+ * 캐릭터 빌더 라벨 — ☠객체 하나로 묶는다: i18n → 페이지 → 아일랜드 3층을 지나므로
+ * 낱개 키로 늘리면 한 층에서 빠져도 조용히 빈 문자열로 렌더된다.
+ */
+export interface BuilderLabels {
+  title: string;
+  intro: string;
+  job: string;
+  /** 드롭다운 미선택 옵션. */
+  jobNone: string;
+  /** 내부 레벨 드롭다운 라벨(정본 = calculator.json 内部レベル計算, 1기점 표기). */
+  internal: string;
+  /** 표 헤더용 짧은 표기. */
+  internalShort: string;
+  /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
+  growth: string;
+  /** 직업 미선택 안내(합류 시점 값이라는 사실). */
+  joinedNote: string;
+  cappedNote: string;
+  /** 전용직 불가 행 표식. */
+  unavailable: string;
+  stats: Record<StatKey, string>;
+}
+
+/** 메인 랜딩(허브) 라벨 — 섹션·링크는 정적 페이지가 그대로 편다. */
+export interface HomeLabels {
+  intro: string;
+  sections: { general: string; battle: string; character: string; data: string };
+  links: Record<"simulator" | "fidelity" | "builder" | "classes" | "skills", { name: string; desc: string }>;
 }
 
 /** 기전 장부(재현 상태) 라벨 — 데이터 정본은 shared/fidelity.ts, 여기는 UI 문자열만. */
@@ -273,6 +306,35 @@ export const UI: Record<Locale, Strings> = {
       },
       unsupportedSkill: "Grant effect (GiveSids) not simulated yet",
     },
+    builder: {
+      title: "Character Builder",
+      intro:
+        "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment.",
+      job: "Class",
+      jobNone: "No class",
+      internal: "Internal level",
+      internalShort: "Int. Lv",
+      growth: "Growth",
+      joinedNote: "No class selected — showing each unit as they join.",
+      cappedNote: "Highlighted values have reached the stat cap.",
+      unavailable: "Cannot reach this class",
+      stats: {
+        hp: "HP", str: "Str", mag: "Mag", dex: "Dex", spd: "Spd",
+        lck: "Lck", def: "Def", res: "Res", bld: "Bld",
+      },
+    },
+    home: {
+      intro:
+        "A fan-made Fire Emblem Engage strategy simulator and guide hub. No ads, and no affiliation with Nintendo or Intelligent Systems.",
+      sections: { general: "General", battle: "Battle", character: "Characters", data: "Data" },
+      links: {
+        simulator: { name: "Chapter simulator", desc: "Play any chapter on the real map, by the real rules." },
+        fidelity: { name: "Reproduction status", desc: "What the engine reproduces, and how it was verified." },
+        builder: { name: "Character builder", desc: "Compare every unit's stats in one advanced class." },
+        classes: { name: "Class data", desc: "Bases, caps and growths for every class." },
+        skills: { name: "Skill data", desc: "Personal, class and inheritable skills." },
+      },
+    },
   },
   ko: {
     localeName: "KO",
@@ -404,6 +466,33 @@ export const UI: Record<Locale, Strings> = {
         deferred: "선행 조건과 함께 예정",
       },
       unsupportedSkill: "부여 효과(GiveSids) 미재현",
+    },
+    builder: {
+      title: "캐릭터 빌더",
+      intro: "상급직과 내부 레벨을 고르면 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준.",
+      job: "클래스",
+      jobNone: "직업 미선택",
+      internal: "내부 레벨",
+      internalShort: "내부 Lv",
+      growth: "성장률",
+      joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
+      cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",
+      unavailable: "이 직업으로 갈 수 없음",
+      stats: {
+        hp: "HP", str: "힘", mag: "마력", dex: "기량", spd: "속도",
+        lck: "행운", def: "수비", res: "마방", bld: "체격",
+      },
+    },
+    home: {
+      intro: "파이어 엠블렘 인게이지 전략 시뮬레이터·공략 허브. 팬 제작 · 무광고 · 닌텐도/인텔리전트 시스템즈와 무관합니다.",
+      sections: { general: "소개", battle: "전투", character: "캐릭터", data: "데이터" },
+      links: {
+        simulator: { name: "시뮬레이터", desc: "실제 맵·실제 룰로 챕터를 직접 둡니다." },
+        fidelity: { name: "재현 상태", desc: "엔진이 무엇을 어디까지 재현하는지, 근거와 함께." },
+        builder: { name: "캐릭터 빌더", desc: "상급직 하나로 전 캐릭터 스탯을 비교합니다." },
+        classes: { name: "클래스 데이터", desc: "직업별 기본치·상한·성장률." },
+        skills: { name: "스킬 데이터", desc: "개인·클래스·계승 스킬." },
+      },
     },
   },
 };

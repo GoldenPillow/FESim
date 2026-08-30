@@ -1,0 +1,25 @@
+---
+import Base from "../../../layouts/Base.astro";
+import TopBar from "../../../components/TopBar.astro";
+import BuilderIsland from "../../../components/BuilderIsland";
+import { builderPropsFor } from "../../../lib/fe17";
+import { DEFAULT_LOCALE, LOCALES, UI, isLocale, type Locale } from "../../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const b = UI[locale].builder;
+---
+
+<Base locale={locale} title={`${b.title} — FESim`}>
+  <TopBar locale={locale} context={b.title} />
+
+  <main class="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+    <h1 class="text-[15px] font-semibold tracking-[0.06em] text-ink">{b.title}</h1>
+    <p class="mb-5 mt-1 text-[12px] text-muted">{b.intro}</p>
+
+    <BuilderIsland {...builderPropsFor(locale)} labels={b} client:load />
+  </main>
+</Base>

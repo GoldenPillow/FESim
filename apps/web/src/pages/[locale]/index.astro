@@ -1,0 +1,81 @@
+---
+import Base from "../../layouts/Base.astro";
+import TopBar from "../../components/TopBar.astro";
+import { DEFAULT_LOCALE, LOCALES, UI, isLocale, type Locale } from "../../lib/i18n";
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { locale } }));
+}
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const t = UI[locale];
+const h = t.home;
+
+/** 허브형 랜딩(설계 §5) — ☠아일랜드 없이 정적. href 없는 항목 = 예정 슬롯(죽은 링크 금지). */
+interface HubLink {
+  name: string;
+  desc: string;
+  href?: string;
+}
+interface HubSection {
+  title: string;
+  text?: string;
+  links?: HubLink[];
+}
+
+const sections: HubSection[] = [
+  { title: h.sections.general, text: h.intro },
+  {
+    title: h.sections.battle,
+    links: [
+      { ...h.links.simulator, href: `/${locale}/fe17/maps` },
+      { ...h.links.fidelity, href: `/${locale}/fe17/fidelity` },
+    ],
+  },
+  { title: h.sections.character, links: [{ ...h.links.builder, href: `/${locale}/fe17/builder` }] },
+  { title: h.sections.data, links: [h.links.classes, h.links.skills] },
+];
+---
+
+<Base locale={locale} title={`FESim — ${t.tagline}`}>
+  <TopBar locale={locale} context={t.tagline} />
+
+  <main class="mx-auto max-w-[52rem] px-4 py-8 sm:px-6">
+    {
+      sections.map((s) => (
+        <section class="mb-8">
+          <h2 class="mb-3 flex items-baseline gap-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-gold">
+            {s.title}
+            <span class="h-px flex-1 bg-gold opacity-30" />
+          </h2>
+          {s.text && <p class="text-[13px] leading-relaxed text-muted">{s.text}</p>}
+          {s.links && (
+            <ul class="grid gap-2 sm:grid-cols-2">
+              {s.links.map((l) =>
+                l.href ? (
+                  <li>
+                    <a
+                      href={l.href}
+                      class="block h-full rounded border border-rule bg-panel px-4 py-3 transition-colors hover:border-gold"
+                    >
+                      <span class="block text-[13px] text-ink">{l.name}</span>
+                      <span class="mt-0.5 block text-[11px] text-muted">{l.desc}</span>
+                    </a>
+                  </li>
+                ) : (
+                  <li class="h-full rounded border border-dashed border-rule px-4 py-3">
+                    <span class="flex items-baseline gap-2 text-[13px] text-muted">
+                      {l.name}
+                      <span class="text-[10px] uppercase tracking-[0.14em] opacity-70">{t.comingSoon}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[11px] text-muted opacity-70">{l.desc}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          )}
+        </section>
+      ))
+    }
+  </main>
+</Base>
