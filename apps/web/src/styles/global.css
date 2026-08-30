@@ -96,23 +96,23 @@ tr:hover .entry-wrap {
    ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
 @media (max-width: 767px) {
   .builder-table {
-    font-size: 10.5px !important;
+    font-size: 12px !important;
   }
   .builder-table .stat-col {
     min-width: 0 !important;
   }
   .builder-table .stat-col button {
-    padding: 4px 2px !important;
+    padding: 4px 3px !important;
   }
   .builder-table td.stat-col {
-    padding: 4px 2px !important;
+    padding: 4px 3px !important;
   }
   /* 직업 선택 시 코너 클래스명이 첫 열을 밀어 가로 스크롤을 만든다 — 드롭다운에 이미 보이므로 숨김. */
   .builder-table .corner-job {
     display: none;
   }
   .builder-table .grow-note {
-    font-size: 10px !important;
+    font-size: 11px !important;
   }
   /* IN.LV 열은 숨기고 그 폭만큼 포트레이트를 키운다(2026-08-31 세로 수정). */
   .builder-table .inlv-col {
@@ -147,8 +147,12 @@ tr:hover .entry-wrap {
     max-height: none !important;
     overflow: visible !important;
   }
+  /* 상단바는 밀려나가고 스탯 헤더만 최상단 고정(사용자 결정 — 한 줄 낭비 제거). 빌더 페이지 한정. */
+  body:has(.builder-main) header {
+    position: static !important;
+  }
   .builder-table thead th {
-    top: 3.5rem;
+    top: 0 !important;
   }
   .builder-table {
     font-size: 17px !important;
