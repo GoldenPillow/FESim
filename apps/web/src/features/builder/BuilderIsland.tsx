@@ -204,12 +204,12 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               return (
                 // 성장률 행 — 본문 각 캐릭터의 ji번째 라인과 같은 직업(builderRowGroups의 순서 동치).
                 <tr key={`${job.jid}-${ji}`} className="job-row" ref={ji === 0 ? jobRowRef : undefined}>
-                  <th scope="row" style={{ top }} className="sticky left-0 z-30 bg-panel px-3 py-[3px] text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]">
+                  <th scope="row" style={{ top }} className="sticky left-0 z-30 bg-panel px-3 py-[9px] text-left font-normal shadow-[inset_0_-1px_0_var(--rule)]">
                     <span className="job-name block truncate px-1 text-[15px] font-semibold text-ink md:px-2 md:text-[17px]">{job.name}</span>
                   </th>
                   <td style={{ top }} className="inlv-col sticky z-20 bg-panel shadow-[inset_0_-1px_0_var(--rule)]" />
                   {STAT_KEYS.map((key) => (
-                    <td key={key} style={{ top }} className="stat-col sticky z-20 bg-panel px-1 py-[3px] text-center shadow-[inset_0_-1px_0_var(--rule)]">
+                    <td key={key} style={{ top }} className="stat-col sticky z-20 bg-panel px-1 py-[9px] text-center shadow-[inset_0_-1px_0_var(--rule)]">
                       <span className="grow-note font-bold text-gold" title={labels.growth}>
                         {`${job.diffGrow[key]}%`}
                       </span>
