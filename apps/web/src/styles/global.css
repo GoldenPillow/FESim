@@ -66,24 +66,13 @@ body {
   }
 }
 
-/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형: 사선 평행사변형 + 얼굴 + 이름).
+/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
    테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
 .entry-wrap {
   filter: drop-shadow(0 0 1px var(--rule));
 }
 tr:hover .entry-wrap {
   filter: drop-shadow(0 0 2px var(--gold));
-}
-/* 모바일 — 카드가 화면 절반을 못 넘게 얼굴 스트립을 축소(비율 유지). */
-@media (max-width: 767px) {
-  .entry-face {
-    width: 4.4rem;
-    height: 1.85rem;
-  }
-  .entry-card {
-    gap: 0.4rem;
-    padding: 2px 8px 2px 3px;
-  }
 }
 .entry-card {
   display: flex;
@@ -100,4 +89,39 @@ tr:hover .entry-wrap {
   object-fit: cover;
   -webkit-mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
   mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
+}
+
+/* 세로 모바일(사용자 결정 2026-08-31: 세로 우선) — 얼굴 절반·이름 숨김(얼굴로 식별)·
+   전 스탯 무스크롤 한 화면. md: 유틸과 겨루는 자리라 이 레이어가 이긴다(!important).
+   ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
+@media (max-width: 767px) {
+  .builder-table {
+    font-size: 11px !important;
+  }
+  .builder-table .stat-col {
+    min-width: 0 !important;
+  }
+  .builder-table .stat-col button {
+    padding: 4px 2px !important;
+  }
+  .builder-table td.stat-col {
+    padding: 4px 2px !important;
+  }
+  .builder-table .inlv-col {
+    padding: 2px 3px !important;
+  }
+  .builder-table th[scope="row"] {
+    padding: 2px 3px !important;
+  }
+  .entry-card {
+    gap: 0;
+    padding: 2px 4px;
+  }
+  .entry-face {
+    width: 3.3rem;
+    height: 1.4rem;
+  }
+  .entry-name {
+    display: none;
+  }
 }

@@ -83,7 +83,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
       </div>
 
       <div className="min-h-0 flex-1 w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
-        <table className="border-collapse text-[14px] md:text-[17px]">
+        <table className="builder-table border-collapse text-[14px] md:text-[17px]">
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
@@ -104,7 +104,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 <th
                   key={key}
                   scope="col"
-                  className="sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]"
+                  className="stat-col sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]"
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -142,11 +142,11 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="inline-block w-[5em] truncate md:w-[6em] text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                      <span className="entry-name inline-block w-[5em] truncate md:w-[6em] text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>
-                <td className={`px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"}`}>
+                <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"}`}>
                   {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                 </td>
                 {STAT_KEYS.map((key) => {
@@ -154,7 +154,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   return (
                     <td
                       key={key}
-                      className={`min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"}`}
+                      className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"}`}
                     >
                       {cell.text}
                     </td>

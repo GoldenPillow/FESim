@@ -31,9 +31,11 @@ const { locale, title } = Astro.props;
     <script is:inline>
       (() => {
         const el = document.getElementById("chan-mark");
+        // 빌더 단독 워커(fb.*) = 오렌지 "ver. beta" (rules/deploy.md §빌더 채널, 2026-08-31)
+        const fb = location.hostname.startsWith("fb.");
         const beta = location.hostname.startsWith("beta-") || location.hostname === "localhost";
-        el.textContent = (beta ? "BETA " : "") + el.dataset.build;
-        el.classList.add(beta ? "beta" : "rel");
+        el.textContent = fb ? "ver. beta " + el.dataset.build : (beta ? "BETA " : "") + el.dataset.build;
+        el.classList.add(fb ? "fb" : beta ? "beta" : "rel");
         el.hidden = false;
       })();
     </script>
@@ -58,6 +60,12 @@ const { locale, title } = Astro.props;
         background: rgb(20 16 4 / 0.72);
         border: 1px solid rgb(255 210 62 / 0.65);
         text-shadow: 0 0 6px rgb(255 210 62 / 0.35);
+      }
+      #chan-mark.fb {
+        color: #ff8a3d;
+        background: rgb(24 12 4 / 0.72);
+        border: 1px solid rgb(255 138 61 / 0.7);
+        text-shadow: 0 0 6px rgb(255 138 61 / 0.35);
       }
       #chan-mark.rel {
         color: #9db4cc;
