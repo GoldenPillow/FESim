@@ -29,7 +29,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const job = targetJobs.find((j) => j.jid === jid);
   const extraSkills = star && starsphere !== undefined ? [starsphere] : undefined;
   const rows = useMemo(
-    () => sortBuilderRows(builderRows({ chars, joinJobs }, job, internal, extraSkills), sort),
+    // 표기는 1기점(사용자 결정 2026-08-31) — 계산·정본은 0기점이라 여기서만 ±1 변환한다.
+    () => sortBuilderRows(builderRows({ chars, joinJobs }, job, internal - 1, extraSkills), sort),
     [chars, joinJobs, job, internal, sort, extraSkills],
   );
 
@@ -86,22 +87,22 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className="text-[22px] font-medium uppercase tracking-[0.14em] text-muted">CHARACTER</span>
+                <span aria-hidden="true"></span>
               </th>
               <th className="sticky top-0 z-20 bg-panel px-2 py-1 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className={`${legendClass} text-gold`} title={labels.internalShort}>IN.LV</span>
+                <span className={`${legendClass} text-gold`}>{labels.internalShort}</span>
               </th>
               {STAT_KEYS.map((key) => (
                 <th
                   key={key}
                   scope="col"
-                  className="sticky top-0 z-20 min-w-[5.5rem] bg-panel px-1 py-1 align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]"
+                  className="sticky top-0 z-20 min-w-[5.5rem] bg-panel p-0 align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]"
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
                     type="button"
                     onClick={() => toggle(key)}
-                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-1 py-1 hover:bg-sunken"
+                    className="flex w-full flex-col items-center justify-center gap-0.5 rounded px-2 py-2 hover:bg-sunken"
                   >
                     <span className={sort?.key === key ? "text-gold" : "text-ink"} title={labels.stats[key]}>
                       {STAT_EN[key]}
@@ -136,7 +137,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   </span>
                 </th>
                 <td className={`px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"}`}>
-                  {row.projected ? row.internal : `(${row.internal})`}
+                  {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                 </td>
                 {STAT_KEYS.map((key) => {
                   const cell = row.cells[key];

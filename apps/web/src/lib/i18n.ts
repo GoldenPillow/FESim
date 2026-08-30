@@ -476,7 +476,7 @@ export const UI: Record<Locale, Strings> = {
       job: "클래스",
       jobNone: "직업 미선택",
       internal: "내부 레벨",
-      internalShort: "내부 Lv",
+      internalShort: "내부레벨",
       starsphere: "성옥의 가호 (+15% 성장)",
       growth: "성장률",
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
