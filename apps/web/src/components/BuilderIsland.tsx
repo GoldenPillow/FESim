@@ -90,7 +90,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 <span aria-hidden="true"></span>
               </th>
               <th className="sticky top-0 z-20 bg-panel px-2 py-1 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className={`${legendClass} text-gold`}>{labels.internalShort}</span>
+                <span className="text-gold" title={labels.internalShort}>IN.LV</span>
               </th>
               {STAT_KEYS.map((key) => (
                 <th
