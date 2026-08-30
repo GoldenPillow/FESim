@@ -83,8 +83,11 @@ tr:hover .entry-wrap {
   padding: 3px 22px 3px 4px;
 }
 .entry-face {
-  width: 3.4rem;
+  /* 원본 = 176x74 눈 스트립(인게임 facethumb) — 비율 그대로 보여야 얼굴이 안 잘린다. */
+  width: 6.6rem;
   height: 2.75rem;
   object-fit: cover;
   clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  -webkit-mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
+  mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
 }

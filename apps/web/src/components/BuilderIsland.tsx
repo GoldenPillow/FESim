@@ -112,7 +112,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, labels }: B
                   <span className="entry-wrap block">
                     <span className="entry-card">
                       {row.face !== undefined && (
-                        <img src={row.face} alt="" width={54} height={44} loading="lazy" className="entry-face shrink-0" />
+                        <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
                       <span className="inline-block w-[6em] truncate text-[15px] font-semibold text-ink">{row.name}</span>
                     </span>
