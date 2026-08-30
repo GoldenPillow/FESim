@@ -83,7 +83,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
       </div>
 
       <div className="max-h-[78vh] w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
-        <table className="border-collapse text-[16.5px]">
+        <table className="border-collapse text-[15.5px]">
           <thead className="[font-family:'JetBrains_Mono',ui-monospace,monospace]">
             <tr className="border-b border-rule">
               <th className="sticky left-0 top-0 z-30 bg-panel px-3 py-1 text-left align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
@@ -142,7 +142,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       {row.face !== undefined && (
                         <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                       )}
-                      <span className="inline-block w-[6em] truncate text-[19px] font-semibold text-ink">{row.name}</span>
+                      <span className="inline-block w-[6em] truncate text-[18px] font-semibold text-ink">{row.name}</span>
                     </span>
                   </span>
                 </th>
