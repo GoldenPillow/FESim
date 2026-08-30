@@ -16,7 +16,7 @@ DEFAULT_SRC = Path.home() / "fesim_data" / "extracted"
 DEFAULT_OUT = REPO / "data" / "fe17"
 
 NAME_FILES = ("person", "item", "skill", "job", "god", "gamedata", "patch0", "patch1", "patch2", "patch3")
-LOCALES = {"en": "us/usen", "ko": "kr/krko"}
+LOCALES = {"en": "us/usen", "ja": "jp/jpja", "ko": "kr/krko"}
 INT_TYPES = {"s8", "u8", "s16", "u16", "s32", "u32", "int", "b8", "b16", "b32", "flag"}
 FLOAT_TYPES = {"f32", "float"}
 

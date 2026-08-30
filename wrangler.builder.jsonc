@@ -1,7 +1,7 @@
 {
-  // fb — 빌더 단독 공개 채널(☠비계 — 개발 완료 병합 시 폐기, rules/deploy.md §빌더 채널).
+  // builder-engage — 빌더 단독 공개 채널(릴리즈 처우 — 유저 배포 주소, 본체 흡수 시 301 스텁 격하. rules/deploy.md §빌더 채널·§피쳐 채널 원칙).
   // 같은 빌드 산출물을 쓰고 workers/builder.js가 경로를 가드한다(run_worker_first = 가드가 에셋보다 먼저).
-  "name": "fb",
+  "name": "builder-engage",
   "account_id": "0d2796e950b4298cb27c3079d5081eae",
   "main": "./workers/builder.js",
   "compatibility_date": "2026-08-15",

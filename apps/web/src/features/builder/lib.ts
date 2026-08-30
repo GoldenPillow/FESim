@@ -41,6 +41,10 @@ export interface BuilderSort {
   dir: "asc" | "desc";
 }
 
+/** 헤더 클릭 순환 — 내림 → 오름 → 초기화(합류순 = undefined). 다른 열 클릭은 그 열 내림부터. */
+export const nextSort = (sort: BuilderSort | undefined, key: StatKey): BuilderSort | undefined =>
+  sort?.key !== key ? { key, dir: "desc" } : sort.dir === "desc" ? { key, dir: "asc" } : undefined;
+
 /** 상한 = job.Limit + person.Limit(mergeStatCap 정본) — ☠job.Limit 단독으로 계산하면 도달 불가 수치가 표에 선다. */
 const withPersonCap = (job: GrowthPathJob, personLimit: StatBlock): GrowthPathJob => ({
   ...job,
@@ -116,17 +120,39 @@ export function builderRows(
   return rows;
 }
 
+/** 비교 슬롯 — 직업 + 그 슬롯의 목표 내부 레벨(0기점 · 2026-08-31: 슬롯마다 선택기, 기본은 1번 추종). */
+export interface BuilderCompare {
+  job: BuilderJobProp;
+  internal: number;
+}
+
+/**
+ * 멀티클래스 비교 — 캐릭터당 [슬롯별 라인] 묶음(선택 순서 = 라인 순서 = 헤더 성장률 행 순서).
+ * 직업 미선택(빈 배열)은 합류 상태 1라인. ☠슬롯별 builderRows는 같은 로스터를 돌므로 zip이 안전하다.
+ */
+export function builderRowGroups(
+  props: Pick<BuilderProps, "chars" | "joinJobs">,
+  compares: readonly BuilderCompare[],
+  extraSkills?: readonly SkillRow[],
+): BuilderRow[][] {
+  if (compares.length === 0) return builderRows(props, undefined, 0, extraSkills).map((r) => [r]);
+  const perJob = compares.map((c) => builderRows(props, c.job, c.internal, extraSkills));
+  return perJob[0]!.map((_, i) => perJob.map((rows) => rows[i]!));
+}
+
 /**
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
- * Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
+ * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
-export function sortBuilderRows(rows: readonly BuilderRow[], sort: BuilderSort | undefined): BuilderRow[] {
-  const out = [...rows];
+export function sortRowGroups(groups: readonly BuilderRow[][], sort: BuilderSort | undefined): BuilderRow[][] {
+  const out = [...groups];
   out.sort((a, b) => {
-    const group = Number(a.ineligible) - Number(b.ineligible);
+    const first = a[0]!;
+    const second = b[0]!;
+    const group = Number(first.ineligible) - Number(second.ineligible);
     if (group !== 0) return group;
     if (sort === undefined) return 0;
-    const diff = a.cells[sort.key].value - b.cells[sort.key].value;
+    const diff = first.cells[sort.key].value - second.cells[sort.key].value;
     return sort.dir === "asc" ? diff : -diff;
   });
   return out;

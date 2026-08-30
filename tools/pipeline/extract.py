@@ -92,7 +92,7 @@ def scripts_jobs(src: Path, out: Path):
         yield bundle, out / "scripts" / (strip_suffixes(bundle.name, ".txt.bundle") + ".txt")
 
 
-def message_jobs(src: Path, out: Path, regions=("us", "kr")):
+def message_jobs(src: Path, out: Path, regions=("us", "kr", "jp")):
     for region in regions:
         region_dir = src / "fe_assets_message" / region
         for bundle in sorted(region_dir.rglob("*.bundle")):

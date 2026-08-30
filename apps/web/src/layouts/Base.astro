@@ -31,8 +31,8 @@ const { locale, title } = Astro.props;
     <script is:inline>
       (() => {
         const el = document.getElementById("chan-mark");
-        // 빌더 단독 워커(fb.*) = 오렌지 "ver. beta" (rules/deploy.md §빌더 채널, 2026-08-31)
-        const fb = location.hostname.startsWith("fb.");
+        // 빌더 단독 워커(builder-engage.*) = 오렌지 "ver. beta" (rules/deploy.md §빌더 채널, 2026-08-31)
+        const fb = location.hostname.startsWith("builder-engage.");
         const beta = location.hostname.startsWith("beta-") || location.hostname === "localhost";
         el.textContent = fb ? "ver. beta " + el.dataset.build : (beta ? "BETA " : "") + el.dataset.build;
         el.classList.add(fb ? "fb" : beta ? "beta" : "rel");

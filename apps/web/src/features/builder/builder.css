@@ -3,7 +3,8 @@
 .entry-wrap {
   filter: drop-shadow(0 0 1px var(--rule));
 }
-tr:hover .entry-wrap {
+/* 그룹 호버 — 멀티클래스 라인 묶음이 캐릭터당 tbody 하나라 tbody 기준으로 빛난다. */
+tbody:hover .entry-wrap {
   filter: drop-shadow(0 0 2px var(--gold));
 }
 .entry-card {
@@ -27,6 +28,23 @@ tr:hover .entry-wrap {
    전 스탯 무스크롤 한 화면. md: 유틸과 겨루는 자리라 이 레이어가 이긴다(!important).
    ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
 @media (max-width: 767px) {
+  /* 펼침 모드(2026-08-31 사용자 지시 — 가로와 동일 작동): 안쪽 스크롤박스 제거, 페이지 스크롤 하나.
+     상단바는 밀려나가고 표 헤더(1행 + 성장률 행)만 최상단 고정. 밀도 압축(아래 규칙들)은 유지한다. */
+  .builder-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .builder-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body:has(.builder-main) header {
+    position: static !important;
+  }
+  .builder-table thead tr:first-child th {
+    top: 0 !important;
+  }
   .builder-table {
     font-size: 12px !important;
   }
@@ -39,11 +57,12 @@ tr:hover .entry-wrap {
   .builder-table td.stat-col {
     padding: 4px 3px !important;
   }
-  /* 직업 선택 시 코너 클래스명이 첫 열을 밀어 가로 스크롤을 만든다 — 드롭다운에 이미 보이므로 숨김. */
-  .builder-table .corner-job {
-    display: none;
+  /* 성장률 행 서체는 본문과 일치(테이블 폰트 상속 — 2026-08-31 사용자 지시) — 크기 오버라이드 금지.
+     직업명은 첫 열(포트레이트 폭)을 밀지 않게 폭만 자른다 — 열이 늘면 무스크롤이 깨진다. */
+  .builder-table .job-name {
+    max-width: 4.8rem;
   }
-  .builder-table .grow-note {
+  .builder-table .corner-label {
     font-size: 11px !important;
   }
   /* IN.LV 열은 숨기고 그 폭만큼 포트레이트를 키운다(2026-08-31 세로 수정). */
@@ -79,11 +98,12 @@ tr:hover .entry-wrap {
     max-height: none !important;
     overflow: visible !important;
   }
-  /* 상단바는 밀려나가고 스탯 헤더만 최상단 고정(사용자 결정 — 한 줄 낭비 제거). 빌더 페이지 한정. */
+  /* 상단바는 밀려나가고 스탯 헤더만 최상단 고정(사용자 결정 — 한 줄 낭비 제거). 빌더 페이지 한정.
+     ☠첫 행만 0으로 — 성장률 행(job-row)은 인라인 top(1행 실측 높이)이 정본이라 덮으면 겹친다. */
   body:has(.builder-main) header {
     position: static !important;
   }
-  .builder-table thead th {
+  .builder-table thead tr:first-child th {
     top: 0 !important;
   }
   .builder-table {
@@ -105,11 +125,8 @@ tr:hover .entry-wrap {
   .builder-table th[scope="row"] {
     padding: 3px 8px !important;
   }
-  .builder-table .corner-job {
-    display: flex !important;
-  }
-  .builder-table .grow-note {
-    font-size: 14px !important;
+  .builder-table .job-name {
+    max-width: none;
   }
   .entry-card {
     gap: 0.55rem;

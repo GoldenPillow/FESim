@@ -12,7 +12,8 @@ interface Props {
 const { locale, context, sub, home = true } = Astro.props;
 const Logo = home ? "a" : "span";
 const t = UI[locale];
-const path = Astro.url.pathname.replace(/^\/(en|ko)(?=\/|$)/, "");
+// 로케일 접두는 LOCALES에서 유도 — 리터럴로 두 벌 적으면 로케일 추가 시 조용히 샌다.
+const path = Astro.url.pathname.replace(new RegExp(`^/(${LOCALES.join("|")})(?=/|$)`), "");
 ---
 
 <header class="sticky top-0 z-10 border-b border-rule bg-ground/85 backdrop-blur">

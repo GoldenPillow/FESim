@@ -136,7 +136,7 @@ def tutorial_unlocks(src: Path, names: dict) -> dict:
     """{Cid: [{tutid, mid, text}]}. TUTID 행이 섹션 머리이고 다음 행이 Cid(발생 챕터)를 갖는다."""
     _, rows = load_sheet(src / "gamedata" / "tutorial.xml", 0)
     texts = {}
-    for locale, rel in (("ko", "kr/krko"), ("en", "us/usen")):
+    for locale, rel in (("ko", "kr/krko"), ("en", "us/usen"), ("ja", "jp/jpja")):
         for stem in ("tutorial", "tutorial_p0", "tutorial_p1", "tutorial_p2", "tutorial_p3"):
             path = src / "message" / rel / f"{stem}.msbt"
             if path.exists():

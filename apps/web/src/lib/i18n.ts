@@ -1,6 +1,7 @@
 import type { FidelityStatus, StatKey } from "@fesim/shared";
 
-export const LOCALES = ["en", "ko"] as const;
+/** 순서가 곧 스위처 표기 순서(EN JP KO — 2026-08-31 사용자 지정). 코드는 언어코드 ja, 표기는 JP. */
+export const LOCALES = ["en", "ja", "ko"] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = "en";
@@ -135,6 +136,14 @@ export interface BuilderLabels {
   internalShort: string;
   /** 성옥의 가호 체커 라벨(+15% 총 성장). */
   starsphere: string;
+  /** 스포일러 체커 라벨 — 켜면 후반(모브·베일)·사룡의 장 캐릭터 표시(기본 숨김, localStorage 저장). */
+  showSpoilers: string;
+  /** 멀티클래스 비교 추가 버튼 — 누르면 아래에 직업 선택기가 한 줄 늘어난다. */
+  addCompare: string;
+  /** 고유 성장률 체커 — 켜면 캐릭터 블록 첫 줄에 개인 성장률(블루)이 선다(기존 행은 한 칸씩 밀림). */
+  personalGrowth: string;
+  /** 비교 선택기 제거 버튼의 접근성 라벨. */
+  removeCompare: string;
   /** 헤더 둘째 줄 = 선택 직업의 클래스 성장률. */
   growth: string;
   /** 직업 미선택 안내(합류 시점 값이라는 사실). */
@@ -311,14 +320,18 @@ export const UI: Record<Locale, Strings> = {
     builder: {
       title: "Character Builder",
       intro:
-        "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment.",
+        "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment. Promotion happens as soon as the minimum level requirement is met.",
       job: "Class",
       jobNone: "No class",
       internal: "Internal level",
       internalShort: "Int. Lv",
       starsphere: "Starsphere (+15% growths)",
+      showSpoilers: "Show spoiler + Fell Xenologue (DLC) characters",
+      addCompare: "Multiclass compare",
+      personalGrowth: "Show personal growths",
+      removeCompare: "Remove comparison",
       growth: "Growth",
-      joinedNote: "No class selected — showing each unit as they join.",
+      joinedNote: "No class selected — each unit at their join-time level.",
       cappedNote: "Highlighted values have reached the stat cap.",
       unavailable: "Cannot reach this class",
       stats: {
@@ -336,6 +349,172 @@ export const UI: Record<Locale, Strings> = {
         builder: { name: "Character builder", desc: "Compare every unit's stats in one advanced class." },
         classes: { name: "Class data", desc: "Bases, caps and growths for every class." },
         skills: { name: "Skill data", desc: "Personal, class and inheritable skills." },
+      },
+    },
+  },
+  ja: {
+    // 게임 용어는 jp/jpja MSBT 정본에서 역조회한 값(MID_MENU_*·MID_SYS_* 등) — 손으로 짓지 않는다.
+    localeName: "JP",
+    player: "自軍",
+    enemy: "敵軍",
+    ally: "友軍",
+    notes: {
+      title: "章ノート", drops: "ドロップ", visits: "民家", rewards: "入手", unlocks: "解禁",
+      shop: "ショップ入荷", shopKinds: { weapon: "武器屋", item: "道具屋", fleaMarket: "フリーマーケット" },
+      diffNames: { n: "ノーマル", h: "ハード", l: "ルナティック" },
+      ringsGain: "指輪入手", ringsLose: "指輪喪失", ringsRegain: "指輪回収", joins: "加入",
+      cautions: "注意",
+    },
+    units: "ユニット",
+    level: "Lv",
+    position: "位置",
+    items: "持ち物",
+    skills: "スキル",
+    class: "クラス",
+    group: "グループ",
+    terrain: "地形",
+    axis: "横 1→ · 縦 A↑（左下基準）",
+    board: "配置図",
+    themeToggle: "テーマ切替",
+    language: "言語",
+    tagline: "ファイアーエムブレム エンゲージ",
+    recommended: "推奨レベル",
+    size: "サイズ",
+    phase: "局面",
+    objects: "オブジェクト",
+    forecast: "戦闘予測",
+    hit: "命中",
+    crit: "必殺",
+    damage: "威力",
+    currentPosNote: "攻撃側の最大射程での交戦を想定した近似",
+    difficulty: "難易度",
+    diffN: "ノーマル",
+    diffH: "ハード",
+    diffL: "ルナティック",
+    endPhase: "フェイズ終了",
+    enemyAuto: "敵ターン自動",
+    enemyAutoBlocked: "AI未実装 — スキップしたユニット",
+    dangerAll: "危険範囲",
+    waitCmd: "待機",
+    attackCmd: "攻撃",
+    staffCmd: "杖",
+    itemCmd: "アイテム",
+    guardCmd: "チェインガード",
+    destroyCmd: "破壊",
+    warpPick: "ワープ先を選択",
+    engageCmd: "エンゲージ",
+    tradeCmd: "交換",
+    closeCmd: "閉じる",
+    turnPhase: "フェイズ",
+    turnWord: "ターン",
+    victory: "勝利!",
+    defeat: "敗北...",
+    reset: "リセット",
+    replayCmd: "リプレイ",
+    replayPrev: "前の行動",
+    replayNext: "次の行動",
+    replayPrevPhase: "前のフェイズ",
+    replayNextPhase: "次のフェイズ",
+    replayOn: "リプレイ再生中 — 押すとこの局面から操作できる",
+    replayOff: "この章の棋譜を見る",
+    unitTurn: "行動",
+    prevUnit: "前のユニット",
+    nextUnit: "次のユニット",
+    nextTurn: "ターン終了",
+    zoomIn: "拡大",
+    zoomOut: "縮小",
+    undoCmd: "待った",
+    editCmd: "編集",
+    editExit: "編集終了",
+    editHint: "ユニットをクリック後、空きマスをクリックで再配置",
+    removeCmd: "外す",
+    restoreCmd: "戻す",
+    copyRecord: "棋譜をコピー",
+    itemStats: { atk: "物攻", hit: "命中", crit: "必殺", spd: "速さ", avo: "回避", dodge: "必避", rng: "射程" },
+    commands: {
+      engage: { label: "エンゲージ", help: "紋章士と一体化する" },
+      engageArt: { label: "エンゲージ技" },
+      attack: { label: "攻撃", help: "敵と戦う" },
+      staff: { label: "杖", help: "味方の回復や敵の妨害などを行う" },
+      dance: { label: "踊る", help: "特別な踊りで味方を再行動させる" },
+      guard: { label: "チェインガード", help: "隣接する味方が受ける攻撃を無効化" },
+      destroy: { label: "破壊", help: "壁や障害物を破壊する" },
+      visit: { label: "訪問", help: "民家を訪れる" },
+      item: { label: "持ち物", help: "アイテムを使用/装備する" },
+      trade: { label: "持ち物交換", help: "味方とアイテムを交換する" },
+      wait: { label: "待機", help: "行動を終える" },
+    },
+    saves: {
+      save: "セーブ", list: "ロード", empty: "セーブはまだない", drop: "削除", copy: "コピー",
+      saved: "セーブ", joined: "乱入", steps: "手", hint: "番号で呼び出せる",
+    },
+    copied: "コピーした",
+    logTags: { chain: "チェイン", counter: "反撃", follow: "追撃", extra: "追加攻撃", miss: "ミス", brk: "ブレイク!", kill: "撃破", crit: "必殺!", refresh: "再行動", engage: "エンゲージ!", disengage: "エンゲージ終了", warp: "ワープ", guard: "チェインガード", spawn: "増援!", join: "仲間に加わる", despawn: "退場" },
+    chapterSelect: "章選択",
+    comingSoon: "準備中",
+    categories: { main: "本編", paralogue: "外伝", divine: "神竜の章", fell: "邪竜の章" },
+    focus: {
+      verified: "検証済み",
+      recordOnly: "記録閲覧モード",
+      prev: "前の行動",
+      next: "次の行動",
+      actionWord: "行動",
+      edit: "この戦略を編集してみる",
+      notFound: "リンクが見つかりません。",
+      broken: "この棋譜は読み込めませんでした。",
+      shared: "共有された棋譜",
+    },
+    fidelity: {
+      badge: "再現状況",
+      title: "再現状況",
+      intro: "FESimが追跡するゲーム内メカニクスの全数と、それぞれの再現度です。根拠のない数値は表示しません。",
+      statusNames: {
+        anchored: "実機検証",
+        implemented: "実装済み",
+        assumed: "仮定あり",
+        absent: "未再現",
+        deferred: "予定",
+      },
+      legend: {
+        anchored: "実機・正本データで検証済み",
+        implemented: "実装済み、実機検証前",
+        assumed: "実装済みだが明示した仮定を含む",
+        absent: "まだ再現していない — 正直に表示",
+        deferred: "前提条件つきで予定",
+      },
+      unsupportedSkill: "付与効果（GiveSids）は未再現",
+    },
+    builder: {
+      title: "キャラクタービルダー",
+      intro:
+        "上級職と内部レベルを選ぶと、加入キャラクター全員をひとつの表で比較できます。固定成長・ルナティック・装備なし基準。クラスチェンジは最低レベル条件を満たし次第すぐ行う想定です。",
+      job: "クラス",
+      jobNone: "クラス未選択",
+      internal: "内部レベル",
+      internalShort: "内部Lv",
+      starsphere: "星玉の加護 (+15% 成長)",
+      showSpoilers: "ネタバレキャラ + DLC邪竜の章を表示",
+      addCompare: "マルチクラス比較",
+      personalGrowth: "個人成長率を表示",
+      removeCompare: "比較を削除",
+      growth: "成長率",
+      joinedNote: "クラス未選択 — 各キャラクターの加入時点レベル",
+      cappedNote: "色の違う値はステータス上限に到達した値です。",
+      unavailable: "このクラスにはなれない",
+      stats: {
+        hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
+        lck: "幸運", def: "守備", res: "魔防", bld: "体格",
+      },
+    },
+    home: {
+      intro: "ファイアーエムブレム エンゲージの戦略シミュレーター・攻略ハブ。ファンメイド・広告なし・任天堂/インテリジェントシステムズとは無関係です。",
+      sections: { general: "紹介", battle: "戦闘", character: "キャラクター", data: "データ" },
+      links: {
+        simulator: { name: "シミュレーター", desc: "実際のマップ・実際のルールで章をプレイ。" },
+        fidelity: { name: "再現状況", desc: "エンジンが何をどこまで再現しているか、根拠つきで。" },
+        builder: { name: "キャラクタービルダー", desc: "ひとつの上級職で全キャラのステータスを比較。" },
+        classes: { name: "クラスデータ", desc: "クラス別の基本値・上限・成長率。" },
+        skills: { name: "スキルデータ", desc: "個人・クラス・継承スキル。" },
       },
     },
   },
@@ -472,14 +651,19 @@ export const UI: Record<Locale, Strings> = {
     },
     builder: {
       title: "캐릭터 빌더",
-      intro: "상급직과 내부 레벨을 고르면 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준.",
+      intro:
+        "상급직과 내부 레벨을 선택시 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준. 전직은 최소 레벨 조건 만족 시 전직 기준.",
       job: "클래스",
       jobNone: "직업 미선택",
       internal: "내부 레벨",
       internalShort: "내부레벨",
       starsphere: "성옥의 가호 (+15% 성장)",
+      showSpoilers: "스포일러 캐릭터 + DLC 사룡의장 표시",
+      addCompare: "멀티클래스 비교",
+      personalGrowth: "고유 성장률 표시",
+      removeCompare: "비교 제거",
       growth: "성장률",
-      joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 값입니다.",
+      joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 레벨",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",
       unavailable: "이 직업으로 갈 수 없음",
       stats: {
@@ -501,4 +685,4 @@ export const UI: Record<Locale, Strings> = {
   },
 };
 
-export const htmlLang: Record<Locale, string> = { en: "en", ko: "ko" };
+export const htmlLang: Record<Locale, string> = { en: "en", ja: "ja", ko: "ko" };

@@ -5,12 +5,14 @@
 
 ## 채널
 
+☠계정 서브도메인 개명(2026-08-31, emblemengage → **gpdev**) — 전 workers.dev 주소가 갈렸다. 구주소는 죽어 있다(실측 000).
+
 | 채널 | 주소 | 갱신 조건 |
 |---|---|---|
-| 스테이블(공개) | https://fesim.emblemengage.workers.dev | **명시 지시 시에만** `./dev promote` |
-| 베타(관리자 전용) | https://beta-fesim.emblemengage.workers.dev | main 머지마다 자동 |
-| ★빌더 단독(공개, ☠비계) | https://fb.emblemengage.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 빌더를 본체 공개 채널로 흡수(개발 완료 병합)할 때 워커·설정·이 행을 함께 폐기 |
-| 브랜치 프리뷰 | `<버전해시8>-fesim.emblemengage.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
+| 스테이블(공개) | https://fesim.gpdev.workers.dev | **명시 지시 시에만** `./dev promote` |
+| 베타(관리자 전용) | https://beta-fesim.gpdev.workers.dev | main 머지마다 자동 |
+| ★빌더 단독(공개 — **릴리즈 처우**) | https://builder-engage.gpdev.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). ★별도 릴리즈 워커를 만들지 않고 **이 주소가 유저 배포 주소**다(2026-08-31 사용자 결정) — 워터마크는 builder-engage.* 호스트 분기로 **"ver. beta" 고정**(사용자는 베타로 인식, Base.astro). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 본체(fesim) 완성·흡수 시 워커를 **301 리다이렉트 스텁으로 격하**(폐기 금지 — 배포된 링크가 죽는다. §피쳐 채널 원칙) |
+| 브랜치 프리뷰 | `<버전해시8>-fesim.gpdev.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
 
 ## 흐름
 
@@ -69,6 +71,19 @@
 - 로컬 검증: `pnpm -C apps/web build` → `wrangler dev -c apps/web/dist/server/wrangler.json --persist-to .wrangler/state` → `./dev link:put <id> <file> --local` (같은 persist 경로여야 dev가 읽음)
 - pnpm `allowBuilds.workerd` 필요(pnpm-workspace.yaml 등재됨) — 없으면 로컬 실행 불가
 
+## 피쳐 채널 원칙 (2026-08-31 사용자 확정)
+
+- ★**피쳐의 정본(영구 안내) 주소 = 본체 오리진 경로**(`/{locale}/fe17/<피쳐>`) — fesim이 대표이고
+  피쳐는 그 안에 폴더링된다(구조 정본 = rules/feature-ui.md, 실물 예 = features/builder). 차후 도메인
+  구입 시 본체 워커에 바인딩만 하면 경로가 불변이라 재작업이 없다.
+- **분리 워커(builder-engage.* 등)는 스테이블 미포함 기간의 임시 선공개 채널로 한정.** 본체 흡수 시
+  ☠폐기가 아니라 **301 리다이렉트 스텁으로 격하**(경로 보존) — 유저에게 배포된 링크를 영구히 지킨다.
+- ☠**저장물(localStorage)은 오리진 귀속이라 이사하지 않는다** — 실데이터를 저장하는 피쳐는
+  처음부터 본체 오리진에서 낸다(임시 워커에는 가벼운 설정값만 허용).
+- **격하 스텁의 수명 = 실측이 정한다**: 영구 의무가 아니라 격하 후 CF 대시보드 요청 수를 관찰,
+  **6~12개월 연속 노이즈 수준(≈0)이면 폐기 가능**(301은 검색엔진 인덱스를 이전시켜 트래픽이 자연 감쇠).
+  ★도메인 확보 후에는 선공개도 본 도메인 밑으로 — 은퇴 채널이 리다이렉트 워커 1개로 수렴해 신규 부채가 안 생긴다.
+
 ## 원칙
 
 - ☠릴리즈(실사용자 발생) 후에는 main 병합도 명시 승인 필수 — 급작스런 업데이트 방지의 핵심은 "머지≠공개"
@@ -80,4 +95,4 @@
 - 전 페이지 하단 우측 고정 배지(layouts/Base.astro) — **베타 = 황색 `BETA <버전>` · 릴리즈(스테이블) = 청회색 `<버전>`**.
 - 버전 = 빌드 시점 git 짧은 해시(astro.config.mjs가 `PUBLIC_BUILD`로 주입) — 승격·실기 대조의 식별자.
 - 표기 = 기본 굵기·JetBrains Mono 스택(웹폰트 미탑재 — 로컬 폰트 우선, 모노 폴백).
-- 채널 판별 = **호스트명 런타임 분기**(`beta-*`·localhost = 베타) — 승격이 같은 빌드를 재사용하므로 빌드 플래그로는 채널을 못 가른다.
+- 채널 판별 = **호스트명 런타임 분기**(`beta-*`·localhost = 베타 · `builder-engage.*` = 오렌지 `ver. beta` 고정) — 승격이 같은 빌드를 재사용하므로 빌드 플래그로는 채널을 못 가른다.

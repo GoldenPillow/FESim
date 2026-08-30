@@ -1037,8 +1037,7 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(uniques).toHaveLength(9);
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
-    expect(sage.name).toBe("세이지");
-    expect(sage.nameEn).toBe("Sage"); // 헤더 코너 영문 표기의 데이터 정본
+    expect(sage.name).toBe("세이지"); // 헤더 성장률 행 직업명의 데이터 정본(로케일명)
   });
 
   it("내부 레벨 base = person → job 폴백 (사용자 앵커: 모브 = 20 + 12 − 1 = 31)", () => {
@@ -1047,6 +1046,27 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(mauvier.internalOffset).toBe(20);
     const gregory = props.chars.find((c) => c.pid === "PID_グレゴリー")!;
     expect(gregory.internalOffset).toBe(20);
+  });
+
+  /**
+   * 왜 위험한가: 명단은 pid 문자열 직결이라 오타 하나면 그 캐릭터가 조용히 필터를 새어 나간다 —
+   * 스포일러 방지는 새는 순간 기능 전체가 무의미해지므로 명단 전체를 박제한다.
+   */
+  it("스포일러 표식 — 본편 후반 2인(모브·베일) + 사룡의 장 5인만 (2026-08-31 사용자 지정)", () => {
+    expect(props.chars.filter((c) => c.spoiler === true).map((c) => c.pid)).toEqual([
+      "PID_モーヴ", "PID_ヴェイル",
+      "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
+    ]);
+  });
+
+  /**
+   * 왜 위험한가: 로케일 사전은 names/<locale>.json → DICTS → label 3층 배선이라
+   * 한 층이 빠져도 pid 폴백으로 조용히 렌더된다 — ja 추가(2026-08-31 en·ja·ko)를 관통으로 박제.
+   */
+  it("ja 로케일 — 빌더 사영이 일본어 이름을 낸다", () => {
+    const ja = builderPropsFor("ja");
+    expect(ja.chars[0]!.name).toBe("リュール");
+    expect(ja.targetJobs.find((j) => j.jid === "JID_セイジ")!.name).toBe("セイジ");
   });
 
   it("성옥의 가호 행(Work 3 · +15)이 props에 실린다 — 체커의 데이터 정본", () => {
