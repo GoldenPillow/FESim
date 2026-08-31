@@ -44,6 +44,17 @@ tbody:hover .entry-wrap {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--engage) 30%, transparent);
   pointer-events: none;
 }
+/* 드래그 재정렬(2026-08-31) — 끌리는 블록은 반투명으로 목표 자리를 미리 보이고(포인터 추종),
+   나머지 블록은 자리 양보를 트랜지션으로 보여준다. 커밋(놓는 순간)은 BuilderIsland가 저장까지 한다. */
+.builder-table tbody.entry-drag-shift {
+  transition: transform 0.18s ease;
+}
+.builder-table tbody.entry-dragging {
+  z-index: 25;
+  cursor: grabbing;
+  opacity: 0.4;
+}
+
 /* 잠그는 순간 1회 — 화이트에 블루만 살짝 섞은 밝은 파동이 테두리 중심에서 바깥 14px로 퍼지며
    고정 테두리 색으로 가라앉는 충격파(극적 연출). 1초, 출발 빠르고 후반 느림(easeOutExpo 계열). */
 .builder-table tbody.entry-lock-pulse::after {

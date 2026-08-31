@@ -6,6 +6,7 @@ import {
   combatOf,
   COMBAT_KEYS,
   lockedDisplayRows,
+  moveLock,
   nextSort,
   waitingRowGroups,
   weaponAt,
@@ -61,9 +62,9 @@ const STAT_EN: Record<StatKey, string> = {
   hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
 };
 
-/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). 인게임 순서 유지, HP·RES·BLD 열은 비운다. */
+/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). 공속은 빈 HP 열, RES·BLD 열 = 무기군 아이콘. */
 const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
-  str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
+  hp: "as", str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
 };
 
 /** 자물쇠 아이콘(잠김 형상, 머티리얼 계열 근사) — 호버 = "이렇게 잠긴다" 예고. 잠금 후엔 사라진다. */
@@ -127,6 +128,71 @@ export default function BuilderIsland({
     setPulsePid(on ? pid : null);
     // 행이 상단으로 이동하면 옛 자리의 mouseleave가 안 온다 — 호버 흔적을 지운다.
     setHoverRow(null);
+  };
+
+  /* ── 잠금 블록 드래그 재정렬(2026-08-31) — 마우스 전용(터치는 탭 = 토글·스크롤 유지).
+     끌리는 블록은 반투명으로 목표 자리를 미리 보이고, 나머지는 자리 양보 애니메이션(builder.css).
+     놓는 순간 순서 확정 + 저장(온오프와 같은 저장 시점 규약). */
+  const lockedRefs = useRef(new Map<string, HTMLTableSectionElement>());
+  const dragMovedRef = useRef(false);
+  const [drag, setDrag] = useState<{
+    pid: string;
+    from: number;
+    to: number;
+    dy: number;
+    heights: number[];
+    active: boolean;
+  } | null>(null);
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+
+  const beginDrag = (e: React.PointerEvent, pid: string, index: number): void => {
+    if (e.pointerType !== "mouse" || e.button !== 0 || locked.length < 2) return;
+    e.preventDefault(); // 드래그 중 텍스트 선택 방지 — click 이벤트는 그대로 온다(무이동 = 해제 토글).
+    dragMovedRef.current = false;
+    const heights = locked.map((l) => lockedRefs.current.get(l.pid)?.getBoundingClientRect().height ?? 0);
+    const startY = e.clientY;
+    const onMove = (ev: PointerEvent): void => {
+      const dy = ev.clientY - startY;
+      const active = Math.abs(dy) > 4 || (dragRef.current?.active ?? false);
+      if (!active) return;
+      dragMovedRef.current = true;
+      // 목표 슬롯 = 이웃 블록 높이의 절반을 넘을 때마다 한 칸씩 걷는다(블록 높이 비균일 대응).
+      let to = index;
+      let rest = dy;
+      while (rest > 0 && to < heights.length - 1 && rest > heights[to + 1]! / 2) {
+        rest -= heights[to + 1]!;
+        to += 1;
+      }
+      while (rest < 0 && to > 0 && -rest > heights[to - 1]! / 2) {
+        rest += heights[to - 1]!;
+        to -= 1;
+      }
+      setDrag({ pid, from: index, to, dy, heights, active: true });
+    };
+    const onUp = (): void => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const cur = dragRef.current;
+      setDrag(null);
+      if (cur !== null && cur.active && cur.to !== cur.from) {
+        const next = moveLock(locked, cur.from, cur.to);
+        saveEntryLocks(next);
+        setLocked(next);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  /** 드래그 중 각 잠금 블록의 시각 이동 — 끌리는 블록은 포인터 추종, 사이 블록은 자리 양보. */
+  const dragStyle = (gi: number): React.CSSProperties | undefined => {
+    if (drag === null || !drag.active) return undefined;
+    const h = drag.heights[drag.from] ?? 0;
+    if (gi === drag.from) return { transform: `translateY(${drag.dy}px)` };
+    if (drag.from < gi && gi <= drag.to) return { transform: `translateY(${-h}px)` };
+    if (drag.to <= gi && gi < drag.from) return { transform: `translateY(${h}px)` };
+    return { transform: "translateY(0)" };
   };
 
   /** Reset = 잠금 전체 해제 + 직업 미선택 디폴트(2026-08-31 사용자 확정) — 체커 저장값은 유지. */
@@ -308,12 +374,23 @@ export default function BuilderIsland({
   // 컨트롤 영역 문자들은 전부 14px 통일(2026-08-31 사용자 지시 — 통일감).
   const checkerClass = "flex items-center gap-1.5 pb-1.5 text-[14px] text-ink";
 
+  // 동명 전용직 구분(사룡의 아이 x3: 베일·엘·라파르) — 목록에서만 가능자 이름을 덧단다.
+  const jobNameDups = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const j of targetJobs) count.set(j.name, (count.get(j.name) ?? 0) + 1);
+    return new Set([...count].filter(([, n]) => n > 1).map(([name]) => name));
+  }, [targetJobs]);
+  const jobLabel = (j: BuilderJobProp): string =>
+    jobNameDups.has(j.name) && j.uniquePid !== undefined
+      ? `${j.name}(${chars.find((c) => c.pid === j.uniquePid)?.name ?? ""})`
+      : j.name;
+
   const jobSelect = (i: number): React.JSX.Element => (
     <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => setSlotJob(i, e.target.value)}>
       <option value="">{labels.jobNone}</option>
       {targetJobs.map((j) => (
         <option key={j.jid} value={j.jid}>
-          {j.name}
+          {jobLabel(j)}
         </option>
       ))}
     </select>
@@ -337,6 +414,16 @@ export default function BuilderIsland({
         {entry(labels.combat.hit, eff.hit, base.hit)}
         {entry(labels.combat.crit, eff.crit, base.crit)}
         {entry(labels.weight, eff.weight, base.weight, true)}
+        {/* 장비 중 스탯 강화(Enhance) — 조용히 스탯을 바꾸는 무기 35종을 드러낸다(상승 블루·하락 레드). */}
+        {weapon.enhance !== undefined &&
+          (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
+            <span key={key} className="whitespace-nowrap">
+              {labels.stats[key]}{" "}
+              <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>
+                {v > 0 ? `+${v}` : v}
+              </span>
+            </span>
+          ))}
       </span>
     );
   };
@@ -572,14 +659,29 @@ export default function BuilderIsland({
           {lockedRows.map(({ row, job, equipped }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
-            const unlock = (): void => toggleLock(row.pid, -1);
+            // 드래그로 움직였으면 해제 클릭을 삼킨다 — 무이동 클릭만 해제(2026-08-31 이동모드).
+            const unlock = (): void => {
+              if (dragMovedRef.current) {
+                dragMovedRef.current = false;
+                return;
+              }
+              toggleLock(row.pid, -1);
+            };
+            const dragCls =
+              drag !== null && drag.active ? (drag.from === gi ? " entry-dragging" : " entry-drag-shift") : "";
             return (
               <tbody
                 key={`lock-${row.pid}`}
-                className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}`}
+                ref={(el) => {
+                  if (el !== null) lockedRefs.current.set(row.pid, el);
+                  else lockedRefs.current.delete(row.pid);
+                }}
+                style={dragStyle(gi)}
+                onPointerDown={(e) => beginDrag(e, row.pid, gi)}
+                className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}${dragCls}`}
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
-                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
+                <tr className="cursor-grab hover:bg-sunken" onClick={unlock} title={labels.unlock}>
                   {/* rowSpan 2 = 스탯 행 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다(2026-08-31 지시). */}
                   <th scope="row" rowSpan={2} className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
                     <span className="entry-wrap flex items-center">
@@ -614,7 +716,7 @@ export default function BuilderIsland({
                   })}
                 </tr>
                 {/* 전투력 행 — 잠금은 상시 표시. 아이템 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
-                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
+                <tr className="cursor-grab hover:bg-sunken" onClick={unlock} title={labels.unlock}>
                   {combatCells(row, job, equipped)}
                 </tr>
               </tbody>

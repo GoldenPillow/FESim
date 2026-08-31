@@ -2102,15 +2102,19 @@ export function builderPropsFor(locale: Locale): BuilderProps {
   const targetJobs: (BuilderJobProp & { sort: number })[] = [];
   for (const [jid, row] of Object.entries(jobs)) {
     const r = row as unknown as Record<string, unknown>;
-    if (Number(r["Rank"] ?? 0) !== 1) continue;
+    const rank = Number(r["Rank"] ?? 0);
+    // 특수직(시프·댄서·사룡 계열) = Rank 0 + MaxLevel 40 시그니처 — 승급망 밖이라 랭크 1 필터가
+    // 놓친다(2026-08-31 사용자 지적). 전직 게이트는 엔진 growthPath가 랭크 무관으로 이미 다룬다.
+    const special = rank === 0 && Number(r["MaxLevel"] ?? 0) === 40;
+    if (rank !== 1 && !special) continue;
     const flag = Number(r["Flag"] ?? 0);
     const low = reachedBy.get(jid);
-    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌 포함 — DLC 제외 해제 2026-08-31) ·
-    // 전용 = Flag 1 + 승급망 도달(가능자 판정) · Flag 0 = 적 전용 변형(플레이어 비대상).
-    if (!(flag === 11 || (flag === 1 && low !== undefined))) continue;
+    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌·시프 포함) · 전용 = Flag 1 + 가능자
+    // (승급망 기본직 합류 || 그 직업 직접 합류 — 댄서=세아다스, 사룡 계열) · Flag 0 = 적 전용 변형.
+    const uniquePid = flag === 1 ? chars.find((c) => c.joinJid === low || c.joinJid === jid)?.pid : undefined;
+    if (!(flag === 11 || uniquePid !== undefined)) continue;
     const path = pathJobOf(jid);
     if (path === undefined) continue;
-    const uniquePid = flag === 1 ? chars.find((c) => c.joinJid === low || c.joinJid === jid)?.pid : undefined;
     targetJobs.push({
       jid,
       name: label(locale, String(r["Name"])) ?? jid,

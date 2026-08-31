@@ -151,6 +151,14 @@ export function builderRowGroups(
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
  * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
+/** 잠금 순서 이동(드래그 커밋) — 순수 이동: 원본 불변이어야 상태·저장분이 안 어긋난다. */
+export function moveLock(locked: readonly EntryLock[], from: number, to: number): EntryLock[] {
+  const next = [...locked];
+  const [entry] = next.splice(from, 1);
+  if (entry !== undefined) next.splice(to, 0, entry);
+  return next;
+}
+
 /** 대기(비잠금) 목록 — 잠긴 캐릭터는 비교표에서 제외되고 남은 묶음만 정렬을 지난다. */
 export function waitingRowGroups(
   groups: readonly BuilderRow[][],
@@ -244,12 +252,13 @@ export function weaponAt(weapon: BuilderWeaponProp, plus: number): {
 const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
 
 /** 전투 능력 순서(인게임 유닛 화면 순, 공격은 물공·마공 분리 — 2026-08-31 사용자 지시).
-    맨손 물공·마공 = 순수 힘·마력. 장비 장착 피쳐가 서면 Combatant.weapon만 채우면 정본 식
-    (攻撃力計算 = ユニット攻撃力 + 武器攻撃力x特効)이 그대로 합산한다 — 여기 코드는 불변. */
-export const COMBAT_KEYS = ["patk", "matk", "hit", "avoid", "crit", "ddg"] as const;
+    맨손 물공·마공 = 순수 힘·마력. 공속(as)은 무게 페널티가 속도를 깎는 것을 드러낸다(하락 = 레드,
+    2026-08-31 정정 지시 — 체격은 불변). 장착 = Combatant.weapon만 채우면 정본 식이 그대로 합산. */
+export const COMBAT_KEYS = ["as", "patk", "matk", "hit", "avoid", "crit", "ddg"] as const;
 export type CombatKey = (typeof COMBAT_KEYS)[number];
 
 const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
+  as: "攻撃速度計算",
   patk: "攻撃力計算",
   hit: "命中値計算",
   avoid: "回避値計算",

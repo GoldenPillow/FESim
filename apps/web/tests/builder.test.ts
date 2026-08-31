@@ -6,6 +6,7 @@ import {
   canEquip,
   combatOf,
   lockedDisplayRows,
+  moveLock,
   nextSort,
   rankValue,
   sortRowGroups,
@@ -187,6 +188,20 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
   });
 });
 
+describe("잠금 재정렬 (moveLock)", () => {
+  /** 왜 위험한가: 드래그 커밋이 원본을 변이하면 React 상태·저장분이 어긋난다 — 순수 이동이어야 한다. */
+  it("from → to 이동, 원본 불변", () => {
+    const locked = [
+      { pid: "a", internal: 0 },
+      { pid: "b", internal: 0 },
+      { pid: "c", internal: 0 },
+    ];
+    expect(moveLock(locked, 0, 2).map((e) => e.pid)).toEqual(["b", "c", "a"]);
+    expect(moveLock(locked, 2, 0).map((e) => e.pid)).toEqual(["c", "a", "b"]);
+    expect(locked.map((e) => e.pid)).toEqual(["a", "b", "c"]);
+  });
+});
+
 describe("장착 게이트 (canEquip·rankValue)", () => {
   const iron: BuilderWeaponProp = {
     iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
@@ -231,7 +246,8 @@ describe("전투력 사영 (combatOf) — 무기 합산", () => {
     expect(c.patk).toBeCloseTo(10.5); // 힘 5.5 + 위력 5
     expect(c.matk).toBe(0); // 마공 = 순수 마력(물리 무기)
     expect(c.hit).toBe(112); // 10x2 + 2 + 90
-    expect(c.avoid).toBe(6); // 공속 = 7 - max(5-0, 0) = 2 → 2x2 + 2
+    expect(c.as).toBe(2); // 공속 = 7 - max(5-0, 0) — 무게가 속도를 깎는다(하락 = 레드 표기 근거)
+    expect(c.avoid).toBe(6); // 공속 2 → 2x2 + 2
     expect(c.crit).toBe(5);
   });
 
@@ -267,6 +283,7 @@ describe("전투력 사영 (combatOf) — 정본 self-only 식 · 맨손(무기 
     ];
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const c = combatOf(row!);
+    expect(c.as).toBe(7); // 맨손 공속 = 속도 그대로(무게 0)
     expect(c.patk).toBeCloseTo(5.5); // 물공 = 순수 힘(맨손) — 장비 피쳐가 서면 무기 항이 합산된다
     expect(c.matk).toBe(0); // 마공 = 순수 마력 — 같은 식을 마법 속성으로 평가
     expect(c.hit).toBe(22);
