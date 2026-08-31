@@ -231,6 +231,10 @@ export interface EntryLock {
   plus?: number;
   /** 잠금 당시 각인(GID) — 없음 = 무각인. */
   engrave?: string;
+  /** 문장사 반지(GID) — 잠금 카드에서만 편집(2026-08-31 사용자 지시: 반지는 엔트리 멤버 개인 장착). */
+  gid?: string;
+  /** 인연(絆) 레벨 1~20 — 반지 선택 시 기본 20. gid 없이 단독으로는 무의미. */
+  bond?: number;
 }
 
 const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
@@ -267,6 +271,8 @@ export function loadEntryLocks(): EntryLock[] {
           ...(typeof raw.iid === "string" ? { iid: raw.iid } : {}),
           ...(typeof raw.plus === "number" ? { plus: raw.plus } : {}),
           ...(typeof raw.engrave === "string" ? { engrave: raw.engrave } : {}),
+          ...(typeof raw.gid === "string" ? { gid: raw.gid } : {}),
+          ...(typeof raw.bond === "number" ? { bond: raw.bond } : {}),
         },
       ];
     });

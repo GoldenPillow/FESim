@@ -26,6 +26,8 @@ export interface BuilderCell {
   /** 정렬 비교값 — 캡 정수도 같은 축에서 비교한다. */
   value: number;
   capped: boolean;
+  /** 문장사 絆 보너스로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
+  buffed?: boolean;
 }
 
 export interface BuilderRow {
@@ -39,6 +41,8 @@ export interface BuilderRow {
   /** 전용직 대상 밖 — 합류 상태 값으로 남긴다(회색 표시 신호). */
   ineligible: boolean;
   cells: Record<StatKey, BuilderCell>;
+  /** 문장사 絆 보너스 델타(비영 키만) — 카드 하단 "+N" 행이 소비(2026-08-31 사용자 지시). */
+  emblemDelta?: Partial<Record<StatKey, number>>;
 }
 
 export interface BuilderSort {
@@ -159,17 +163,35 @@ export function moveLock(locked: readonly EntryLock[], from: number, to: number)
   return next;
 }
 
-/** 대기(비잠금) 목록 — 잠긴 캐릭터는 비교표에서 제외되고 남은 묶음만 정렬을 지난다. */
+/**
+ * 문장사 絆 보너스 합산 — 성장 경로(growthPath) 밖 평면 가산(EnhanceValue 층, 보드 staticEnhances와 동축).
+ * 셀 표시·정렬값·상승 표식(buffed)을 함께 움직인다 — 원본 불변(정렬·유령 카드가 같은 행을 공유한다).
+ */
+export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey, number>>): BuilderRow {
+  const cells = { ...row.cells };
+  for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
+    if (d === 0) continue;
+    const cell = cells[key];
+    const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
+    cells[key] = { ...cell, text, value: cell.value + d, ...(d > 0 ? { buffed: true as const } : {}) };
+  }
+  return { ...row, cells, emblemDelta: delta };
+}
+
+/** 대기 목록 한 묶음 — ghost = 엔트리에 잠긴 캐릭터의 비교용 임시 카드(반투명·무반응, 정렬·비교표에는 참가). */
+export interface WaitingGroup {
+  rows: BuilderRow[];
+  ghost: boolean;
+}
+
+/** 대기 목록 — 잠긴 캐릭터도 유령 카드로 남아 전체 정렬을 지난다(2026-08-31: 엔트리 멤버 비교분석). */
 export function waitingRowGroups(
   groups: readonly BuilderRow[][],
   locked: readonly EntryLock[],
   sort: BuilderSort | undefined,
-): BuilderRow[][] {
+): WaitingGroup[] {
   const pids = new Set(locked.map((e) => e.pid));
-  return sortRowGroups(
-    groups.filter((g) => !pids.has(g[0]!.pid)),
-    sort,
-  );
+  return sortRowGroups(groups, sort).map((g) => ({ rows: g, ghost: pids.has(g[0]!.pid) }));
 }
 
 export interface LockedDisplay {
@@ -205,6 +227,8 @@ export function lockedDisplayRows(
     const row = builderRow(char, joinJob, job, entry.internal, extra);
     const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
     // 각인도 무기처럼 강하 — 목록 밖 gid(체커 숨김·이물)는 무각인으로(괄호 표시는 없지만 값 오염보다 낫다).
+    // ☠반지(gid·bond)는 여기서 합산하지 않는다 — 본스탯 행은 순수값, 최종스탯은 반지 행이 소유
+    //   (applyEmblemBonus를 렌더 층이 호출, 2026-08-31 사용자 지시).
     const engrave = entry.engrave === undefined ? undefined : engraves.find((g) => g.gid === entry.engrave);
     out.push({
       row,

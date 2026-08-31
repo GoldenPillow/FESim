@@ -11,6 +11,8 @@ const ALLOW = [
   /^\/fe17\/assets\/weapontypes\//,
   /^\/fe17\/assets\/engraves\//,
   /^\/fe17\/assets\/efficacy\//,
+  // 문장사 반지 피쳐 에셋(2026-08-31) — 등재 규약은 items와 동일(빠뜨리면 조용히 404).
+  /^\/fe17\/assets\/rings\//,
 ];
 
 export default {

@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
 import {
+  applyEmblemBonus,
+  builderRow,
   builderRowGroups,
   canEquip,
   combatOf,
@@ -15,7 +17,13 @@ import {
   type BuilderSort,
   type EquippedWeapon,
 } from "./lib";
-import type { BuilderEngraveProp, BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
+import type {
+  BuilderEmblemProp,
+  BuilderEngraveProp,
+  BuilderJobProp,
+  BuilderProps,
+  BuilderWeaponProp,
+} from "../../lib/fe17";
 import {
   loadEntryLocks,
   loadShowDlc,
@@ -70,20 +78,6 @@ const STAT_EN: Record<StatKey, string> = {
 const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
   str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
 };
-
-/** 자물쇠 아이콘(머티리얼 계열 근사) — 대기 행 호버 = 잠김 형상 예고(클릭 = 잠금),
-    잠금 블록 호버 = 열린 형상(클릭 = 해제 — 행·배경 클릭으로는 안 풀린다, 2026-08-31 부주의 방지). */
-const LockIcon = ({ open = false }: { open?: boolean }): React.JSX.Element => (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-    <path
-      d={
-        open
-          ? "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9H9V6a3 3 0 0 1 5.91-.74l1.94-.49A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Z"
-          : "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z"
-      }
-    />
-  </svg>
-);
 
 /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
 const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
@@ -263,6 +257,41 @@ const engraveOptionsOf = (
   })),
 ];
 
+/** 반지 후보 — 좌 아이콘·우 문장사 이름(2026-08-31 사용자 지시). */
+const ringOptionsOf = (emblems: readonly BuilderEmblemProp[], labels: BuilderLabels): EquipOption[] => [
+  { value: "", label: labels.ringNone },
+  ...emblems.map((e) => ({ value: e.gid, label: e.name, ...(e.icon !== undefined ? { icon: e.icon } : {}) })),
+];
+
+/** 絆 레벨 1~20 — 오름차순(2026-08-31 사용자 변경). 반지 선택 시 기본값은 여전히 20. */
+const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
+  value: String(i + 1),
+  label: String(i + 1),
+}));
+
+/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계, "Lv." 접두(2026-09-01 사용자 지시). */
+const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `Lv. ${n}` }));
+
+/**
+ * 드롭다운 자동 스크롤(2026-09-01 사용자 지시) — 목록이 화면·스크롤박스 아래로 잘리면
+ * **잘린 만큼만** 부드럽게 내린다(세로 한정 — 우측 스펙 패널 때문에 가로로 튀면 안 된다).
+ * 목록은 트리거와 같은 스크롤 콘텐츠 안이라 스크롤해도 정렬이 유지된다.
+ */
+const scrollDropdownIntoView = (el: HTMLElement): void => {
+  const r = el.getBoundingClientRect();
+  let node: HTMLElement | null = el.parentElement;
+  while (node !== null) {
+    const style = getComputedStyle(node);
+    if (/(auto|scroll)/.test(style.overflowY)) {
+      const over = r.bottom - node.getBoundingClientRect().bottom + 8;
+      if (over > 0) node.scrollBy({ top: over, behavior: "smooth" });
+    }
+    node = node.parentElement;
+  }
+  const overWin = r.bottom - window.innerHeight + 8;
+  if (overWin > 0) window.scrollBy({ top: overWin, behavior: "smooth" });
+};
+
 /**
  * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
  * 그린다(2026-08-31 사용자 지시: 옵션 호버 즉시 우측 상세 스펙). 트리거 = 상단 셀렉트풍 박스 + ▾.
@@ -278,6 +307,7 @@ function EquipDropdown({
   labels,
   trigger,
   triggerClass,
+  rootClass,
 }: {
   ariaLabel: string;
   value: string;
@@ -289,11 +319,18 @@ function EquipDropdown({
   labels: BuilderLabels;
   trigger: React.ReactNode;
   triggerClass: string;
+  /** 루트(포지셔닝 스팬) 추가 클래스 — flex 컨테이너 안에서 늘어나야 할 때(flex-1) 쓴다. */
+  rootClass?: string;
 }): React.JSX.Element {
   const [open, setOpenRaw] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 2026-09-01 사용자 지시.
+  useEffect(() => {
+    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+  }, [open]);
   const setOpen = (next: boolean): void => {
     setOpenRaw(next);
     onOpenChange?.(next);
@@ -317,7 +354,7 @@ function EquipDropdown({
   return (
     <span
       ref={rootRef}
-      className="relative inline-flex"
+      className={`relative inline-flex${rootClass !== undefined ? ` ${rootClass}` : ""}`}
       // ☠행 클릭(잠금 토글)·블록 드래그로 새면 안 된다 — 드롭다운 전체에서 전파를 끊는다.
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -342,7 +379,7 @@ function EquipDropdown({
         {trigger}
       </button>
       {open && (
-        <span className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
           <span className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
             {options.map((o) => (
               // ☠disabled 속성 금지 — 비활성 버튼은 마우스 이벤트가 죽어 호버 스펙이 안 선다(aria만).
@@ -374,6 +411,236 @@ function EquipDropdown({
               <SpecPanel weapon={spec.weapon} plus={spec.plus} engrave={spec.engrave} labels={labels} />
             </span>
           )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록 + 항목 호버 = 우측 상세(스킬 = 정본 설명문,
+ * 무기 = 스펙 패널). bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
+ * 인연 드롭다운 오버레이(데스크톱)와 폴딩 팝업(세로폰)이 공유한다.
+ */
+function EmblemDetail({
+  emblem,
+  bond,
+  labels,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+}): React.JSX.Element {
+  const [hover, setHover] = useState<{ name: string; help?: string; weapon?: BuilderWeaponProp } | null>(null);
+  const chip = (
+    key: string,
+    name: string,
+    cls: string,
+    detail: { name: string; help?: string; weapon?: BuilderWeaponProp },
+    icon?: string,
+  ): React.JSX.Element => (
+    <span
+      key={key}
+      className={`flex cursor-default items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
+      onMouseEnter={() => setHover(detail)}
+      onMouseLeave={() => setHover((h) => (h?.name === detail.name ? null : h))}
+    >
+      {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
+      {name}
+    </span>
+  );
+  return (
+    <span className="flex items-start">
+      <span className="flex max-h-96 w-max flex-col overflow-y-auto rounded border border-rule bg-panel px-2.5 py-2 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+        <span className="pb-1 text-[14px] font-semibold text-ink">
+          {emblem.name} — {labels.bond} {bond}
+        </span>
+        {emblem.levels.map((lv) => (
+          <span
+            key={lv.bond}
+            className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
+          >
+            <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
+            <span className="flex max-w-[24rem] flex-wrap gap-1">
+              {lv.synchro?.map((s) =>
+                chip(`s-${s.sid}`, s.name, "text-ink", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
+              )}
+              {lv.engage?.map((s) =>
+                chip(`e-${s.sid}`, s.name, "text-engage", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
+              )}
+              {lv.weapons?.map((w) =>
+                chip(
+                  `w-${w.iid}`,
+                  w.name,
+                  "text-engage",
+                  { name: w.name, ...(w.help !== undefined ? { help: w.help } : {}), ...(w.weapon !== undefined ? { weapon: w.weapon } : {}) },
+                  w.icon,
+                ),
+              )}
+            </span>
+          </span>
+        ))}
+      </span>
+      {/* 항목 호버 상세 — 목록 우측 오버레이(무기 = 스펙 패널, 스킬 = 정본 설명문). */}
+      {hover !== null && (
+        <span className="ml-1 max-w-[18rem] rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
+          {hover.weapon !== undefined ? (
+            <SpecPanel weapon={hover.weapon} plus={0} labels={labels} />
+          ) : (
+            <span className="flex flex-col gap-1 text-[13px] leading-snug text-muted">
+              <span className="font-semibold text-ink">{hover.name}</span>
+              {hover.help !== undefined && <span className="whitespace-pre-line">{hover.help}</span>}
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** 문장사 상세 팝업(세로폰 폴딩 전용) — 바깥클릭 캡처로 닫는다(드롭다운 교훈 공유). */
+function EmblemPanel({
+  emblem,
+  bond,
+  labels,
+  onClose,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+  onClose: () => void;
+}): React.JSX.Element {
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <span
+      ref={rootRef}
+      className="absolute left-0 top-full z-50 mt-1"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <EmblemDetail emblem={emblem} bond={bond} labels={labels} />
+    </span>
+  );
+}
+
+/**
+ * 인연 레벨 드롭다운(데스크톱 반지 행) — 폭 = 하단 강화+각인 칩 합산 78px 고정(마진 포함, 실측
+ * 2026-08-31 사용자 지시). 열면 우측에 문장사 상세(EmblemDetail)가 서고, 옵션(Lv) 호버 =
+ * 그 레벨 기준 활성/비활성 미리보기 + 본스탯·+N 라이브 연동(onPreview) — 떠나면 원복.
+ */
+function BondDropdown({
+  emblem,
+  bond,
+  labels,
+  onChange,
+  onPreview,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+  onChange: (bond: number) => void;
+  onPreview: (bond: number | null) => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState<number | null>(null);
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 상세 패널 포함 높이 기준.
+  useEffect(() => {
+    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+  }, [open]);
+  const close = (): void => {
+    setOpen(false);
+    setHover(null);
+    onPreview(null);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) close();
+    };
+    // ☠캡처 단계 필수 — 드롭다운 루트가 pointerdown 전파를 끊는다(EquipDropdown 교훈 공유).
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // close는 렌더마다 새 함수 — 열림 동안 재구독 방지.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  return (
+    <span
+      ref={rootRef}
+      className="relative inline-flex"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          close();
+          btnRef.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={labels.bond}
+        // 폭 86px = 강화 38 + 갭 6 + 각인 42 (전부 고정 폭 — 상태 무관 정합, 2026-08-31 재실측).
+        className="flex h-7 w-[86px] cursor-pointer items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0.5 text-[11px] font-semibold tracking-tight text-pgrow"
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        {`${labels.bondLevel} ${bond}`}
+        {CARET}
+      </button>
+      {open && (
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start">
+          <span
+            role="listbox"
+            aria-label={labels.bond}
+            className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]"
+            onMouseLeave={() => {
+              setHover(null);
+              onPreview(null);
+            }}
+          >
+            {BOND_OPTIONS.map((o) => {
+              const n = Number(o.value);
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="option"
+                  aria-selected={n === bond}
+                  className={`cursor-pointer px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
+                  onMouseEnter={() => {
+                    setHover(n);
+                    onPreview(n);
+                  }}
+                  onClick={() => {
+                    onChange(n);
+                    close();
+                    btnRef.current?.focus();
+                  }}
+                >
+                  {`Lv ${n}`}
+                </button>
+              );
+            })}
+          </span>
+          {/* 문장사 상세 — 호버 레벨 기준(레벨 부족 = 흐림), 호버 없으면 현재 레벨. */}
+          <span className="ml-1">
+            <EmblemDetail emblem={emblem} bond={hover ?? bond} labels={labels} />
+          </span>
         </span>
       )}
     </span>
@@ -469,7 +736,8 @@ function CombatCells({
         onChange={(v) => onEquip({ plus: Number(v) })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        triggerClass={`inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+        // 고정 폭 38px — 각인 42px·갭 6px과 함께 인연 드롭다운 86px과 꼭 맞는다(2026-08-31 폭 정합).
+        triggerClass={`inline-flex h-7 w-[38px] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
         trigger={
           <>
             {`+${plus}`}
@@ -489,7 +757,8 @@ function CombatCells({
         onChange={(gid) => onEquip({ engrave: gid })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        triggerClass={`inline-flex h-7 items-center justify-center gap-0.5 rounded border bg-sunken px-1 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        // 고정 폭 42px — 강화 칩과 함께 인연 드롭다운 폭 정합의 반쪽(2026-08-31).
+        triggerClass={`inline-flex h-7 w-[42px] items-center justify-center gap-0.5 rounded border bg-sunken px-0 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
         trigger={
           <>
             {engrave?.icon !== undefined ? (
@@ -550,7 +819,7 @@ function CombatCells({
         if (key === "bld") {
           const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
           return (
-            <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
+            <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
               {eff !== undefined && (
                 <>
                   <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
@@ -609,6 +878,95 @@ function CombatCells({
   );
 }
 
+/**
+ * 반지 슬롯(반지 행 공용) — 반지 드롭다운 + 絆 드롭다운(블루 "Lv N", 선택 시 기본 20) + 문장사 이름
+ * (클릭 = 레벨 상세 팝업)을 가로 한 줄로. 반지 행(블루 최종스탯 행)의 이름 칸에 앉아 세로 정렬된다
+ * (2026-08-31 사용자 지시). 대기·엔트리 구분 없이 편집 — 값의 소유만 다르다(대기 = 세션, 엔트리 = 스냅샷).
+ * ☠행 잠금·블록 드래그로 새면 안 된다 — 루트에서 전파 차단.
+ */
+function RingSlot({
+  emblem,
+  bond,
+  emblems,
+  ringPlaceholder,
+  labels,
+  panelOpen,
+  onPatch,
+  onPanelToggle,
+}: {
+  emblem?: BuilderEmblemProp | undefined;
+  bond: number;
+  emblems: readonly BuilderEmblemProp[];
+  ringPlaceholder?: string | undefined;
+  labels: BuilderLabels;
+  panelOpen: boolean;
+  onPatch: (patch: { gid?: string; bond?: number }) => void;
+  onPanelToggle: () => void;
+}): React.JSX.Element {
+  return (
+    <span
+      className="entry-ring flex items-center gap-1.5"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <EquipDropdown
+        ariaLabel={labels.ring}
+        value={emblem?.gid ?? ""}
+        options={ringOptionsOf(emblems, labels)}
+        onChange={(gid) => onPatch({ gid })}
+        labels={labels}
+        // 빈 슬롯 = 점선(각인 칩과 같은 "비어 있음" 어휘) — 장착되면 실선으로 조여진다.
+        triggerClass={`flex h-7 shrink-0 items-center gap-0.5 rounded border bg-sunken px-1 ${emblem !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        trigger={
+          <>
+            {emblem?.icon !== undefined ? (
+              <img src={emblem.icon} alt="" className="h-6 w-6 object-contain" loading="lazy" />
+            ) : ringPlaceholder !== undefined ? (
+              <img src={ringPlaceholder} alt="" className="h-6 w-6 object-contain opacity-40" loading="lazy" />
+            ) : (
+              <span className="text-[13px] text-muted">{labels.ring}</span>
+            )}
+            {CARET}
+          </>
+        }
+      />
+      {emblem !== undefined && (
+        <EquipDropdown
+          ariaLabel={labels.bond}
+          value={String(bond)}
+          options={BOND_OPTIONS}
+          onChange={(v) => onPatch({ bond: Number(v) })}
+          labels={labels}
+          // 인연 레벨 = 블루 "Lv N" 표기(2026-08-31 사용자 지시) — 반지 행(블루)과 같은 톤.
+          triggerClass="inline-flex h-7 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-1 text-[14px] font-semibold text-pgrow"
+          trigger={
+            <>
+              {`Lv ${bond}`}
+              {CARET}
+            </>
+          }
+        />
+      )}
+      <span className="relative flex min-w-0">
+        {emblem !== undefined ? (
+          <button
+            type="button"
+            className="max-w-[7em] cursor-pointer truncate px-0.5 text-[13px] font-semibold leading-tight text-engage hover:underline"
+            onClick={onPanelToggle}
+          >
+            {emblem.name}
+          </button>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        {panelOpen && emblem !== undefined && (
+          <EmblemPanel emblem={emblem} bond={bond} labels={labels} onClose={onPanelToggle} />
+        )}
+      </span>
+    </span>
+  );
+}
+
 export default function BuilderIsland({
   chars,
   joinJobs,
@@ -616,6 +974,8 @@ export default function BuilderIsland({
   starsphere,
   weapons,
   engraves,
+  emblems,
+  ringPlaceholder,
   kindIcons,
   labels,
 }: BuilderIslandProps) {
@@ -639,6 +999,21 @@ export default function BuilderIsland({
   const [overrides, setOverrides] = useState<Record<string, { iid?: string; plus?: number; engrave?: string }>>({});
   /** 잠그는 순간의 1회 충격파 — ☠잠금 상태 클래스에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
   const [pulsePid, setPulsePid] = useState<string | null>(null);
+  /** 대기 카드 반지(2026-08-31: 엔트리 구분 없이 편집) — 세션 상태(개인 장비 overrides와 동형).
+      잠금 순간 스냅샷으로 이관되고 해제 시 되돌아온다(잠금 중 정본 = EntryLock.gid/bond). */
+  const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
+  /** 카드 개별 클래스·내부 레벨(2026-08-31: 포트레이트 아래 드롭다운) — 라인 0(메인 슬롯)을 대체.
+      세션 상태. jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 추종. */
+  const [cardClass, setCardClass] = useState<Record<string, { jid?: string; internal?: number }>>({});
+  /** 문장사 레벨 상세 팝업이 열린 카드 pid(세로폰 폴딩 전용 — 데스크톱은 인연 드롭다운이 상세를 겸한다). */
+  const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
+  /** 인연 옵션 호버 미리보기 — 본스탯 합산·+N이 이 레벨로 라이브 연동(2026-08-31 사용자 지시). */
+  const [bondPreview, setBondPreview] = useState<{ pid: string; bond: number } | null>(null);
+  /** 세로폰 폴딩 — 포트레이트 탭으로 반지 슬롯을 우측 전개한 pid(2026-08-31 사용자 지시). */
+  const [foldPid, setFoldPid] = useState<string | null>(null);
+  /** 클래스·In.Lv 드롭다운이 열린 카드 pid — 열린 동안 그 카드 th의 z를 올린다
+      (☠안 올리면 목록이 다음 카드의 sticky th(z-10, DOM 후순위)에 덮여 클릭 불능 — 실사고 2026-09-01). */
+  const [classDrop, setClassDrop] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
@@ -651,11 +1026,16 @@ export default function BuilderIsland({
       개인 오버라이드가 없으면 글로벌 장비가 그대로 장착된다(2026-08-31 사용자 설계). 해제 = 폐기. */
   const toggleLock = (pid: string, li: number): void => {
     const on = !locked.some((e) => e.pid === pid);
+    // 토글 직전 자리 스냅샷 — 커밋 후 FLIP(위로 이동 + 밀림)이 이 값으로 비행 경로를 계산한다.
+    snapshotFlip();
     let next: EntryLock[];
     if (on) {
       // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
-      const c = li >= 0 ? compares[li] : compares[0];
+      // 라인 0은 카드 개별 클래스(cardClass)가 글로벌을 대체한다(2026-08-31).
+      const c = cardCompareOf(pid, li >= 0 ? li : 0);
       const eq = cardEquip(pid, li >= 0 ? li : 0);
+      // 대기 반지는 스냅샷으로 이관(2026-08-31: 구분 없는 편집의 왕복) — 세션 쪽은 걷는다.
+      const ring = rings[pid];
       next = [
         ...locked,
         {
@@ -670,14 +1050,24 @@ export default function BuilderIsland({
                 ...(eq.engrave !== undefined ? { engrave: eq.engrave.gid } : {}),
               }
             : {}),
+          ...(ring !== undefined ? { gid: ring.gid, bond: ring.bond } : {}),
         },
       ];
+      if (ring !== undefined) setRings(({ [pid]: _moved, ...rest }) => rest);
     } else {
+      // 해제 = 스냅샷의 반지를 세션 쪽으로 되돌린다(대기 카드에서 이어서 편집).
+      const entry = locked.find((e) => e.pid === pid);
+      if (entry?.gid !== undefined) {
+        const back = { gid: entry.gid, bond: entry.bond ?? 20 };
+        setRings((prev) => ({ ...prev, [pid]: back }));
+      }
       next = locked.filter((e) => e.pid !== pid);
     }
     saveEntryLocks(next);
     setLocked(next);
-    setPulsePid(on ? pid : null);
+    // 충격파는 즉시가 아니라 **도착 후** — FLIP 완료 콜백이 pendingPulse를 회수해 터뜨린다(2026-08-31 지시).
+    pendingPulse.current = on ? pid : null;
+    setPulsePid(null);
     // 행이 상단으로 이동하면 옛 자리의 mouseleave가 안 온다 — 호버 흔적을 지운다.
     setHoverRow(null);
   };
@@ -707,6 +1097,73 @@ export default function BuilderIsland({
      끌리는 블록은 반투명으로 목표 자리를 미리 보이고, 나머지는 자리 양보 애니메이션(builder.css).
      놓는 순간 순서 확정 + 저장(온오프와 같은 저장 시점 규약). */
   const lockedRefs = useRef(new Map<string, HTMLTableSectionElement>());
+  /** 대기 블록 참조 — 잠금 FLIP(이동 애니메이션)의 출발·밀림 계산용. */
+  const waitingRefs = useRef(new Map<string, HTMLTableSectionElement>());
+  /** 잠금 토글 직전 각 블록의 화면 top(키 = "lock:"|"wait:" + pid) — 커밋 후 FLIP이 소비. */
+  const flipRects = useRef<Map<string, number> | null>(null);
+  /** 도착 대기 중인 충격파 pid — 카드가 목적지에 안착한 뒤에 터진다(2026-08-31 사용자 지시). */
+  const pendingPulse = useRef<string | null>(null);
+  const snapshotFlip = (): void => {
+    const rects = new Map<string, number>();
+    for (const [pid, el] of lockedRefs.current) rects.set(`lock:${pid}`, el.getBoundingClientRect().top);
+    for (const [pid, el] of waitingRefs.current) rects.set(`wait:${pid}`, el.getBoundingClientRect().top);
+    flipRects.current = rects;
+  };
+
+  // 잠금 FLIP — 새 잠금 블록은 옛 대기 카드 자리에서 날아오르고(z 상승), 밀려나는 블록들은 제자리 이동.
+  useLayoutEffect(() => {
+    const rects = flipRects.current;
+    if (rects === null) return;
+    flipRects.current = null;
+    const fly = (el: HTMLTableSectionElement, delta: number): Animation =>
+      el.animate([{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }], {
+        duration: 380,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      });
+    // 잠금 목적지 포커스(2026-09-01 사용자 지시) — 하단에서 잠그면 화면이 새 잠금 블록으로
+    // 부드럽게 따라간다(고정 헤더 높이만큼 여유). FLIP은 콘텐츠 좌표라 스크롤과 겹쳐도 안 어긋난다.
+    const focusLocked = (el: HTMLElement): void => {
+      const headerH = row1H + compares.length * jobRowH + 8;
+      const r = el.getBoundingClientRect();
+      let node: HTMLElement | null = el.parentElement;
+      while (node !== null) {
+        const cs = getComputedStyle(node);
+        if (/(auto|scroll)/.test(cs.overflowY)) {
+          const over = node.getBoundingClientRect().top + headerH - r.top;
+          if (over > 0) node.scrollBy({ top: -over, behavior: "smooth" });
+        }
+        node = node.parentElement;
+      }
+      const overWin = headerH - r.top;
+      if (overWin > 0) window.scrollBy({ top: -overWin, behavior: "smooth" });
+    };
+    for (const [pid, el] of lockedRefs.current) {
+      // 새로 잠긴 블록의 출발점 = 그 캐릭터의 옛 대기 카드 자리(잠금 이력 블록은 자기 옛 자리).
+      const old = rects.get(`lock:${pid}`) ?? rects.get(`wait:${pid}`);
+      const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top;
+      if (pendingPulse.current === pid) focusLocked(el);
+      if (Math.abs(delta) > 1) {
+        const anim = fly(el, delta);
+        // 비행 중엔 다른 sticky th(z-10)에 안 가리게 z 상승 — 도착 후 원복.
+        el.style.zIndex = "30";
+        const firePulse = pendingPulse.current === pid;
+        if (firePulse) pendingPulse.current = null;
+        anim.onfinish = () => {
+          el.style.zIndex = "";
+          if (firePulse) setPulsePid(pid);
+        };
+      } else if (pendingPulse.current === pid) {
+        pendingPulse.current = null;
+        setPulsePid(pid);
+      }
+    }
+    for (const [pid, el] of waitingRefs.current) {
+      const old = rects.get(`wait:${pid}`);
+      const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top;
+      if (Math.abs(delta) > 1) fly(el, delta);
+    }
+  }, [locked]);
+
   /** 잠금 블록 호버 — 열린 자물쇠(해제 버튼)를 이 블록에만 띄운다. */
   const [lockHover, setLockHover] = useState<string | null>(null);
   const [drag, setDrag] = useState<{
@@ -783,6 +1240,23 @@ export default function BuilderIsland({
     () => engraves.filter((g) => (showSpoilers || g.spoiler !== true) && (showDlc || g.dlc !== true)),
     [engraves, showSpoilers, showDlc],
   );
+  // 문장사(반지) 후보도 같은 축 — 체커에 숨은 gid의 장착분은 조용히 미장착 강하(각인 게이트와 동형).
+  const visibleEmblems = useMemo(
+    () => emblems.filter((e) => (showSpoilers || e.spoiler !== true) && (showDlc || e.dlc !== true)),
+    [emblems, showSpoilers, showDlc],
+  );
+  const emblemByGid = useMemo(() => new Map(visibleEmblems.map((e) => [e.gid, e])), [visibleEmblems]);
+  const jobByJid = useMemo(() => new Map(targetJobs.map((j) => [j.jid, j])), [targetJobs]);
+
+  /** 라인 li의 실효 (직업, 내부 레벨) — 라인 0은 카드 개별 편집(cardClass)이 글로벌 슬롯을 대체한다. */
+  const cardCompareOf = (pid: string, li: number): BuilderCompare | undefined => {
+    if (li !== 0) return compares[li];
+    const ov = cardClass[pid];
+    if (ov === undefined) return compares[0];
+    const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
+    if (job === undefined) return undefined; // 직업 미선택 = 합류 상태(장비 게이트도 직업 없음).
+    return { job, internal: (ov.internal ?? internal) - 1 };
+  };
 
   const compares: (BuilderCompare & { slot: number })[] = useMemo(
     () =>
@@ -828,25 +1302,62 @@ export default function BuilderIsland({
     () => chars.filter((c) => (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true)),
     [chars, showSpoilers, showDlc],
   );
-  const groups = useMemo(
-    () => waitingRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
-    [visibleChars, joinJobs, compares, sort, extraSkills, locked],
-  );
+  const charByPid = useMemo(() => new Map(visibleChars.map((c) => [c.pid, c])), [visibleChars]);
+  // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
+  // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
+  const groups = useMemo(() => {
+    const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
+    // 카드 개별 클래스·In.Lv(2026-08-31) — 라인 0을 카드 값으로 재계산(글로벌 슬롯 대체).
+    const personalized = base.map((g) => {
+      const pid = g[0]!.pid;
+      const ov = cardClass[pid];
+      if (ov === undefined) return g;
+      const char = charByPid.get(pid);
+      const joinJob = char === undefined ? undefined : joinJobs[char.joinJid];
+      if (char === undefined || joinJob === undefined) return g;
+      const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
+      const target = job === undefined ? 0 : (ov.internal ?? internal) - 1;
+      return [builderRow(char, joinJob, job, target, extraSkills), ...g.slice(1)];
+    });
+    const lockByPid = new Map(locked.map((e) => [e.pid, e]));
+    const boosted = personalized.map((g) => {
+      const pid = g[0]!.pid;
+      const entry = lockByPid.get(pid);
+      const src = entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : rings[pid];
+      if (src === undefined) return g;
+      // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
+      const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
+      const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
+      return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
+    });
+    return waitingRowGroups(boosted, locked, sort);
+  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
-  const lockedRows = useMemo(
-    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves),
-    [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves],
-  );
+  // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
+  const lockedRows = useMemo(() => {
+    const base = lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves);
+    return base.map((d) => {
+      const entry = locked.find((e) => e.pid === d.row.pid);
+      if (entry?.gid === undefined) return d;
+      const bond =
+        bondPreview !== null && bondPreview.pid === d.row.pid ? bondPreview.bond : (entry.bond ?? 20);
+      const delta = emblemByGid.get(entry.gid)?.bonuses[bond - 1];
+      return delta === undefined || Object.keys(delta).length === 0 ? d : { ...d, row: applyEmblemBonus(d.row, delta) };
+    });
+  }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid, bondPreview]);
 
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
     const o = overrides[`${pid}:${li}`];
-    const job = compares[li]?.job;
-    if (o === undefined) return compares[li]?.equipped;
+    // 게이트는 실효 직업 기준 — 카드 클래스 변경 후 부적합해진 장비는 미착용으로 강하(2026-08-31 되돌림).
+    const job = cardCompareOf(pid, li)?.job;
+    const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
+      eq === undefined || job === undefined || !canEquip(job, eq.weapon) ? undefined : eq;
+    if (o === undefined) return gate(compares[li]?.equipped);
     const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
-    if (weapon === undefined || job === undefined || !canEquip(job, weapon)) return undefined;
+    if (weapon === undefined) return undefined;
     const engrave = o.engrave === undefined ? undefined : visibleEngraves.find((g) => g.gid === o.engrave);
-    return { weapon, plus: o.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) };
+    return gate({ weapon, plus: o.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) });
   };
 
   /** 카드 개인 장비 변경 — 첫 터치에 글로벌 스냅샷으로 분기 후 부분 갱신("" = 해제).
@@ -879,8 +1390,225 @@ export default function BuilderIsland({
       };
     });
   };
+  /** 잠금 카드의 반지·絆 변경 — 스냅샷 직접 갱신·즉시 저장(patchLock과 동형 규약).
+      "" = 해제(絆도 걷는다). 새 반지 선택 시 기본 絆 20(2026-08-31 사용자 지시). */
+  const patchRing = (pid: string, patch: { gid?: string; bond?: number }): void => {
+    const next = locked.map((e) => {
+      if (e.pid !== pid) return e;
+      let out: EntryLock = { ...e };
+      if (patch.gid !== undefined) {
+        const { gid: _gid, bond: _bond, ...rest } = out;
+        out = patch.gid === "" ? rest : { ...rest, gid: patch.gid, bond: e.gid === patch.gid ? (e.bond ?? 20) : 20 };
+      }
+      if (patch.bond !== undefined) out = { ...out, bond: patch.bond };
+      return out;
+    });
+    saveEntryLocks(next);
+    setLocked(next);
+  };
+
+  /** 대기 카드 반지 변경(2026-08-31: 구분 없는 편집) — patchRing과 같은 규약, 저장만 세션. */
+  const patchWaitRing = (pid: string, patch: { gid?: string; bond?: number }): void =>
+    setRings((prev) => {
+      const cur = prev[pid];
+      if (patch.gid !== undefined) {
+        if (patch.gid === "") {
+          const { [pid]: _drop, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [pid]: { gid: patch.gid, bond: cur?.gid === patch.gid ? cur.bond : 20 } };
+      }
+      if (patch.bond !== undefined && cur !== undefined) return { ...prev, [pid]: { ...cur, bond: patch.bond } };
+      return prev;
+    });
+
+  /** 카드 클래스·In.Lv 변경(대기) — 첫 터치에 글로벌 슬롯 0을 스냅샷으로 분기(개인 장비와 같은 규약).
+      부적합해진 장비는 cardEquip 게이트가 미착용으로 강하한다(표시 = 미착용). */
+  const patchCardClass = (pid: string, patch: { jid?: string; internal?: number }): void =>
+    setCardClass((prev) => {
+      const cur =
+        prev[pid] ??
+        (compares[0] !== undefined ? { jid: compares[0].job.jid, internal: compares[0].internal + 1 } : {});
+      const jid = patch.jid !== undefined ? (patch.jid === "" ? undefined : patch.jid) : cur.jid;
+      const nextInternal = patch.internal ?? cur.internal;
+      return {
+        ...prev,
+        [pid]: { ...(jid !== undefined ? { jid } : {}), ...(nextInternal !== undefined ? { internal: nextInternal } : {}) },
+      };
+    });
+
+  /** 잠금 카드 클래스·In.Lv 변경 — 스냅샷 직접 갱신·즉시 저장. 새 직업이 못 드는 무기는
+      명시적으로 미착용 복귀(강화·각인 동반 제거 — 2026-08-31 "되돌린다"). */
+  const patchLockClass = (pid: string, patch: { jid?: string; internal?: number }): void => {
+    const next = locked.map((e) => {
+      if (e.pid !== pid) return e;
+      let out: EntryLock = { ...e };
+      if (patch.jid !== undefined) {
+        const { jid: _j, ...rest } = out;
+        // 미선택(내부 0) 잠금에서 클래스를 고르면 글로벌 In.Lv를 기본으로(대기 카드와 같은 추종).
+        out = patch.jid === "" ? { ...rest, internal: 0 } : { ...rest, jid: patch.jid, internal: out.internal || internal - 1 };
+      }
+      if (patch.internal !== undefined) out = { ...out, internal: patch.internal - 1 };
+      const job = out.jid === undefined ? undefined : jobByJid.get(out.jid);
+      const weapon = out.iid === undefined ? undefined : weapons.find((w) => w.iid === out.iid);
+      if (weapon !== undefined && (job === undefined || !canEquip(job, weapon))) {
+        const { iid: _i, plus: _p, engrave: _g, ...bare } = out;
+        out = bare;
+      }
+      return out;
+    });
+    saveEntryLocks(next);
+    setLocked(next);
+  };
+
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
+
+  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업(전용직 포함 — 참전 제한 없음, 2026-08-31). */
+  const classOptions = useMemo<EquipOption[]>(
+    () => [{ value: "", label: labels.jobNone }, ...targetJobs.map((j) => ({ value: j.jid, label: j.name }))],
+    [targetJobs, labels],
+  );
+
+  /** 카드 클래스·In.Lv 드롭다운 행 — 카드(이름 포함) 열 전체 폭에 [클래스 flex-1(긴 직업명 여유)]
+      [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
+      (2026-08-31 사용자 지시: 폰트 14px 통일). */
+  const classRowUi = (
+    pid: string,
+    jidValue: string,
+    jobName: string | undefined,
+    internalDisplay: number,
+    onPatch: (patch: { jid?: string; internal?: number }) => void,
+  ): React.JSX.Element => (
+    <span
+      // bottom 16px = 전투력 행 무기 슬롯과 하단 일치 실측 보정(2026-09-01: 정렬 기준 = 무기).
+      className="entry-classrow absolute inset-x-2 bottom-[16px] flex items-center gap-[6px]"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <EquipDropdown
+        ariaLabel={labels.job}
+        value={jidValue}
+        options={classOptions}
+        onChange={(jid) => onPatch({ jid })}
+        onOpenChange={(o) => setClassDrop(o ? pid : null)}
+        labels={labels}
+        rootClass="min-w-0 flex-1"
+        triggerClass="flex h-7 w-full items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight text-ink"
+        trigger={
+          <>
+            <span className="truncate">{jobName ?? labels.jobNone}</span>
+            {CARET}
+          </>
+        }
+      />
+      <EquipDropdown
+        ariaLabel={labels.internal}
+        value={String(internalDisplay)}
+        options={INLV_OPTIONS}
+        onChange={(v) => onPatch({ internal: Number(v) })}
+        onOpenChange={(o) => setClassDrop(o ? pid : null)}
+        labels={labels}
+        // "Lv." 접두만큼 넓히고(60px) 직업 선택기(flex-1)가 그만큼 줄어든다(2026-09-01 사용자 지시).
+        triggerClass="flex h-7 w-[60px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
+        trigger={
+          <>
+            {`Lv. ${internalDisplay}`}
+            {CARET}
+          </>
+        }
+      />
+    </span>
+  );
+
+  /** 잠금 스냅샷의 반지 단면 — 유령 카드·잠금 블록의 반지 행이 공유하는 소스. */
+  const lockRingOf = (pid: string): { gid: string; bond: number } | undefined => {
+    const entry = locked.find((e) => e.pid === pid);
+    return entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : undefined;
+  };
+
+  /**
+   * 반지 행 — 무기 슬롯(전투력 행) **바로 위**(2026-08-31 배치 확정): IN.LV 열 = 반지 드롭다운
+   * (무기 슬롯과 같은 박스: 아이콘+이름+▾), HP 열 = "인연레벨 Lv N"(하단 강화+각인 칩 폭대),
+   * 나머지 스탯 열 = 추가분(+N) 블루 주석(위 합산 숫자에 붙는 세로 리듬).
+   * 문장사 이름 클릭(팝업)·세로폰 폴딩은 카드(th)가 소유한다. th 없음 — 카드 th의 rowSpan이 덮는다.
+   */
+  const ringRow = (
+    pid: string,
+    src: { gid: string; bond: number } | undefined,
+    onPatch: (patch: { gid?: string; bond?: number }) => void,
+  ): React.JSX.Element => {
+    const emblem = src === undefined ? undefined : emblemByGid.get(src.gid);
+    const bond = src?.bond ?? 20;
+    // 인연 옵션 호버 중이면 +N도 그 레벨로 미리보기(본스탯 합산과 동기).
+    const effBond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : bond;
+    const delta = emblem?.bonuses[effBond - 1];
+    return (
+      <tr key="ring">
+        <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-middle">
+          <span
+            className="ring-cell flex justify-start"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <EquipDropdown
+              ariaLabel={labels.ring}
+              value={emblem?.gid ?? ""}
+              options={ringOptionsOf(visibleEmblems, labels)}
+              onChange={(gid) => onPatch({ gid })}
+              labels={labels}
+              // 무기 슬롯과 같은 박스 규격(2026-08-31: 크기 일치) — 빈 슬롯은 점선("비어 있음" 어휘).
+              triggerClass={`flex h-7 items-center gap-1 whitespace-nowrap rounded border bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${emblem !== undefined ? "border-rule text-engage" : "border-dashed border-rule text-muted opacity-70"}`}
+              trigger={
+                <>
+                  {emblem?.icon !== undefined ? (
+                    <img src={emblem.icon} alt="" className="h-5 w-5 shrink-0 object-contain" loading="lazy" />
+                  ) : ringPlaceholder !== undefined ? (
+                    <img src={ringPlaceholder} alt="" className="h-5 w-5 shrink-0 object-contain opacity-40" loading="lazy" />
+                  ) : null}
+                  <span className="max-w-[7rem] truncate">{emblem?.name ?? labels.ringNone}</span>
+                  {CARET}
+                </>
+              }
+            />
+          </span>
+        </td>
+        {STAT_KEYS.map((key) => {
+          if (key === "hp") {
+            return (
+              <td key={key} className="stat-col px-1 pb-[2px] pt-[2px] text-left align-middle md:px-2">
+                {emblem !== undefined && (
+                  <span
+                    className="ring-cell flex justify-start"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {/* 인연 드롭다운 = 문장사 상세 겸용(2026-08-31) — 옵션 호버 = 레벨 미리보기. */}
+                    <BondDropdown
+                      emblem={emblem}
+                      bond={bond}
+                      labels={labels}
+                      onChange={(n) => onPatch({ bond: n })}
+                      onPreview={(n) => setBondPreview(n === null ? null : { pid, bond: n })}
+                    />
+                  </span>
+                )}
+              </td>
+            );
+          }
+          const d = delta?.[key];
+          return (
+            <td
+              key={key}
+              className={`stat-col${key === "bld" ? " stat-col-last" : ""} px-1 pb-[4px] pt-0 text-center align-top text-[13px] font-bold text-pgrow md:px-2`}
+            >
+              {d !== undefined ? (d > 0 ? `+${d}` : String(d)) : ""}
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
 
   // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다. 3클릭째 = 합류순 복귀.
   const toggle = (key: StatKey): void => setSort((s) => nextSort(s, key));
@@ -1183,7 +1911,7 @@ export default function BuilderIsland({
                 <th
                   key={key}
                   scope="col"
-                  className="stat-col sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]"
+                  className={`stat-col${key === "bld" ? " stat-col-last" : ""} sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]`}
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -1211,7 +1939,7 @@ export default function BuilderIsland({
                     {c.internal + 1}
                   </td>
                   {STAT_KEYS.map((key) => (
-                    <td key={key} style={{ top }} className="stat-col sticky z-20 bg-panel px-1 py-[9px] text-center shadow-[inset_0_-1px_0_var(--rule)]">
+                    <td key={key} style={{ top }} className={`stat-col${key === "bld" ? " stat-col-last" : ""} sticky z-20 bg-panel px-1 py-[9px] text-center shadow-[inset_0_-1px_0_var(--rule)]`}>
                       <span className="grow-note font-bold text-gold" title={labels.growth}>
                         {`${c.job.diffGrow[key]}%`}
                       </span>
@@ -1226,6 +1954,10 @@ export default function BuilderIsland({
           {lockedRows.map(({ row, job, equipped }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
+            const lockRing = lockRingOf(row.pid);
+            const lockEntry = locked.find((e) => e.pid === row.pid);
+            const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
+            const thRaised = emblemOpen === row.pid || foldPid === row.pid || classDrop === row.pid;
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
             // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
             const touchUnlock = (e: React.MouseEvent): void => {
@@ -1234,6 +1966,56 @@ export default function BuilderIsland({
             };
             const dragCls =
               drag !== null && drag.active ? (drag.from === gi ? " entry-dragging" : " entry-drag-shift") : "";
+            // 카드 th = 블록 전체([고유성장?]+스탯+반지+전투력) — 하단(무기 슬롯 밴드)에 클래스 행 절대배치.
+            const lockTh = (
+              <th
+                scope="row"
+                rowSpan={3 + (showGrowth ? 1 : 0)}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+              >
+                <span className="entry-wrap flex items-center">
+                  <span
+                    className="entry-card"
+                    // 세로폰: 포트레이트 탭 = 우측 폴딩 토글(반지 슬롯 전개, 2026-08-31 사용자 지시).
+                    // 잠금 해제 탭은 스탯 영역이 맡는다(전파 차단으로 오발 방지).
+                    onClick={(e) => {
+                      const native = e.nativeEvent as PointerEvent;
+                      if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                        e.stopPropagation();
+                        setFoldPid((p) => (p === row.pid ? null : row.pid));
+                      }
+                    }}
+                  >
+                    {row.face !== undefined && (
+                      <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
+                    )}
+                    <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                  </span>
+                  {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바 — 행·배경 클릭은 무반응(부주의 방지). */}
+                </span>
+                {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
+                <span className="block h-[32px]" aria-hidden="true" />
+                {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 변경 = 즉시 저장·부적합 무기 미착용 복귀. */}
+                {classRowUi(
+                  row.pid,
+                  lockEntry?.jid ?? "",
+                  job?.name,
+                  (lockEntry?.internal ?? 0) + 1,
+                  (p) => patchLockClass(row.pid, p),
+                )}
+                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                <RingSlot
+                  emblem={lockEmblem}
+                  bond={lockRing?.bond ?? 20}
+                  emblems={visibleEmblems}
+                  ringPlaceholder={ringPlaceholder}
+                  labels={labels}
+                  panelOpen={emblemOpen === row.pid}
+                  onPatch={(p) => patchRing(row.pid, p)}
+                  onPanelToggle={() => setEmblemOpen((p) => (p === row.pid ? null : row.pid))}
+                />
+              </th>
+            );
             return (
               <tbody
                 key={`lock-${row.pid}`}
@@ -1245,61 +2027,63 @@ export default function BuilderIsland({
                 onPointerDown={(e) => beginDrag(e, row.pid, gi)}
                 onMouseEnter={() => setLockHover(row.pid)}
                 onMouseLeave={() => setLockHover(null)}
-                className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}${dragCls}`}
+                className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}${foldPid === row.pid ? " entry-fold-open" : ""}${dragCls}`}
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
+                {/* 고유 성장 라인 — 정보 제공이라 엔트리 블록도 반응(2026-09-01 사용자 지시). 블록 첫 줄. */}
+                {showGrowth && (
+                  <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
+                    {lockTh}
+                    <td className={`inlv-col px-2 py-1 ${sep}`} />
+                    {STAT_KEYS.map((key) => (
+                      <td
+                        key={key}
+                        title={labels.personalGrowth}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} min-w-[3.7rem] px-1 py-1 text-center font-bold text-gold md:min-w-[5.5rem] md:px-2 ${sep}`}
+                      >
+                        {`${growthByPid.get(row.pid)?.[key] ?? 0}%`}
+                      </td>
+                    ))}
+                  </tr>
+                )}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {/* rowSpan 2 = 스탯 행 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다(2026-08-31 지시). */}
-                  <th scope="row" rowSpan={2} className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
-                    <span className="entry-wrap flex items-center">
-                      <span className="entry-card">
-                        {row.face !== undefined && (
-                          <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
-                        )}
-                        <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
-                      </span>
-                      {/* 해제 = 이 버튼만(호버 시 열린 자물쇠) — 행·배경 클릭은 무반응(부주의 방지). */}
-                      {lockHover === row.pid ? (
-                        <button
-                          type="button"
-                          aria-label={labels.unlock}
-                          title={labels.unlock}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleLock(row.pid, -1);
-                          }}
-                          className="entry-lock text-muted hover:text-engage"
-                        >
-                          <LockIcon open />
-                        </button>
-                      ) : (
-                        <span className="entry-lock" aria-hidden="true" />
-                      )}
-                    </span>
-                    {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
-                    {job !== undefined && (
-                      <span className="block px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage">
-                        {job.name}
-                      </span>
-                    )}
-                  </th>
-                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
+                  {!showGrowth && lockTh}
+                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${showGrowth ? "" : sep}`}>
                     {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                   </td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
                     const down = key === "spd" && spdPenalty(row, equipped);
+                    // 絆 보너스 상승 = 블루 — SPD 무게 레드와 겹치면 상승 우선(2026-08-31 사용자 지시).
+                    const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                     return (
                       <td
                         key={key}
-                        className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${down ? "text-danger" : cell.capped ? "text-cap" : "text-ink"} ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${showGrowth ? "" : sep}`}
                       >
                         {cell.text}
+                        {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측(레드), 클릭 = 대기 복귀. */}
+                        {key === "bld" && lockHover === row.pid && (
+                          <button
+                            type="button"
+                            aria-label={labels.unlock}
+                            title={labels.unlock}
+                            className="entry-lockbar entry-lockbar-off"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLock(row.pid, -1);
+                            }}
+                          >
+                            <span className="text-[13px] font-bold tracking-tighter text-white">{">>"}</span>
+                          </button>
+                        )}
                       </td>
                     );
                   })}
                 </tr>
+                {/* 반지 행 — 무기 슬롯 바로 위(2026-08-31 배치 확정). 스냅샷 반지 소스, 즉시 저장. */}
+                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
                   <CombatCells
@@ -1318,7 +2102,7 @@ export default function BuilderIsland({
               </tbody>
             );
           })}
-          {groups.map((g, gi) => {
+          {groups.map(({ rows: g, ghost }, gi) => {
             const first = g[0]!;
             // 캐릭터 사이 구분선 = 각 묶음 첫 라인 셀의 border-t(맨 첫 묶음 제외 — 잠금 블록 포함 계산).
             const sep = lockedRows.length + gi > 0 ? "border-t border-rule" : "";
@@ -1333,8 +2117,9 @@ export default function BuilderIsland({
             /** 전투력 행 공개 — 라인 호버 또는 그 라인의 카드 드롭다운 조작 중. 자리는 상시(공란). */
             const revealed = (li: number): boolean =>
               (hovered && hoverRow.li === li) || (focused && focusRow.li === li);
-            // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
-            const groupInert = g.every((r) => r.ineligible);
+            // 유령 카드(엔트리 잠금분의 비교용 사본)만 무반응 — 전용직 불가 행도 참전(잠금)은 제한 없음
+            // (2026-08-31 사용자 지시 — 합류 상태 값으로 잠긴다).
+            const groupInert = ghost;
             /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
             const rowActs = (inert: boolean, li: number) =>
               inert
@@ -1344,51 +2129,70 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
+            const ringSrc = ghost ? lockRingOf(first.pid) : rings[first.pid];
+            const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
+            const thRaised = !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid);
             const nameTh = (
               <th
                 scope="row"
-                // 전투력 행이 라인마다 상시(공란 포함)라 rowSpan은 고정 — 호버로 표가 안 움직인다(2026-08-31).
-                rowSpan={g.length * 2 + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
+                // 카드 th = [고유성장?]+스탯0+반지+전투력0 행까지 — 하단(무기 슬롯 밴드)에 클래스 행이
+                // 절대배치로 앉아 무기·강화·각인과 하단 정렬된다(2026-09-01 정정). 이후 행은 필러 th.
+                rowSpan={(showGrowth ? 1 : 0) + 3}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
-                  <span className="entry-card">
+                  <span
+                    className="entry-card"
+                    // 세로폰: 포트레이트 탭 = 반지 슬롯 우측 폴딩 토글(유령 카드는 무반응, 2026-08-31).
+                    onClick={(e) => {
+                      const native = e.nativeEvent as PointerEvent;
+                      if (!ghost && native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                        e.stopPropagation();
+                        setFoldPid((p) => (p === first.pid ? null : first.pid));
+                      }
+                    }}
+                  >
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
                     <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
-                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다).
-                      호버 = 잠긴 자물쇠(= "이렇게 잠긴다" 예고, 2026-08-31 변경). */}
-                  {hovered ? (
-                    <button
-                      type="button"
-                      aria-label={labels.lock}
-                      title={labels.lock}
-                      aria-pressed="false"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleLock(first.pid, hoverRow.li);
-                      }}
-                      className="entry-lock text-muted hover:text-engage"
-                    >
-                      <LockIcon />
-                    </button>
-                  ) : (
-                    <span className="entry-lock" aria-hidden="true" />
-                  )}
+                  {/* 자물쇠 슬롯 폐기(2026-08-31 재설계) — 잠금 버튼은 행 호버 시 마지막 셀 우측 바로. */}
                 </span>
-                {/* 활성 라인의 클래스명 — 카드 하단(2026-08-31 배치 지시). 자리는 상시 예약(invisible)이라
-                    호버해도 th 내용 높이가 안 변한다. 터치(호버 없음)는 CSS가 슬롯째 걷는다(builder.css). */}
-                <span
-                  className={`entry-jobslot block h-[21px] truncate px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage${activeLi !== undefined ? "" : " invisible"}`}
-                >
-                  {(activeLi !== undefined ? compares[activeLi]?.job.name : compares[0]?.job.name) ?? ""}
-                </span>
+                {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
+                {classRowUi(
+                  first.pid,
+                  cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
+                  cardCompareOf(first.pid, 0)?.job.name,
+                  cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
+                  (p) => patchCardClass(first.pid, p),
+                )}
+                {/* 호버 클래스명 라인(jobslot)은 폐기 — 카드 하단 밴드를 클래스 드롭다운이 차지한다
+                    (2026-08-31: 클래스 개별 편집이 표시를 겸한다). 절대배치 클래스 행의 자리 확보용 여백. */}
+                <span className="block h-[32px]" aria-hidden="true" />
+                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
+                    카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
+                <RingSlot
+                  emblem={wEmblem}
+                  bond={ringSrc?.bond ?? 20}
+                  emblems={visibleEmblems}
+                  ringPlaceholder={ringPlaceholder}
+                  labels={labels}
+                  panelOpen={!ghost && emblemOpen === first.pid}
+                  onPatch={(p) => patchWaitRing(first.pid, p)}
+                  onPanelToggle={() => setEmblemOpen((p) => (p === first.pid ? null : first.pid))}
+                />
               </th>
             );
             return (
-              <tbody key={first.pid} className="group">
+              <tbody
+                key={first.pid}
+                ref={(el) => {
+                  if (el !== null) waitingRefs.current.set(first.pid, el);
+                  else waitingRefs.current.delete(first.pid);
+                }}
+                className={`group${ghost ? " entry-ghost" : ""}${!ghost && foldPid === first.pid ? " entry-fold-open" : ""}`}
+              >
                 {showGrowth && (
                   // 고유 성장 라인 — 블록 첫 줄(기존 행은 한 칸씩 아래로), 개인 성장률을 블루로(2026-08-31 사용자 지시).
                   <tr className={groupInert ? "" : "cursor-pointer hover:bg-sunken"} {...rowActs(groupInert, -1)}>
@@ -1398,35 +2202,72 @@ export default function BuilderIsland({
                       <td
                         key={key}
                         title={labels.personalGrowth}
-                        className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-gold md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
                         {`${growthByPid.get(first.pid)?.[key] ?? 0}%`}
+                        {key === "bld" && !groupInert && hovered && hoverRow.li === -1 && (
+                          <button
+                            type="button"
+                            aria-label={labels.lock}
+                            title={labels.lock}
+                            className="entry-lockbar"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLock(first.pid, -1);
+                            }}
+                          >
+                            <span className="text-[13px] font-bold tracking-tighter text-white">{"<<"}</span>
+                          </button>
+                        )}
                       </td>
                     ))}
                   </tr>
                 )}
                 {g.flatMap((row, li) => {
                   const eq = cardEquip(first.pid, li);
+                  // 참전 제한 없음(2026-08-31) — 전용직 불가 행도 호버·잠금 가능(표시는 계속 흐림).
+                  const inert = ghost;
                   const line = (
                     <tr
                       key={li}
-                      className={row.ineligible ? "" : "cursor-pointer hover:bg-sunken"}
-                      {...rowActs(row.ineligible, li)}
+                      className={inert ? "" : "cursor-pointer hover:bg-sunken"}
+                      {...rowActs(inert, li)}
                       {...(row.ineligible ? { title: labels.unavailable } : {})}
                     >
                       {li === 0 && !showGrowth && nameTh}
+                      {/* 필러 th — 카드 th가 전투력0 행까지만 덮으므로 남은 라인의 이름 열을 잇는다. */}
+                      {li === 1 && (
+                        <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
+                      )}
                       <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
                         {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
                         const down = key === "spd" && li === activeLi && spdPenalty(row, eq);
+                        // 絆 보너스 상승 = 블루 — 무게로 깎인 SPD 레드와 겹치면 상승이 우선(2026-08-31 사용자 지시).
+                        const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                         return (
                           <td
                             key={key}
-                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${down ? "text-danger" : cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                            className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
                             {cell.text}
+                            {/* 잠금 바(2026-08-31 재설계) — 호버 라인 마지막 셀 우측, 셀 크기·위치 불변. */}
+                            {key === "bld" && !inert && hovered && hoverRow.li === li && (
+                              <button
+                                type="button"
+                                aria-label={labels.lock}
+                                title={labels.lock}
+                                className="entry-lockbar"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleLock(first.pid, li);
+                                }}
+                              >
+                                <span className="text-[13px] font-bold tracking-tighter text-white">{"<<"}</span>
+                              </button>
+                            )}
                           </td>
                         );
                       })}
@@ -1438,15 +2279,17 @@ export default function BuilderIsland({
                   const open = !row.ineligible && revealed(li);
                   return [
                     line,
+                    // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
+                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p))] : []),
                     <tr
                       key={`combat-${li}`}
-                      className={`combat-ghost${row.ineligible ? "" : " cursor-pointer hover:bg-sunken"}`}
-                      {...rowActs(row.ineligible, li)}
-                      {...(row.ineligible ? {} : focusActs(first.pid, li))}
+                      className={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
+                      {...rowActs(inert, li)}
+                      {...(inert ? {} : focusActs(first.pid, li))}
                     >
                       <CombatCells
                         row={row}
-                        job={compares[li]?.job}
+                        job={cardCompareOf(first.pid, li)?.job}
                         equipped={eq}
                         ghost={!open}
                         specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}

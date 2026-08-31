@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
+import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock, type StatKey } from "@fesim/engine";
 import {
+  applyEmblemBonus,
   builderRowGroups,
   builderRows,
   canEquip,
@@ -150,10 +151,10 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
    * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬·슬롯 변경에 딸려
    * 움직이면 기준이 사라진다. 잠금 당시 (직업, 레벨, 성옥)만 소비하는 스냅샷이어야 고정이 성립한다.
    */
-  it("잠긴 캐릭터는 대기 목록에서 빠지고 남은 묶음만 정렬을 지난다", () => {
-    expect(
-      waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid),
-    ).toEqual(["b", "a"]);
+  it("잠긴 캐릭터도 유령 카드로 남는다 — ghost 표시, 정렬은 전체를 지난다(2026-08-31 엔트리 비교분석)", () => {
+    const out = waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" });
+    expect(out.map((g) => g.rows[0]!.pid)).toEqual(["b", "c", "a"]);
+    expect(out.map((g) => g.ghost)).toEqual([false, true, false]);
   });
 
   it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다", () => {
@@ -179,6 +180,14 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     expect(rows[0]!.job).toBeUndefined();
   });
 
+  it("반지(gid·bond)는 스냅샷에 실려도 본스탯 행을 오염시키지 않는다 — 최종스탯은 반지 행 소유(2026-08-31)", () => {
+    const entry = { pid: "a", internal: 11, jid: "JID_high", gid: "GID_M", bond: 2 };
+    const out = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry])[0]!;
+    expect(out.row.cells.str.text).toBe("13.4");
+    expect(out.row.cells.str.buffed).toBeUndefined();
+    expect(out.row.emblemDelta).toBeUndefined();
+  });
+
   it("성옥 스냅샷 — 잠금 당시 체커만 반영한다(현재 체커와 무관)", () => {
     const star = { Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow;
     const entry = { pid: "a", internal: 11, jid: "JID_high" };
@@ -186,6 +195,33 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], star)[0]!;
     expect(off.row.cells.str.text).toBe("13.4");
     expect(on.row.cells.str.text).toBe("15.1");
+  });
+});
+
+describe("문장사 보너스 (applyEmblemBonus)", () => {
+  /**
+   * 왜 위험한가: 絆 보너스는 성장 경로 밖 평면 가산(EnhanceValue 층)이라 셀 재조립이 틀려도
+   * 오류가 없다 — 표시·정렬값·상승 표식(buffed)이 함께 움직여야 정렬과 블루 표기가 성립한다.
+   */
+  it("델타 합산 — 소수 표시 유지·정렬값 동기·상승 셀만 buffed", () => {
+    const [row] = builderRows(propsOf([char("a")]), HIGH, 40);
+    const out = applyEmblemBonus(row!, { str: 2 });
+    expect(out.cells.str.value).toBeCloseTo(row!.cells.str.value + 2, 5);
+    expect(parseFloat(out.cells.str.text)).toBeCloseTo(parseFloat(row!.cells.str.text) + 2, 5);
+    expect(out.cells.str.text).toContain(".");
+    expect(out.cells.str.buffed).toBe(true);
+    expect(out.cells.hp.buffed).toBeUndefined();
+    expect(out.emblemDelta).toEqual({ str: 2 }); // 반지 행("+N"·최종스탯)의 데이터원
+    expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
+  });
+
+  it("캡 도달 셀은 정수 표기를 유지한 채 가산된다", () => {
+    const capped = char("a", { personLimit: block({ hp: -60 }) });
+    const [row] = builderRows(propsOf([capped]), HIGH, 40);
+    expect(row!.cells.hp.capped).toBe(true);
+    const out = applyEmblemBonus(row!, { hp: 3 });
+    expect(out.cells.hp.text).toBe(String(Number(row!.cells.hp.text) + 3));
+    expect(out.cells.hp.capped).toBe(true);
   });
 });
 
