@@ -195,6 +195,45 @@ const SpecPanel = ({
   </span>
 );
 
+/** 각인 원래 스펙 패널(세로) — 각인 옵션 호버 오버레이. 결합 실효치가 아니라 각인 자체 보정치를
+    규격 6필드 전부(0·음수 포함) 표기한다(2026-09-01 사용자 지시). 색은 델타 규약(무게는 반전). */
+const EngraveSpecPanel = ({
+  engrave,
+  labels,
+}: {
+  engrave: BuilderEngraveProp;
+  labels: BuilderLabels;
+}): React.JSX.Element => {
+  const rows: [string, number, boolean][] = [
+    [labels.might, engrave.power, false],
+    [labels.combat.hit, engrave.hit, false],
+    [labels.combat.crit, engrave.crit, false],
+    [labels.weight, engrave.weight, true],
+    [labels.combat.avoid, engrave.avoid, false],
+    [labels.combat.ddg, engrave.dodge, false],
+  ];
+  return (
+    <span className="flex w-max flex-col gap-[3px] text-[14px] leading-tight text-muted">
+      <span className="flex items-center gap-1.5 pb-1">
+        {engrave.icon !== undefined && (
+          <img src={engrave.icon} alt="" className="h-5 w-5 object-contain" loading="lazy" />
+        )}
+        <span className="max-w-[9rem] truncate font-semibold text-ink">{engrave.name}</span>
+      </span>
+      {rows.map(([name, v, invert]) => (
+        <span key={name} className="flex items-center justify-between gap-4">
+          {name}
+          <span
+            className={`font-semibold ${v === 0 ? "text-ink" : (v > 0) !== invert ? "text-pgrow" : "text-danger"}`}
+          >
+            {v > 0 ? `+${v}` : v}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+};
+
 /** 드롭다운 표지 화살표 — 카드·상단 슬롯 공용, "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
 const CARET = (
   <span aria-hidden="true" className="text-[12px] leading-none text-muted">
@@ -210,6 +249,8 @@ interface EquipOption {
   disabled?: boolean;
   engage?: boolean;
   spec?: { weapon: BuilderWeaponProp; plus: number; engrave?: BuilderEngraveProp | undefined };
+  /** 각인 옵션 전용 — 있으면 호버 오버레이가 결합 스펙 대신 각인 원래 스펙을 그린다(2026-09-01). */
+  engraveSpec?: BuilderEngraveProp;
 }
 
 /** 무기 후보 목록 — 각인은 현 슬롯 값 유지, 강화는 무기 소유라 0부터(선택 시 리셋과 동형). */
@@ -254,7 +295,7 @@ const engraveOptionsOf = (
     value: g.gid,
     label: g.name,
     ...(g.icon !== undefined ? { icon: g.icon } : {}),
-    spec: { weapon, plus, engrave: g },
+    engraveSpec: g,
   })),
 ];
 
@@ -351,7 +392,9 @@ function EquipDropdown({
     // onOpenChange는 렌더마다 새 함수라 의존성에 넣지 않는다(열림 동안 재구독 방지 — open만 본다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  const spec = options.find((o) => o.value === hover)?.spec;
+  const hovered = options.find((o) => o.value === hover);
+  const spec = hovered?.spec;
+  const engraveSpec = hovered?.engraveSpec;
   return (
     <span
       ref={rootRef}
@@ -406,10 +449,14 @@ function EquipDropdown({
               </button>
             ))}
           </span>
-          {/* 옵션 호버 스펙 — 목록 우측 오버레이(2026-08-31 사용자 지시). */}
-          {spec !== undefined && (
+          {/* 옵션 호버 스펙 — 목록 우측 오버레이(2026-08-31 사용자 지시). 각인 옵션은 원래 스펙(2026-09-01). */}
+          {(spec !== undefined || engraveSpec !== undefined) && (
             <span className="ml-1 rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
-              <SpecPanel weapon={spec.weapon} plus={spec.plus} engrave={spec.engrave} labels={labels} />
+              {engraveSpec !== undefined ? (
+                <EngraveSpecPanel engrave={engraveSpec} labels={labels} />
+              ) : (
+                <SpecPanel weapon={spec!.weapon} plus={spec!.plus} engrave={spec!.engrave} labels={labels} />
+              )}
             </span>
           )}
         </span>
