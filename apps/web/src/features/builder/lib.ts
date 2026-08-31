@@ -252,13 +252,13 @@ export function weaponAt(weapon: BuilderWeaponProp, plus: number): {
 const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
 
 /** 전투 능력 순서(인게임 유닛 화면 순, 공격은 물공·마공 분리 — 2026-08-31 사용자 지시).
-    맨손 물공·마공 = 순수 힘·마력. 공속(as)은 무게 페널티가 속도를 깎는 것을 드러낸다(하락 = 레드,
-    2026-08-31 정정 지시 — 체격은 불변). 장착 = Combatant.weapon만 채우면 정본 식이 그대로 합산. */
-export const COMBAT_KEYS = ["as", "patk", "matk", "hit", "avoid", "crit", "ddg"] as const;
+    맨손 물공·마공 = 순수 힘·마력. ☠공속(攻撃速度計算)은 표시하지 않는다 — 인게임 전투 능력에 없는
+    항목(2026-08-31 사용자 지시로 추가했다 철회). 무게 페널티는 회피 하락(레드)으로 드러난다.
+    장착 = Combatant.weapon만 채우면 정본 식이 그대로 합산. */
+export const COMBAT_KEYS = ["patk", "matk", "hit", "avoid", "crit", "ddg"] as const;
 export type CombatKey = (typeof COMBAT_KEYS)[number];
 
 const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
-  as: "攻撃速度計算",
   patk: "攻撃力計算",
   hit: "命中値計算",
   avoid: "回避値計算",

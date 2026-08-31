@@ -1133,10 +1133,13 @@ describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
    * 왜 위험한가: 엠블렘 무기 변형(접두·通常·챕터판)이 같은 표시명으로 목록에 줄지어 서고,
    * 정렬이 흔들리면 "상점 기본무기 약함→강함, 유니크·DLC 후열"이라는 사용자 규약이 조용히 깨진다.
    */
-  it("표시명 중복 없음 · 상점 전열 · 상점 무기군 안에서 랭크 오름차순", () => {
+  it("표시명 중복 없음 · 문장사(엠블렘) 무기 제외 · 상점 전열 · 상점 무기군 안에서 랭크 오름차순", () => {
     const { weapons } = builderPropsFor("ko");
     const names = weapons.map((w) => w.name);
     expect(new Set(names).size).toBe(names.length);
+    // 엠블렘 무기(Flag Engage=128)는 엔게이지 상태 한정이라 상시 장비 목록 밖(2026-08-31 사용자 지시).
+    expect(weapons.every((w) => w.engage !== true)).toBe(true);
+    expect(names).not.toContain("라그넬");
     const firstNonShop = weapons.findIndex((w) => w.shop !== true);
     expect(weapons.slice(firstNonShop).every((w) => w.shop !== true)).toBe(true);
     const shopSwords = weapons.filter((w) => w.shop === true && w.kind === 1);

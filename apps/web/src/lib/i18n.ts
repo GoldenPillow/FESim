@@ -157,8 +157,8 @@ export interface BuilderLabels {
   unlock: string;
   /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
   reset: string;
-  /** 전투력 행(호버·잠금) — 공속(무게 페널티, 하락 레드) + 물공·마공 + 파생치 4종. */
-  combat: Record<"as" | "patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
+  /** 전투력 행(호버·잠금) — 물공·마공 + 파생치 4종(인게임 전투 능력 목록 — 공속은 인게임에 없어 제외). */
+  combat: Record<"patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
   /** 아이템(무기) 선택기 라벨 — 클래스·내부 레벨 우측(2026-08-31). */
   item: string;
   /** 아이템 미선택 옵션 = 맨손(순수 스탯). */
@@ -354,7 +354,7 @@ export const UI: Record<Locale, Strings> = {
       lock: "Pin entry",
       unlock: "Unpin entry",
       reset: "Reset",
-      combat: { as: "AS", patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
+      combat: { patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
       item: "Weapon",
       itemNone: "Unarmed",
       refineNone: "Unforged",
@@ -530,7 +530,7 @@ export const UI: Record<Locale, Strings> = {
       lock: "エントリーを固定",
       unlock: "固定を解除",
       reset: "リセット",
-      combat: { as: "攻速", patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
+      combat: { patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
       item: "武器",
       itemNone: "素手",
       refineNone: "錬成なし",
@@ -704,7 +704,7 @@ export const UI: Record<Locale, Strings> = {
       lock: "엔트리 잠금",
       unlock: "잠금 해제",
       reset: "Reset",
-      combat: { as: "공속", patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
+      combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
       item: "아이템",
       itemNone: "맨손",
       refineNone: "노강화",

@@ -1944,15 +1944,29 @@ const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5,
 export const rankValue = (rank: string): number =>
   (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
 
-/** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic) 제외.
-    정렬(2026-08-31 사용자 지시) = 상점 기본무기(약함→강함: 랭크→위력→가격) → 유니크·엠블렘 → DLC. */
+/** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic)·문장사 무기 제외
+    (엠블렘 무기 제외 = 2026-08-31 사용자 지시 — 엔게이지 상태 한정 무기라 상시 장비 목록 밖.
+    ☠판별은 Engage 플래그만으로 부족하다: _通常 변형은 Flag 3이라 새어 들어온다(실측) —
+    엠블렘 이름 접두 IID를 gods 정본 키로 함께 거른다).
+    정렬(2026-08-31 사용자 지시) = 상점 기본무기(약함→강함: 랭크→위력→가격) → 유니크 → DLC. */
 function builderWeapons(locale: Locale): BuilderWeaponProp[] {
   const shopIndex = new Map(shopTable.weapons.map((iid, i) => [iid, i]));
+  // 엠블렘 이름 집합 — gods 키(GID_*)에서 챕터코드(E/M###)·상手 변형을 뺀 첫 토막.
+  const emblemNames = new Set<string>();
+  for (const gid of Object.keys(godsTable.gods)) {
+    const name = gid.replace(/^GID_/, "").split("_")[0] ?? "";
+    if (name !== "" && !/^[EM]\d{3}$/.test(name) && !name.startsWith("相手")) emblemNames.add(name);
+  }
+  const emblemPrefixed = (iid: string): boolean => {
+    const m = /^IID_([^_]+)_/.exec(iid);
+    return m !== null && emblemNames.has(m[1] ?? "");
+  };
   const list: (BuilderWeaponProp & { group: number; price: number })[] = [];
   for (const iid of Object.keys(items)) {
     const row = items[iid] as unknown as Record<string, unknown>;
     const flag = Number(row["Flag"] ?? 0);
-    if ((flag & (ITEM_FLAG_ONLY_ENEMY | ITEM_FLAG_UNPUBLIC)) !== 0) continue;
+    if ((flag & (ITEM_FLAG_ONLY_ENEMY | ITEM_FLAG_UNPUBLIC | ENGAGE_FLAG)) !== 0) continue;
+    if (emblemPrefixed(iid)) continue;
     const prop = attackWeaponProp(iid, locale);
     if (prop === undefined) continue;
     const stages = refineTable[iid.replace(/^IID_/, "")];
