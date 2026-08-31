@@ -12,6 +12,7 @@ import {
   nextSort,
   rankValue,
   sortRowGroups,
+  upgradeTargets,
   waitingRowGroups,
   weaponAt,
 } from "../src/features/builder/lib";
@@ -279,6 +280,18 @@ describe("장착 게이트 (canEquip·rankValue)", () => {
     expect(carriedEquip(undefined, seed, [iron])).toBeUndefined(); // 직업 미선택
     expect(carriedEquip(jobOf({ 1: "C" }), {}, [iron])).toBeUndefined(); // 씨드 무장비
     expect(carriedEquip(jobOf({ 1: "C" }), seed, [])).toBeUndefined(); // 목록 밖 iid
+  });
+
+  /**
+   * 왜 위험한가: 전파가 넓으면 다른 무기의 비교 슬롯을 조용히 덮고(값 오염), 좁으면 같은 무기가
+   * 메인과 다른 업그레이드로 남아 "동일 장비 비교"라는 전제가 어긋난다(2026-09-01 사용자 지시).
+   */
+  it("upgradeTargets — 메인 변경은 같은 무기 비교 슬롯까지, 비교 슬롯 변경은 그 슬롯만", () => {
+    const slots = [{ iid: "a" }, { iid: "a" }, { iid: "b" }, {}];
+    expect([...upgradeTargets(slots, 0)].sort()).toEqual([0, 1]);
+    expect([...upgradeTargets(slots, 1)]).toEqual([1]);
+    expect([...upgradeTargets(slots, 2)]).toEqual([2]);
+    expect([...upgradeTargets([{}, { iid: "a" }], 0)]).toEqual([0]); // 메인 맨손 = 전파 없음
   });
 });
 

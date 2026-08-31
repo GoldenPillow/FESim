@@ -11,6 +11,7 @@ import {
   lockedDisplayRows,
   moveLock,
   nextSort,
+  upgradeTargets,
   waitingRowGroups,
   weaponAt,
   type BuilderCompare,
@@ -1711,23 +1712,44 @@ export default function BuilderIsland({
     );
     setOverrides((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.endsWith(`:${i}`))));
   };
+  /** 아이템 선택 — 비교 슬롯이 메인(1번)과 같은 무기를 고르면 강화·각인도 메인을 승계
+      (동일 무기 = 업그레이드 동기, 2026-09-01 사용자 지시). 그 외 무기 변경 = 강화 리셋·각인 유지. */
   const setSlotItem = (i: number, iid: string): void =>
     setSlots((s) =>
       s.map((v, idx) => {
         if (idx !== i) return v;
         const { iid: _iid, plus: _plus, ...rest } = v;
-        return iid === "" ? rest : { ...rest, iid };
+        if (iid === "") return rest;
+        const main = s[0]!;
+        if (i > 0 && iid === main.iid) {
+          const { engrave: _engrave, ...bare } = rest;
+          return {
+            ...bare,
+            iid,
+            ...(main.plus !== undefined ? { plus: main.plus } : {}),
+            ...(main.engrave !== undefined ? { engrave: main.engrave } : {}),
+          };
+        }
+        return { ...rest, iid };
       }),
     );
-  /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립. */
+  /** 강화 변경 — 메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
+  const setSlotPlus = (i: number, plus: number): void =>
+    setSlots((s) => {
+      const t = upgradeTargets(s, i);
+      return s.map((v, idx) => (t.has(idx) ? { ...v, plus } : v));
+    });
+  /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립.
+      메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
   const setSlotEngrave = (i: number, gid: string): void =>
-    setSlots((s) =>
-      s.map((v, idx) => {
-        if (idx !== i) return v;
+    setSlots((s) => {
+      const t = upgradeTargets(s, i);
+      return s.map((v, idx) => {
+        if (!t.has(idx)) return v;
         const { engrave: _engrave, ...rest } = v;
         return gid === "" ? rest : { ...rest, engrave: gid };
-      }),
-    );
+      });
+    });
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
@@ -1801,7 +1823,7 @@ export default function BuilderIsland({
             value={String(plus)}
             options={plusOptionsOf(weapon, engrave, labels)}
             disabled={weapon.refine === undefined}
-            onChange={(v) => patchSlot(i, { plus: Number(v) })}
+            onChange={(v) => setSlotPlus(i, Number(v))}
             labels={labels}
             triggerClass={`${dropTriggerClass} text-ink${weapon.refine === undefined ? " opacity-50" : ""}`}
             trigger={
