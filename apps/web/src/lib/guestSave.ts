@@ -198,12 +198,16 @@ const loadPref = (key: string, fallback: boolean): boolean => {
 };
 
 const SPOILER_KEY = "fesim:ui:spoilers";
+const DLC_KEY = "fesim:ui:dlc";
 const STAR_KEY = "fesim:ui:starsphere";
 const PGROWTH_KEY = "fesim:ui:pgrowth";
 
 export const saveShowSpoilers = (show: boolean): void => savePref(SPOILER_KEY, show);
-/** 기본 = 숨김: 첫 방문(저장 없음)에 후반·DLC 캐릭터가 보이면 방지가 아니다. */
+/** 기본 = 숨김: 첫 방문(저장 없음)에 후반 캐릭터·각인이 보이면 방지가 아니다. */
 export const loadShowSpoilers = (): boolean => loadPref(SPOILER_KEY, false);
+export const saveShowDlc = (show: boolean): void => savePref(DLC_KEY, show);
+/** DLC·사룡의 장 체커(스포일러와 분리, 2026-08-31) — 기본 숨김(미보유자 기준이 안전측). */
+export const loadShowDlc = (): boolean => loadPref(DLC_KEY, false);
 export const saveStarsphere = (on: boolean): void => savePref(STAR_KEY, on);
 export const loadStarsphere = (): boolean => loadPref(STAR_KEY, false);
 export const saveShowGrowth = (on: boolean): void => savePref(PGROWTH_KEY, on);
@@ -225,6 +229,8 @@ export interface EntryLock {
   iid?: string;
   /** 잠금 당시 강화 단계(0 = 노강화). */
   plus?: number;
+  /** 잠금 당시 각인(GID) — 없음 = 무각인. */
+  engrave?: string;
 }
 
 const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
@@ -260,6 +266,7 @@ export function loadEntryLocks(): EntryLock[] {
           ...(raw.star === true ? { star: true } : {}),
           ...(typeof raw.iid === "string" ? { iid: raw.iid } : {}),
           ...(typeof raw.plus === "number" ? { plus: raw.plus } : {}),
+          ...(typeof raw.engrave === "string" ? { engrave: raw.engrave } : {}),
         },
       ];
     });

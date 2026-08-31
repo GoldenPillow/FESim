@@ -1836,8 +1836,10 @@ export interface BuilderCharProp {
   joinJid: string;
   /** CalcWork 변조 스킬(Work 비영 — 장 努力の才) — growthPath workSkills 입력. */
   workSkills?: SkillRow[];
-  /** 스포일러 표식(본편 후반 2인 + 사룡의 장 5인) — 체커 꺼짐(기본)이면 섬이 표에서 뺀다. */
+  /** 스포일러 표식(본편 후반 2인: 모브·베일) — 스포일러 체커 꺼짐(기본)이면 섬이 표에서 뺀다. */
   spoiler?: true;
+  /** DLC 사룡의 장 5인 — DLC 체커 소관(스포일러와 분리, 2026-08-31 사용자 지시). */
+  dlc?: true;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -1886,6 +1888,27 @@ export interface BuilderWeaponProp {
   icon?: string;
 }
 
+/** 각인(刻印) 후보 — god.xml 엠블렘 행의 무기 보정 단면. 인게임은 무기 스탯 게터 안에서
+    직접 가산된다(UnitItem.GetPower 계열 — shared/fidelity weapons.forge-engrave §11·§12). */
+export interface BuilderEngraveProp {
+  gid: string;
+  /** 각인명(EngraveWord MGEID — 인게임 각인 표기: 시작의 문장 …). */
+  name: string;
+  /** 엠블렘 얼굴 아이콘 — 없으면 이름 칩 폴백(베로니카는 정규 얼굴 에셋이 없다). */
+  icon?: string;
+  /** 본편 후반 스포일러(불꽃의 문장) — 스포일러 체커 소관(2026-08-31 사용자 지정). */
+  spoiler?: true;
+  /** DLC 엠블렘(god Flag 32) — DLC 체커 소관(2026-08-31 사용자 확정). */
+  dlc?: true;
+  power: number;
+  weight: number;
+  hit: number;
+  crit: number;
+  avoid: number;
+  /** EngraveSecure = 필살회피. */
+  dodge: number;
+}
+
 export interface BuilderProps {
   locale: Locale;
   /** 星玉の加護 행(Work 3 = TotalGrowChange +15) — 빌더 체커가 켜면 전 캐릭터 workSkills에 얹는다. */
@@ -1898,13 +1921,16 @@ export interface BuilderProps {
   targetJobs: BuilderJobProp[];
   /** 장비 후보 무기 전량 — 상점 전열(등장순) → 유니크 후열(kind → 랭크 → 가격). */
   weapons: BuilderWeaponProp[];
+  /** 각인 후보(각인값 채운 엠블렘 22행) — gods.json 순서 그대로(본편 → DLC). */
+  engraves: BuilderEngraveProp[];
   /** 무기군 아이콘(흰 실루엣) href — 키 = Kind(1~9, 지팡이 7 포함). 베이크 전이면 빈 객체. */
   kindIcons: Record<number, string>;
 }
 
-/** 스포일러 명단(2026-08-31 사용자 지정) — 본편 후반 합류(모브 m021·베일 m022) + 사룡의 장 5인. */
-const SPOILER_PIDS = new Set([
-  "PID_モーヴ", "PID_ヴェイル",
+/** 스포일러 명단(2026-08-31 사용자 재지정: DLC와 분리) — 본편 후반 합류 2인(모브 m021·베일 m022). */
+const SPOILER_PIDS = new Set(["PID_モーヴ", "PID_ヴェイル"]);
+/** DLC 사룡의 장 5인 — "DLC 및 사룡의 장 표시" 체커 소관(2026-08-31 사용자 지정). */
+const DLC_PIDS = new Set([
   "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
 ]);
 
@@ -2013,6 +2039,37 @@ function builderWeapons(locale: Locale): BuilderWeaponProp[] {
   });
 }
 
+/** god Flag DLC 비트(실측: 본편 엠블렘 Flag 2 · DLC 34/50 — 32가 가른다). */
+const GOD_FLAG_DLC = 32;
+/** 불꽃의 문장(리유의 각인) — 본편 후반 스포일러(2026-08-31 사용자 지정: 각인 쪽 유일 스포일러). */
+const SPOILER_ENGRAVE_GID = "GID_リュール";
+
+/** 각인 후보 — 각인 필드가 하나라도 비영인 행만(정확히 엠블렘 22행 — 적 변형은 전부 0이라 걸러진다). */
+function builderEngraves(locale: Locale): BuilderEngraveProp[] {
+  const out: BuilderEngraveProp[] = [];
+  for (const [gid, row] of Object.entries(godsTable.gods)) {
+    const vals = {
+      power: Number(row["EngravePower"] ?? 0),
+      weight: Number(row["EngraveWeight"] ?? 0),
+      hit: Number(row["EngraveHit"] ?? 0),
+      crit: Number(row["EngraveCritical"] ?? 0),
+      avoid: Number(row["EngraveAvoid"] ?? 0),
+      dodge: Number(row["EngraveSecure"] ?? 0),
+    };
+    if (Object.values(vals).every((v) => v === 0)) continue;
+    const icon = assetHref(manifest.godFaces?.[gid]);
+    out.push({
+      gid,
+      name: label(locale, String(row["EngraveWord"] ?? "")) ?? gid,
+      ...(icon !== undefined ? { icon } : {}),
+      ...(gid === SPOILER_ENGRAVE_GID ? { spoiler: true as const } : {}),
+      ...((Number(row["Flag"] ?? 0) & GOD_FLAG_DLC) !== 0 ? { dlc: true as const } : {}),
+      ...vals,
+    });
+  }
+  return out;
+}
+
 /** 무기군 아이콘 스프라이트 이름(ui_icon/weapon 번들 베이크 실측 — Kind 1~9, 흰 실루엣).
     Kind 9는 Breath·Bullet로 갈리는데 직업 플래그로는 구분 불가 — Breath 대표값(플랜 §0 이월). */
 const KIND_ICON_NAMES: Record<number, string> = {
@@ -2094,6 +2151,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       joinJid: String(person["Jid"]),
       ...(workSkills.length > 0 ? { workSkills } : {}),
       ...(SPOILER_PIDS.has(pid) ? { spoiler: true as const } : {}),
+      ...(DLC_PIDS.has(pid) ? { dlc: true as const } : {}),
     });
   }
   const joinJobs: Record<string, GrowthPathJob> = {};
@@ -2156,6 +2214,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     joinJobs,
     targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
     weapons: builderWeapons(locale),
+    engraves: builderEngraves(locale),
     kindIcons: kindIconsOf(),
   };
 }

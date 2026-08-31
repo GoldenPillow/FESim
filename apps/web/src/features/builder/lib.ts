@@ -11,7 +11,7 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import { rankValue, type BuilderCharProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
+import { rankValue, type BuilderCharProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -191,6 +191,7 @@ export function lockedDisplayRows(
   locked: readonly EntryLock[],
   starsphere?: SkillRow,
   weapons: readonly BuilderWeaponProp[] = [],
+  engraves: readonly BuilderEngraveProp[] = [],
 ): LockedDisplay[] {
   const byPid = new Map(props.chars.map((c) => [c.pid, c]));
   const out: LockedDisplay[] = [];
@@ -203,10 +204,14 @@ export function lockedDisplayRows(
     const extra = entry.star === true && starsphere !== undefined ? [starsphere] : undefined;
     const row = builderRow(char, joinJob, job, entry.internal, extra);
     const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
+    // 각인도 무기처럼 강하 — 목록 밖 gid(체커 숨김·이물)는 무각인으로(괄호 표시는 없지만 값 오염보다 낫다).
+    const engrave = entry.engrave === undefined ? undefined : engraves.find((g) => g.gid === entry.engrave);
     out.push({
       row,
       ...(job !== undefined ? { job } : {}),
-      ...(weapon !== undefined ? { equipped: { weapon, plus: entry.plus ?? 0 } } : {}),
+      ...(weapon !== undefined
+        ? { equipped: { weapon, plus: entry.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) } }
+        : {}),
     });
   }
   return out;
@@ -224,24 +229,28 @@ export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolea
   return weapon.ignoreRank === true || rankValue(weapon.rank) <= rankValue(max);
 };
 
-/** 장착 상태 — plus 0 = 노강화, 1~5 = 錬成 단계(refine 누적 보정). */
+/** 장착 상태 — plus 0 = 노강화, 1~5 = 錬成 단계(refine 누적 보정). engrave = 각인(무기 실효치에 직접 가산). */
 export interface EquippedWeapon {
   weapon: BuilderWeaponProp;
   plus: number;
+  engrave?: BuilderEngraveProp;
 }
 
-/** 강화 반영 실효 무기 수치 — 스펙 표시·전투력 env가 같은 값을 쓴다(이중화 금지). */
-export function weaponAt(weapon: BuilderWeaponProp, plus: number): {
+/** 강화·각인 반영 실효 무기 수치 — 스펙 표시·전투력 env가 같은 값을 쓴다(이중화 금지).
+    각인은 인게임에서도 무기 스탯 게터 안 직접 가산이다(fidelity weapons.forge-engrave §11).
+    무게만 0 하한 — 각인 감량(음수)으로 내려가도 공속식의 max 게이트라 결과는 0과 동일하고,
+    음수 무게 표기는 인게임에 없다. */
+export function weaponAt(weapon: BuilderWeaponProp, plus: number, engrave?: BuilderEngraveProp): {
   might: number; hit: number; crit: number; weight: number; avoid: number; dodge: number; magic: boolean;
 } {
   const stage = plus > 0 ? weapon.refine?.[plus - 1] : undefined;
   return {
-    might: weapon.might + (stage?.power ?? 0),
-    hit: weapon.hit + (stage?.hit ?? 0),
-    crit: weapon.crit + (stage?.crit ?? 0),
-    weight: weapon.weight + (stage?.weight ?? 0),
-    avoid: weapon.avoid,
-    dodge: weapon.dodge,
+    might: weapon.might + (stage?.power ?? 0) + (engrave?.power ?? 0),
+    hit: weapon.hit + (stage?.hit ?? 0) + (engrave?.hit ?? 0),
+    crit: weapon.crit + (stage?.crit ?? 0) + (engrave?.crit ?? 0),
+    weight: Math.max(0, weapon.weight + (stage?.weight ?? 0) + (engrave?.weight ?? 0)),
+    avoid: weapon.avoid + (engrave?.avoid ?? 0),
+    dodge: weapon.dodge + (engrave?.dodge ?? 0),
     magic: weapon.magic,
   };
 }
@@ -272,7 +281,7 @@ const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
 export function combatOf(row: BuilderRow, equipped?: EquippedWeapon): Record<CombatKey, number> {
   const enhance = equipped?.weapon.enhance;
   const v = (key: StatKey): number => row.cells[key].value + (enhance?.[key] ?? 0);
-  const weapon = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus);
+  const weapon = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
   const env = combatEnv({
     stats: {
       maxHp: v("hp"),
