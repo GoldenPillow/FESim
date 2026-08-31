@@ -1570,23 +1570,8 @@ export default function BuilderIsland({
                           </span>
                         </span>
                       </span>
-                      {/* 해제 = 호버 시 포트레이트 좌상단 오버레이 버튼(2026-08-31 정정: 자물쇠 슬롯이
-                          공간을 먹지 않게 절대배치) — 행·배경 클릭은 무반응(부주의 방지). */}
-                      {lockHover === row.pid && (
-                        <button
-                          type="button"
-                          aria-label={labels.unlock}
-                          title={labels.unlock}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleLock(row.pid, -1);
-                          }}
-                          className="entry-unlock text-muted hover:text-engage"
-                        >
-                          <LockIcon open />
-                        </button>
-                      )}
+                      {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바(2026-08-31 재설계) —
+                          행·배경 클릭은 계속 무반응(부주의 방지). */}
                     </span>
                     {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
                     {job !== undefined && (
@@ -1606,9 +1591,25 @@ export default function BuilderIsland({
                     return (
                       <td
                         key={key}
-                        className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${sep}`}
+                        className={`stat-col relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${sep}`}
                       >
                         {cell.text}
+                        {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측, 클릭 = 대기 복귀. */}
+                        {key === "bld" && lockHover === row.pid && (
+                          <button
+                            type="button"
+                            aria-label={labels.unlock}
+                            title={labels.unlock}
+                            className="entry-lockbar"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLock(row.pid, -1);
+                            }}
+                          >
+                            <LockIcon open />
+                          </button>
+                        )}
                       </td>
                     );
                   })}
@@ -1672,25 +1673,7 @@ export default function BuilderIsland({
                     )}
                     <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
-                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다).
-                      호버 = 잠긴 자물쇠(= "이렇게 잠긴다" 예고, 2026-08-31 변경). */}
-                  {hovered ? (
-                    <button
-                      type="button"
-                      aria-label={labels.lock}
-                      title={labels.lock}
-                      aria-pressed="false"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleLock(first.pid, hoverRow.li);
-                      }}
-                      className="entry-lock text-muted hover:text-engage"
-                    >
-                      <LockIcon />
-                    </button>
-                  ) : (
-                    <span className="entry-lock" aria-hidden="true" />
-                  )}
+                  {/* 자물쇠 슬롯 폐기(2026-08-31 재설계) — 잠금 버튼은 행 호버 시 마지막 셀 우측 바로. */}
                 </span>
                 {/* 활성 라인의 클래스명 — 카드 하단(2026-08-31 배치 지시). 자리는 상시 예약(invisible)이라
                     호버해도 th 내용 높이가 안 변한다. 터치(호버 없음)는 CSS가 슬롯째 걷는다(builder.css). */}
@@ -1719,9 +1702,23 @@ export default function BuilderIsland({
                       <td
                         key={key}
                         title={labels.personalGrowth}
-                        className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
+                        className={`stat-col relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
                         {`${growthByPid.get(first.pid)?.[key] ?? 0}%`}
+                        {key === "bld" && !groupInert && hovered && hoverRow.li === -1 && (
+                          <button
+                            type="button"
+                            aria-label={labels.lock}
+                            title={labels.lock}
+                            className="entry-lockbar"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLock(first.pid, -1);
+                            }}
+                          >
+                            <LockIcon />
+                          </button>
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -1748,9 +1745,24 @@ export default function BuilderIsland({
                         return (
                           <td
                             key={key}
-                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                            className={`stat-col relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
                             {cell.text}
+                            {/* 잠금 바(2026-08-31 재설계) — 호버 라인 마지막 셀 우측, 셀 크기·위치 불변. */}
+                            {key === "bld" && !inert && hovered && hoverRow.li === li && (
+                              <button
+                                type="button"
+                                aria-label={labels.lock}
+                                title={labels.lock}
+                                className="entry-lockbar"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleLock(first.pid, li);
+                                }}
+                              >
+                                <LockIcon />
+                              </button>
+                            )}
                           </td>
                         );
                       })}
