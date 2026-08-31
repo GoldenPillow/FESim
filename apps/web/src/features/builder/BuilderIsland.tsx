@@ -1918,6 +1918,56 @@ export default function BuilderIsland({
             };
             const dragCls =
               drag !== null && drag.active ? (drag.from === gi ? " entry-dragging" : " entry-drag-shift") : "";
+            // 카드 th = 블록 전체([고유성장?]+스탯+반지+전투력) — 하단(무기 슬롯 밴드)에 클래스 행 절대배치.
+            const lockTh = (
+              <th
+                scope="row"
+                rowSpan={3 + (showGrowth ? 1 : 0)}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+              >
+                <span className="entry-wrap flex items-center">
+                  <span
+                    className="entry-card"
+                    // 세로폰: 포트레이트 탭 = 우측 폴딩 토글(반지 슬롯 전개, 2026-08-31 사용자 지시).
+                    // 잠금 해제 탭은 스탯 영역이 맡는다(전파 차단으로 오발 방지).
+                    onClick={(e) => {
+                      const native = e.nativeEvent as PointerEvent;
+                      if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                        e.stopPropagation();
+                        setFoldPid((p) => (p === row.pid ? null : row.pid));
+                      }
+                    }}
+                  >
+                    {row.face !== undefined && (
+                      <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
+                    )}
+                    <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                  </span>
+                  {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바 — 행·배경 클릭은 무반응(부주의 방지). */}
+                </span>
+                {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
+                <span className="block h-[32px]" aria-hidden="true" />
+                {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 변경 = 즉시 저장·부적합 무기 미착용 복귀. */}
+                {classRowUi(
+                  row.pid,
+                  lockEntry?.jid ?? "",
+                  job?.name,
+                  (lockEntry?.internal ?? 0) + 1,
+                  (p) => patchLockClass(row.pid, p),
+                )}
+                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                <RingSlot
+                  emblem={lockEmblem}
+                  bond={lockRing?.bond ?? 20}
+                  emblems={visibleEmblems}
+                  ringPlaceholder={ringPlaceholder}
+                  labels={labels}
+                  panelOpen={emblemOpen === row.pid}
+                  onPatch={(p) => patchRing(row.pid, p)}
+                  onPanelToggle={() => setEmblemOpen((p) => (p === row.pid ? null : row.pid))}
+                />
+              </th>
+            );
             return (
               <tbody
                 key={`lock-${row.pid}`}
@@ -1932,60 +1982,25 @@ export default function BuilderIsland({
                 className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}${foldPid === row.pid ? " entry-fold-open" : ""}${dragCls}`}
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
-                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {/* 카드 th = 블록 전체(스탯+반지+전투력) — 하단(무기 슬롯 밴드)에 클래스 행 절대배치
-                      (2026-09-01 정정: 하단 정렬 기준 = 무기). */}
-                  <th
-                    scope="row"
-                    rowSpan={3}
-                    className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
-                  >
-                    <span className="entry-wrap flex items-center">
-                      <span
-                        className="entry-card"
-                        // 세로폰: 포트레이트 탭 = 우측 폴딩 토글(반지 슬롯 전개, 2026-08-31 사용자 지시).
-                        // 잠금 해제 탭은 스탯 영역이 맡는다(전파 차단으로 오발 방지).
-                        onClick={(e) => {
-                          const native = e.nativeEvent as PointerEvent;
-                          if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
-                            e.stopPropagation();
-                            setFoldPid((p) => (p === row.pid ? null : row.pid));
-                          }
-                        }}
+                {/* 고유 성장 라인 — 정보 제공이라 엔트리 블록도 반응(2026-09-01 사용자 지시). 블록 첫 줄. */}
+                {showGrowth && (
+                  <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
+                    {lockTh}
+                    <td className={`inlv-col px-2 py-1 ${sep}`} />
+                    {STAT_KEYS.map((key) => (
+                      <td
+                        key={key}
+                        title={labels.personalGrowth}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} min-w-[3.7rem] px-1 py-1 text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
-                        {row.face !== undefined && (
-                          <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
-                        )}
-                        <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
-                      </span>
-                      {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바(2026-08-31 재설계) —
-                          행·배경 클릭은 계속 무반응(부주의 방지). 반지 슬롯은 하단 반지 행이 소유. */}
-                    </span>
-                    {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
-                    <span className="block h-[32px]" aria-hidden="true" />
-                    {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 정적 클래스명 라벨을 대체.
-                        변경 = 스냅샷 직접 갱신·즉시 저장, 부적합 무기는 미착용 복귀. */}
-                    {classRowUi(
-                      row.pid,
-                      lockEntry?.jid ?? "",
-                      job?.name,
-                      (lockEntry?.internal ?? 0) + 1,
-                      (p) => patchLockClass(row.pid, p),
-                    )}
-                    {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
-                        카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
-                    <RingSlot
-                      emblem={lockEmblem}
-                      bond={lockRing?.bond ?? 20}
-                      emblems={visibleEmblems}
-                      ringPlaceholder={ringPlaceholder}
-                      labels={labels}
-                      panelOpen={emblemOpen === row.pid}
-                      onPatch={(p) => patchRing(row.pid, p)}
-                      onPanelToggle={() => setEmblemOpen((p) => (p === row.pid ? null : row.pid))}
-                    />
-                  </th>
-                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
+                        {`${growthByPid.get(row.pid)?.[key] ?? 0}%`}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
+                  {!showGrowth && lockTh}
+                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${showGrowth ? "" : sep}`}>
                     {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                   </td>
                   {STAT_KEYS.map((key) => {
@@ -1996,7 +2011,7 @@ export default function BuilderIsland({
                     return (
                       <td
                         key={key}
-                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${showGrowth ? "" : sep}`}
                       >
                         {cell.text}
                         {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측(레드), 클릭 = 대기 복귀. */}
