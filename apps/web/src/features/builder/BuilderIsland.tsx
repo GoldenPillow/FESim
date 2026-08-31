@@ -572,7 +572,8 @@ function BondDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={labels.bond}
-        className="flex h-7 w-[78px] cursor-pointer items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0.5 text-[11px] font-semibold tracking-tight text-pgrow"
+        // 폭 86px = 강화 38 + 갭 6 + 각인 42 (전부 고정 폭 — 상태 무관 정합, 2026-08-31 재실측).
+        className="flex h-7 w-[86px] cursor-pointer items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0.5 text-[11px] font-semibold tracking-tight text-pgrow"
         onClick={() => (open ? close() : setOpen(true))}
       >
         {`${labels.bondLevel} ${bond}`}
@@ -712,7 +713,8 @@ function CombatCells({
         onChange={(v) => onEquip({ plus: Number(v) })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        triggerClass={`inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+        // 고정 폭 38px — 각인 42px·갭 6px과 함께 인연 드롭다운 86px과 꼭 맞는다(2026-08-31 폭 정합).
+        triggerClass={`inline-flex h-7 w-[38px] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
         trigger={
           <>
             {`+${plus}`}
@@ -732,7 +734,8 @@ function CombatCells({
         onChange={(gid) => onEquip({ engrave: gid })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        triggerClass={`inline-flex h-7 items-center justify-center gap-0.5 rounded border bg-sunken px-1 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        // 고정 폭 42px — 강화 칩과 함께 인연 드롭다운 폭 정합의 반쪽(2026-08-31).
+        triggerClass={`inline-flex h-7 w-[42px] items-center justify-center gap-0.5 rounded border bg-sunken px-0 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
         trigger={
           <>
             {engrave?.icon !== undefined ? (
