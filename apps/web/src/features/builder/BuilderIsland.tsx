@@ -273,6 +273,26 @@ const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
 const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `Lv. ${n}` }));
 
 /**
+ * 드롭다운 자동 스크롤(2026-09-01 사용자 지시) — 목록이 화면·스크롤박스 아래로 잘리면
+ * **잘린 만큼만** 부드럽게 내린다(세로 한정 — 우측 스펙 패널 때문에 가로로 튀면 안 된다).
+ * 목록은 트리거와 같은 스크롤 콘텐츠 안이라 스크롤해도 정렬이 유지된다.
+ */
+const scrollDropdownIntoView = (el: HTMLElement): void => {
+  const r = el.getBoundingClientRect();
+  let node: HTMLElement | null = el.parentElement;
+  while (node !== null) {
+    const style = getComputedStyle(node);
+    if (/(auto|scroll)/.test(style.overflowY)) {
+      const over = r.bottom - node.getBoundingClientRect().bottom + 8;
+      if (over > 0) node.scrollBy({ top: over, behavior: "smooth" });
+    }
+    node = node.parentElement;
+  }
+  const overWin = r.bottom - window.innerHeight + 8;
+  if (overWin > 0) window.scrollBy({ top: overWin, behavior: "smooth" });
+};
+
+/**
  * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
  * 그린다(2026-08-31 사용자 지시: 옵션 호버 즉시 우측 상세 스펙). 트리거 = 상단 셀렉트풍 박스 + ▾.
  * 선택 즉시 닫고 트리거로 포커스 복귀 — 포커스가 끊기면 대기 행의 전투력 행이 접힌다(focusRow 규약).
@@ -306,6 +326,11 @@ function EquipDropdown({
   const [hover, setHover] = useState<string | null>(null);
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 2026-09-01 사용자 지시.
+  useEffect(() => {
+    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+  }, [open]);
   const setOpen = (next: boolean): void => {
     setOpenRaw(next);
     onOpenChange?.(next);
@@ -354,7 +379,7 @@ function EquipDropdown({
         {trigger}
       </button>
       {open && (
-        <span className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
           <span className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
             {options.map((o) => (
               // ☠disabled 속성 금지 — 비활성 버튼은 마우스 이벤트가 죽어 호버 스펙이 안 선다(aria만).
@@ -529,6 +554,11 @@ function BondDropdown({
   const [hover, setHover] = useState<number | null>(null);
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 상세 패널 포함 높이 기준.
+  useEffect(() => {
+    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+  }, [open]);
   const close = (): void => {
     setOpen(false);
     setHover(null);
@@ -573,7 +603,7 @@ function BondDropdown({
         {CARET}
       </button>
       {open && (
-        <span className="absolute left-0 top-full z-50 mt-1 flex items-start">
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start">
           <span
             role="listbox"
             aria-label={labels.bond}
@@ -1090,10 +1120,28 @@ export default function BuilderIsland({
         duration: 380,
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
       });
+    // 잠금 목적지 포커스(2026-09-01 사용자 지시) — 하단에서 잠그면 화면이 새 잠금 블록으로
+    // 부드럽게 따라간다(고정 헤더 높이만큼 여유). FLIP은 콘텐츠 좌표라 스크롤과 겹쳐도 안 어긋난다.
+    const focusLocked = (el: HTMLElement): void => {
+      const headerH = row1H + compares.length * jobRowH + 8;
+      const r = el.getBoundingClientRect();
+      let node: HTMLElement | null = el.parentElement;
+      while (node !== null) {
+        const cs = getComputedStyle(node);
+        if (/(auto|scroll)/.test(cs.overflowY)) {
+          const over = node.getBoundingClientRect().top + headerH - r.top;
+          if (over > 0) node.scrollBy({ top: -over, behavior: "smooth" });
+        }
+        node = node.parentElement;
+      }
+      const overWin = headerH - r.top;
+      if (overWin > 0) window.scrollBy({ top: -overWin, behavior: "smooth" });
+    };
     for (const [pid, el] of lockedRefs.current) {
       // 새로 잠긴 블록의 출발점 = 그 캐릭터의 옛 대기 카드 자리(잠금 이력 블록은 자기 옛 자리).
       const old = rects.get(`lock:${pid}`) ?? rects.get(`wait:${pid}`);
       const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top;
+      if (pendingPulse.current === pid) focusLocked(el);
       if (Math.abs(delta) > 1) {
         const anim = fly(el, delta);
         // 비행 중엔 다른 sticky th(z-10)에 안 가리게 z 상승 — 도착 후 원복.
