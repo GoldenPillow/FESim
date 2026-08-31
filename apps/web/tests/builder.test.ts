@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
-import { builderRowGroups, builderRows, nextSort, sortRowGroups } from "../src/features/builder/lib";
-import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
+import {
+  builderRowGroups,
+  builderRows,
+  canEquip,
+  combatOf,
+  lockedDisplayRows,
+  moveLock,
+  nextSort,
+  rankValue,
+  sortRowGroups,
+  waitingRowGroups,
+} from "../src/features/builder/lib";
+import type { BuilderCharProp, BuilderJobProp, BuilderWeaponProp } from "../src/lib/fe17";
 
 /**
- * 캐릭터 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
+ * 엔트리 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
  * 소수 1자리 표기 · 캡 도달은 정수 · 개인 캡 합성 · 정렬 토글 · 전용직 가능자 상단.
  * 합성 데이터로 짠다(실데이터는 파이프라인 산출물이라 값이 바뀌면 표시 규약과 무관하게 깨진다).
  */
@@ -30,6 +41,7 @@ const HIGH: BuilderJobProp = {
   limit: block({ hp: 80, str: 40 }),
   diffGrow: block({ hp: 10, str: 20 }),
   rank: 1,
+  weaponRanks: {},
 };
 
 const char = (pid: string, over: Partial<BuilderCharProp> = {}): BuilderCharProp => ({
@@ -122,6 +134,162 @@ describe("정렬", () => {
     expect(second).toEqual({ key: "hp", dir: "asc" });
     expect(nextSort(second, "hp")).toBeUndefined();
     expect(nextSort(second, "str")).toEqual({ key: "str", dir: "desc" });
+  });
+});
+
+describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)", () => {
+  const roster = [
+    char("a"),
+    char("b", { personOffset: block({ hp: 5 }) }),
+    char("c", { personOffset: block({ hp: 2 }) }),
+  ];
+  const groups = builderRowGroups(propsOf(roster), []);
+
+  /**
+   * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬·슬롯 변경에 딸려
+   * 움직이면 기준이 사라진다. 잠금 당시 (직업, 레벨, 성옥)만 소비하는 스냅샷이어야 고정이 성립한다.
+   */
+  it("잠긴 캐릭터는 대기 목록에서 빠지고 남은 묶음만 정렬을 지난다", () => {
+    expect(
+      waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid),
+    ).toEqual(["b", "a"]);
+  });
+
+  it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다", () => {
+    const rows = lockedDisplayRows(propsOf(roster), [HIGH], [
+      { pid: "c", internal: 11, jid: "JID_high" },
+      { pid: "a", internal: 0 },
+    ]);
+    expect(rows.map((r) => r.row.pid)).toEqual(["c", "a"]);
+    expect(rows[0]!.job?.name).toBe("상급직");
+    expect(rows[0]!.row.projected).toBe(true);
+    expect(rows[0]!.row.internal).toBe(11);
+    expect(rows[1]!.job).toBeUndefined(); // 직업 미선택 잠금 = 합류 상태
+    expect(rows[1]!.row.projected).toBe(false);
+  });
+
+  it("로스터에 없는 pid는 건너뛰고, 사라진 jid는 합류 상태로 강하한다", () => {
+    const rows = lockedDisplayRows(propsOf(roster), [HIGH], [
+      { pid: "ghost", internal: 5, jid: "JID_high" },
+      { pid: "a", internal: 11, jid: "JID_gone" },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.row.projected).toBe(false);
+    expect(rows[0]!.job).toBeUndefined();
+  });
+
+  it("성옥 스냅샷 — 잠금 당시 체커만 반영한다(현재 체커와 무관)", () => {
+    const star = { Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow;
+    const entry = { pid: "a", internal: 11, jid: "JID_high" };
+    const on = lockedDisplayRows(propsOf([char("a")]), [HIGH], [{ ...entry, star: true }], star)[0]!;
+    const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], star)[0]!;
+    expect(off.row.cells.str.text).toBe("13.4");
+    expect(on.row.cells.str.text).toBe("15.1");
+  });
+});
+
+describe("잠금 재정렬 (moveLock)", () => {
+  /** 왜 위험한가: 드래그 커밋이 원본을 변이하면 React 상태·저장분이 어긋난다 — 순수 이동이어야 한다. */
+  it("from → to 이동, 원본 불변", () => {
+    const locked = [
+      { pid: "a", internal: 0 },
+      { pid: "b", internal: 0 },
+      { pid: "c", internal: 0 },
+    ];
+    expect(moveLock(locked, 0, 2).map((e) => e.pid)).toEqual(["b", "c", "a"]);
+    expect(moveLock(locked, 2, 0).map((e) => e.pid)).toEqual(["c", "a", "b"]);
+    expect(locked.map((e) => e.pid)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("장착 게이트 (canEquip·rankValue)", () => {
+  const iron: BuilderWeaponProp = {
+    iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+    weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+  };
+  const jobOf = (weaponRanks: Record<number, string>): BuilderJobProp => ({ ...HIGH, weaponRanks });
+
+  /**
+   * 왜 위험한가: 게이트가 새면 "가능한 빌드"라는 거짓 전제를 판다(전용직 회색 처리와 같은 축).
+   * 랭크 서열은 N<E<D<C<B<A<S, '+'는 반 단계 — 인게임 무기 레벨 표기 정본.
+   */
+  it("무기군 + 랭크 게이트 — '+'는 반 단계, Flag 256은 랭크 무시", () => {
+    expect(rankValue("C+")).toBe(3.5);
+    expect(canEquip(jobOf({ 1: "C" }), iron)).toBe(true);
+    expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B" })).toBe(false);
+    expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B", ignoreRank: true })).toBe(true);
+    expect(canEquip(jobOf({ 2: "A" }), iron)).toBe(false);
+  });
+});
+
+describe("전투력 사영 (combatOf) — 무기 합산", () => {
+  const roster = [
+    char("a", {
+      personOffset: block({ dex: 10, spd: 7, lck: 5 }),
+      personLimit: block({ dex: 40, spd: 40, lck: 40 }),
+    }),
+  ];
+  const iron: BuilderWeaponProp = {
+    iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+    weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+    refine: [{ power: 2, weight: 0, hit: 0, crit: 0 }],
+  };
+
+  /**
+   * 왜 위험한가: 무기 항이 식 밖에서 더해지면 공속(무게-체격) 게이트가 빠져 회피가 과대해진다.
+   * 정본 식에 무기 변수를 채우는 것만이 합산이다(명중 = 기x2+int(행/2)+무기명중,
+   * 회피 = (속도-max(무게-체격,0))x2+int(행/2), 물공 = 힘+위력).
+   */
+  it("철의 검 장착 — 명중·회피(공속 하락)·물공이 정본 식대로 움직인다", () => {
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const c = combatOf(row!, { weapon: iron, plus: 0 });
+    expect(c.patk).toBeCloseTo(10.5); // 힘 5.5 + 위력 5
+    expect(c.matk).toBe(0); // 마공 = 순수 마력(물리 무기)
+    expect(c.hit).toBe(112); // 10x2 + 2 + 90
+    expect(c.as).toBe(2); // 공속 = 7 - max(5-0, 0) — 무게가 속도를 깎는다(하락 = 레드 표기 근거)
+    expect(c.avoid).toBe(6); // 공속 2 → 2x2 + 2
+    expect(c.crit).toBe(5);
+  });
+
+  it("강화 +1 = 錬成 누적 보정 합산, 마법 무기는 마공 쪽에 합산", () => {
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    expect(combatOf(row!, { weapon: iron, plus: 1 }).patk).toBeCloseTo(12.5);
+    const tome: BuilderWeaponProp = { ...iron, magic: true, might: 4, weight: 0 };
+    const c = combatOf(row!, { weapon: tome, plus: 0 });
+    expect(c.matk).toBeCloseTo(4); // 마력 0 + 위력 4
+    expect(c.patk).toBeCloseTo(5.5); // 물공 = 순수 힘
+  });
+
+  it("Enhance 스탯 강화가 스탯에 합산된 뒤 전투력이 선다", () => {
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const buffed: BuilderWeaponProp = { ...iron, enhance: { dex: 4 } };
+    expect(combatOf(row!, { weapon: buffed, plus: 0 }).hit).toBe(120); // (10+4)x2 + 2 + 90
+  });
+});
+
+describe("전투력 사영 (combatOf) — 정본 self-only 식 · 맨손(무기 항 0)", () => {
+  /**
+   * 왜 위험한가: 전투력을 우리 손으로 다시 짜면 정본(calculator.json)과 갈린다 —
+   * 같은 식을 평균 스탯으로 평가한 값임을 수치로 박제한다(명중=기x2+int(행/2) ·
+   * 회피=공속x2+int(행/2), 맨손 공속=속도 · 필살=int(기/2) · 필살회피=행운).
+   */
+  it("맨손 전투 능력 — 인게임 유닛 단면 식 그대로", () => {
+    // ☠LOW.limit은 hp·str만 캡이 있다 — 다른 스탯은 personLimit으로 캡을 열어야 오프셋이 산다.
+    const roster = [
+      char("a", {
+        personOffset: block({ dex: 10, spd: 7, lck: 5 }),
+        personLimit: block({ dex: 40, spd: 40, lck: 40 }),
+      }),
+    ];
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const c = combatOf(row!);
+    expect(c.as).toBe(7); // 맨손 공속 = 속도 그대로(무게 0)
+    expect(c.patk).toBeCloseTo(5.5); // 물공 = 순수 힘(맨손) — 장비 피쳐가 서면 무기 항이 합산된다
+    expect(c.matk).toBe(0); // 마공 = 순수 마력 — 같은 식을 마법 속성으로 평가
+    expect(c.hit).toBe(22);
+    expect(c.avoid).toBe(16);
+    expect(c.crit).toBe(5);
+    expect(c.ddg).toBe(5);
   });
 });
 

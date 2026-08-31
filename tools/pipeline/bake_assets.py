@@ -90,6 +90,76 @@ def chapter_units(chapter: dict, persons: dict, jobs: dict):
     return list(seen.values())
 
 
+def load_item_sprites(romfs: Path) -> dict:
+    """item.bundle(스프라이트 정의) + item_p0~p3.bundle(아틀라스 텍스처)을 한 env로 합쳐 로드.
+    유닛 맵아이콘과 달리 팔레트 합성이 불필요 — UnityPy가 아틀라스 참조를 풀어 sprite.read().image가 완성 아이콘을 낸다."""
+    files = [romfs / "ui_icon" / "item" / "item.bundle"] + [
+        romfs / "ui_icon" / "spritetexture" / f"item_p{i}.bundle" for i in range(4)
+    ]
+    env = UnityPy.load(*[str(f) for f in files if f.is_file()])
+    return {o.read().m_Name: o for o in env.objects if o.type.name == "Sprite"}
+
+
+def bake_items(data: Path, sprites: dict) -> int:
+    """items.json의 Icon 값 전수를 굽는다.
+    팀컬러 접미사가 붙은 예외(예: Veronica_EngageAtk)는 _B(플레이어) 변형으로 폴백한다."""
+    items = json.loads((data / "tables" / "items.json").read_text(encoding="utf-8"))
+    icons = sorted({v["Icon"] for v in items.values() if v.get("Icon")})
+    item_dir = data / "assets" / "items"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+
+    resolved, missing, baked = {}, [], 0
+    for icon in icons:
+        obj = sprites.get(icon) or sprites.get(f"{icon}_B")
+        if obj is None:
+            missing.append(icon)
+            continue
+        dest = item_dir / f"{icon}.webp"
+        if not dest.is_file():
+            write_webp(obj.read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[icon] = f"assets/items/{icon}.webp"
+
+    manifest["items"] = dict(sorted(resolved.items()))
+    manifest["itemsMissing"] = sorted(missing)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"items: {len(resolved)}/{len(icons)} icons ({baked} new)")
+    if missing:
+        print(f"missing items: {missing}")
+    return 0
+
+
+def bake_weapontypes(romfs: Path, data: Path) -> int:
+    """무기종(카테고리) 아이콘 — 클래스가 쓸 수 있는 무기군을 흰 실루엣으로 표시하는 용도.
+
+    weapon.bundle과 weaponoutline.bundle 둘 다 같은 11개 이름(+ALL_* 로케일 배지 5개)을 갖지만
+    실측 결과 weapon.bundle 쪽이 흰색(RGB~255) 실루엣이고 weaponoutline.bundle은 어두운 회색(RGB~65-97,
+    더 크고 테두리가 두꺼움 — 아이콘 밑에 깔리는 그림자/외곽선 레이어로 추정)이다.
+    지시된 "흰 실루엣 우선" 규칙에 따라 weapon.bundle을 채택한다(이름 반전 주의 — outline 쪽이 흰색이 아니었음).
+    두 번들 모두 아틀라스 텍스처가 자체 내장돼 spritetexture/ 추가 로드가 불필요했다.
+    """
+    env = UnityPy.load(str(romfs / "ui_icon" / "weapon" / "weapon.bundle"))
+    sprites = {o.read().m_Name: o for o in env.objects if o.type.name == "Sprite"}
+
+    dest_dir = data / "assets" / "weapontypes"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+
+    resolved, baked = {}, 0
+    for name, obj in sorted(sprites.items()):
+        dest = dest_dir / f"{name}.webp"
+        if not dest.is_file():
+            write_webp(obj.read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[name] = f"assets/weapontypes/{name}.webp"
+
+    manifest["weapontypes"] = dict(sorted(resolved.items()))
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"weapontypes: {len(resolved)}/{len(sprites)} icons ({baked} new)")
+    return 0
+
+
 def load_assets(romfs: Path) -> dict:
     """번들 로드는 챕터마다 반복할 이유가 없다 — 전수 베이크(--all)에서 54회 재파싱을 피한다."""
     unit_root = romfs / "ui_icon" / "unit"
@@ -276,10 +346,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chapter", default="M002")
     parser.add_argument("--all", action="store_true", help="chapterlist.json의 전 챕터 베이크")
+    parser.add_argument("--items", action="store_true", help="items.json Icon 전수 베이크(챕터·얼굴 스킵)")
+    parser.add_argument("--weapontypes", action="store_true", help="무기종 카테고리 아이콘 베이크(챕터·얼굴 스킵)")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
     args = parser.parse_args()
+
+    if args.items:
+        return bake_items(args.data, load_item_sprites(args.romfs))
+    if args.weapontypes:
+        return bake_weapontypes(args.romfs, args.data)
 
     chapters = [args.chapter]
     if args.all:

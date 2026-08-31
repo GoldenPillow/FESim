@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, rankValue, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 import { growthPath, mergeStatCap, STAT_KEYS, type GrowthPathJob, type GrowthPathResult } from "@fesim/engine";
 
 /**
@@ -1024,8 +1024,8 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
   });
 
-  it("직업 드롭다운 = 범용 20 + 전용 9 (DLC 해제로 인챈트·메이지캐넌 포함, 한글명, 전용은 가능자 1명)", () => {
-    expect(props.targetJobs).toHaveLength(29);
+  it("직업 드롭다운 = 범용 21 + 전용 14 (인챈트·메이지캐넌·특수직 시프 + 전용 특수직 5 포함, 2026-08-31)", () => {
+    expect(props.targetJobs).toHaveLength(35);
     const jids = props.targetJobs.map((j) => j.jid);
     expect(jids).toContain("JID_セイジ");
     expect(jids).toContain("JID_エンチャント");
@@ -1034,7 +1034,7 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(dragonKing.uniquePid).toBe("PID_リュール");
     expect(dragonKing.name).toBe("신룡의 왕");
     const uniques = props.targetJobs.filter((j) => j.uniquePid !== undefined);
-    expect(uniques).toHaveLength(9);
+    expect(uniques).toHaveLength(14);
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지"); // 헤더 성장률 행 직업명의 데이터 정본(로케일명)
@@ -1125,5 +1125,41 @@ describe("B5 대조 표본 — Alear 소수부까지", () => {
     expect(d["def"]).toBeCloseTo(10.9, 5);
     expect(d["res"]).toBeCloseTo(8.4, 5);
     expect(d["bld"]).toBeCloseTo(7.95, 5);
+  });
+});
+
+describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
+  /**
+   * 왜 위험한가: 엠블렘 무기 변형(접두·通常·챕터판)이 같은 표시명으로 목록에 줄지어 서고,
+   * 정렬이 흔들리면 "상점 기본무기 약함→강함, 유니크·DLC 후열"이라는 사용자 규약이 조용히 깨진다.
+   */
+  it("표시명 중복 없음 · 상점 전열 · 상점 무기군 안에서 랭크 오름차순", () => {
+    const { weapons } = builderPropsFor("ko");
+    const names = weapons.map((w) => w.name);
+    expect(new Set(names).size).toBe(names.length);
+    const firstNonShop = weapons.findIndex((w) => w.shop !== true);
+    expect(weapons.slice(firstNonShop).every((w) => w.shop !== true)).toBe(true);
+    const shopSwords = weapons.filter((w) => w.shop === true && w.kind === 1);
+    for (let i = 1; i < shopSwords.length; i++) {
+      expect(rankValue(shopSwords[i]!.rank)).toBeGreaterThanOrEqual(rankValue(shopSwords[i - 1]!.rank));
+    }
+  });
+});
+
+describe("builderPropsFor.targetJobs — 특수직(2026-08-31)", () => {
+  /**
+   * 왜 위험한가: 특수직(시프·댄서·사룡 계열)은 Rank 0 + MaxLevel 40 시그니처라 "랭크 1 = 상급직"
+   * 필터가 조용히 떨어뜨린다 — 목록에 없으면 사용자는 결손을 알 길이 없다(실제 발견 경로 = 사용자 지적).
+   */
+  it("시프 = 범용, 댄서 = 세아다스 전용으로 목표 목록에 선다", () => {
+    const { targetJobs } = builderPropsFor("ko");
+    const thief = targetJobs.find((j) => j.jid === "JID_シーフ");
+    expect(thief).toBeDefined();
+    expect(thief!.uniquePid).toBeUndefined();
+    const dancer = targetJobs.find((j) => j.jid === "JID_ダンサー");
+    expect(dancer?.uniquePid).toBe("PID_セアダス");
+    // 사룡 계열 전용(베일·DLC)도 가능자 판정으로 선다 — 적 변형(Flag 0)은 계속 밖.
+    expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘")).toBe(true);
+    expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘_敵")).toBe(false);
   });
 });

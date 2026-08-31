@@ -209,6 +209,65 @@ export const loadStarsphere = (): boolean => loadPref(STAR_KEY, false);
 export const saveShowGrowth = (on: boolean): void => savePref(PGROWTH_KEY, on);
 export const loadShowGrowth = (): boolean => loadPref(PGROWTH_KEY, false);
 
+/* ── 엔트리 잠금(빌더) — 잠근 순서 = 표 상단 고정 순서. 잠금 온오프 순간이 저장 시점(2026-08-31 사용자 지시).
+   로스터·직업 대조는 표시층(features/builder/lib)이 하므로 여기는 스냅샷 형태만 지킨다. */
+
+/** 잠금 스냅샷 — 잠근 순간의 (직업, 내부 레벨, 성옥 체커, 무기)를 박제한다(2026-08-31: 잠김은 당시 값으로 고정). */
+export interface EntryLock {
+  pid: string;
+  /** 목표 내부 레벨(0기점). 직업 미선택 잠금은 0(합류 상태라 소비되지 않는다). */
+  internal: number;
+  /** 잠금 당시 직업(jid). 없음 = 직업 미선택(합류 상태) 잠금. */
+  jid?: string;
+  /** 잠금 당시 성옥의 가호 체커 — 현재 체커와 무관하게 이 값만 반영한다. */
+  star?: boolean;
+  /** 잠금 당시 장착 무기(iid) — 없음 = 맨손. */
+  iid?: string;
+  /** 잠금 당시 강화 단계(0 = 노강화). */
+  plus?: number;
+}
+
+const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
+
+export function saveEntryLocks(locks: readonly EntryLock[]): void {
+  try {
+    storage()?.setItem(ENTRY_LOCKS_KEY, JSON.stringify(locks));
+  } catch {
+    // 쿼터·프라이빗 모드 = 저장 스킵.
+  }
+}
+
+/** 손상·이물·구버전(pid 문자열 배열)은 원소 단위로 걸러 강하 — 이물 스냅샷이 표 상단을 붙들면 되돌릴 UI가 없다. */
+export function loadEntryLocks(): EntryLock[] {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(ENTRY_LOCKS_KEY);
+  } catch {
+    return [];
+  }
+  if (text === null || text === undefined) return [];
+  try {
+    const list: unknown = JSON.parse(text);
+    if (!Array.isArray(list)) throw new Error("잠금 목록이 배열이 아니다");
+    return list.flatMap((e: unknown): EntryLock[] => {
+      const raw = e as Partial<EntryLock> | null;
+      if (typeof raw?.pid !== "string" || typeof raw.internal !== "number") return [];
+      return [
+        {
+          pid: raw.pid,
+          internal: raw.internal,
+          ...(typeof raw.jid === "string" ? { jid: raw.jid } : {}),
+          ...(raw.star === true ? { star: true } : {}),
+          ...(typeof raw.iid === "string" ? { iid: raw.iid } : {}),
+          ...(typeof raw.plus === "number" ? { plus: raw.plus } : {}),
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 /* ── 넘버링 세이브 — 사용자가 찍은 지점의 보관. ☠자동 저장(fesim:eph:*)과 다른 축이다:
    저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 **번호가 붙어 남는** 보관이다.
    번호의 쓸모 = 대화 앵커("세이브 7의 국면") — 그래서 번호는 절대 재사용하지 않는다. */

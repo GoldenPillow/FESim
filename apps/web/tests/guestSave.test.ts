@@ -4,6 +4,8 @@ import {
   clampZoom,
   clearSlot,
   loadSlot,
+  loadEntryLocks,
+  saveEntryLocks,
   loadShowGrowth,
   loadShowSpoilers,
   loadStarsphere,
@@ -137,6 +139,44 @@ describe("스포일러 표시 저장(빌더 체커)", () => {
     expect(loadStarsphere()).toBe(false);
     use(memoryStorage("getItem"));
     expect(loadShowGrowth()).toBe(false);
+  });
+});
+
+describe("엔트리 잠금 저장(빌더)", () => {
+  /**
+   * 왜 위험한가: 잠금은 온오프 순간이 저장 시점(2026-08-31 사용자 지시)이고 스냅샷(직업·레벨·성옥)이
+   * 표 상단을 붙든다 — 손상 원소가 남으면 되돌릴 UI가 없으니 원소 단위로 걸러 강하한다.
+   */
+  it("왕복 — 기본 = 빈 목록, 잠근 순서·스냅샷 그대로 돌아온다", () => {
+    use(memoryStorage());
+    expect(loadEntryLocks()).toEqual([]);
+    saveEntryLocks([
+      { pid: "PID_c", internal: 11, jid: "JID_high", star: true },
+      { pid: "PID_a", internal: 0 },
+    ]);
+    expect(loadEntryLocks()).toEqual([
+      { pid: "PID_c", internal: 11, jid: "JID_high", star: true },
+      { pid: "PID_a", internal: 0 },
+    ]);
+    saveEntryLocks([]);
+    expect(loadEntryLocks()).toEqual([]);
+  });
+
+  it("이물 값(비배열·형태 불일치 원소·구버전 pid 문자열)·localStorage 예외는 걸러서 강하한다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    storage.setItem("fesim:ui:entrylocks", "junk");
+    expect(loadEntryLocks()).toEqual([]);
+    // 구버전(pid 문자열 배열)·필드 결손 원소는 버리고 온전한 원소만 남긴다.
+    storage.setItem(
+      "fesim:ui:entrylocks",
+      JSON.stringify(["PID_old", { pid: "PID_a", internal: 3 }, { pid: 7, internal: 1 }, { pid: "PID_b" }]),
+    );
+    expect(loadEntryLocks()).toEqual([{ pid: "PID_a", internal: 3 }]);
+    use(memoryStorage("getItem"));
+    expect(loadEntryLocks()).toEqual([]);
+    use(memoryStorage("setItem"));
+    expect(() => saveEntryLocks([{ pid: "PID_a", internal: 0 }])).not.toThrow();
   });
 });
 

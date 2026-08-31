@@ -12,6 +12,8 @@
   --color-gold: var(--gold);
   --color-cap: var(--cap);
   --color-pgrow: var(--pgrow);
+  --color-engage: var(--engage);
+  --color-danger: var(--danger);
 }
 
 /* 기본 = 다크. 라이트는 명시 선택(localStorage)일 때만. */
@@ -29,6 +31,11 @@
   --replay: #5b9dff;
   /* 개인(고유) 성장률 표지색(빌더) — 블루 지정(2026-08-31 사용자). 직업 성장(gold)·캡(cap)과 구분. */
   --pgrow: #5b9dff;
+  /* 인게이지 대표 블루 — 앵커 = 공식 로고 파랑 최빈값 실측 #0040b8(Wikimedia 로고 픽셀 샘플링).
+     실사용 값은 앵커에서 하늘색 쪽으로 색상 보정(hue 219→~208) + 다크 밝기 보정(2026-08-31 사용자 지시). */
+  --engage: #3b96ee;
+  /* 하락(악화) 표지 레드 — 장비 전투력 델타(빌더). 상승 블루는 --pgrow 재사용. */
+  --danger: #f2555c;
   --board-frame: #3a444f;
   --board-shadow: 0 22px 50px -26px rgb(0 0 0 / 0.9);
   color-scheme: dark;
@@ -45,6 +52,8 @@
   --cap: #1e9e50;
   --replay: #1f5fd0;
   --pgrow: #1f5fd0;
+  --engage: #0060c8;
+  --danger: #c62f35;
   --board-frame: #b9c2cc;
   --board-shadow: 0 18px 40px -24px rgb(23 29 36 / 0.55);
   color-scheme: light;

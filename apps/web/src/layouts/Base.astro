@@ -55,16 +55,13 @@ const { locale, title } = Astro.props;
         border-radius: 6px;
         font-variant-numeric: tabular-nums;
       }
+      /* 베타 계열은 테두리·배경 없이 글자만(2026-08-31 사용자 지시) — 글로우가 가독을 지킨다. */
       #chan-mark.beta {
         color: #ffd23e;
-        background: rgb(20 16 4 / 0.72);
-        border: 1px solid rgb(255 210 62 / 0.65);
         text-shadow: 0 0 6px rgb(255 210 62 / 0.35);
       }
       #chan-mark.fb {
         color: #ff8a3d;
-        background: rgb(24 12 4 / 0.72);
-        border: 1px solid rgb(255 138 61 / 0.7);
         text-shadow: 0 0 6px rgb(255 138 61 / 0.35);
       }
       #chan-mark.rel {

@@ -79,6 +79,8 @@ def build_tables(src: Path, out: Path) -> None:
     write_json(out / "tables" / "persons.json", keyed(persons, "Pid"))
     _, items = load_sheet(src / "gamedata" / "item.xml")
     write_json(out / "tables" / "items.json", keyed(items, "Iid"))
+    build_refine(src, out)
+    build_shop(src, out)
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
     build_gods(src, out)
@@ -86,6 +88,43 @@ def build_tables(src: Path, out: Path) -> None:
     build_supports(src, out)
     build_calculator(src, out)
     build_chapterlist(src, out)
+
+
+def load_named_sheet(path: Path, name: str) -> tuple[dict, list[dict]]:
+    """시트를 이름으로 찾는다 — item.xml처럼 시트가 많고 순서가 보증 안 되는 파일용."""
+    root = ET.parse(path).getroot()
+    for index, sheet in enumerate(root):
+        if sheet.get("Name") == name:
+            return load_sheet(path, index)
+    raise SystemExit(f"{path.name}: no sheet named {name}")
+
+
+def build_refine(src: Path, out: Path) -> None:
+    """item.xml 錬成 시트 → 무기 강화(+1~+5) 누적 보정. 그룹 헤더 행(Rid) 뒤 단계 행들이 이어진다.
+    키 = RID_ 접두 제거 접미사(IID_ 접미사와 동일 — 鉄の剣 등)."""
+    _, rows = load_named_sheet(src / "gamedata" / "item.xml", "錬成")
+    table: dict[str, list[dict]] = {}
+    stages: list[dict] | None = None
+    for row in rows:
+        rid = row.get("Rid")
+        if rid:
+            key = (rid[0] if isinstance(rid, list) else rid).removeprefix("RID_")
+            stages = table.setdefault(key, [])
+        elif stages is not None:
+            stages.append({dst: row.get(col, 0) for col, dst in
+                           (("Power", "power"), ("Weight", "weight"), ("Hit", "hit"), ("Critical", "crit"))})
+    write_json(out / "tables" / "refine.json", table)
+
+
+def build_shop(src: Path, out: Path) -> None:
+    """shop.xml 武器屋 시트 → 상점 판매 무기 iid(첫 등장 순). 빌더 정렬(상점 기본무기 우선)의 정본."""
+    _, rows = load_named_sheet(src / "gamedata" / "shop.xml", "武器屋")
+    seen: list[str] = []
+    for row in rows:
+        iid = row.get("Iid")
+        if iid and iid not in seen:
+            seen.append(iid)
+    write_json(out / "tables" / "shop.json", {"weapons": seen})
 
 
 def build_styles(src: Path, out: Path) -> None:

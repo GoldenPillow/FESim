@@ -1,4 +1,4 @@
-/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
+/* 엔트리 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
    테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
 .entry-wrap {
   filter: drop-shadow(0 0 1px var(--rule));
@@ -15,6 +15,65 @@ tbody:hover .entry-wrap {
   background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
   padding: 3px 12px 3px 4px;
 }
+
+/* ── 잠금(2026-08-31) — 색은 인게이지 대표 블루(global.css --engage, 로고 실측). ── */
+/* 자물쇠 슬롯 — 카드와 IN.LV 사이 남은 폭 전체를 차지하고 중앙 정렬(양옆 공백 균등, 2026-08-31).
+   기본은 공백이라 아이콘이 떠도 표 폭이 안 움직인다. */
+.entry-lock {
+  display: flex;
+  flex: 1 1 20px;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+/* 잠금 블록 — 스탯 행 + 전투력 행을 모두 감싸는 이중 테두리(1px 본선 + 2px 바깥 연하게).
+   tbody의 positioned ::after 오버레이(TablesNG) = separate 모델에서 셀 조각 없이 블록을 한 번에 두른다.
+   inset 3px = 본선 1px + 바깥 링 2px 마감까지 블록 안에 딱 맞아 상하 카드를 침범하지 않는다(2026-08-31). */
+.builder-table tbody.entry-locked-block {
+  position: relative;
+}
+.builder-table tbody.entry-locked-block::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 15;
+  border: 1px solid var(--engage);
+  border-radius: 5px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--engage) 30%, transparent);
+  pointer-events: none;
+}
+/* 드래그 재정렬(2026-08-31) — 끌리는 블록은 반투명으로 목표 자리를 미리 보이고(포인터 추종),
+   나머지 블록은 자리 양보를 트랜지션으로 보여준다. 커밋(놓는 순간)은 BuilderIsland가 저장까지 한다. */
+.builder-table tbody.entry-drag-shift {
+  transition: transform 0.18s ease;
+}
+.builder-table tbody.entry-dragging {
+  z-index: 25;
+  cursor: grabbing;
+  opacity: 0.4;
+}
+
+/* 잠그는 순간 1회 — 화이트에 블루만 살짝 섞은 밝은 파동이 테두리 중심에서 바깥 14px로 퍼지며
+   고정 테두리 색으로 가라앉는 충격파(극적 연출). 1초, 출발 빠르고 후반 느림(easeOutExpo 계열). */
+.builder-table tbody.entry-lock-pulse::after {
+  animation: engage-shockwave 1s cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+@keyframes engage-shockwave {
+  from {
+    border-color: color-mix(in srgb, white 85%, var(--engage));
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--engage) 30%, transparent),
+      0 0 0 0 color-mix(in srgb, white 80%, var(--engage));
+  }
+  to {
+    border-color: var(--engage);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--engage) 30%, transparent),
+      0 0 10px 14px color-mix(in srgb, var(--engage) 0%, transparent);
+  }
+}
 .entry-face {
   /* 원본 = 176x74 눈 스트립(인게임 facethumb) — 비율 그대로 보여야 얼굴이 안 잘린다. */
   width: 6.6rem;
@@ -22,6 +81,12 @@ tbody:hover .entry-wrap {
   object-fit: cover;
   -webkit-mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
   mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
+}
+
+/* 전투력 행 이중 렌더 — PC·가로 = 스탯 열 그리드(combat-grid), 세로 모바일 = 흐름(combat-flow).
+   두 벌을 같이 그리고 미디어가 표시를 가른다(display:none 셀은 표 레이아웃에서 빠진다). */
+.combat-flow {
+  display: none;
 }
 
 /* 세로 모바일(사용자 결정 2026-08-31: 세로 우선) — 얼굴 절반·이름 숨김(얼굴로 식별)·
@@ -83,6 +148,17 @@ tbody:hover .entry-wrap {
   .entry-name {
     display: none;
   }
+  /* 세로는 무스크롤 밀도가 우선 — 자물쇠 슬롯 숨김(잠금 상태는 블록 테두리로 보인다, 탭 = 토글). */
+  .entry-lock {
+    display: none;
+  }
+  /* 전투력은 흐름 배치로 — 좁은 열에 캡션·값 2단이 안 들어간다. */
+  .builder-table .combat-grid {
+    display: none !important;
+  }
+  .builder-table .combat-flow {
+    display: table-cell !important;
+  }
 }
 
 /* 가로 모드(높이 520px 이하) — 사용자 결정 2026-08-31: **PC 풀피쳐 그대로 + 모두 펼침**(세로와 작동 다름).
@@ -138,7 +214,15 @@ tbody:hover .entry-wrap {
   }
   .entry-name {
     display: inline-block;
-    width: 6em !important;
+    /* PC와 동일 5em — 캐릭터명 최대 5자(2026-08-31 카드 1칸 축소). */
+    width: 5em !important;
     font-size: 17px !important;
+  }
+  /* 가로폰은 PC 풀피쳐 — 전투력도 그리드 정렬로 복원(세로 블록이 좁은 가로폰에 새는 것 방지). */
+  .builder-table .combat-grid {
+    display: table-cell !important;
+  }
+  .builder-table .combat-flow {
+    display: none !important;
   }
 }

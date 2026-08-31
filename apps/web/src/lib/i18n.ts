@@ -121,7 +121,7 @@ export interface Strings {
 }
 
 /**
- * 캐릭터 빌더 라벨 — ☠객체 하나로 묶는다: i18n → 페이지 → 아일랜드 3층을 지나므로
+ * 엔트리 빌더 라벨 — ☠객체 하나로 묶는다: i18n → 페이지 → 아일랜드 3층을 지나므로
  * 낱개 키로 늘리면 한 층에서 빠져도 조용히 빈 문자열로 렌더된다.
  */
 export interface BuilderLabels {
@@ -151,6 +151,23 @@ export interface BuilderLabels {
   cappedNote: string;
   /** 전용직 불가 행 표식. */
   unavailable: string;
+  /** 행 클릭 잠금 — 자물쇠 슬롯 접근성 라벨(잠그기). */
+  lock: string;
+  /** 잠금 해제(대기 목록 복귀) 접근성 라벨. */
+  unlock: string;
+  /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
+  reset: string;
+  /** 전투력 행(호버·잠금) — 공속(무게 페널티, 하락 레드) + 물공·마공 + 파생치 4종. */
+  combat: Record<"as" | "patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
+  /** 아이템(무기) 선택기 라벨 — 클래스·내부 레벨 우측(2026-08-31). */
+  item: string;
+  /** 아이템 미선택 옵션 = 맨손(순수 스탯). */
+  itemNone: string;
+  /** 강화 드롭다운 기본 옵션(노강화) — 단계는 +1~+5 숫자 표기라 라벨 불요. */
+  refineNone: string;
+  /** 무기 스펙 라벨(명중·필살은 combat 재사용). */
+  might: string;
+  weight: string;
   stats: Record<StatKey, string>;
 }
 
@@ -318,7 +335,7 @@ export const UI: Record<Locale, Strings> = {
       unsupportedSkill: "Grant effect (GiveSids) not simulated yet",
     },
     builder: {
-      title: "Character Builder",
+      title: "Entry Builder",
       intro:
         "Pick an advanced class and an internal level to compare every recruit in one table. Fixed growth, Maddening, no equipment. Promotion happens as soon as the minimum level requirement is met.",
       job: "Class",
@@ -334,6 +351,15 @@ export const UI: Record<Locale, Strings> = {
       joinedNote: "No class selected — each unit at their join-time level.",
       cappedNote: "Highlighted values have reached the stat cap.",
       unavailable: "Cannot reach this class",
+      lock: "Pin entry",
+      unlock: "Unpin entry",
+      reset: "Reset",
+      combat: { as: "AS", patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
+      item: "Weapon",
+      itemNone: "Unarmed",
+      refineNone: "Unforged",
+      might: "Mt",
+      weight: "Wt",
       stats: {
         hp: "HP", str: "Str", mag: "Mag", dex: "Dex", spd: "Spd",
         lck: "Lck", def: "Def", res: "Res", bld: "Bld",
@@ -346,7 +372,7 @@ export const UI: Record<Locale, Strings> = {
       links: {
         simulator: { name: "Chapter simulator", desc: "Play any chapter on the real map, by the real rules." },
         fidelity: { name: "Reproduction status", desc: "What the engine reproduces, and how it was verified." },
-        builder: { name: "Character builder", desc: "Compare every unit's stats in one advanced class." },
+        builder: { name: "Entry builder", desc: "Compare every unit's stats in one advanced class." },
         classes: { name: "Class data", desc: "Bases, caps and growths for every class." },
         skills: { name: "Skill data", desc: "Personal, class and inheritable skills." },
       },
@@ -485,7 +511,7 @@ export const UI: Record<Locale, Strings> = {
       unsupportedSkill: "付与効果（GiveSids）は未再現",
     },
     builder: {
-      title: "キャラクタービルダー",
+      title: "エントリービルダー",
       intro:
         "上級職と内部レベルを選ぶと、加入キャラクター全員をひとつの表で比較できます。固定成長・ルナティック・装備なし基準。クラスチェンジは最低レベル条件を満たし次第すぐ行う想定です。",
       job: "クラス",
@@ -501,6 +527,15 @@ export const UI: Record<Locale, Strings> = {
       joinedNote: "クラス未選択 — 各キャラクターの加入時点レベル",
       cappedNote: "色の違う値はステータス上限に到達した値です。",
       unavailable: "このクラスにはなれない",
+      lock: "エントリーを固定",
+      unlock: "固定を解除",
+      reset: "リセット",
+      combat: { as: "攻速", patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
+      item: "武器",
+      itemNone: "素手",
+      refineNone: "錬成なし",
+      might: "威力",
+      weight: "重さ",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -512,7 +547,7 @@ export const UI: Record<Locale, Strings> = {
       links: {
         simulator: { name: "シミュレーター", desc: "実際のマップ・実際のルールで章をプレイ。" },
         fidelity: { name: "再現状況", desc: "エンジンが何をどこまで再現しているか、根拠つきで。" },
-        builder: { name: "キャラクタービルダー", desc: "ひとつの上級職で全キャラのステータスを比較。" },
+        builder: { name: "エントリービルダー", desc: "ひとつの上級職で全キャラのステータスを比較。" },
         classes: { name: "クラスデータ", desc: "クラス別の基本値・上限・成長率。" },
         skills: { name: "スキルデータ", desc: "個人・クラス・継承スキル。" },
       },
@@ -650,7 +685,7 @@ export const UI: Record<Locale, Strings> = {
       unsupportedSkill: "부여 효과(GiveSids) 미재현",
     },
     builder: {
-      title: "캐릭터 빌더",
+      title: "엔트리 빌더",
       intro:
         "상급직과 내부 레벨을 선택시 영입 캐릭터 전원을 한 표에서 비교합니다. 고정 성장·루나틱·장비 미적용 기준. 전직은 최소 레벨 조건 만족 시 전직 기준.",
       job: "클래스",
@@ -666,8 +701,17 @@ export const UI: Record<Locale, Strings> = {
       joinedNote: "직업 미선택 — 각 캐릭터의 합류 시점 레벨",
       cappedNote: "색이 다른 값은 스탯 상한에 도달한 값입니다.",
       unavailable: "이 직업으로 갈 수 없음",
+      lock: "엔트리 잠금",
+      unlock: "잠금 해제",
+      reset: "Reset",
+      combat: { as: "공속", patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
+      item: "아이템",
+      itemNone: "맨손",
+      refineNone: "노강화",
+      might: "위력",
+      weight: "무게",
       stats: {
-        hp: "HP", str: "힘", mag: "마력", dex: "기량", spd: "속도",
+        hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",
       },
     },
@@ -677,7 +721,7 @@ export const UI: Record<Locale, Strings> = {
       links: {
         simulator: { name: "시뮬레이터", desc: "실제 맵·실제 룰로 챕터를 직접 둡니다." },
         fidelity: { name: "재현 상태", desc: "엔진이 무엇을 어디까지 재현하는지, 근거와 함께." },
-        builder: { name: "캐릭터 빌더", desc: "상급직 하나로 전 캐릭터 스탯을 비교합니다." },
+        builder: { name: "엔트리 빌더", desc: "상급직 하나로 전 캐릭터 스탯을 비교합니다." },
         classes: { name: "클래스 데이터", desc: "직업별 기본치·상한·성장률." },
         skills: { name: "스킬 데이터", desc: "개인·클래스·계승 스킬." },
       },
