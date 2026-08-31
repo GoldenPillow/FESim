@@ -1933,15 +1933,22 @@ const jobWeaponRanks = (r: Record<string, unknown>): Record<number, string> => {
   return out;
 };
 
-/* items.json Flag 비트(정본 ItemData.Flags, dump.cs:600892~) — 빌더 목록 필터·랭크 무시. */
+/* items.json Flag 비트(정본 ItemData.Flags, dump.cs:600892~) — 빌더 목록 필터·랭크 무시·DLC 후열. */
 const ITEM_FLAG_ONLY_ENEMY = 16;
 const ITEM_FLAG_IGNORE_RANK = 256;
 const ITEM_FLAG_UNPUBLIC = 512;
+const ITEM_FLAG_DOWNLOAD = 4096;
 
-/** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic) 제외, 상점 전열 → 유니크 후열. */
+/** 무기 랭크 서열(N = 착용 불가, '+' = 반 단계) — 장착 게이트(canEquip)와 목록 정렬이 공용. */
+const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
+export const rankValue = (rank: string): number =>
+  (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
+
+/** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic) 제외.
+    정렬(2026-08-31 사용자 지시) = 상점 기본무기(약함→강함: 랭크→위력→가격) → 유니크·엠블렘 → DLC. */
 function builderWeapons(locale: Locale): BuilderWeaponProp[] {
   const shopIndex = new Map(shopTable.weapons.map((iid, i) => [iid, i]));
-  const list: (BuilderWeaponProp & { order: number })[] = [];
+  const list: (BuilderWeaponProp & { group: number; price: number })[] = [];
   for (const iid of Object.keys(items)) {
     const row = items[iid] as unknown as Record<string, unknown>;
     const flag = Number(row["Flag"] ?? 0);
@@ -1969,18 +1976,27 @@ function builderWeapons(locale: Locale): BuilderWeaponProp[] {
       ...(prop.enhance !== undefined ? { enhance: prop.enhance } : {}),
       ...(stages !== undefined ? { refine: stages } : {}),
       ...(icon !== undefined ? { icon } : {}),
-      // 전열(상점) = 등장 순 · 후열(유니크) = 가격 순 — kind가 1차 축이라 무기군끼리 모인다.
-      order: shopIdx ?? 100000 + Number(row["Price"] ?? 0),
+      group: shopIdx !== undefined ? 0 : (flag & ITEM_FLAG_DOWNLOAD) !== 0 ? 2 : 1,
+      price: Number(row["Price"] ?? 0),
     });
   }
   list.sort(
     (a, b) =>
-      Number(a.shop !== true) - Number(b.shop !== true) ||
+      a.group - b.group ||
       a.kind - b.kind ||
-      a.order - b.order ||
+      rankValue(a.rank) - rankValue(b.rank) ||
+      a.might - b.might ||
+      a.price - b.price ||
       a.name.localeCompare(b.name),
   );
-  return list.map(({ order: _order, ...weapon }) => weapon);
+  // 표시명 중복 제거(2026-08-31 사용자 지시) — 엠블렘 무기는 접두·通常·챕터판 변형 IID가 겹친다.
+  // 정렬이 상점 원판을 앞세우므로 첫 항목이 대표가 된다.
+  const seen = new Set<string>();
+  return list.flatMap(({ group: _group, price: _price, ...weapon }) => {
+    if (seen.has(weapon.name)) return [];
+    seen.add(weapon.name);
+    return [weapon];
+  });
 }
 
 /** 무기군 아이콘 스프라이트 이름(ui_icon/weapon 번들 베이크 실측 — Kind 1~9, 흰 실루엣).

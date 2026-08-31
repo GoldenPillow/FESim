@@ -222,13 +222,13 @@ export default function BuilderIsland({
         <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
           {equipped !== undefined && (
             <span
-              className={`flex items-center justify-center gap-0.5 whitespace-nowrap text-[11px] font-semibold leading-tight ${equipped.weapon.engage === true ? "text-engage" : "text-ink"}`}
+              className={`flex items-center justify-center gap-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight ${equipped.weapon.engage === true ? "text-engage" : "text-ink"}`}
               title={`${equipped.weapon.name}${equipped.plus > 0 ? ` +${equipped.plus}` : ""}`}
             >
               {equipped.weapon.icon !== undefined && (
-                <img src={equipped.weapon.icon} alt="" className="h-4 w-4 shrink-0" loading="lazy" />
+                <img src={equipped.weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />
               )}
-              <span className="max-w-[4.2rem] truncate">
+              <span className="max-w-[5.2rem] truncate">
                 {equipped.weapon.name}
                 {equipped.plus > 0 ? `+${equipped.plus}` : ""}
               </span>
@@ -258,7 +258,7 @@ export default function BuilderIsland({
             >
               {ck !== undefined && (
                 <>
-                  <span className="block text-[12px] font-semibold leading-4 text-ink opacity-70">
+                  <span className="block text-[14px] font-semibold leading-5 text-ink opacity-70">
                     {labels.combat[ck]}
                   </span>
                   <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
@@ -268,16 +268,16 @@ export default function BuilderIsland({
           );
         })}
         <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[13px] font-bold leading-tight text-ink">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink">
             {equipped !== undefined && (
-              <span className={`text-[12px] ${equipped.weapon.engage === true ? "text-engage" : ""}`}>
+              <span className={equipped.weapon.engage === true ? "text-engage" : ""}>
                 {equipped.weapon.name}
                 {equipped.plus > 0 ? `+${equipped.plus}` : ""}
               </span>
             )}
             {COMBAT_KEYS.map((key) => (
               <span key={key} className="whitespace-nowrap">
-                <span className="text-[12px] font-semibold opacity-70">{labels.combat[key]}</span>{" "}
+                <span className="font-semibold opacity-70">{labels.combat[key]}</span>{" "}
                 <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
               </span>
             ))}
@@ -305,7 +305,8 @@ export default function BuilderIsland({
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
   const legendClass = "text-[14px] font-medium text-muted";
-  const checkerClass = "flex items-center gap-1.5 pb-1.5 text-[12px] text-ink";
+  // 컨트롤 영역 문자들은 전부 14px 통일(2026-08-31 사용자 지시 — 통일감).
+  const checkerClass = "flex items-center gap-1.5 pb-1.5 text-[14px] text-ink";
 
   const jobSelect = (i: number): React.JSX.Element => (
     <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => setSlotJob(i, e.target.value)}>
@@ -330,8 +331,8 @@ export default function BuilderIsland({
       </span>
     );
     return (
-      <span className="flex flex-wrap items-center gap-x-2.5 pb-[7px] text-[12px] leading-tight text-muted">
-        <span className="rounded border border-rule px-1 text-[11px]">{weapon.rank}</span>
+      <span className="flex flex-wrap items-center gap-x-2.5 pb-[6px] text-[14px] leading-tight text-muted">
+        <span className="rounded border border-rule px-1.5 text-[14px]">{weapon.rank}</span>
         {entry(labels.might, eff.might, base.might)}
         {entry(labels.combat.hit, eff.hit, base.hit)}
         {entry(labels.combat.crit, eff.crit, base.crit)}
@@ -397,7 +398,7 @@ export default function BuilderIsland({
       {/* 윗줄 = 미선택 안내(좌, 고정 높이) + 체커·Reset(우) — 아이템 선택기가 아랫줄 우측 공간을
           쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다. */}
       <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1">
-        <p className="h-4 text-[12px] leading-4 text-muted [@media(max-height:520px)]:hidden">
+        <p className="h-5 text-[14px] leading-5 text-muted [@media(max-height:520px)]:hidden">
           {compares.length === 0 ? labels.joinedNote : ""}
         </p>
         <span className="ml-auto flex flex-wrap items-end gap-x-5 gap-y-2">
@@ -442,7 +443,7 @@ export default function BuilderIsland({
           <button
             type="button"
             onClick={reset}
-            className="mb-0.5 rounded border border-rule px-2.5 py-[3px] text-[12px] text-muted hover:bg-sunken hover:text-ink"
+            className="mb-0.5 rounded border border-rule px-2.5 py-[3px] text-[14px] text-muted hover:bg-sunken hover:text-ink"
           >
             {labels.reset}
           </button>
@@ -592,7 +593,7 @@ export default function BuilderIsland({
                     </span>
                     {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
                     {job !== undefined && (
-                      <span className="block px-1 pt-[3px] text-[12px] font-semibold leading-tight text-engage">
+                      <span className="block px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage">
                         {job.name}
                       </span>
                     )}
@@ -676,7 +677,7 @@ export default function BuilderIsland({
                 {/* 호버 라인의 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). 전투력 행이 열린
                     동안만 = th가 한 칸 늘어 있어 행 높이를 안 민다. */}
                 {combatLi !== undefined && compares[combatLi]?.job.name !== undefined && (
-                  <span className="block px-1 pt-[3px] text-[12px] font-semibold leading-tight text-engage">
+                  <span className="block px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage">
                     {compares[combatLi].job.name}
                   </span>
                 )}

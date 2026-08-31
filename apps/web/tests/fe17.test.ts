@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DisposUnit } from "@fesim/shared";
-import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
+import { attackWeapons, bondScaffold, boardPropsFor, builderPropsFor, rankValue, chapterList, nextChapter, consumableItems, staffItems, emblemEngageArt, emblemEngagedSids, emblemEngageWeapons, emblemSyncSids, unitEngagedSkillRows, unitSkillRows, unitSynchroSkillRows, unitStats } from "../src/lib/fe17";
 import { growthPath, mergeStatCap, STAT_KEYS, type GrowthPathJob, type GrowthPathResult } from "@fesim/engine";
 
 /**
@@ -1125,5 +1125,23 @@ describe("B5 대조 표본 — Alear 소수부까지", () => {
     expect(d["def"]).toBeCloseTo(10.9, 5);
     expect(d["res"]).toBeCloseTo(8.4, 5);
     expect(d["bld"]).toBeCloseTo(7.95, 5);
+  });
+});
+
+describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
+  /**
+   * 왜 위험한가: 엠블렘 무기 변형(접두·通常·챕터판)이 같은 표시명으로 목록에 줄지어 서고,
+   * 정렬이 흔들리면 "상점 기본무기 약함→강함, 유니크·DLC 후열"이라는 사용자 규약이 조용히 깨진다.
+   */
+  it("표시명 중복 없음 · 상점 전열 · 상점 무기군 안에서 랭크 오름차순", () => {
+    const { weapons } = builderPropsFor("ko");
+    const names = weapons.map((w) => w.name);
+    expect(new Set(names).size).toBe(names.length);
+    const firstNonShop = weapons.findIndex((w) => w.shop !== true);
+    expect(weapons.slice(firstNonShop).every((w) => w.shop !== true)).toBe(true);
+    const shopSwords = weapons.filter((w) => w.shop === true && w.kind === 1);
+    for (let i = 1; i < shopSwords.length; i++) {
+      expect(rankValue(shopSwords[i]!.rank)).toBeGreaterThanOrEqual(rankValue(shopSwords[i - 1]!.rank));
+    }
   });
 });

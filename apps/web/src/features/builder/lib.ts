@@ -11,7 +11,7 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import type { BuilderCharProp, BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
+import { rankValue, type BuilderCharProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -206,12 +206,8 @@ export function lockedDisplayRows(
 
 /* ── 장착 게이트 — 무기군(Kind) + 랭크(WeaponLevel ≤ MaxWeaponLevel). ── */
 
-/** 무기 랭크 서열(N = 착용 불가) — 인게임 무기 레벨 표기 정본. */
-const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
-
-/** '+'는 반 단계(C+ = 3.5) — job MaxWeaponLevel에 등장한다. */
-export const rankValue = (rank: string): number =>
-  (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
+// 랭크 서열은 fe17(목록 정렬과 공용 정본)이 소유한다 — 여기서 재정의하면 서열이 갈라진다.
+export { rankValue };
 
 /** 클래스가 이 무기를 들 수 있나 — 무기군 적성 + 랭크 게이트(Flag 256 = 랭크 무시). */
 export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolean => {
