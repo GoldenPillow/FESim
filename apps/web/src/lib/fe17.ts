@@ -18,6 +18,7 @@ import {
 import godsRaw from "../../../../data/fe17/tables/gods.json?raw";
 import chapterlistRaw from "../../../../data/fe17/tables/chapterlist.json?raw";
 import chapternotesRaw from "../../../../data/fe17/tables/chapternotes.json?raw";
+import joinitemsRaw from "../../../../data/fe17/tables/joinitems.json?raw";
 import terrainRaw from "../../../../data/fe17/tables/terrain.json?raw";
 import personsRaw from "../../../../data/fe17/tables/persons.json?raw";
 import jobsRaw from "../../../../data/fe17/tables/jobs.json?raw";
@@ -1850,6 +1851,9 @@ export interface BuilderCharProp {
   spoiler?: true;
   /** DLC 사룡의 장 5인 — DLC 체커 소관(스포일러와 분리, 2026-08-31 사용자 지시). */
   dlc?: true;
+  /** 합류 초기 무기(chart.xml 加入 로드아웃의 첫 공격 무기) — 글로벌 아이템 미선택 시 카드 기본값
+      (2026-09-01 사용자 지시). chart에 없는 DLC 5인 등은 없음 = 미착용. */
+  joinIid?: string;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -2294,6 +2298,10 @@ export function builderPropsFor(locale: Locale): BuilderProps {
   order.push("PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン");
   // 이름 기반 얼굴 폴백 — 정본 pid 매핑이 없는 DLC 5인용(파일명 = Name에서 MPID_ 제거).
   const facePaths = new Set(Object.values(manifest.faces ?? {}));
+  // 합류 초기 무기 — 무기 후보 목록(중복 제거 후)에 실존하는 첫 iid만 사영(목록 밖이면 미착용 강하).
+  const weaponList = builderWeapons(locale);
+  const weaponIids = new Set(weaponList.map((w) => w.iid));
+  const joinItems = parse<Record<string, string[]>>(joinitemsRaw);
   const chars: BuilderCharProp[] = [];
   for (const pid of order) {
     const person = persons[pid] as unknown as Record<string, unknown> | undefined;
@@ -2330,6 +2338,10 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       ...(workSkills.length > 0 ? { workSkills } : {}),
       ...(SPOILER_PIDS.has(pid) ? { spoiler: true as const } : {}),
       ...(DLC_PIDS.has(pid) ? { dlc: true as const } : {}),
+      ...(() => {
+        const iid = (joinItems[pid] ?? []).find((i) => weaponIids.has(i));
+        return iid !== undefined ? { joinIid: iid } : {};
+      })(),
     });
   }
   const joinJobs: Record<string, GrowthPathJob> = {};
@@ -2391,7 +2403,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     chars,
     joinJobs,
     targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
-    weapons: builderWeapons(locale),
+    weapons: weaponList,
     engraves: builderEngraves(locale),
     emblems: builderEmblems(locale),
     ...(() => {

@@ -1216,6 +1216,19 @@ describe("builderPropsFor.emblems — 문장사 반지 사영(2026-08-31)", () =
   });
 });
 
+describe("builderPropsFor.chars.joinIid — 합류 초기 무기(2026-09-01)", () => {
+  /**
+   * 왜 위험한가: chart.xml 加入 명부는 같은 pid가 챕터마다 반복되고 첫 행이 빈 목록일 수 있다
+   * (뤼에르 M000) — "최초 비공백" 규칙이 무너지면 조용히 미착용이 되고 결손 목록에도 안 잡힌다.
+   */
+  it("뤼에르 = 철의 검, 클랜 = 파이어(마도서), DLC 엘 = 없음(미착용 강하)", () => {
+    const { chars } = builderPropsFor("ko");
+    expect(chars.find((c) => c.pid === "PID_リュール")?.joinIid).toBe("IID_鉄の剣");
+    expect(chars.find((c) => c.pid === "PID_クラン")?.joinIid).toBe("IID_ファイアー");
+    expect(chars.find((c) => c.pid === "PID_エル")?.joinIid).toBeUndefined();
+  });
+});
+
 describe("builderPropsFor.targetJobs — 특수직(2026-08-31)", () => {
   /**
    * 왜 위험한가: 특수직(시프·댄서·사룡 계열)은 Rank 0 + MaxLevel 40 시그니처라 "랭크 1 = 상급직"
