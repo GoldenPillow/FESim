@@ -1303,6 +1303,17 @@ export default function BuilderIsland({
     [chars, showSpoilers, showDlc],
   );
   const charByPid = useMemo(() => new Map(visibleChars.map((c) => [c.pid, c])), [visibleChars]);
+  /** 체커를 지난 목표 직업(UI 목록 전용 — 해석·스냅샷 조회는 전체 표를 쓴다). 전용직은 가능자(uniquePid)가
+      숨김이면 함께 숨긴다 — ☠전용직 이름이 숨김 캐릭터의 존재를 누설한다(스포일러 실사고 2026-09-01). */
+  const visibleTargetJobs = useMemo(() => {
+    const byPid = new Map(chars.map((c) => [c.pid, c]));
+    return targetJobs.filter((j) => {
+      if (j.uniquePid === undefined) return true;
+      const c = byPid.get(j.uniquePid);
+      if (c === undefined) return true;
+      return (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true);
+    });
+  }, [targetJobs, chars, showSpoilers, showDlc]);
   // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
   // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
   const groups = useMemo(() => {
@@ -1468,7 +1479,7 @@ export default function BuilderIsland({
       (2026-09-01 사용자 지시: 댄서 = 세아다스 외 사용 불가 — 클릭 무반응, disabled 옵션 규약). */
   const classOptionsFor = (pid: string): EquipOption[] => [
     { value: "", label: labels.jobNone },
-    ...targetJobs.map((j) => ({
+    ...visibleTargetJobs.map((j) => ({
       value: j.jid,
       label: j.name,
       ...(j.uniquePid !== undefined && j.uniquePid !== pid ? { disabled: true as const } : {}),
@@ -1675,7 +1686,7 @@ export default function BuilderIsland({
   const jobSelect = (i: number): React.JSX.Element => (
     <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => setSlotJob(i, e.target.value)}>
       <option value="">{labels.jobNone}</option>
-      {targetJobs.map((j) => (
+      {visibleTargetJobs.map((j) => (
         <option key={j.jid} value={j.jid}>
           {jobLabel(j)}
         </option>
