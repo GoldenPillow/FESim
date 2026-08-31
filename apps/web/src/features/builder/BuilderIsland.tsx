@@ -756,7 +756,7 @@ function RingSlot({
 }): React.JSX.Element {
   return (
     <span
-      className="entry-ring flex items-center gap-1"
+      className="entry-ring flex items-center gap-1.5"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -767,7 +767,8 @@ function RingSlot({
         onChange={(gid) => onPatch({ gid })}
         onOpenChange={onDropOpen}
         labels={labels}
-        triggerClass="flex h-7 shrink-0 items-center gap-0.5 rounded border border-rule bg-sunken px-1"
+        // 빈 슬롯 = 점선(각인 칩과 같은 "비어 있음" 어휘) — 장착되면 실선으로 조여진다.
+        triggerClass={`flex h-7 shrink-0 items-center gap-0.5 rounded border bg-sunken px-1 ${emblem !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
         trigger={
           <>
             {emblem?.icon !== undefined ? (
@@ -799,11 +800,11 @@ function RingSlot({
           }
         />
       )}
-      <span className="relative flex min-w-0 flex-1 justify-center">
+      <span className="relative flex min-w-0">
         {emblem !== undefined ? (
           <button
             type="button"
-            className="cursor-pointer truncate px-0.5 text-[13px] font-semibold leading-tight text-engage hover:underline"
+            className="max-w-[7em] cursor-pointer truncate px-0.5 text-[13px] font-semibold leading-tight text-engage hover:underline"
             onClick={onPanelToggle}
           >
             {emblem.name}
@@ -1118,18 +1119,31 @@ export default function BuilderIsland({
     () => chars.filter((c) => (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true)),
     [chars, showSpoilers, showDlc],
   );
-  // ☠반지 보너스는 여기서 합산하지 않는다(2026-08-31 사용자 지시: 본스탯 행은 순수값 유지) —
-  //   최종스탯(본스탯 + 絆 보너스)은 각 카드의 반지 행이 렌더에서 applyEmblemBonus로 계산해 소유한다.
-  const groups = useMemo(
-    () => waitingRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
-    [visibleChars, joinJobs, compares, sort, extraSkills, locked],
-  );
+  // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
+  // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
+  const groups = useMemo(() => {
+    const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
+    const lockByPid = new Map(locked.map((e) => [e.pid, e]));
+    const boosted = base.map((g) => {
+      const pid = g[0]!.pid;
+      const entry = lockByPid.get(pid);
+      const src = entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : rings[pid];
+      const delta = src === undefined ? undefined : emblemByGid.get(src.gid)?.bonuses[src.bond - 1];
+      return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
+    });
+    return waitingRowGroups(boosted, locked, sort);
+  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
-  // 반지(gid·bond)는 스냅샷 소유지만 본스탯 행은 순수값 — 최종스탯은 반지 행이 렌더에서 계산.
-  const lockedRows = useMemo(
-    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves),
-    [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves],
-  );
+  // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
+  const lockedRows = useMemo(() => {
+    const base = lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves);
+    return base.map((d) => {
+      const entry = locked.find((e) => e.pid === d.row.pid);
+      const delta =
+        entry?.gid === undefined ? undefined : emblemByGid.get(entry.gid)?.bonuses[(entry.bond ?? 20) - 1];
+      return delta === undefined || Object.keys(delta).length === 0 ? d : { ...d, row: applyEmblemBonus(d.row, delta) };
+    });
+  }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid]);
 
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
@@ -1214,24 +1228,19 @@ export default function BuilderIsland({
   };
 
   /**
-   * 반지 행 — 이름 칸 = 반지 슬롯(아이콘·Lv·문장사 이름), 스탯 칸 = 블루 **최종스탯**(본스탯 + 絆 보너스,
-   * 보정 열만). 반지 아이콘이 최종스탯과 같은 행에 서서 출처가 세로 정렬로 보인다(2026-08-31 사용자 지시).
-   * 멀티클래스는 첫 라인(메인 슬롯) 기준 — 정렬·전용직 상단 규칙과 같은 대표 라인이다.
+   * 반지 행 — 이름 칸 = 반지 슬롯(아이콘·Lv·문장사 이름), 스탯 칸 = **추가분(+N)만** 블루
+   * (합산값은 위 본스탯 행이 블루로 품는다 — 2026-08-31 사용자 최종 확정).
+   * 반지 아이콘이 추가분과 같은 행에 서서 출처가 세로 정렬로 보인다.
    */
   const ringRow = (
-    baseRow: BuilderRow,
+    pid: string,
     src: { gid: string; bond: number } | undefined,
     interactive: boolean,
     onPatch: (patch: { gid?: string; bond?: number }) => void,
   ): React.JSX.Element => {
-    const pid = baseRow.pid;
     const emblem = src === undefined ? undefined : emblemByGid.get(src.gid);
     const bond = src?.bond ?? 20;
     const delta = emblem?.bonuses[bond - 1];
-    const finalRow =
-      emblem !== undefined && delta !== undefined && Object.keys(delta).length > 0
-        ? applyEmblemBonus(baseRow, delta)
-        : undefined;
     const thRaised = emblemOpen === pid || ringDrop === pid || foldPid === pid;
     return (
       <tr>
@@ -1251,14 +1260,14 @@ export default function BuilderIsland({
         </th>
         <td className="inlv-col" />
         {STAT_KEYS.map((key) => {
-          const cell = finalRow?.cells[key];
-          const show = cell !== undefined && finalRow?.emblemDelta?.[key] !== undefined;
+          const d = delta?.[key];
           return (
+            // 추가분은 위 합산 숫자에 붙는 주석 — 작게, 상단 여백 없이(세로 리듬: 값 ↘ +N).
             <td
               key={key}
-              className={`stat-col${key === "bld" ? " stat-col-last" : ""} px-1 py-[2px] text-center text-[14px] font-bold text-pgrow md:px-2`}
+              className={`stat-col${key === "bld" ? " stat-col-last" : ""} px-1 pb-[4px] pt-0 text-center align-top text-[13px] font-bold text-pgrow md:px-2`}
             >
-              {show ? cell.text : ""}
+              {d !== undefined ? (d > 0 ? `+${d}` : String(d)) : ""}
             </td>
           );
         })}
@@ -1717,7 +1726,7 @@ export default function BuilderIsland({
                   />
                 </tr>
                 {/* 반지 행 — 슬롯 + 블루 최종스탯(스냅샷 반지 소스, 즉시 저장). */}
-                {ringRow(row, lockRingOf(row.pid), true, (p) => patchRing(row.pid, p))}
+                {ringRow(row.pid, lockRingOf(row.pid), true, (p) => patchRing(row.pid, p))}
               </tbody>
             );
           })}
@@ -1895,7 +1904,7 @@ export default function BuilderIsland({
                   ];
                 })}
                 {/* 반지 행 — 대기·유령 공용(유령 = 잠금 스냅샷 소스라 잠긴 반지가 그대로 보인다, 무반응). */}
-                {ringRow(first, ghost ? lockRingOf(first.pid) : rings[first.pid], !ghost, (p) => patchWaitRing(first.pid, p))}
+                {ringRow(first.pid, ghost ? lockRingOf(first.pid) : rings[first.pid], !ghost, (p) => patchWaitRing(first.pid, p))}
               </tbody>
             );
           })}
