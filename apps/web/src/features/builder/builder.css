@@ -3,10 +3,8 @@
 .entry-wrap {
   filter: drop-shadow(0 0 1px var(--rule));
 }
-/* 그룹 호버 — 멀티클래스 라인 묶음이 캐릭터당 tbody 하나라 tbody 기준으로 빛난다. */
-tbody:hover .entry-wrap {
-  filter: drop-shadow(0 0 2px var(--gold));
-}
+/* 카드 호버 골드 글로우 폐기(2026-09-01 사용자 지시) — 데스크톱에서 카드는 클릭 대상이 아니라
+   테두리 반응이 오해를 부른다(작동 요소는 드롭다운·잠금 바·행이 각자 반응한다). */
 .entry-card {
   display: flex;
   align-items: center;
