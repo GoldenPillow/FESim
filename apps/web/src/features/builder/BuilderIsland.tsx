@@ -313,10 +313,10 @@ export default function BuilderIsland({
           )}
         </td>
         {STAT_KEYS.map((key) => {
-          if (key === "bld") return null; // RES 셀이 colSpan 2로 흡수(무기군 아이콘 자리)
+          // RES = 클래스 적성(무기군) 아이콘 · BLD = 실효 무기 무게(2026-08-31 배치 지시).
           if (key === "res") {
             return (
-              <td key={key} colSpan={2} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
+              <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
                 <span className="flex items-center justify-start gap-1">
                   {kinds.map((k) =>
                     kindIcons[k] !== undefined ? (
@@ -324,6 +324,25 @@ export default function BuilderIsland({
                     ) : null,
                   )}
                 </span>
+              </td>
+            );
+          }
+          if (key === "bld") {
+            const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus);
+            return (
+              <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
+                {eff !== undefined && (
+                  <>
+                    <span className="block text-[14px] font-semibold leading-5 text-ink opacity-70">
+                      {labels.weight}
+                    </span>
+                    <span
+                      className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}`}
+                    >
+                      {eff.weight}
+                    </span>
+                  </>
+                )}
               </td>
             );
           }
@@ -358,6 +377,14 @@ export default function BuilderIsland({
                 <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
               </span>
             ))}
+            {equipped !== undefined && (
+              <span className="whitespace-nowrap">
+                <span className="font-semibold opacity-70">{labels.weight}</span>{" "}
+                <span className={spdPenalty(row, equipped) ? "text-danger" : ""}>
+                  {weaponAt(equipped.weapon, equipped.plus).weight}
+                </span>
+              </span>
+            )}
           </span>
         </td>
       </>
