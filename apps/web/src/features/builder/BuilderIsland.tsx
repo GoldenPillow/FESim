@@ -1991,7 +1991,7 @@ export default function BuilderIsland({
                       <td
                         key={key}
                         title={labels.personalGrowth}
-                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} min-w-[3.7rem] px-1 py-1 text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} min-w-[3.7rem] px-1 py-1 text-center font-bold text-gold md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
                         {`${growthByPid.get(row.pid)?.[key] ?? 0}%`}
                       </td>
@@ -2154,7 +2154,7 @@ export default function BuilderIsland({
                       <td
                         key={key}
                         title={labels.personalGrowth}
-                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-gold md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
                         {`${growthByPid.get(first.pid)?.[key] ?? 0}%`}
                         {key === "bld" && !groupInert && hovered && hoverRow.li === -1 && (
