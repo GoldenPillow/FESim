@@ -741,7 +741,6 @@ function RingSlot({
   labels,
   panelOpen,
   onPatch,
-  onDropOpen,
   onPanelToggle,
 }: {
   emblem?: BuilderEmblemProp | undefined;
@@ -751,7 +750,6 @@ function RingSlot({
   labels: BuilderLabels;
   panelOpen: boolean;
   onPatch: (patch: { gid?: string; bond?: number }) => void;
-  onDropOpen: (open: boolean) => void;
   onPanelToggle: () => void;
 }): React.JSX.Element {
   return (
@@ -765,7 +763,6 @@ function RingSlot({
         value={emblem?.gid ?? ""}
         options={ringOptionsOf(emblems, labels)}
         onChange={(gid) => onPatch({ gid })}
-        onOpenChange={onDropOpen}
         labels={labels}
         // 빈 슬롯 = 점선(각인 칩과 같은 "비어 있음" 어휘) — 장착되면 실선으로 조여진다.
         triggerClass={`flex h-7 shrink-0 items-center gap-0.5 rounded border bg-sunken px-1 ${emblem !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
@@ -788,7 +785,6 @@ function RingSlot({
           value={String(bond)}
           options={BOND_OPTIONS}
           onChange={(v) => onPatch({ bond: Number(v) })}
-          onOpenChange={onDropOpen}
           labels={labels}
           // 인연 레벨 = 블루 "Lv N" 표기(2026-08-31 사용자 지시) — 반지 행(블루)과 같은 톤.
           triggerClass="inline-flex h-7 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-1 text-[14px] font-semibold text-pgrow"
@@ -857,8 +853,6 @@ export default function BuilderIsland({
   const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
   /** 문장사 레벨 상세 팝업이 열린 카드 pid(배타 열림). */
   const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
-  /** 반지·絆 드롭다운이 열린 카드 pid — 열린 동안 그 행 th의 z를 올린다(다음 카드 sticky th에 가림 방지). */
-  const [ringDrop, setRingDrop] = useState<string | null>(null);
   /** 세로폰 폴딩 — 포트레이트 탭으로 반지 슬롯을 우측 전개한 pid(2026-08-31 사용자 지시). */
   const [foldPid, setFoldPid] = useState<string | null>(null);
   useEffect(() => {
@@ -1228,41 +1222,81 @@ export default function BuilderIsland({
   };
 
   /**
-   * 반지 행 — 이름 칸 = 반지 슬롯(아이콘·Lv·문장사 이름), 스탯 칸 = **추가분(+N)만** 블루
-   * (합산값은 위 본스탯 행이 블루로 품는다 — 2026-08-31 사용자 최종 확정).
-   * 반지 아이콘이 추가분과 같은 행에 서서 출처가 세로 정렬로 보인다.
+   * 반지 행 — 무기 슬롯(전투력 행) **바로 위**(2026-08-31 배치 확정): IN.LV 열 = 반지 드롭다운
+   * (무기 슬롯과 같은 박스: 아이콘+이름+▾), HP 열 = "인연레벨 Lv N"(하단 강화+각인 칩 폭대),
+   * 나머지 스탯 열 = 추가분(+N) 블루 주석(위 합산 숫자에 붙는 세로 리듬).
+   * 문장사 이름 클릭(팝업)·세로폰 폴딩은 카드(th)가 소유한다. th 없음 — 카드 th의 rowSpan이 덮는다.
    */
   const ringRow = (
     pid: string,
     src: { gid: string; bond: number } | undefined,
-    interactive: boolean,
     onPatch: (patch: { gid?: string; bond?: number }) => void,
   ): React.JSX.Element => {
     const emblem = src === undefined ? undefined : emblemByGid.get(src.gid);
     const bond = src?.bond ?? 20;
     const delta = emblem?.bonuses[bond - 1];
-    const thRaised = emblemOpen === pid || ringDrop === pid || foldPid === pid;
     return (
-      <tr>
-        {/* 반지 팝업·드롭다운이 열린 행은 z 상승 — 아래 카드 sticky th(z-10)가 DOM 후순위라 덮는다. */}
-        <th scope="row" className={`sticky left-0 bg-panel px-2 py-[2px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"}`}>
-          <RingSlot
-            emblem={emblem}
-            bond={bond}
-            emblems={visibleEmblems}
-            ringPlaceholder={ringPlaceholder}
-            labels={labels}
-            panelOpen={interactive && emblemOpen === pid}
-            onPatch={onPatch}
-            onDropOpen={(o) => setRingDrop(o ? pid : null)}
-            onPanelToggle={() => setEmblemOpen((p) => (p === pid ? null : pid))}
-          />
-        </th>
-        <td className="inlv-col" />
+      <tr key="ring">
+        <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-middle">
+          <span
+            className="ring-cell flex justify-start"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <EquipDropdown
+              ariaLabel={labels.ring}
+              value={emblem?.gid ?? ""}
+              options={ringOptionsOf(visibleEmblems, labels)}
+              onChange={(gid) => onPatch({ gid })}
+              labels={labels}
+              // 무기 슬롯과 같은 박스 규격(2026-08-31: 크기 일치) — 빈 슬롯은 점선("비어 있음" 어휘).
+              triggerClass={`flex h-7 items-center gap-1 whitespace-nowrap rounded border bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${emblem !== undefined ? "border-rule text-engage" : "border-dashed border-rule text-muted opacity-70"}`}
+              trigger={
+                <>
+                  {emblem?.icon !== undefined ? (
+                    <img src={emblem.icon} alt="" className="h-5 w-5 shrink-0 object-contain" loading="lazy" />
+                  ) : ringPlaceholder !== undefined ? (
+                    <img src={ringPlaceholder} alt="" className="h-5 w-5 shrink-0 object-contain opacity-40" loading="lazy" />
+                  ) : null}
+                  <span className="max-w-[7rem] truncate">{emblem?.name ?? labels.ringNone}</span>
+                  {CARET}
+                </>
+              }
+            />
+          </span>
+        </td>
         {STAT_KEYS.map((key) => {
+          if (key === "hp") {
+            return (
+              <td key={key} className="stat-col px-1 pb-[2px] pt-[2px] text-left align-middle md:px-2">
+                {emblem !== undefined && (
+                  <span
+                    className="ring-cell flex justify-start"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <EquipDropdown
+                      ariaLabel={labels.bond}
+                      value={String(bond)}
+                      options={BOND_OPTIONS}
+                      onChange={(v) => onPatch({ bond: Number(v) })}
+                      labels={labels}
+                      // "인연레벨 Lv N"까지 표기 — 하단 강화+각인 칩을 합친 폭대(2026-08-31 사용자 지시).
+                      triggerClass="inline-flex h-7 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold text-pgrow"
+                      trigger={
+                        <>
+                          {`${labels.bondLevel} ${bond}`}
+                          {CARET}
+                        </>
+                      }
+                    />
+                  </span>
+                )}
+              </td>
+            );
+          }
           const d = delta?.[key];
           return (
-            // 추가분은 위 합산 숫자에 붙는 주석 — 작게, 상단 여백 없이(세로 리듬: 값 ↘ +N).
             <td
               key={key}
               className={`stat-col${key === "bld" ? " stat-col-last" : ""} px-1 pb-[4px] pt-0 text-center align-top text-[13px] font-bold text-pgrow md:px-2`}
@@ -1619,6 +1653,9 @@ export default function BuilderIsland({
           {lockedRows.map(({ row, job, equipped }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
+            const lockRing = lockRingOf(row.pid);
+            const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
+            const thRaised = emblemOpen === row.pid || foldPid === row.pid;
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
             // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
             const touchUnlock = (e: React.MouseEvent): void => {
@@ -1642,11 +1679,11 @@ export default function BuilderIsland({
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {/* rowSpan 2 = 스탯 행 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다(2026-08-31 지시). */}
+                  {/* rowSpan 3 = 스탯 + 반지 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다. */}
                   <th
                     scope="row"
-                    rowSpan={2}
-                    className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
+                    rowSpan={3}
+                    className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
                   >
                     <span className="entry-wrap flex items-center">
                       <span
@@ -1675,6 +1712,41 @@ export default function BuilderIsland({
                         {job.name}
                       </span>
                     )}
+                    {/* 문장사 이름 — 클릭 = 레벨 상세 팝업(아이콘·수치는 반지 행, 이름은 카드 소유). */}
+                    {lockEmblem !== undefined && (
+                      <span className="entry-emblem relative flex justify-start">
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEmblemOpen((p) => (p === row.pid ? null : row.pid));
+                          }}
+                          className="max-w-[10em] cursor-pointer truncate px-1 pt-[2px] text-[13px] font-semibold leading-tight text-pgrow hover:underline"
+                        >
+                          {lockEmblem.name}
+                        </button>
+                        {emblemOpen === row.pid && (
+                          <EmblemPanel
+                            emblem={lockEmblem}
+                            bond={lockRing?.bond ?? 20}
+                            labels={labels}
+                            onClose={() => setEmblemOpen(null)}
+                          />
+                        )}
+                      </span>
+                    )}
+                    {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                    <RingSlot
+                      emblem={lockEmblem}
+                      bond={lockRing?.bond ?? 20}
+                      emblems={visibleEmblems}
+                      ringPlaceholder={ringPlaceholder}
+                      labels={labels}
+                      panelOpen={emblemOpen === row.pid}
+                      onPatch={(p) => patchRing(row.pid, p)}
+                      onPanelToggle={() => setEmblemOpen((p) => (p === row.pid ? null : row.pid))}
+                    />
                   </th>
                   <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
                     {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
@@ -1710,6 +1782,8 @@ export default function BuilderIsland({
                     );
                   })}
                 </tr>
+                {/* 반지 행 — 무기 슬롯 바로 위(2026-08-31 배치 확정). 스냅샷 반지 소스, 즉시 저장. */}
+                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
                   <CombatCells
@@ -1725,8 +1799,6 @@ export default function BuilderIsland({
                     onEquip={(p) => patchLock(row.pid, p)}
                   />
                 </tr>
-                {/* 반지 행 — 슬롯 + 블루 최종스탯(스냅샷 반지 소스, 즉시 저장). */}
-                {ringRow(row.pid, lockRingOf(row.pid), true, (p) => patchRing(row.pid, p))}
               </tbody>
             );
           })}
@@ -1757,12 +1829,15 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
+            const ringSrc = ghost ? lockRingOf(first.pid) : rings[first.pid];
+            const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
+            const thRaised = !ghost && (emblemOpen === first.pid || foldPid === first.pid);
             const nameTh = (
               <th
                 scope="row"
-                // 전투력 행이 라인마다 상시(공란 포함)라 rowSpan은 고정 — 호버로 표가 안 움직인다(2026-08-31).
-                rowSpan={g.length * 2 + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
+                // 전투력 행이 라인마다 상시(공란 포함) + 반지 행 1줄 — rowSpan 고정(호버로 표가 안 움직인다).
+                rowSpan={g.length * 2 + (showGrowth ? 1 : 0) + 1}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
                   <span
@@ -1790,6 +1865,41 @@ export default function BuilderIsland({
                 >
                   {(activeLi !== undefined ? compares[activeLi]?.job.name : compares[0]?.job.name) ?? ""}
                 </span>
+                {/* 문장사 이름 — 클릭 = 레벨 상세 팝업(아이콘·수치는 반지 행, 이름은 카드 소유). */}
+                {wEmblem !== undefined && (
+                  <span className="entry-emblem relative flex justify-start">
+                    <button
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!ghost) setEmblemOpen((p) => (p === first.pid ? null : first.pid));
+                      }}
+                      className="max-w-[10em] cursor-pointer truncate px-1 pt-[2px] text-[13px] font-semibold leading-tight text-pgrow hover:underline"
+                    >
+                      {wEmblem.name}
+                    </button>
+                    {!ghost && emblemOpen === first.pid && (
+                      <EmblemPanel
+                        emblem={wEmblem}
+                        bond={ringSrc?.bond ?? 20}
+                        labels={labels}
+                        onClose={() => setEmblemOpen(null)}
+                      />
+                    )}
+                  </span>
+                )}
+                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                <RingSlot
+                  emblem={wEmblem}
+                  bond={ringSrc?.bond ?? 20}
+                  emblems={visibleEmblems}
+                  ringPlaceholder={ringPlaceholder}
+                  labels={labels}
+                  panelOpen={!ghost && emblemOpen === first.pid}
+                  onPatch={(p) => patchWaitRing(first.pid, p)}
+                  onPanelToggle={() => setEmblemOpen((p) => (p === first.pid ? null : first.pid))}
+                />
               </th>
             );
             return (
@@ -1882,6 +1992,8 @@ export default function BuilderIsland({
                   const open = !row.ineligible && revealed(li);
                   return [
                     line,
+                    // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
+                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p))] : []),
                     <tr
                       key={`combat-${li}`}
                       className={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
@@ -1903,8 +2015,6 @@ export default function BuilderIsland({
                     </tr>,
                   ];
                 })}
-                {/* 반지 행 — 대기·유령 공용(유령 = 잠금 스냅샷 소스라 잠긴 반지가 그대로 보인다, 무반응). */}
-                {ringRow(first.pid, ghost ? lockRingOf(first.pid) : rings[first.pid], !ghost, (p) => patchWaitRing(first.pid, p))}
               </tbody>
             );
           })}

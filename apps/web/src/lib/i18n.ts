@@ -187,6 +187,8 @@ export interface BuilderLabels {
   ringNone: string;
   /** 인연(絆) 레벨 드롭다운 라벨. */
   bond: string;
+  /** 인연 레벨 트리거 접두("인연레벨 Lv" — 뒤에 숫자, 2026-08-31 사용자 표기 지시). */
+  bondLevel: string;
   /** 팝업 구획: 싱크로(장착 중 상시) 스킬. */
   synchro: string;
   /** 팝업 구획: 인게이지 중 스킬·무기. */
@@ -395,6 +397,7 @@ export const UI: Record<Locale, Strings> = {
       ring: "Ring",
       ringNone: "No ring",
       bond: "Bond",
+      bondLevel: "Bond Lv",
       synchro: "Sync",
       engage: "Engage",
     },
@@ -578,6 +581,7 @@ export const UI: Record<Locale, Strings> = {
       ring: "指輪",
       ringNone: "指輪なし",
       bond: "絆",
+      bondLevel: "絆 Lv",
       synchro: "シンクロ",
       engage: "エンゲージ",
       stats: {
@@ -763,6 +767,7 @@ export const UI: Record<Locale, Strings> = {
       ring: "반지",
       ringNone: "반지 없음",
       bond: "인연",
+      bondLevel: "인연레벨 Lv",
       synchro: "싱크로",
       engage: "인게이지",
       stats: {
