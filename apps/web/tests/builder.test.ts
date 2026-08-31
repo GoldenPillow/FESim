@@ -200,6 +200,8 @@ describe("전투력 사영 (combatOf) — 정본 self-only 식 · 맨손(무기 
     ];
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const c = combatOf(row!);
+    expect(c.patk).toBeCloseTo(5.5); // 물공 = 순수 힘(맨손) — 장비 피쳐가 서면 무기 항이 합산된다
+    expect(c.matk).toBe(0); // 마공 = 순수 마력 — 같은 식을 마법 속성으로 평가
     expect(c.hit).toBe(22);
     expect(c.avoid).toBe(16);
     expect(c.crit).toBe(5);

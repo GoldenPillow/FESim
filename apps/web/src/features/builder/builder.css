@@ -72,6 +72,12 @@ tbody:hover .entry-wrap {
   mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
 }
 
+/* 전투력 행 이중 렌더 — PC·가로 = 스탯 열 그리드(combat-grid), 세로 모바일 = 흐름(combat-flow).
+   두 벌을 같이 그리고 미디어가 표시를 가른다(display:none 셀은 표 레이아웃에서 빠진다). */
+.combat-flow {
+  display: none;
+}
+
 /* 세로 모바일(사용자 결정 2026-08-31: 세로 우선) — 얼굴 절반·이름 숨김(얼굴로 식별)·
    전 스탯 무스크롤 한 화면. md: 유틸과 겨루는 자리라 이 레이어가 이긴다(!important).
    ☠이 블록은 기본 규칙 **뒤**에 있어야 산다 — 앞에 두면 동일 특이성으로 조용히 죽는다(실제 있었던 결함). */
@@ -131,9 +137,16 @@ tbody:hover .entry-wrap {
   .entry-name {
     display: none;
   }
-  /* 세로는 무스크롤 밀도가 우선 — 자물쇠 슬롯 숨김(잠금 상태는 카드 테두리로 보인다, 탭 = 토글). */
+  /* 세로는 무스크롤 밀도가 우선 — 자물쇠 슬롯 숨김(잠금 상태는 블록 테두리로 보인다, 탭 = 토글). */
   .entry-lock {
     display: none;
+  }
+  /* 전투력은 흐름 배치로 — 좁은 열에 캡션·값 2단이 안 들어간다. */
+  .builder-table .combat-grid {
+    display: none !important;
+  }
+  .builder-table .combat-flow {
+    display: table-cell !important;
   }
 }
 
@@ -193,5 +206,12 @@ tbody:hover .entry-wrap {
     /* PC와 동일 5em — 캐릭터명 최대 5자(2026-08-31 카드 1칸 축소). */
     width: 5em !important;
     font-size: 17px !important;
+  }
+  /* 가로폰은 PC 풀피쳐 — 전투력도 그리드 정렬로 복원(세로 블록이 좁은 가로폰에 새는 것 방지). */
+  .builder-table .combat-grid {
+    display: table-cell !important;
+  }
+  .builder-table .combat-flow {
+    display: none !important;
   }
 }

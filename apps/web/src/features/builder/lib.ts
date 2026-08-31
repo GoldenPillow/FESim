@@ -199,12 +199,14 @@ export function lockedDisplayRows(
 
 const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
 
-/** 전투 능력 순서(인게임 유닛 화면 순) — 파생치만: 맨손 공격(물공=힘·마공=마력)은 기본 스탯 행과
-    중복이라 제외한다(2026-08-31 사용자 지시). */
-export const COMBAT_KEYS = ["hit", "avoid", "crit", "ddg"] as const;
+/** 전투 능력 순서(인게임 유닛 화면 순, 공격은 물공·마공 분리 — 2026-08-31 사용자 지시).
+    맨손 물공·마공 = 순수 힘·마력. 장비 장착 피쳐가 서면 Combatant.weapon만 채우면 정본 식
+    (攻撃力計算 = ユニット攻撃力 + 武器攻撃力x特効)이 그대로 합산한다 — 여기 코드는 불변. */
+export const COMBAT_KEYS = ["patk", "matk", "hit", "avoid", "crit", "ddg"] as const;
 export type CombatKey = (typeof COMBAT_KEYS)[number];
 
-const COMBAT_FORMULAS: Record<CombatKey, string> = {
+const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
+  patk: "攻撃力計算",
   hit: "命中値計算",
   avoid: "回避値計算",
   crit: "必殺値計算",
@@ -229,7 +231,12 @@ export function combatOf(row: BuilderRow): Record<CombatKey, number> {
     },
   });
   const out = {} as Record<CombatKey, number>;
-  for (const key of COMBAT_KEYS) out[key] = calculator.eval(COMBAT_FORMULAS[key], env) as number;
+  for (const key of Object.keys(COMBAT_FORMULAS) as (keyof typeof COMBAT_FORMULAS)[]) {
+    out[key] = calculator.eval(COMBAT_FORMULAS[key], env) as number;
+  }
+  // 마공 = 같은 정본 식(攻撃力計算 → ユニット攻撃力計算)을 공격 속성만 마법으로 바꿔 평가 — 식 복제 금지.
+  const magicEnv = { ...env, lookup: (name: string) => (name === "攻撃属性" ? "魔法属性" : env.lookup(name)) };
+  out.matk = calculator.eval("攻撃力計算", magicEnv) as number;
   return out;
 }
 

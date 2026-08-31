@@ -55,6 +55,11 @@ const STAT_EN: Record<StatKey, string> = {
   hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
 };
 
+/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). 인게임 순서 유지, HP·RES·BLD 열은 비운다. */
+const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
+  str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
+};
+
 /** 자물쇠 아이콘(잠김 형상, 머티리얼 계열 근사) — 호버 = "이렇게 잠긴다" 예고. 잠금 후엔 사라진다. */
 const LockIcon = (): React.JSX.Element => (
   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
@@ -171,25 +176,46 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
   const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
   /**
-   * 전투력 행의 (IN.LV 하단 = 직업명, 스탯쪽 = 전투력) 셀 짝 — 잠금·호버 공용(2026-08-31 배치 지시).
-   * 값은 본문과 같은 화이트 볼드 14px, 직업명은 로열블루(멀티클래스 식별).
+   * 전투력 행의 셀 묶음 — 잠금·호버 공용. 직업명 = IN.LV 하단(로열블루), 전투력 = 스탯쪽(2026-08-31).
+   * PC·가로 = 스탯 열 그리드에 캡션·값 2단으로 수직 정렬(물공→STR … 필살회피→DEF, 인게임 순).
+   * 세로 모바일 = 열이 좁아 캡션이 안 들어가므로 흐름 배치 — 표시는 builder.css 미디어가 가른다.
+   * 캡션은 muted가 흐릿하다는 지시(2026-08-31)로 본문색 세미볼드 + 감쇠로 처리.
    */
   const combatCells = (row: BuilderRow, jobName: string | undefined): React.JSX.Element => {
     const c = combatOf(row);
     return (
       <>
-        <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-top">
+        <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
           {jobName !== undefined && (
             <span className="block whitespace-nowrap text-[12px] font-semibold leading-tight text-engage">
               {jobName}
             </span>
           )}
         </td>
-        <td colSpan={STAT_KEYS.length} className="px-2 pb-[10px] pt-[2px] text-left">
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink">
+        {STAT_KEYS.map((key) => {
+          const ck = COMBAT_COL[key];
+          return (
+            <td
+              key={key}
+              className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2"
+            >
+              {ck !== undefined && (
+                <>
+                  <span className="block text-[12px] font-semibold leading-4 text-ink opacity-70">
+                    {labels.combat[ck]}
+                  </span>
+                  <span className="block text-[14px] font-bold leading-5 text-ink">{fmtCombat(c[ck])}</span>
+                </>
+              )}
+            </td>
+          );
+        })}
+        <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[13px] font-bold leading-tight text-ink">
             {COMBAT_KEYS.map((key) => (
               <span key={key} className="whitespace-nowrap">
-                <span className="font-normal text-muted">{labels.combat[key]}</span> {fmtCombat(c[key])}
+                <span className="text-[12px] font-semibold opacity-70">{labels.combat[key]}</span>{" "}
+                {fmtCombat(c[key])}
               </span>
             ))}
           </span>
@@ -398,7 +424,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
                 <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
-                  <th scope="row" className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
+                  {/* rowSpan 2 = 스탯 행 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다(2026-08-31 지시). */}
+                  <th scope="row" rowSpan={2} className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
                     <span className="entry-wrap flex items-center">
                       <span className="entry-card">
                         {row.face !== undefined && (
@@ -426,7 +453,6 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 </tr>
                 {/* 전투력 행 — 잠금은 상시 표시. 직업명 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
                 <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
-                  <td className="sticky left-0 z-10 bg-panel" />
                   {combatCells(row, jobName)}
                 </tr>
               </tbody>
