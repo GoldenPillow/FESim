@@ -1307,12 +1307,14 @@ export default function BuilderIsland({
       숨김이면 함께 숨긴다 — ☠전용직 이름이 숨김 캐릭터의 존재를 누설한다(스포일러 실사고 2026-09-01). */
   const visibleTargetJobs = useMemo(() => {
     const byPid = new Map(chars.map((c) => [c.pid, c]));
-    return targetJobs.filter((j) => {
+    const shown = targetJobs.filter((j) => {
       if (j.uniquePid === undefined) return true;
       const c = byPid.get(j.uniquePid);
       if (c === undefined) return true;
       return (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true);
     });
+    // 범용 선순위·전용직 후순위(2026-09-01 사용자 지시) — 각 구획 안은 인게임 Sort 순 유지.
+    return [...shown.filter((j) => j.uniquePid === undefined), ...shown.filter((j) => j.uniquePid !== undefined)];
   }, [targetJobs, chars, showSpoilers, showDlc]);
   // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
   // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
