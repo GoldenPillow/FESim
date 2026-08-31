@@ -276,10 +276,10 @@ const ringOptionsOf = (emblems: readonly BuilderEmblemProp[], labels: BuilderLab
   ...emblems.map((e) => ({ value: e.gid, label: e.name, ...(e.icon !== undefined ? { icon: e.icon } : {}) })),
 ];
 
-/** 絆 레벨 1~20 — 반지 선택 시 기본 20(2026-08-31 사용자 지시)이라 20이 첫 항목이 되게 내림차순. */
+/** 絆 레벨 1~20 — 오름차순(2026-08-31 사용자 변경). 반지 선택 시 기본값은 여전히 20. */
 const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
-  value: String(20 - i),
-  label: String(20 - i),
+  value: String(i + 1),
+  label: String(i + 1),
 }));
 
 /**
