@@ -269,8 +269,8 @@ const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
   label: String(i + 1),
 }));
 
-/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계. */
-const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: String(n) }));
+/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계, "Lv." 접두(2026-09-01 사용자 지시). */
+const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `Lv. ${n}` }));
 
 /**
  * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
@@ -1461,10 +1461,11 @@ export default function BuilderIsland({
         onChange={(v) => onPatch({ internal: Number(v) })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
-        triggerClass="flex h-7 w-[38px] shrink-0 items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
+        // "Lv." 접두만큼 넓히고(60px) 직업 선택기(flex-1)가 그만큼 줄어든다(2026-09-01 사용자 지시).
+        triggerClass="flex h-7 w-[60px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
         trigger={
           <>
-            {internalDisplay}
+            {`Lv. ${internalDisplay}`}
             {CARET}
           </>
         }
