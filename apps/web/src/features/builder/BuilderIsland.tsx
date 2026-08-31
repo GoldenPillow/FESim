@@ -668,7 +668,7 @@ function CombatCells({
         if (key === "bld") {
           const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
           return (
-            <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
+            <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
               {eff !== undefined && (
                 <>
                   <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
@@ -1406,7 +1406,7 @@ export default function BuilderIsland({
                 <th
                   key={key}
                   scope="col"
-                  className="stat-col sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]"
+                  className={`stat-col${key === "bld" ? " stat-col-last" : ""} sticky top-0 z-20 min-w-[3.7rem] bg-panel p-0 align-middle md:min-w-[5.5rem] font-normal shadow-[inset_0_-1px_0_var(--rule)]`}
                   aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -1434,7 +1434,7 @@ export default function BuilderIsland({
                     {c.internal + 1}
                   </td>
                   {STAT_KEYS.map((key) => (
-                    <td key={key} style={{ top }} className="stat-col sticky z-20 bg-panel px-1 py-[9px] text-center shadow-[inset_0_-1px_0_var(--rule)]">
+                    <td key={key} style={{ top }} className={`stat-col${key === "bld" ? " stat-col-last" : ""} sticky z-20 bg-panel px-1 py-[9px] text-center shadow-[inset_0_-1px_0_var(--rule)]`}>
                       <span className="grow-note font-bold text-gold" title={labels.growth}>
                         {`${c.job.diffGrow[key]}%`}
                       </span>
@@ -1591,16 +1591,16 @@ export default function BuilderIsland({
                     return (
                       <td
                         key={key}
-                        className={`stat-col relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${sep}`}
                       >
                         {cell.text}
-                        {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측, 클릭 = 대기 복귀. */}
+                        {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측(레드), 클릭 = 대기 복귀. */}
                         {key === "bld" && lockHover === row.pid && (
                           <button
                             type="button"
                             aria-label={labels.unlock}
                             title={labels.unlock}
-                            className="entry-lockbar"
+                            className="entry-lockbar entry-lockbar-off"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1702,7 +1702,7 @@ export default function BuilderIsland({
                       <td
                         key={key}
                         title={labels.personalGrowth}
-                        className={`stat-col relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold text-pgrow md:min-w-[5.5rem] md:px-2 ${sep}`}
                       >
                         {`${growthByPid.get(first.pid)?.[key] ?? 0}%`}
                         {key === "bld" && !groupInert && hovered && hoverRow.li === -1 && (
@@ -1745,7 +1745,7 @@ export default function BuilderIsland({
                         return (
                           <td
                             key={key}
-                            className={`stat-col relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                            className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
                             {cell.text}
                             {/* 잠금 바(2026-08-31 재설계) — 호버 라인 마지막 셀 우측, 셀 크기·위치 불변. */}
