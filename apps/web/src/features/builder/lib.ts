@@ -26,6 +26,8 @@ export interface BuilderCell {
   /** 정렬 비교값 — 캡 정수도 같은 축에서 비교한다. */
   value: number;
   capped: boolean;
+  /** 도달 상한(mergeStatCap 합성값) — 絆 보너스 가산이 이 위로 못 넘게 잘린다(2026-09-01 사용자 관측). */
+  cap: number;
   /** 문장사 絆 보너스로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
   buffed?: boolean;
 }
@@ -100,7 +102,7 @@ export function builderRow(
     // ☠toFixed 금지 — 이진 부동소수에서 6.35가 "6.3"으로 떨어진다. 누적기가 정수라
     //   (스탯*100 + acc)/10을 정수 반올림하면 반올림 자리가 정확하다(half-up).
     const tenth = Math.round((stat * 100 + path.acc[key]) / 10) / 10;
-    cells[key] = { text: hit ? String(stat) : tenth.toFixed(1), value, capped: hit };
+    cells[key] = { text: hit ? String(stat) : tenth.toFixed(1), value, capped: hit, cap: target.limit[key] };
   }
   return {
     pid: char.pid,
@@ -172,8 +174,16 @@ export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey,
   for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
     if (d === 0) continue;
     const cell = cells[key];
-    const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
-    cells[key] = { ...cell, text, value: cell.value + d, ...(d > 0 ? { buffed: true as const } : {}) };
+    // 캡 클램프(2026-09-01 사용자 관측: 캡 초과 값이 표에 섰다) — 넘치면 캡 정수(소수점 버림)로.
+    const value = Math.min(cell.value + d, cell.cap);
+    if (Math.abs(value - cell.value) < 1e-9) continue; // 이미 캡 = 상승 없음(블루도 없음)
+    const hit = value >= cell.cap - 1e-9;
+    const text = hit
+      ? String(cell.cap)
+      : cell.capped
+        ? String(Number(cell.text) + d)
+        : (parseFloat(cell.text) + d).toFixed(1);
+    cells[key] = { ...cell, text, value, capped: hit, ...(d > 0 ? { buffed: true as const } : {}) };
   }
   return { ...row, cells, emblemDelta: delta };
 }
