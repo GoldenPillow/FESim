@@ -653,7 +653,6 @@ interface CombatCellsProps {
   job: BuilderJobProp | undefined;
   equipped: EquippedWeapon | undefined;
   /** 공란 모드 — 자리(높이·폭)는 그대로 두고 내용만 숨긴다(호버 시 표가 안 움직이는 것이 목적). */
-  ghost: boolean;
   /** 스펙 팝오버 — 카드 드롭다운 조작 중(행 포커스)에만 옆에 뜬다(2026-08-31 지시). */
   specOpen: boolean;
   weapons: readonly BuilderWeaponProp[];
@@ -676,7 +675,6 @@ function CombatCells({
   row,
   job,
   equipped,
-  ghost,
   specOpen,
   weapons,
   engraves,
@@ -694,7 +692,6 @@ function CombatCells({
       : Object.keys(job.weaponRanks)
           .map(Number)
           .sort((a, b) => a - b);
-  const hide = ghost ? " invisible" : "";
   /** 이 행의 드롭다운이 하나라도 열려 있나 — 열림 중엔 포커스 팝오버를 접는다(목록·호버 스펙과 겹침). */
   const [openDrop, setOpenDrop] = useState(false);
   const weapon = equipped?.weapon;
@@ -808,7 +805,7 @@ function CombatCells({
         if (key === "res") {
           return (
             <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
-              <span className={`flex items-center justify-start gap-1${hide}`}>
+              <span className={`flex items-center justify-start gap-1`}>
                 {kinds.map((k) =>
                   kindIcons[k] !== undefined ? (
                     <img key={k} src={kindIcons[k]} alt="" className="h-4 w-4" loading="lazy" />
@@ -824,11 +821,11 @@ function CombatCells({
             <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
               {eff !== undefined && (
                 <>
-                  <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
+                  <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
                     {labels.weight}
                   </span>
                   <span
-                    className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}${hide}`}
+                    className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}`}
                   >
                     {eff.weight}
                   </span>
@@ -845,17 +842,17 @@ function CombatCells({
           >
             {ck !== undefined && (
               <>
-                <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
+                <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
                   {labels.combat[ck]}
                 </span>
-                <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}${hide}`}>{fmtCombat(c[ck])}</span>
+                <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
               </>
             )}
           </td>
         );
       })}
       <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
-        <span className={`relative flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink${hide}`}>
+        <span className={`relative flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink`}>
           {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
           {plusChip()}
           {engraveChip()}
@@ -1361,6 +1358,13 @@ export default function BuilderIsland({
     });
   }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid, bondPreview]);
 
+  /** 합류 초기 무기 단면 — 글로벌 아이템 미선택 시 카드 기본값(2026-09-01 사용자 지시). */
+  const joinEquipOf = (pid: string): EquippedWeapon | undefined => {
+    const iid = charByPid.get(pid)?.joinIid;
+    const weapon = iid === undefined ? undefined : weapons.find((w) => w.iid === iid);
+    return weapon === undefined ? undefined : { weapon, plus: 0 };
+  };
+
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
     const o = overrides[`${pid}:${li}`];
@@ -1368,7 +1372,8 @@ export default function BuilderIsland({
     const job = cardCompareOf(pid, li)?.job;
     const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
       eq === undefined || job === undefined || !canEquip(job, eq.weapon) ? undefined : eq;
-    if (o === undefined) return gate(compares[li]?.equipped);
+    // 기본값 = 캐릭터별 합류 초기 무기 — 글로벌 아이템을 고르면 전원 교체(2026-09-01 사용자 확정).
+    if (o === undefined) return gate(compares[li]?.equipped ?? joinEquipOf(pid));
     const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
     if (weapon === undefined) return undefined;
     const engrave = o.engrave === undefined ? undefined : visibleEngraves.find((g) => g.gid === o.engrave);
@@ -2110,7 +2115,6 @@ export default function BuilderIsland({
                     row={row}
                     job={job}
                     equipped={equipped}
-                    ghost={false}
                     specOpen={focusRow !== null && focusRow.pid === row.pid && focusRow.li === -1}
                     weapons={weapons}
                     engraves={visibleEngraves}
@@ -2130,13 +2134,6 @@ export default function BuilderIsland({
             // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
             const roomy = g.length > 1 ? "py-[15px]" : "py-1";
             const hovered = hoverRow !== null && hoverRow.pid === first.pid;
-            const focused = focusRow !== null && focusRow.pid === first.pid;
-            // 활성 라인(호버 우선, 카드 드롭다운 조작 중 포함) — 클래스명·SPD 페널티 표기의 기준.
-            const activeLi =
-              hovered && hoverRow.li >= 0 ? hoverRow.li : focused && focusRow.li >= 0 ? focusRow.li : undefined;
-            /** 전투력 행 공개 — 라인 호버 또는 그 라인의 카드 드롭다운 조작 중. 자리는 상시(공란). */
-            const revealed = (li: number): boolean =>
-              (hovered && hoverRow.li === li) || (focused && focusRow.li === li);
             // 유령 카드(엔트리 잠금분의 비교용 사본)만 무반응 — 전용직 불가 행도 참전(잠금)은 제한 없음
             // (2026-08-31 사용자 지시 — 합류 상태 값으로 잠긴다).
             const groupInert = ghost;
@@ -2264,7 +2261,7 @@ export default function BuilderIsland({
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
-                        const down = key === "spd" && li === activeLi && spdPenalty(row, eq);
+                        const down = key === "spd" && spdPenalty(row, eq);
                         // 絆 보너스 상승 = 블루 — 무게로 깎인 SPD 레드와 겹치면 상승이 우선(2026-08-31 사용자 지시).
                         const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                         return (
@@ -2296,7 +2293,6 @@ export default function BuilderIsland({
                   // 전투력 행 상시 자리(2026-08-31 지시: 처음부터 크기 확보, 공란 — 표가 안 움직인다).
                   // 내용은 호버·드롭다운 조작 중에만 공개. ☠호버 없는 기기(터치)는 공개 수단이 없어
                   // CSS(@media hover:none)가 combat-ghost 행을 통째로 걷는다 — 잠금 블록 전투력 행은 남는다.
-                  const open = !row.ineligible && revealed(li);
                   return [
                     line,
                     // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
@@ -2311,7 +2307,6 @@ export default function BuilderIsland({
                         row={row}
                         job={cardCompareOf(first.pid, li)?.job}
                         equipped={eq}
-                        ghost={!open}
                         specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
                         weapons={weapons}
                         engraves={visibleEngraves}

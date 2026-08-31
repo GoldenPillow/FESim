@@ -84,6 +84,7 @@ def build_tables(src: Path, out: Path) -> None:
     _, skills = load_sheet(src / "gamedata" / "skill.xml")
     write_json(out / "tables" / "skills.json", keyed(skills, "Sid"))
     build_gods(src, out)
+    build_joinitems(src, out)
     build_ai(src, out)
     build_supports(src, out)
     build_calculator(src, out)
@@ -192,6 +193,24 @@ def build_gods(src: Path, out: Path) -> None:
                 if row.get(k)
             }
     write_json(out / "tables" / "gods.json", {"gods": keyed(gods, "Gid"), "growth": growth})
+
+
+def build_joinitems(src: Path, out: Path) -> None:
+    """chart.xml 加入 시트 → 캐릭터별 합류 초기 소지품 {pid: [iid...]}(챕터 진행순 최초 비공백 목록).
+
+    같은 pid가 여러 챕터 명부에 반복 등장하므로 **처음으로 소지품이 채워진 행**이 합류 로드아웃이다
+    (뤼에르는 M000 행이 빈 목록이라 M002 행이 잡힌다 — 실측 2026-09-01). chart에 없는 캐릭터
+    (DLC 사룡의 장 5인)는 키 자체가 없다 = 소비처가 미착용으로 강하한다."""
+    _, rows = load_sheet(src / "gamedata" / "chart.xml", 0)
+    out_map: dict[str, list[str]] = {}
+    for row in rows:
+        pid = row.get("Pid")
+        if not pid or pid in out_map:
+            continue
+        iids = [row[f"Item{i}.Iid"] for i in range(1, 9) if row.get(f"Item{i}.Iid")]
+        if iids:
+            out_map[pid] = iids
+    write_json(out / "tables" / "joinitems.json", out_map)
 
 
 def build_ai(src: Path, out: Path) -> None:
