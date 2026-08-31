@@ -1464,11 +1464,16 @@ export default function BuilderIsland({
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
-  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업(전용직 포함 — 참전 제한 없음, 2026-08-31). */
-  const classOptions = useMemo<EquipOption[]>(
-    () => [{ value: "", label: labels.jobNone }, ...targetJobs.map((j) => ({ value: j.jid, label: j.name }))],
-    [targetJobs, labels],
-  );
+  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업. 전용직(uniquePid)은 가능자 외 회색 비활성
+      (2026-09-01 사용자 지시: 댄서 = 세아다스 외 사용 불가 — 클릭 무반응, disabled 옵션 규약). */
+  const classOptionsFor = (pid: string): EquipOption[] => [
+    { value: "", label: labels.jobNone },
+    ...targetJobs.map((j) => ({
+      value: j.jid,
+      label: j.name,
+      ...(j.uniquePid !== undefined && j.uniquePid !== pid ? { disabled: true as const } : {}),
+    })),
+  ];
 
   /** 카드 클래스·In.Lv 드롭다운 행 — 카드(이름 포함) 열 전체 폭에 [클래스 flex-1(긴 직업명 여유)]
       [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
@@ -1489,7 +1494,7 @@ export default function BuilderIsland({
       <EquipDropdown
         ariaLabel={labels.job}
         value={jidValue}
-        options={classOptions}
+        options={classOptionsFor(pid)}
         onChange={(jid) => onPatch({ jid })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
