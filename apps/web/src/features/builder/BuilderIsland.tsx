@@ -67,10 +67,17 @@ const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
   hp: "as", str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
 };
 
-/** 자물쇠 아이콘(잠김 형상, 머티리얼 계열 근사) — 호버 = "이렇게 잠긴다" 예고. 잠금 후엔 사라진다. */
-const LockIcon = (): React.JSX.Element => (
+/** 자물쇠 아이콘(머티리얼 계열 근사) — 대기 행 호버 = 잠김 형상 예고(클릭 = 잠금),
+    잠금 블록 호버 = 열린 형상(클릭 = 해제 — 행·배경 클릭으로는 안 풀린다, 2026-08-31 부주의 방지). */
+const LockIcon = ({ open = false }: { open?: boolean }): React.JSX.Element => (
   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-    <path d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z" />
+    <path
+      d={
+        open
+          ? "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9H9V6a3 3 0 0 1 5.91-.74l1.94-.49A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Z"
+          : "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z"
+      }
+    />
   </svg>
 );
 
@@ -134,7 +141,8 @@ export default function BuilderIsland({
      끌리는 블록은 반투명으로 목표 자리를 미리 보이고, 나머지는 자리 양보 애니메이션(builder.css).
      놓는 순간 순서 확정 + 저장(온오프와 같은 저장 시점 규약). */
   const lockedRefs = useRef(new Map<string, HTMLTableSectionElement>());
-  const dragMovedRef = useRef(false);
+  /** 잠금 블록 호버 — 열린 자물쇠(해제 버튼)를 이 블록에만 띄운다. */
+  const [lockHover, setLockHover] = useState<string | null>(null);
   const [drag, setDrag] = useState<{
     pid: string;
     from: number;
@@ -148,15 +156,13 @@ export default function BuilderIsland({
 
   const beginDrag = (e: React.PointerEvent, pid: string, index: number): void => {
     if (e.pointerType !== "mouse" || e.button !== 0 || locked.length < 2) return;
-    e.preventDefault(); // 드래그 중 텍스트 선택 방지 — click 이벤트는 그대로 온다(무이동 = 해제 토글).
-    dragMovedRef.current = false;
+    e.preventDefault(); // 드래그 중 텍스트 선택 방지.
     const heights = locked.map((l) => lockedRefs.current.get(l.pid)?.getBoundingClientRect().height ?? 0);
     const startY = e.clientY;
     const onMove = (ev: PointerEvent): void => {
       const dy = ev.clientY - startY;
       const active = Math.abs(dy) > 4 || (dragRef.current?.active ?? false);
       if (!active) return;
-      dragMovedRef.current = true;
       // 목표 슬롯 = 이웃 블록 높이의 절반을 넘을 때마다 한 칸씩 걷는다(블록 높이 비균일 대응).
       let to = index;
       let rest = dy;
@@ -659,13 +665,11 @@ export default function BuilderIsland({
           {lockedRows.map(({ row, job, equipped }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
-            // 드래그로 움직였으면 해제 클릭을 삼킨다 — 무이동 클릭만 해제(2026-08-31 이동모드).
-            const unlock = (): void => {
-              if (dragMovedRef.current) {
-                dragMovedRef.current = false;
-                return;
-              }
-              toggleLock(row.pid, -1);
+            // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
+            // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
+            const touchUnlock = (e: React.MouseEvent): void => {
+              const native = e.nativeEvent as PointerEvent;
+              if (native.pointerType === "touch") toggleLock(row.pid, -1);
             };
             const dragCls =
               drag !== null && drag.active ? (drag.from === gi ? " entry-dragging" : " entry-drag-shift") : "";
@@ -678,10 +682,12 @@ export default function BuilderIsland({
                 }}
                 style={dragStyle(gi)}
                 onPointerDown={(e) => beginDrag(e, row.pid, gi)}
+                onMouseEnter={() => setLockHover(row.pid)}
+                onMouseLeave={() => setLockHover(null)}
                 className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}${dragCls}`}
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
-                <tr className="cursor-grab hover:bg-sunken" onClick={unlock} title={labels.unlock}>
+                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {/* rowSpan 2 = 스탯 행 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다(2026-08-31 지시). */}
                   <th scope="row" rowSpan={2} className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
                     <span className="entry-wrap flex items-center">
@@ -691,7 +697,24 @@ export default function BuilderIsland({
                         )}
                         <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
                       </span>
-                      <span className="entry-lock" aria-hidden="true" />
+                      {/* 해제 = 이 버튼만(호버 시 열린 자물쇠) — 행·배경 클릭은 무반응(부주의 방지). */}
+                      {lockHover === row.pid ? (
+                        <button
+                          type="button"
+                          aria-label={labels.unlock}
+                          title={labels.unlock}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleLock(row.pid, -1);
+                          }}
+                          className="entry-lock text-muted hover:text-engage"
+                        >
+                          <LockIcon open />
+                        </button>
+                      ) : (
+                        <span className="entry-lock" aria-hidden="true" />
+                      )}
                     </span>
                     {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
                     {job !== undefined && (
@@ -716,7 +739,7 @@ export default function BuilderIsland({
                   })}
                 </tr>
                 {/* 전투력 행 — 잠금은 상시 표시. 아이템 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
-                <tr className="cursor-grab hover:bg-sunken" onClick={unlock} title={labels.unlock}>
+                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {combatCells(row, job, equipped)}
                 </tr>
               </tbody>

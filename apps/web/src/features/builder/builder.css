@@ -17,13 +17,14 @@ tbody:hover .entry-wrap {
 }
 
 /* ── 잠금(2026-08-31) — 색은 인게이지 대표 블루(global.css --engage, 로고 실측). ── */
-/* 자물쇠 슬롯 — 카드와 IN.LV 사이 남은 폭 전체를 차지하고 중앙 정렬(양옆 공백 균등, 2026-08-31).
-   기본은 공백이라 아이콘이 떠도 표 폭이 안 움직인다. */
+/* 자물쇠 슬롯 — 카드와 IN.LV 사이, ★좌우 여백 명시(2026-08-31 재지시: 양옆 공백이 보여야 한다).
+   남는 폭이 있으면 그 안에서도 중앙 정렬. 기본은 공백이라 아이콘이 떠도 표 폭이 안 움직인다. */
 .entry-lock {
   display: flex;
   flex: 1 1 20px;
   min-width: 20px;
   height: 20px;
+  margin: 0 10px;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
