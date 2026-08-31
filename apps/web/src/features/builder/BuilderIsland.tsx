@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
-import { builderRowGroups, nextSort, orderRowGroups, type BuilderCompare, type BuilderSort } from "./lib";
+import {
+  builderRowGroups,
+  combatOf,
+  COMBAT_KEYS,
+  lockedDisplayRows,
+  nextSort,
+  waitingRowGroups,
+  type BuilderCompare,
+  type BuilderRow,
+  type BuilderSort,
+} from "./lib";
 import type { BuilderProps } from "../../lib/fe17";
 import {
   loadEntryLocks,
@@ -11,6 +21,7 @@ import {
   saveShowGrowth,
   saveShowSpoilers,
   saveStarsphere,
+  type EntryLock,
 } from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
 
@@ -20,7 +31,9 @@ import type { BuilderLabels } from "../../lib/i18n";
  * 여기서 계산한다. 계산은 features/builder/lib(→ 엔진 growthPath)가 소유하고 이 파일은 표시만 한다.
  * 멀티클래스 비교(2026-08-31): 슬롯(직업+내부 레벨)마다 헤더 성장률 행 1줄 + 캐릭터마다 본문 라인 1줄 —
  * 두 줄의 순서 동치는 builderRowGroups 테스트가 지킨다. 고유 성장 체커는 블록 첫 줄에 개인 성장률(블루).
- * 잠금(2026-08-31): 스탯 행 클릭 = 그 캐릭터를 상단에 고정(인게이지 블루 카드 테두리) + 정렬 제외.
+ * 잠금(2026-08-31): 스탯 행 클릭 = 잠금 당시 (직업, 레벨, 성옥) 스냅샷으로 최상단 고정(행 전체
+ * 인게이지 블루 테두리 + 잠그는 순간 충격파 1회) + 비교표 제외. 해제 = 대기 목록 복귀.
+ * 호버·잠금 행 아래에는 전투력 행(맨손 기준, 정본 self-only 식 — lib.combatOf)이 선다.
  * 전용직 불가(ineligible) 행은 호버·클릭 무반응 — 해당 캐릭터만 반응한다.
  */
 
@@ -65,9 +78,9 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const [showGrowth, setShowGrowth] = useState(false);
   const [showSpoilers, setShowSpoilers] = useState(false);
   // 잠금도 브라우저 저장 — 온오프 순간이 저장 시점(2026-08-31 사용자 지시).
-  const [locked, setLocked] = useState<string[]>([]);
+  const [locked, setLocked] = useState<EntryLock[]>([]);
   const [hoverRow, setHoverRow] = useState<{ pid: string; li: number } | null>(null);
-  /** 잠그는 순간의 1회 확산 링 — ☠잠금 상태(entry-locked)에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
+  /** 잠그는 순간의 1회 충격파 — ☠잠금 상태 클래스에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
   const [pulsePid, setPulsePid] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
@@ -76,9 +89,25 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
     setLocked(loadEntryLocks());
   }, []);
 
-  const toggleLock = (pid: string): void => {
-    const on = !locked.includes(pid);
-    const next = on ? [...locked, pid] : locked.filter((p) => p !== pid);
+  /** 잠금 = 클릭한 라인의 (직업, 레벨) + 현재 성옥 체커를 스냅샷으로 박제. 해제 = 스냅샷 폐기. */
+  const toggleLock = (pid: string, li: number): void => {
+    const on = !locked.some((e) => e.pid === pid);
+    let next: EntryLock[];
+    if (on) {
+      // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
+      const c = li >= 0 ? compares[li] : compares[0];
+      next = [
+        ...locked,
+        {
+          pid,
+          internal: c?.internal ?? 0,
+          ...(c !== undefined ? { jid: c.job.jid } : {}),
+          ...(star ? { star: true } : {}),
+        },
+      ];
+    } else {
+      next = locked.filter((e) => e.pid !== pid);
+    }
     saveEntryLocks(next);
     setLocked(next);
     setPulsePid(on ? pid : null);
@@ -131,14 +160,37 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
     [chars, showSpoilers],
   );
   const groups = useMemo(
-    () => orderRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
+    () => waitingRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
     [visibleChars, joinJobs, compares, sort, extraSkills, locked],
+  );
+  // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
+  const lockedRows = useMemo(
+    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere),
+    [visibleChars, joinJobs, targetJobs, locked, starsphere],
   );
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
   // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다. 3클릭째 = 합류순 복귀.
   const toggle = (key: StatKey): void => setSort((s) => nextSort(s, key));
+
+  /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
+  const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
+  /** 전투력 정리바(로열블루) — 잠금·호버 행 아래 공용. 직업명은 멀티클래스 식별용. */
+  const combatLine = (row: BuilderRow, jobName: string | undefined): React.JSX.Element => {
+    const c = combatOf(row);
+    return (
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1 text-[12px] leading-tight text-engage md:gap-x-4 md:text-[13px]">
+        {jobName !== undefined && <span className="font-bold">{jobName}</span>}
+        {COMBAT_KEYS.map((key) => (
+          <span key={key} className="whitespace-nowrap">
+            <span className="opacity-80">{labels.combat[key]}</span>{" "}
+            <span className="font-bold">{fmtCombat(c[key])}</span>
+          </span>
+        ))}
+      </span>
+    );
+  };
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
 
@@ -325,20 +377,77 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               );
             })}
           </thead>
+          {/* ── 잠금 블록 — 스냅샷 1행 + 전투력 행. 행 전체 인게이지 블루 테두리(builder.css ::after). ── */}
+          {lockedRows.map(({ row, jobName }, gi) => {
+            const sep = gi > 0 ? "border-t border-rule" : "";
+            const isPulse = pulsePid === row.pid;
+            const unlock = (): void => toggleLock(row.pid, -1);
+            return (
+              <tbody key={`lock-${row.pid}`} className="group">
+                <tr
+                  className={`entry-locked-row cursor-pointer hover:bg-sunken${isPulse ? " entry-lock-pulse" : ""}`}
+                  onClick={unlock}
+                  onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
+                >
+                  <th scope="row" className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
+                    <span className="entry-wrap flex items-center">
+                      <span className="entry-card">
+                        {row.face !== undefined && (
+                          <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
+                        )}
+                        <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={labels.unlock}
+                        title={labels.unlock}
+                        aria-pressed="true"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          unlock();
+                        }}
+                        className="entry-lock text-engage"
+                      >
+                        <LockIcon open={false} />
+                      </button>
+                    </span>
+                  </th>
+                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
+                    {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
+                  </td>
+                  {STAT_KEYS.map((key) => {
+                    const cell = row.cells[key];
+                    return (
+                      <td
+                        key={key}
+                        className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${sep}`}
+                      >
+                        {cell.text}
+                      </td>
+                    );
+                  })}
+                </tr>
+                {/* 전투력 행 — 잠금은 상시 표시(스냅샷 직업명 포함). */}
+                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock}>
+                  <td className="sticky left-0 z-10 bg-panel" />
+                  <td className="inlv-col" />
+                  <td colSpan={STAT_KEYS.length} className="px-2 pb-[6px] pt-0 text-left md:px-2">
+                    {combatLine(row, jobName)}
+                  </td>
+                </tr>
+              </tbody>
+            );
+          })}
           {groups.map((g, gi) => {
             const first = g[0]!;
-            // 캐릭터 사이 구분선 = 각 묶음 첫 라인 셀의 border-t(첫 묶음 제외) — separate 모델에서 tr 보더는 안 그려진다.
-            const sep = gi > 0 ? "border-t border-rule" : "";
+            // 캐릭터 사이 구분선 = 각 묶음 첫 라인 셀의 border-t(맨 첫 묶음 제외 — 잠금 블록 포함 계산).
+            const sep = lockedRows.length + gi > 0 ? "border-t border-rule" : "";
             // 멀티 모드는 라인마다 단일 모드 행 높이만큼 여백(2026-08-31 사용자 지시 — 답답함 방지,
             // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
             const roomy = g.length > 1 ? "py-[15px]" : "py-1";
-            const isLocked = locked.includes(first.pid);
             const hovered = hoverRow !== null && hoverRow.pid === first.pid;
-            // 호버 중인 스탯 라인의 직업명 — 라인 순서 = compares 순서(builderRowGroups 동치). 미선택·고유성장 라인은 없음.
-            const jobTag =
-              hoverRow !== null && hoverRow.pid === first.pid && hoverRow.li >= 0
-                ? compares[hoverRow.li]?.job.name
-                : undefined;
+            // 호버한 스탯 라인 아래에 전투력 행이 선다(고유 성장 라인 제외) — th rowSpan도 한 칸 는다.
+            const combatLi = hovered && hoverRow.li >= 0 ? hoverRow.li : undefined;
             // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
             const groupInert = g.every((r) => r.ineligible);
             /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
@@ -348,43 +457,39 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                 : {
                     onMouseEnter: () => setHoverRow({ pid: first.pid, li }),
                     onMouseLeave: () => setHoverRow(null),
-                    onClick: () => toggleLock(first.pid),
+                    onClick: () => toggleLock(first.pid, li),
                   };
             const nameTh = (
               <th
                 scope="row"
-                rowSpan={g.length + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 ${hovered ? "z-20" : "z-10"} bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
+                rowSpan={g.length + (showGrowth ? 1 : 0) + (combatLi !== undefined ? 1 : 0)}
+                className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
               >
-                <span className="entry-wrap relative flex items-center">
-                  <span
-                    className={`entry-card${isLocked ? " entry-locked" : ""}${pulsePid === first.pid ? " entry-lock-pulse" : ""}`}
-                    onAnimationEnd={pulsePid === first.pid ? () => setPulsePid(null) : undefined}
-                  >
+                <span className="entry-wrap flex items-center">
+                  <span className="entry-card">
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
                     <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
-                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이 고정폭, 기본 공백(표가 안 움직인다). */}
-                  {isLocked || hovered ? (
+                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다). */}
+                  {hovered ? (
                     <button
                       type="button"
-                      aria-label={isLocked ? labels.unlock : labels.lock}
-                      title={isLocked ? labels.unlock : labels.lock}
-                      aria-pressed={isLocked}
+                      aria-label={labels.lock}
+                      title={labels.lock}
+                      aria-pressed="false"
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleLock(first.pid);
+                        toggleLock(first.pid, hoverRow.li);
                       }}
-                      className={`entry-lock ${isLocked ? "text-engage" : "text-muted hover:text-ink"}`}
+                      className="entry-lock text-muted hover:text-ink"
                     >
-                      <LockIcon open={!isLocked} />
+                      <LockIcon open={true} />
                     </button>
                   ) : (
                     <span className="entry-lock" aria-hidden="true" />
                   )}
-                  {jobTag !== undefined && <span className="entry-jobtag">{jobTag}</span>}
                 </span>
               </th>
             );
@@ -406,30 +511,43 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                     ))}
                   </tr>
                 )}
-                {g.map((row, li) => (
-                  <tr
-                    key={li}
-                    className={row.ineligible ? "" : "cursor-pointer hover:bg-sunken"}
-                    {...rowActs(row.ineligible, li)}
-                    {...(row.ineligible ? { title: labels.unavailable } : {})}
-                  >
-                    {li === 0 && !showGrowth && nameTh}
-                    <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
-                      {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
-                    </td>
-                    {STAT_KEYS.map((key) => {
-                      const cell = row.cells[key];
-                      return (
-                        <td
-                          key={key}
-                          className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
-                        >
-                          {cell.text}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {g.flatMap((row, li) => {
+                  const line = (
+                    <tr
+                      key={li}
+                      className={row.ineligible ? "" : "cursor-pointer hover:bg-sunken"}
+                      {...rowActs(row.ineligible, li)}
+                      {...(row.ineligible ? { title: labels.unavailable } : {})}
+                    >
+                      {li === 0 && !showGrowth && nameTh}
+                      <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
+                        {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
+                      </td>
+                      {STAT_KEYS.map((key) => {
+                        const cell = row.cells[key];
+                        return (
+                          <td
+                            key={key}
+                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                          >
+                            {cell.text}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                  if (combatLi !== li) return [line];
+                  // 호버 전투력 행 — 같은 호버 상태를 유지해야 커서가 내려와도 안 사라진다(깜빡임 방지).
+                  return [
+                    line,
+                    <tr key={`combat-${li}`} className="cursor-pointer hover:bg-sunken" {...rowActs(false, li)}>
+                      <td className="inlv-col" />
+                      <td colSpan={STAT_KEYS.length} className="px-2 pb-[6px] pt-0 text-left md:px-2">
+                        {combatLine(row, compares[li]?.job.name)}
+                      </td>
+                    </tr>,
+                  ];
+                })}
               </tbody>
             );
           })}

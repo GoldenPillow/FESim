@@ -157,6 +157,8 @@ export interface BuilderLabels {
   unlock: string;
   /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
   reset: string;
+  /** 전투력 행(호버·잠금) — 파생치만(맨손 공격 = 기본 스탯 중복이라 제외, 2026-08-31). */
+  combat: Record<"hit" | "avoid" | "crit" | "ddg", string>;
   stats: Record<StatKey, string>;
 }
 
@@ -343,6 +345,7 @@ export const UI: Record<Locale, Strings> = {
       lock: "Pin entry",
       unlock: "Unpin entry",
       reset: "Reset",
+      combat: { hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
       stats: {
         hp: "HP", str: "Str", mag: "Mag", dex: "Dex", spd: "Spd",
         lck: "Lck", def: "Def", res: "Res", bld: "Bld",
@@ -513,6 +516,7 @@ export const UI: Record<Locale, Strings> = {
       lock: "エントリーを固定",
       unlock: "固定を解除",
       reset: "リセット",
+      combat: { hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -681,8 +685,9 @@ export const UI: Record<Locale, Strings> = {
       lock: "엔트리 잠금",
       unlock: "잠금 해제",
       reset: "Reset",
+      combat: { hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
       stats: {
-        hp: "HP", str: "힘", mag: "마력", dex: "기량", spd: "속도",
+        hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",
       },
     },

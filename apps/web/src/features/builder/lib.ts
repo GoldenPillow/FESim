@@ -1,5 +1,7 @@
 import {
   STAT_KEYS,
+  combatEnv,
+  createCalculator,
   growthPath,
   mergeStatCap,
   type GrowthPathJob,
@@ -7,7 +9,10 @@ import {
   type StatBlock,
   type StatKey,
 } from "@fesim/engine";
+import type { CalculatorData } from "@fesim/shared";
+import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
 import type { BuilderCharProp, BuilderJobProp, BuilderProps } from "../../lib/fe17";
+import type { EntryLock } from "../../lib/guestSave";
 
 /**
  * 엔트리 빌더 표시층 — 클라이언트 안전 순수 함수(☠fe17.ts는 타입만 참조한다).
@@ -144,22 +149,88 @@ export function builderRowGroups(
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
  * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
-/**
- * 잠금 반영 최종 순서 — 잠긴 캐릭터는 잠근 순서대로 최상단에 붙박이고(정렬·전용직 상단 규칙 제외),
- * 대기 목록만 sortRowGroups를 지난다. 로스터에 없는 잠금 pid(스포일러 숨김·이물 저장값)는 조용히 건너뛴다.
- */
-export function orderRowGroups(
+/** 대기(비잠금) 목록 — 잠긴 캐릭터는 비교표에서 제외되고 남은 묶음만 정렬을 지난다. */
+export function waitingRowGroups(
   groups: readonly BuilderRow[][],
-  locked: readonly string[],
+  locked: readonly EntryLock[],
   sort: BuilderSort | undefined,
 ): BuilderRow[][] {
-  const byPid = new Map(groups.map((g) => [g[0]!.pid, g]));
-  const top = locked.flatMap((pid) => {
-    const g = byPid.get(pid);
-    return g === undefined ? [] : [g];
+  const pids = new Set(locked.map((e) => e.pid));
+  return sortRowGroups(
+    groups.filter((g) => !pids.has(g[0]!.pid)),
+    sort,
+  );
+}
+
+export interface LockedDisplay {
+  row: BuilderRow;
+  /** 스냅샷 직업명 — 직업 미선택 잠금·사라진 jid는 없음(합류 상태 표시). */
+  jobName?: string;
+}
+
+/**
+ * 잠금 스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 (직업, 내부 레벨, 성옥)만 소비한다("고정"의 실체).
+ * 로스터에 없는 pid(스포일러 숨김·이물 저장값)는 건너뛰고, 사라진 jid는 합류 상태로 강하한다
+ * (괄호·흐림 표시가 강하를 드러낸다 — 조용히 다른 직업 수치를 파는 것보다 낫다).
+ */
+export function lockedDisplayRows(
+  props: Pick<BuilderProps, "chars" | "joinJobs">,
+  jobs: readonly BuilderJobProp[],
+  locked: readonly EntryLock[],
+  starsphere?: SkillRow,
+): LockedDisplay[] {
+  const byPid = new Map(props.chars.map((c) => [c.pid, c]));
+  const out: LockedDisplay[] = [];
+  for (const entry of locked) {
+    const char = byPid.get(entry.pid);
+    if (char === undefined) continue;
+    const joinJob = props.joinJobs[char.joinJid];
+    if (joinJob === undefined) continue;
+    const job = entry.jid === undefined ? undefined : jobs.find((j) => j.jid === entry.jid);
+    const extra = entry.star === true && starsphere !== undefined ? [starsphere] : undefined;
+    const row = builderRow(char, joinJob, job, entry.internal, extra);
+    out.push(job === undefined ? { row } : { row, jobName: job.name });
+  }
+  return out;
+}
+
+/* ── 전투력 사영 — 인게임 유닛 단면(전투 능력)의 self-only 식을 정본(calculator.json) 그대로 평가한다.
+   맨손 기준(2026-08-31 사용자 지시): 무기·지원·지형 항은 전부 0, 공격 속성은 물리(공격 = 힘). */
+
+const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
+
+/** 전투 능력 순서(인게임 유닛 화면 순) — 파생치만: 맨손 공격(물공=힘·마공=마력)은 기본 스탯 행과
+    중복이라 제외한다(2026-08-31 사용자 지시). */
+export const COMBAT_KEYS = ["hit", "avoid", "crit", "ddg"] as const;
+export type CombatKey = (typeof COMBAT_KEYS)[number];
+
+const COMBAT_FORMULAS: Record<CombatKey, string> = {
+  hit: "命中値計算",
+  avoid: "回避値計算",
+  crit: "必殺値計算",
+  ddg: "必殺回避計算",
+};
+
+/** 평균 스탯의 전투력 — 소수를 유지한 채 정본 식을 평가한다(표시 반올림은 표시층 소관). */
+export function combatOf(row: BuilderRow): Record<CombatKey, number> {
+  const v = (key: StatKey): number => row.cells[key].value;
+  const env = combatEnv({
+    stats: {
+      maxHp: v("hp"),
+      hp: v("hp"),
+      str: v("str"),
+      mag: v("mag"),
+      dex: v("dex"),
+      spd: v("spd"),
+      lck: v("lck"),
+      def: v("def"),
+      res: v("res"),
+      bld: v("bld"),
+    },
   });
-  const waiting = groups.filter((g) => !locked.includes(g[0]!.pid));
-  return [...top, ...sortRowGroups(waiting, sort)];
+  const out = {} as Record<CombatKey, number>;
+  for (const key of COMBAT_KEYS) out[key] = calculator.eval(COMBAT_FORMULAS[key], env) as number;
+  return out;
 }
 
 export function sortRowGroups(groups: readonly BuilderRow[][], sort: BuilderSort | undefined): BuilderRow[][] {

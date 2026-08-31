@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
-import { builderRowGroups, builderRows, nextSort, orderRowGroups, sortRowGroups } from "../src/features/builder/lib";
+import {
+  builderRowGroups,
+  builderRows,
+  combatOf,
+  lockedDisplayRows,
+  nextSort,
+  sortRowGroups,
+  waitingRowGroups,
+} from "../src/features/builder/lib";
 import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
 
 /**
@@ -125,7 +133,7 @@ describe("정렬", () => {
   });
 });
 
-describe("잠금 — 엔트리 상단 고정 (orderRowGroups)", () => {
+describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)", () => {
   const roster = [
     char("a"),
     char("b", { personOffset: block({ hp: 5 }) }),
@@ -134,19 +142,68 @@ describe("잠금 — 엔트리 상단 고정 (orderRowGroups)", () => {
   const groups = builderRowGroups(propsOf(roster), []);
 
   /**
-   * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬에 딸려 움직이면
-   * 기준이 사라져 기능 자체가 죽는다. 잠근 순서 = 상단 순서, 정렬은 대기 목록만 흔든다.
+   * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬·슬롯 변경에 딸려
+   * 움직이면 기준이 사라진다. 잠금 당시 (직업, 레벨, 성옥)만 소비하는 스냅샷이어야 고정이 성립한다.
    */
-  it("잠긴 캐릭터는 잠근 순서대로 최상단 — 정렬에 흔들리지 않는다", () => {
-    expect(orderRowGroups(groups, ["c", "a"], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid)).toEqual([
-      "c", "a", "b",
-    ]);
+  it("잠긴 캐릭터는 대기 목록에서 빠지고 남은 묶음만 정렬을 지난다", () => {
+    expect(
+      waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid),
+    ).toEqual(["b", "a"]);
   });
 
-  it("잠금 해제 = 대기 목록의 정렬 자리로 복귀, 로스터에 없는 pid는 조용히 무시", () => {
-    expect(orderRowGroups(groups, ["ghost"], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid)).toEqual([
-      "b", "c", "a",
+  it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다", () => {
+    const rows = lockedDisplayRows(propsOf(roster), [HIGH], [
+      { pid: "c", internal: 11, jid: "JID_high" },
+      { pid: "a", internal: 0 },
     ]);
+    expect(rows.map((r) => r.row.pid)).toEqual(["c", "a"]);
+    expect(rows[0]!.jobName).toBe("상급직");
+    expect(rows[0]!.row.projected).toBe(true);
+    expect(rows[0]!.row.internal).toBe(11);
+    expect(rows[1]!.jobName).toBeUndefined(); // 직업 미선택 잠금 = 합류 상태
+    expect(rows[1]!.row.projected).toBe(false);
+  });
+
+  it("로스터에 없는 pid는 건너뛰고, 사라진 jid는 합류 상태로 강하한다", () => {
+    const rows = lockedDisplayRows(propsOf(roster), [HIGH], [
+      { pid: "ghost", internal: 5, jid: "JID_high" },
+      { pid: "a", internal: 11, jid: "JID_gone" },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.row.projected).toBe(false);
+    expect(rows[0]!.jobName).toBeUndefined();
+  });
+
+  it("성옥 스냅샷 — 잠금 당시 체커만 반영한다(현재 체커와 무관)", () => {
+    const star = { Sid: "SID_星玉の加護", Work: 3, WorkOperation: "+", WorkValue: 15 } as SkillRow;
+    const entry = { pid: "a", internal: 11, jid: "JID_high" };
+    const on = lockedDisplayRows(propsOf([char("a")]), [HIGH], [{ ...entry, star: true }], star)[0]!;
+    const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], star)[0]!;
+    expect(off.row.cells.str.text).toBe("13.4");
+    expect(on.row.cells.str.text).toBe("15.1");
+  });
+});
+
+describe("전투력 사영 (combatOf) — 정본 self-only 식 · 맨손(무기 항 0)", () => {
+  /**
+   * 왜 위험한가: 전투력을 우리 손으로 다시 짜면 정본(calculator.json)과 갈린다 —
+   * 같은 식을 평균 스탯으로 평가한 값임을 수치로 박제한다(명중=기x2+int(행/2) ·
+   * 회피=공속x2+int(행/2), 맨손 공속=속도 · 필살=int(기/2) · 필살회피=행운).
+   */
+  it("맨손 전투 능력 — 인게임 유닛 단면 식 그대로", () => {
+    // ☠LOW.limit은 hp·str만 캡이 있다 — 다른 스탯은 personLimit으로 캡을 열어야 오프셋이 산다.
+    const roster = [
+      char("a", {
+        personOffset: block({ dex: 10, spd: 7, lck: 5 }),
+        personLimit: block({ dex: 40, spd: 40, lck: 40 }),
+      }),
+    ];
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const c = combatOf(row!);
+    expect(c.hit).toBe(22);
+    expect(c.avoid).toBe(16);
+    expect(c.crit).toBe(5);
+    expect(c.ddg).toBe(5);
   });
 });
 
