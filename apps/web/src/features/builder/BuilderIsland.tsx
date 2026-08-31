@@ -5,6 +5,7 @@ import {
   builderRow,
   builderRowGroups,
   canEquip,
+  carriedEquip,
   combatOf,
   COMBAT_KEYS,
   lockedDisplayRows,
@@ -1696,11 +1697,17 @@ export default function BuilderIsland({
 
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
-  /** 직업 변경 = 무기·각인 초기화(장착 게이트가 직업 소유) — 내부 레벨만 승계한다.
-      그 슬롯 라인의 카드 개인 장비도 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
+  /** 직업 변경(2026-09-01 사용자 지시) — 같은 장비를 새 직업이 들 수 있으면 디폴트로 장착, 못 들면
+      미장착. 비교 슬롯의 첫 선택(장비 없음)은 1번(메인) 슬롯 장비를 씨드로 쓴다. 내부 레벨은 승계.
+      그 슬롯 라인의 카드 개인 장비는 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
   const setSlotJob = (i: number, jid: string): void => {
     setSlots((s) =>
-      s.map((v, idx) => (idx === i ? { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}) } : v)),
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        const job = targetJobs.find((t) => t.jid === jid);
+        const equip = carriedEquip(job, v.iid !== undefined ? v : s[0]!, weapons) ?? {};
+        return { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}), ...equip };
+      }),
     );
     setOverrides((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.endsWith(`:${i}`))));
   };
@@ -1821,8 +1828,9 @@ export default function BuilderIsland({
             }
           />
         )}
+        {/* pb는 1행 전용 — items-end(레전드 행)에서 박스 중앙 보정. 2행은 items-center라 넣으면 뜬다. */}
         {weapon !== undefined && (
-          <span className="flex items-center pb-[6px]">
+          <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
             <SpecLine weapon={weapon} plus={plus} engrave={engrave} labels={labels} />
           </span>
         )}
@@ -1906,8 +1914,10 @@ export default function BuilderIsland({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className={legendClass}>{labels.internal}</span>
-          <select className={selectClass} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
+          {/* short 라벨 + self-start — 레전드가 셀렉트보다 넓으면(flex-col 폭 기여) 2행(레전드 없음)과
+              컬럼이 어긋난다. internalShort는 전 로케일에서 셀렉트보다 좁다(2026-09-01 세로 정렬 수정). */}
+          <span className={legendClass}>{labels.internalShort}</span>
+          <select className={`${selectClass} self-start`} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
             {INTERNAL_LEVELS.map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -1930,8 +1940,9 @@ export default function BuilderIsland({
 
       {slots.length > 1 && (
         <div className="-mt-2 mb-4 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+          {/* gap-x-5 = 1행(메인 컨트롤)과 동일 간격 — 컬럼이 세로로 맞아떨어진다(2026-09-01 정렬 수정). */}
           {slots.slice(1).map((slot, i) => (
-            <span key={i} className="flex flex-wrap items-center gap-1.5">
+            <span key={i} className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {jobSelect(i + 1)}
               {/* 슬롯 내부 레벨 — 값 미지정이면 1번(메인) 추종, 고르면 그 슬롯만 고정(2026-08-31). */}
               <select

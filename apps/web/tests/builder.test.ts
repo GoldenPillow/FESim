@@ -5,6 +5,7 @@ import {
   builderRowGroups,
   builderRows,
   canEquip,
+  carriedEquip,
   combatOf,
   lockedDisplayRows,
   moveLock,
@@ -265,6 +266,19 @@ describe("장착 게이트 (canEquip·rankValue)", () => {
     expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B" })).toBe(false);
     expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B", ignoreRank: true })).toBe(true);
     expect(canEquip(jobOf({ 2: "A" }), iron)).toBe(false);
+  });
+
+  /**
+   * 왜 위험한가: 직업 변경 시 장비를 무조건 리셋하면 멀티클래스 비교가 매번 재장착 노동이 되고,
+   * 반대로 게이트 없이 승계하면 "불가능한 빌드"(활 못 드는 직업에 활)를 판다(2026-09-01 사용자 지시).
+   */
+  it("carriedEquip — 새 직업이 들 수 있으면 강화·각인 동반 승계, 못 들면 미장착", () => {
+    const seed = { iid: iron.iid, plus: 2, engrave: "GID_マルス" };
+    expect(carriedEquip(jobOf({ 1: "C" }), seed, [iron])).toEqual(seed);
+    expect(carriedEquip(jobOf({ 2: "A" }), seed, [iron])).toBeUndefined(); // 무기군 밖
+    expect(carriedEquip(undefined, seed, [iron])).toBeUndefined(); // 직업 미선택
+    expect(carriedEquip(jobOf({ 1: "C" }), {}, [iron])).toBeUndefined(); // 씨드 무장비
+    expect(carriedEquip(jobOf({ 1: "C" }), seed, [])).toBeUndefined(); // 목록 밖 iid
   });
 });
 

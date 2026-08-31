@@ -263,6 +263,23 @@ export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolea
   return weapon.ignoreRank === true || rankValue(weapon.rank) <= rankValue(max);
 };
 
+/** 직업 변경 시 장비 승계 판정(2026-09-01 사용자 지시) — 씨드 장비(그 슬롯 현재분, 없으면 메인 슬롯)를
+    새 직업이 들 수 있으면 그대로 장착(강화·각인 동반), 못 들거나 직업·씨드 미지정이면 미장착(undefined). */
+export function carriedEquip(
+  job: BuilderJobProp | undefined,
+  seed: { iid?: string; plus?: number; engrave?: string },
+  weapons: readonly BuilderWeaponProp[],
+): { iid: string; plus?: number; engrave?: string } | undefined {
+  if (job === undefined || seed.iid === undefined) return undefined;
+  const weapon = weapons.find((w) => w.iid === seed.iid);
+  if (weapon === undefined || !canEquip(job, weapon)) return undefined;
+  return {
+    iid: weapon.iid,
+    ...(seed.plus !== undefined ? { plus: seed.plus } : {}),
+    ...(seed.engrave !== undefined ? { engrave: seed.engrave } : {}),
+  };
+}
+
 /** 장착 상태 — plus 0 = 노강화, 1~5 = 錬成 단계(refine 누적 보정). engrave = 각인(무기 실효치에 직접 가산). */
 export interface EquippedWeapon {
   weapon: BuilderWeaponProp;
