@@ -136,9 +136,9 @@ const SpecLine = ({
         {name} <span className={`font-semibold ${specCls(v, b, invert)}`}>{v}</span>
       </span>
     ))}
-    {/* 특효 — 아이콘 + 분류 명사, 설명(정본 스킬 텍스트)은 툴팁 동봉(2026-08-31 사용자 지시). */}
+    {/* 특효 — 라벨 + 대상(아이콘·분류)만(2026-08-31 사용자 지시로 상세 설명 제거). */}
     {weapon.efficacies?.map((e) => (
-      <span key={e.kind} className="flex items-center gap-1 whitespace-nowrap" title={e.help}>
+      <span key={e.kind} className="flex items-center gap-1 whitespace-nowrap">
         {labels.efficacy}
         {e.icon !== undefined && <img src={e.icon} alt="" className="h-4 w-4 object-contain" loading="lazy" />}
         <span className="font-semibold text-gold">{labels.efficacyNames[e.kind] ?? e.kind}</span>
@@ -180,17 +180,14 @@ const SpecPanel = ({
         <span className={`font-semibold ${specCls(v, b, invert)}`}>{v}</span>
       </span>
     ))}
-    {/* 특효 — 행(아이콘 + 분류) + 설명 캡션 동봉(정본 스킬 Help, 2026-08-31 사용자 지시). */}
+    {/* 특효 — 라벨 + 대상(아이콘·분류)만, 상세 설명 없음(2026-08-31 사용자 지시로 캡션 제거). */}
     {weapon.efficacies?.map((e) => (
-      <span key={e.kind} className="flex flex-col gap-[2px] pt-0.5">
-        <span className="flex items-center justify-between gap-4">
-          {labels.efficacy}
-          <span className="flex items-center gap-1 font-semibold text-gold">
-            {e.icon !== undefined && <img src={e.icon} alt="" className="h-4 w-4 object-contain" loading="lazy" />}
-            {labels.efficacyNames[e.kind] ?? e.kind}
-          </span>
+      <span key={e.kind} className="flex items-center justify-between gap-4">
+        {labels.efficacy}
+        <span className="flex items-center gap-1 font-semibold text-gold">
+          {e.icon !== undefined && <img src={e.icon} alt="" className="h-4 w-4 object-contain" loading="lazy" />}
+          {labels.efficacyNames[e.kind] ?? e.kind}
         </span>
-        {e.help !== "" && <span className="max-w-[13rem] whitespace-normal text-left">{e.help}</span>}
       </span>
     ))}
     {weapon.enhance !== undefined &&
