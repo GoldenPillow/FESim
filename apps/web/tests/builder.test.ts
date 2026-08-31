@@ -246,8 +246,7 @@ describe("전투력 사영 (combatOf) — 무기 합산", () => {
     expect(c.patk).toBeCloseTo(10.5); // 힘 5.5 + 위력 5
     expect(c.matk).toBe(0); // 마공 = 순수 마력(물리 무기)
     expect(c.hit).toBe(112); // 10x2 + 2 + 90
-    expect(c.as).toBe(2); // 공속 = 7 - max(5-0, 0) — 무게가 속도를 깎는다(하락 = 레드 표기 근거)
-    expect(c.avoid).toBe(6); // 공속 2 → 2x2 + 2
+    expect(c.avoid).toBe(6); // 공속 = 7 - max(5-0, 0) = 2 → 2x2 + 2 (공속 자체는 미표시 — 인게임에 없다)
     expect(c.crit).toBe(5);
   });
 
@@ -283,7 +282,6 @@ describe("전투력 사영 (combatOf) — 정본 self-only 식 · 맨손(무기 
     ];
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const c = combatOf(row!);
-    expect(c.as).toBe(7); // 맨손 공속 = 속도 그대로(무게 0)
     expect(c.patk).toBeCloseTo(5.5); // 물공 = 순수 힘(맨손) — 장비 피쳐가 서면 무기 항이 합산된다
     expect(c.matk).toBe(0); // 마공 = 순수 마력 — 같은 식을 마법 속성으로 평가
     expect(c.hit).toBe(22);

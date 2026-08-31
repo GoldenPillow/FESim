@@ -62,9 +62,9 @@ const STAT_EN: Record<StatKey, string> = {
   hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
 };
 
-/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). 공속은 빈 HP 열, RES·BLD 열 = 무기군 아이콘. */
+/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). HP 열은 비움, RES·BLD 열 = 무기군 아이콘. */
 const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
-  hp: "as", str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
+  str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
 };
 
 /** 자물쇠 아이콘(머티리얼 계열 근사) — 대기 행 호버 = 잠김 형상 예고(클릭 = 잠금),
@@ -268,6 +268,11 @@ export default function BuilderIsland({
 
   /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
   const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
+  /** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자까지 레드(2026-08-31 지시). 공속은 미표시라 여기서 경고. */
+  const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean =>
+    equipped !== undefined &&
+    weaponAt(equipped.weapon, equipped.plus).weight >
+      row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0);
   /**
    * 전투력 행의 셀 묶음 — 잠금·호버 공용(2026-08-31 배치 지시). 아이템 = IN.LV 하단, 전투력 = 스탯쪽
    * 그리드 정렬(물공→STR … 필살회피→DEF), RES+BLD 병합 칸 = 클래스 무기군 흰 아이콘(지팡이 포함, 좌정렬).
@@ -728,10 +733,11 @@ export default function BuilderIsland({
                   </td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
+                    const down = key === "spd" && spdPenalty(row, equipped);
                     return (
                       <td
                         key={key}
-                        className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${sep}`}
+                        className={`stat-col min-w-[3.7rem] px-1 py-1 text-center font-bold md:min-w-[5.5rem] md:px-2 ${down ? "text-danger" : cell.capped ? "text-cap" : "text-ink"} ${sep}`}
                       >
                         {cell.text}
                       </td>
@@ -840,10 +846,11 @@ export default function BuilderIsland({
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
+                        const down = key === "spd" && li === combatLi && spdPenalty(row, compares[li]?.equipped);
                         return (
                           <td
                             key={key}
-                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${down ? "text-danger" : cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
                             {cell.text}
                           </td>
