@@ -150,10 +150,10 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
    * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬·슬롯 변경에 딸려
    * 움직이면 기준이 사라진다. 잠금 당시 (직업, 레벨, 성옥)만 소비하는 스냅샷이어야 고정이 성립한다.
    */
-  it("잠긴 캐릭터는 대기 목록에서 빠지고 남은 묶음만 정렬을 지난다", () => {
-    expect(
-      waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid),
-    ).toEqual(["b", "a"]);
+  it("잠긴 캐릭터도 유령 카드로 남는다 — ghost 표시, 정렬은 전체를 지난다(2026-08-31 엔트리 비교분석)", () => {
+    const out = waitingRowGroups(groups, [{ pid: "c", internal: 0 }], { key: "hp", dir: "desc" });
+    expect(out.map((g) => g.rows[0]!.pid)).toEqual(["b", "c", "a"]);
+    expect(out.map((g) => g.ghost)).toEqual([false, true, false]);
   });
 
   it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다", () => {

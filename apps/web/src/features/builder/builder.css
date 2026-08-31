@@ -56,6 +56,17 @@ tbody:hover .entry-wrap {
   opacity: 0.4;
 }
 
+/* 유령 카드(2026-08-31) — 엔트리에 잠긴 캐릭터의 비교용 임시 카드: 반투명 + 전 상호작용 차단.
+   ☠opacity를 tbody·th에 직접 주면 sticky 이름 열의 bg-panel이 비쳐 가로 스크롤 셀이 뒤로 새 보인다
+   — 내용물(td 내용·th 자식)에만 준다. */
+.builder-table tbody.entry-ghost {
+  pointer-events: none;
+}
+.builder-table tbody.entry-ghost td,
+.builder-table tbody.entry-ghost th > * {
+  opacity: 0.45;
+}
+
 /* 잠그는 순간 1회 — 화이트에 블루만 살짝 섞은 밝은 파동이 테두리 중심에서 바깥 14px로 퍼지며
    고정 테두리 색으로 가라앉는 충격파(극적 연출). 1초, 출발 빠르고 후반 느림(easeOutExpo 계열). */
 .builder-table tbody.entry-lock-pulse::after {

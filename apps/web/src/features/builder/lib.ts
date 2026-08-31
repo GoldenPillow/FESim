@@ -159,17 +159,20 @@ export function moveLock(locked: readonly EntryLock[], from: number, to: number)
   return next;
 }
 
-/** 대기(비잠금) 목록 — 잠긴 캐릭터는 비교표에서 제외되고 남은 묶음만 정렬을 지난다. */
+/** 대기 목록 한 묶음 — ghost = 엔트리에 잠긴 캐릭터의 비교용 임시 카드(반투명·무반응, 정렬·비교표에는 참가). */
+export interface WaitingGroup {
+  rows: BuilderRow[];
+  ghost: boolean;
+}
+
+/** 대기 목록 — 잠긴 캐릭터도 유령 카드로 남아 전체 정렬을 지난다(2026-08-31: 엔트리 멤버 비교분석). */
 export function waitingRowGroups(
   groups: readonly BuilderRow[][],
   locked: readonly EntryLock[],
   sort: BuilderSort | undefined,
-): BuilderRow[][] {
+): WaitingGroup[] {
   const pids = new Set(locked.map((e) => e.pid));
-  return sortRowGroups(
-    groups.filter((g) => !pids.has(g[0]!.pid)),
-    sort,
-  );
+  return sortRowGroups(groups, sort).map((g) => ({ rows: g, ghost: pids.has(g[0]!.pid) }));
 }
 
 export interface LockedDisplay {

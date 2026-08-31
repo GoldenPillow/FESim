@@ -1318,7 +1318,7 @@ export default function BuilderIsland({
               </tbody>
             );
           })}
-          {groups.map((g, gi) => {
+          {groups.map(({ rows: g, ghost }, gi) => {
             const first = g[0]!;
             // 캐릭터 사이 구분선 = 각 묶음 첫 라인 셀의 border-t(맨 첫 묶음 제외 — 잠금 블록 포함 계산).
             const sep = lockedRows.length + gi > 0 ? "border-t border-rule" : "";
@@ -1334,7 +1334,8 @@ export default function BuilderIsland({
             const revealed = (li: number): boolean =>
               (hovered && hoverRow.li === li) || (focused && focusRow.li === li);
             // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
-            const groupInert = g.every((r) => r.ineligible);
+            // 유령 카드(엔트리 잠금분의 비교용 사본)도 전 라인 무반응 — 조작은 잠금 블록이 소유한다.
+            const groupInert = ghost || g.every((r) => r.ineligible);
             /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
             const rowActs = (inert: boolean, li: number) =>
               inert
@@ -1388,7 +1389,7 @@ export default function BuilderIsland({
               </th>
             );
             return (
-              <tbody key={first.pid} className="group">
+              <tbody key={first.pid} className={`group${ghost ? " entry-ghost" : ""}`}>
                 {showGrowth && (
                   // 고유 성장 라인 — 블록 첫 줄(기존 행은 한 칸씩 아래로), 개인 성장률을 블루로(2026-08-31 사용자 지시).
                   <tr className={groupInert ? "" : "cursor-pointer hover:bg-sunken"} {...rowActs(groupInert, -1)}>
@@ -1407,11 +1408,12 @@ export default function BuilderIsland({
                 )}
                 {g.flatMap((row, li) => {
                   const eq = cardEquip(first.pid, li);
+                  const inert = ghost || row.ineligible;
                   const line = (
                     <tr
                       key={li}
-                      className={row.ineligible ? "" : "cursor-pointer hover:bg-sunken"}
-                      {...rowActs(row.ineligible, li)}
+                      className={inert ? "" : "cursor-pointer hover:bg-sunken"}
+                      {...rowActs(inert, li)}
                       {...(row.ineligible ? { title: labels.unavailable } : {})}
                     >
                       {li === 0 && !showGrowth && nameTh}
@@ -1440,9 +1442,9 @@ export default function BuilderIsland({
                     line,
                     <tr
                       key={`combat-${li}`}
-                      className={`combat-ghost${row.ineligible ? "" : " cursor-pointer hover:bg-sunken"}`}
-                      {...rowActs(row.ineligible, li)}
-                      {...(row.ineligible ? {} : focusActs(first.pid, li))}
+                      className={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
+                      {...rowActs(inert, li)}
+                      {...(inert ? {} : focusActs(first.pid, li))}
                     >
                       <CombatCells
                         row={row}
