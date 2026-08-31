@@ -400,33 +400,20 @@ function EquipDropdown({
 }
 
 /**
- * 문장사 레벨 상세 팝업 — 카드 하단 문장사 이름 클릭으로 열고, 바깥클릭은 캡처 단계로 닫는다
- * (드롭다운 교훈 공유 — 루트가 pointerdown 전파를 끊어 버블 리스너는 못 본다).
- * 현재 絆 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시(2026-08-31 사용자 지시).
- * 항목 호버 = 우측 상세(스킬 = 정본 설명문, 무기 = 스펙 패널).
+ * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록 + 항목 호버 = 우측 상세(스킬 = 정본 설명문,
+ * 무기 = 스펙 패널). bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
+ * 인연 드롭다운 오버레이(데스크톱)와 폴딩 팝업(세로폰)이 공유한다.
  */
-function EmblemPanel({
+function EmblemDetail({
   emblem,
   bond,
   labels,
-  onClose,
 }: {
   emblem: BuilderEmblemProp;
   bond: number;
   labels: BuilderLabels;
-  onClose: () => void;
 }): React.JSX.Element {
-  const rootRef = useRef<HTMLSpanElement | null>(null);
   const [hover, setHover] = useState<{ name: string; help?: string; weapon?: BuilderWeaponProp } | null>(null);
-  useEffect(() => {
-    const onDoc = (e: PointerEvent): void => {
-      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("pointerdown", onDoc, true);
-    return () => document.removeEventListener("pointerdown", onDoc, true);
-    // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const chip = (
     key: string,
     name: string,
@@ -445,12 +432,7 @@ function EmblemPanel({
     </span>
   );
   return (
-    <span
-      ref={rootRef}
-      className="absolute left-0 top-full z-50 mt-1 flex items-start"
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <span className="flex items-start">
       <span className="flex max-h-96 w-max flex-col overflow-y-auto rounded border border-rule bg-panel px-2.5 py-2 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
         <span className="pb-1 text-[14px] font-semibold text-ink">
           {emblem.name} — {labels.bond} {bond}
@@ -492,6 +474,149 @@ function EmblemPanel({
               {hover.help !== undefined && <span className="whitespace-pre-line">{hover.help}</span>}
             </span>
           )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** 문장사 상세 팝업(세로폰 폴딩 전용) — 바깥클릭 캡처로 닫는다(드롭다운 교훈 공유). */
+function EmblemPanel({
+  emblem,
+  bond,
+  labels,
+  onClose,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+  onClose: () => void;
+}): React.JSX.Element {
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <span
+      ref={rootRef}
+      className="absolute left-0 top-full z-50 mt-1"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <EmblemDetail emblem={emblem} bond={bond} labels={labels} />
+    </span>
+  );
+}
+
+/**
+ * 인연 레벨 드롭다운(데스크톱 반지 행) — 폭 = 하단 강화+각인 칩 합산 78px 고정(마진 포함, 실측
+ * 2026-08-31 사용자 지시). 열면 우측에 문장사 상세(EmblemDetail)가 서고, 옵션(Lv) 호버 =
+ * 그 레벨 기준 활성/비활성 미리보기 + 본스탯·+N 라이브 연동(onPreview) — 떠나면 원복.
+ */
+function BondDropdown({
+  emblem,
+  bond,
+  labels,
+  onChange,
+  onPreview,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+  onChange: (bond: number) => void;
+  onPreview: (bond: number | null) => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState<number | null>(null);
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const close = (): void => {
+    setOpen(false);
+    setHover(null);
+    onPreview(null);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) close();
+    };
+    // ☠캡처 단계 필수 — 드롭다운 루트가 pointerdown 전파를 끊는다(EquipDropdown 교훈 공유).
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // close는 렌더마다 새 함수 — 열림 동안 재구독 방지.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  return (
+    <span
+      ref={rootRef}
+      className="relative inline-flex"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          close();
+          btnRef.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={labels.bond}
+        className="flex h-7 w-[78px] cursor-pointer items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0.5 text-[11px] font-semibold tracking-tight text-pgrow"
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        {`${labels.bondLevel} ${bond}`}
+        {CARET}
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full z-50 mt-1 flex items-start">
+          <span
+            role="listbox"
+            aria-label={labels.bond}
+            className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]"
+            onMouseLeave={() => {
+              setHover(null);
+              onPreview(null);
+            }}
+          >
+            {BOND_OPTIONS.map((o) => {
+              const n = Number(o.value);
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="option"
+                  aria-selected={n === bond}
+                  className={`cursor-pointer px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
+                  onMouseEnter={() => {
+                    setHover(n);
+                    onPreview(n);
+                  }}
+                  onClick={() => {
+                    onChange(n);
+                    close();
+                    btnRef.current?.focus();
+                  }}
+                >
+                  {`Lv ${n}`}
+                </button>
+              );
+            })}
+          </span>
+          {/* 문장사 상세 — 호버 레벨 기준(레벨 부족 = 흐림), 호버 없으면 현재 레벨. */}
+          <span className="ml-1">
+            <EmblemDetail emblem={emblem} bond={hover ?? bond} labels={labels} />
+          </span>
         </span>
       )}
     </span>
@@ -851,8 +976,10 @@ export default function BuilderIsland({
   /** 대기 카드 반지(2026-08-31: 엔트리 구분 없이 편집) — 세션 상태(개인 장비 overrides와 동형).
       잠금 순간 스냅샷으로 이관되고 해제 시 되돌아온다(잠금 중 정본 = EntryLock.gid/bond). */
   const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
-  /** 문장사 레벨 상세 팝업이 열린 카드 pid(배타 열림). */
+  /** 문장사 레벨 상세 팝업이 열린 카드 pid(세로폰 폴딩 전용 — 데스크톱은 인연 드롭다운이 상세를 겸한다). */
   const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
+  /** 인연 옵션 호버 미리보기 — 본스탯 합산·+N이 이 레벨로 라이브 연동(2026-08-31 사용자 지시). */
+  const [bondPreview, setBondPreview] = useState<{ pid: string; bond: number } | null>(null);
   /** 세로폰 폴딩 — 포트레이트 탭으로 반지 슬롯을 우측 전개한 pid(2026-08-31 사용자 지시). */
   const [foldPid, setFoldPid] = useState<string | null>(null);
   useEffect(() => {
@@ -1122,22 +1249,27 @@ export default function BuilderIsland({
       const pid = g[0]!.pid;
       const entry = lockByPid.get(pid);
       const src = entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : rings[pid];
-      const delta = src === undefined ? undefined : emblemByGid.get(src.gid)?.bonuses[src.bond - 1];
+      if (src === undefined) return g;
+      // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
+      const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
+      const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
       return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
     });
     return waitingRowGroups(boosted, locked, sort);
-  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid]);
+  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
   const lockedRows = useMemo(() => {
     const base = lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves);
     return base.map((d) => {
       const entry = locked.find((e) => e.pid === d.row.pid);
-      const delta =
-        entry?.gid === undefined ? undefined : emblemByGid.get(entry.gid)?.bonuses[(entry.bond ?? 20) - 1];
+      if (entry?.gid === undefined) return d;
+      const bond =
+        bondPreview !== null && bondPreview.pid === d.row.pid ? bondPreview.bond : (entry.bond ?? 20);
+      const delta = emblemByGid.get(entry.gid)?.bonuses[bond - 1];
       return delta === undefined || Object.keys(delta).length === 0 ? d : { ...d, row: applyEmblemBonus(d.row, delta) };
     });
-  }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid]);
+  }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid, bondPreview]);
 
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
@@ -1234,7 +1366,9 @@ export default function BuilderIsland({
   ): React.JSX.Element => {
     const emblem = src === undefined ? undefined : emblemByGid.get(src.gid);
     const bond = src?.bond ?? 20;
-    const delta = emblem?.bonuses[bond - 1];
+    // 인연 옵션 호버 중이면 +N도 그 레벨로 미리보기(본스탯 합산과 동기).
+    const effBond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : bond;
+    const delta = emblem?.bonuses[effBond - 1];
     return (
       <tr key="ring">
         <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-middle">
@@ -1275,20 +1409,13 @@ export default function BuilderIsland({
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <EquipDropdown
-                      ariaLabel={labels.bond}
-                      value={String(bond)}
-                      options={BOND_OPTIONS}
-                      onChange={(v) => onPatch({ bond: Number(v) })}
+                    {/* 인연 드롭다운 = 문장사 상세 겸용(2026-08-31) — 옵션 호버 = 레벨 미리보기. */}
+                    <BondDropdown
+                      emblem={emblem}
+                      bond={bond}
                       labels={labels}
-                      // "인연레벨 Lv N"까지 표기 — 하단 강화+각인 칩을 합친 폭대(2026-08-31 사용자 지시).
-                      triggerClass="inline-flex h-7 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold text-pgrow"
-                      trigger={
-                        <>
-                          {`${labels.bondLevel} ${bond}`}
-                          {CARET}
-                        </>
-                      }
+                      onChange={(n) => onPatch({ bond: n })}
+                      onPreview={(n) => setBondPreview(n === null ? null : { pid, bond: n })}
                     />
                   </span>
                 )}
@@ -1712,31 +1839,8 @@ export default function BuilderIsland({
                         {job.name}
                       </span>
                     )}
-                    {/* 문장사 이름 — 클릭 = 레벨 상세 팝업(아이콘·수치는 반지 행, 이름은 카드 소유). */}
-                    {lockEmblem !== undefined && (
-                      <span className="entry-emblem relative flex justify-start">
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEmblemOpen((p) => (p === row.pid ? null : row.pid));
-                          }}
-                          className="max-w-[10em] cursor-pointer truncate px-1 pt-[2px] text-[13px] font-semibold leading-tight text-pgrow hover:underline"
-                        >
-                          {lockEmblem.name}
-                        </button>
-                        {emblemOpen === row.pid && (
-                          <EmblemPanel
-                            emblem={lockEmblem}
-                            bond={lockRing?.bond ?? 20}
-                            labels={labels}
-                            onClose={() => setEmblemOpen(null)}
-                          />
-                        )}
-                      </span>
-                    )}
-                    {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                    {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
+                        카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
                     <RingSlot
                       emblem={lockEmblem}
                       bond={lockRing?.bond ?? 20}
@@ -1865,31 +1969,8 @@ export default function BuilderIsland({
                 >
                   {(activeLi !== undefined ? compares[activeLi]?.job.name : compares[0]?.job.name) ?? ""}
                 </span>
-                {/* 문장사 이름 — 클릭 = 레벨 상세 팝업(아이콘·수치는 반지 행, 이름은 카드 소유). */}
-                {wEmblem !== undefined && (
-                  <span className="entry-emblem relative flex justify-start">
-                    <button
-                      type="button"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!ghost) setEmblemOpen((p) => (p === first.pid ? null : first.pid));
-                      }}
-                      className="max-w-[10em] cursor-pointer truncate px-1 pt-[2px] text-[13px] font-semibold leading-tight text-pgrow hover:underline"
-                    >
-                      {wEmblem.name}
-                    </button>
-                    {!ghost && emblemOpen === first.pid && (
-                      <EmblemPanel
-                        emblem={wEmblem}
-                        bond={ringSrc?.bond ?? 20}
-                        labels={labels}
-                        onClose={() => setEmblemOpen(null)}
-                      />
-                    )}
-                  </span>
-                )}
-                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
+                {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
+                    카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
                 <RingSlot
                   emblem={wEmblem}
                   bond={ringSrc?.bond ?? 20}

@@ -207,8 +207,7 @@ tbody:hover .entry-wrap {
   }
   /* 반지 슬롯(2026-08-31) — 세로폰은 반지 행 셀·문장사 이름을 걷고(밀도 우선),
      포트레이트 탭 = 우측 폴딩 전개(tbody 상태 클래스). 컨테이닝 블록 = 카드 th(sticky). */
-  .builder-table .ring-cell,
-  .builder-table .entry-emblem {
+  .builder-table .ring-cell {
     display: none;
   }
   .builder-table tbody.entry-fold-open .entry-ring {
@@ -299,8 +298,7 @@ tbody:hover .entry-wrap {
   }
   /* 반지 행 셀·문장사 이름도 PC 그대로 복원(세로 블록의 숨김이 좁은 가로폰에 샌다).
      폴딩 클러스터는 가로폰에서도 숨김 유지 — 반지 행이 대신한다. */
-  .builder-table .ring-cell,
-  .builder-table .entry-emblem {
+  .builder-table .ring-cell {
     display: flex;
   }
   .builder-table tbody.entry-fold-open .entry-ring {
