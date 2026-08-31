@@ -215,13 +215,22 @@ describe("문장사 보너스 (applyEmblemBonus)", () => {
     expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
   });
 
-  it("캡 도달 셀은 정수 표기를 유지한 채 가산된다", () => {
-    const capped = char("a", { personLimit: block({ hp: -60 }) });
-    const [row] = builderRows(propsOf([capped]), HIGH, 40);
-    expect(row!.cells.hp.capped).toBe(true);
-    const out = applyEmblemBonus(row!, { hp: 3 });
-    expect(out.cells.hp.text).toBe(String(Number(row!.cells.hp.text) + 3));
-    expect(out.cells.hp.capped).toBe(true);
+  it("캡 초과분은 캡에서 잘리고 소수점 버림(정수 캡 표기) — 이미 캡이면 상승 없음(2026-09-01 사용자 관측)", () => {
+    // str 본값 13.4 · cap 40 — 큰 델타는 40에서 잘린다(정수 = 소수점 버림 · capped · 상승분 있어 블루).
+    const [row] = builderRows(propsOf([char("a")]), HIGH, 11);
+    expect(row!.cells.str.text).toBe("13.4");
+    const out = applyEmblemBonus(row!, { str: 30 });
+    expect(out.cells.str.text).toBe("40");
+    expect(out.cells.str.value).toBe(40);
+    expect(out.cells.str.capped).toBe(true);
+    expect(out.cells.str.buffed).toBe(true);
+    // 이미 캡 도달(hp cap 20) — 델타를 얹어도 캡 그대로, 상승이 없으니 블루도 없다.
+    const capped = char("b", { personLimit: block({ hp: -60 }) });
+    const [row2] = builderRows(propsOf([capped]), HIGH, 40);
+    expect(row2!.cells.hp.capped).toBe(true);
+    const out2 = applyEmblemBonus(row2!, { hp: 3 });
+    expect(out2.cells.hp.text).toBe(row2!.cells.hp.text);
+    expect(out2.cells.hp.buffed).toBeUndefined();
   });
 });
 
