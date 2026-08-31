@@ -981,6 +981,9 @@ export default function BuilderIsland({
   const [bondPreview, setBondPreview] = useState<{ pid: string; bond: number } | null>(null);
   /** 세로폰 폴딩 — 포트레이트 탭으로 반지 슬롯을 우측 전개한 pid(2026-08-31 사용자 지시). */
   const [foldPid, setFoldPid] = useState<string | null>(null);
+  /** 클래스·In.Lv 드롭다운이 열린 카드 pid — 열린 동안 그 카드 th의 z를 올린다
+      (☠안 올리면 목록이 다음 카드의 sticky th(z-10, DOM 후순위)에 덮여 클릭 불능 — 실사고 2026-09-01). */
+  const [classDrop, setClassDrop] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
@@ -1423,6 +1426,7 @@ export default function BuilderIsland({
       [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
       (2026-08-31 사용자 지시: 폰트 14px 통일). */
   const classRowUi = (
+    pid: string,
     jidValue: string,
     jobName: string | undefined,
     internalDisplay: number,
@@ -1439,6 +1443,7 @@ export default function BuilderIsland({
         value={jidValue}
         options={classOptions}
         onChange={(jid) => onPatch({ jid })}
+        onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
         rootClass="min-w-0 flex-1"
         triggerClass="flex h-7 w-full items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight text-ink"
@@ -1454,6 +1459,7 @@ export default function BuilderIsland({
         value={String(internalDisplay)}
         options={INLV_OPTIONS}
         onChange={(v) => onPatch({ internal: Number(v) })}
+        onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
         triggerClass="flex h-7 w-[38px] shrink-0 items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
         trigger={
@@ -1902,7 +1908,7 @@ export default function BuilderIsland({
             const lockRing = lockRingOf(row.pid);
             const lockEntry = locked.find((e) => e.pid === row.pid);
             const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
-            const thRaised = emblemOpen === row.pid || foldPid === row.pid;
+            const thRaised = emblemOpen === row.pid || foldPid === row.pid || classDrop === row.pid;
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
             // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
             const touchUnlock = (e: React.MouseEvent): void => {
@@ -1959,6 +1965,7 @@ export default function BuilderIsland({
                     {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 정적 클래스명 라벨을 대체.
                         변경 = 스냅샷 직접 갱신·즉시 저장, 부적합 무기는 미착용 복귀. */}
                     {classRowUi(
+                      row.pid,
                       lockEntry?.jid ?? "",
                       job?.name,
                       (lockEntry?.internal ?? 0) + 1,
@@ -2060,7 +2067,7 @@ export default function BuilderIsland({
                   };
             const ringSrc = ghost ? lockRingOf(first.pid) : rings[first.pid];
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
-            const thRaised = !ghost && (emblemOpen === first.pid || foldPid === first.pid);
+            const thRaised = !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid);
             const nameTh = (
               <th
                 scope="row"
@@ -2090,6 +2097,7 @@ export default function BuilderIsland({
                 </span>
                 {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
                 {classRowUi(
+                  first.pid,
                   cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
                   cardCompareOf(first.pid, 0)?.job.name,
                   cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
