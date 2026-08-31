@@ -301,7 +301,8 @@ function CombatCells({
   return (
     <>
       <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
-        {(job !== undefined || weapon !== undefined) && weaponPicker("justify-center")}
+        {/* 개인 장비는 좌정렬(2026-08-31 사용자 지시). */}
+        {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
       </td>
       {STAT_KEYS.map((key) => {
         // HP 하단 = 강화·각인 슬롯(빈 칸 활용, 2026-08-31 지시) · RES = 클래스 적성(무기군) 아이콘 ·
@@ -310,7 +311,7 @@ function CombatCells({
           return (
             <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-middle md:min-w-[5.5rem] md:px-2">
               {weapon !== undefined && (
-                <span className={`relative flex items-center justify-center gap-1.5${hide}`}>
+                <span className={`relative flex items-center justify-start gap-1.5${hide}`}>
                   {plusChip()}
                   {engraveChip()}
                   {specPop}
