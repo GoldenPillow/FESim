@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
 import {
+  applyEmblemBonus,
   builderRowGroups,
   builderRows,
   canEquip,
@@ -186,6 +187,32 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], star)[0]!;
     expect(off.row.cells.str.text).toBe("13.4");
     expect(on.row.cells.str.text).toBe("15.1");
+  });
+});
+
+describe("문장사 보너스 (applyEmblemBonus)", () => {
+  /**
+   * 왜 위험한가: 絆 보너스는 성장 경로 밖 평면 가산(EnhanceValue 층)이라 셀 재조립이 틀려도
+   * 오류가 없다 — 표시·정렬값·상승 표식(buffed)이 함께 움직여야 정렬과 블루 표기가 성립한다.
+   */
+  it("델타 합산 — 소수 표시 유지·정렬값 동기·상승 셀만 buffed", () => {
+    const [row] = builderRows(propsOf([char("a")]), HIGH, 40);
+    const out = applyEmblemBonus(row!, { str: 2 });
+    expect(out.cells.str.value).toBeCloseTo(row!.cells.str.value + 2, 5);
+    expect(parseFloat(out.cells.str.text)).toBeCloseTo(parseFloat(row!.cells.str.text) + 2, 5);
+    expect(out.cells.str.text).toContain(".");
+    expect(out.cells.str.buffed).toBe(true);
+    expect(out.cells.hp.buffed).toBeUndefined();
+    expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
+  });
+
+  it("캡 도달 셀은 정수 표기를 유지한 채 가산된다", () => {
+    const capped = char("a", { personLimit: block({ hp: -60 }) });
+    const [row] = builderRows(propsOf([capped]), HIGH, 40);
+    expect(row!.cells.hp.capped).toBe(true);
+    const out = applyEmblemBonus(row!, { hp: 3 });
+    expect(out.cells.hp.text).toBe(String(Number(row!.cells.hp.text) + 3));
+    expect(out.cells.hp.capped).toBe(true);
   });
 });
 

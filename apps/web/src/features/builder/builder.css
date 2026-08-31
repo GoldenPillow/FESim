@@ -164,6 +164,24 @@ tbody:hover .entry-wrap {
   .entry-lock {
     display: none;
   }
+  /* 반지 UI(2026-08-31) — 좌열은 포트레이트만 남기고 숨긴다. 포트레이트 탭 = 우측 폴딩 전개.
+     ☠entry-wrap의 filter가 절대배치의 컨테이닝 블록이라 left:100%는 wrap(포트레이트) 우측 끝 기준. */
+  .builder-table .entry-ring {
+    display: none;
+  }
+  .builder-table th.entry-fold-open .entry-ring {
+    display: flex;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    z-index: 30;
+    margin-left: 4px;
+    padding: 4px 6px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+  }
   /* 전투력은 흐름 배치로 — 좁은 열에 캡션·값 2단이 안 들어간다. */
   .builder-table .combat-grid {
     display: none !important;
@@ -236,6 +254,17 @@ tbody:hover .entry-wrap {
   }
   .builder-table .combat-flow {
     display: none !important;
+  }
+  /* 반지 UI도 PC 그대로 인라인 복원(세로 블록의 숨김·폴딩 절대배치가 좁은 가로폰에 샌다). */
+  .builder-table .entry-ring,
+  .builder-table th.entry-fold-open .entry-ring {
+    display: flex;
+    position: static;
+    margin-left: 2em;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
   }
 }
 

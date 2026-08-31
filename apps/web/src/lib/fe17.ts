@@ -1,6 +1,7 @@
 import type { ChapterData, ConsumableItem, DisposUnit, EngageArt, EngageState, MapObject, StaffItem } from "@fesim/shared";
 import {
   MOVE_TYPES,
+  STAT_KEYS,
   deriveStats,
   mergeStatCap,
   moveBase,
@@ -12,6 +13,7 @@ import {
   type MapInteraction,
   type SkillRow,
   type StatBlock,
+  type StatKey,
 } from "@fesim/engine";
 import godsRaw from "../../../../data/fe17/tables/gods.json?raw";
 import chapterlistRaw from "../../../../data/fe17/tables/chapterlist.json?raw";
@@ -100,6 +102,10 @@ export interface AssetManifest {
   /** 무기군(카테고리) 아이콘 — ui_icon/weapon 번들 베이크 산출(흰 실루엣.
       ☠weaponoutline 번들이 아니다 — 그쪽은 어두운 그림자 레이어, 이름과 반대. 베이크 보고 2026-08-31). */
   weapontypes?: Record<string, string>;
+  /** 문장사 반지 아이콘 — GID 키, ui_icon/godring 베이크 산출(대표 신장 20종). */
+  godRings?: Record<string, string>;
+  /** 絆지환 레어도 링(Bronze·Silver·Gold·Platinum) — 미장착 플레이스홀더·후속 絆지환용. */
+  ringCommons?: Record<string, string>;
 }
 
 interface NamedRow {
@@ -1915,6 +1921,44 @@ export interface BuilderEngraveProp {
   dodge: number;
 }
 
+/** 문장사 레벨 상세의 스킬 한 줄 — 이름은 표기, 설명(Help)은 호버 상세가 소비. */
+export interface EmblemSkillProp {
+  sid: string;
+  name: string;
+  help?: string;
+}
+
+/** 문장사 레벨 상세의 엔게이지 아이템 — 공격 무기면 스펙 단면(weapon) 동봉(지팡이류는 이름·설명만). */
+export interface EmblemItemProp {
+  iid: string;
+  name: string;
+  help?: string;
+  icon?: string;
+  weapon?: BuilderWeaponProp;
+}
+
+/** 絆 레벨 1칸의 획득분(성장표 원행 그대로 — 누적·대체는 bonuses가 소유). 전부 빈 레벨은 목록에서 뺀다. */
+export interface EmblemLevelProp {
+  bond: number;
+  synchro?: EmblemSkillProp[];
+  engage?: EmblemSkillProp[];
+  weapons?: EmblemItemProp[];
+}
+
+/** 문장사(반지) 후보 — 대표 신장 20(builderEngraves와 동일 판별). */
+export interface BuilderEmblemProp {
+  gid: string;
+  /** 문장사 이름(Mid) — 드롭다운·카드 하단 표기. */
+  name: string;
+  /** 반지 아이콘(godring 베이크) — 베이크 전이면 이름 칩 폴백. */
+  icon?: string;
+  spoiler?: true;
+  dlc?: true;
+  /** 絆 1..20 누적 시너지 스탯 델타(동계열 대체 = emblemSyncSids 정본) — 인덱스 = 絆-1, 비영 키만. */
+  bonuses: Partial<Record<StatKey, number>>[];
+  levels: EmblemLevelProp[];
+}
+
 export interface BuilderProps {
   locale: Locale;
   /** 星玉の加護 행(Work 3 = TotalGrowChange +15) — 빌더 체커가 켜면 전 캐릭터 workSkills에 얹는다. */
@@ -1929,6 +1973,10 @@ export interface BuilderProps {
   weapons: BuilderWeaponProp[];
   /** 각인 후보(각인값 채운 엠블렘 22행) — gods.json 순서 그대로(본편 → DLC). */
   engraves: BuilderEngraveProp[];
+  /** 문장사 반지 후보(대표 신장 20) — 카드 반지 슬롯·絆 보너스·레벨 상세 팝업이 소비. */
+  emblems: BuilderEmblemProp[];
+  /** 미장착 반지 플레이스홀더 아이콘(絆지환 실버 링) — 베이크 전이면 라벨 폴백. */
+  ringPlaceholder?: string;
   /** 무기군 아이콘(흰 실루엣) href — 키 = Kind(1~9, 지팡이 7 포함). 베이크 전이면 빈 객체. */
   kindIcons: Record<number, string>;
 }
@@ -1976,6 +2024,23 @@ const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5,
 export const rankValue = (rank: string): number =>
   (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
 
+/** 무기 특효 단면(EquipSids → Efficacy 비영 스킬) — 빌더 무기 목록·문장사 엔게이지 무기가 공용.
+    아이콘 키 = IconLabel(efficacy 스프라이트 동명). */
+const weaponEfficacies = (row: Record<string, unknown>, locale: Locale): { kind: string; help: string; icon?: string }[] =>
+  ((row["EquipSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+    const skill = skills[sid] as Record<string, unknown> | undefined;
+    if (typeof skill?.["Efficacy"] !== "number" || skill["Efficacy"] === 0) return [];
+    const kind = String(skill["IconLabel"] ?? "");
+    const effIcon = assetHref(manifest.efficacy?.[kind]);
+    return [
+      {
+        kind,
+        help: label(locale, String(skill["Help"] ?? "")) ?? "",
+        ...(effIcon !== undefined ? { icon: effIcon } : {}),
+      },
+    ];
+  });
+
 /** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic)·문장사 무기 제외
     (엠블렘 무기 제외 = 2026-08-31 사용자 지시 — 엔게이지 상태 한정 무기라 상시 장비 목록 밖.
     ☠판별은 Engage 플래그만으로 부족하다: _通常 변형은 Flag 3이라 새어 들어온다(실측) —
@@ -2004,20 +2069,7 @@ function builderWeapons(locale: Locale): BuilderWeaponProp[] {
     const stages = refineTable[iid.replace(/^IID_/, "")];
     const icon = assetHref(manifest.items?.[String(row["Icon"] ?? "")]);
     const shopIdx = shopIndex.get(iid);
-    // 특효 — 무기 부여 스킬(EquipSids) 중 Efficacy 비영 행. 아이콘 키 = IconLabel(efficacy 스프라이트 동명).
-    const efficacies = ((row["EquipSids"] as string[] | undefined) ?? []).flatMap((sid) => {
-      const skill = skills[sid] as Record<string, unknown> | undefined;
-      if (typeof skill?.["Efficacy"] !== "number" || skill["Efficacy"] === 0) return [];
-      const kind = String(skill["IconLabel"] ?? "");
-      const effIcon = assetHref(manifest.efficacy?.[kind]);
-      return [
-        {
-          kind,
-          help: label(locale, String(skill["Help"] ?? "")) ?? "",
-          ...(effIcon !== undefined ? { icon: effIcon } : {}),
-        },
-      ];
-    });
+    const efficacies = weaponEfficacies(row, locale);
     list.push({
       iid,
       name: prop.name,
@@ -2090,6 +2142,107 @@ function builderEngraves(locale: Locale): BuilderEngraveProp[] {
       ...(gid === SPOILER_ENGRAVE_GID ? { spoiler: true as const } : {}),
       ...((Number(row["Flag"] ?? 0) & GOD_FLAG_DLC) !== 0 ? { dlc: true as const } : {}),
       ...vals,
+    });
+  }
+  return out;
+}
+
+/** skills 행 → 팝업 표기 단면 — 이름 MSID가 없는 내부 행(무효과 슬롯)은 표시하지 않는다. */
+const emblemSkillBrief = (sid: string, locale: Locale): EmblemSkillProp | undefined => {
+  const row = skills[sid] as Record<string, unknown> | undefined;
+  if (row === undefined) return undefined;
+  const name = label(locale, String(row["Name"] ?? ""));
+  if (name === undefined || name === "") return undefined;
+  const help = label(locale, String(row["Help"] ?? ""));
+  return { sid, name, ...(help !== undefined && help !== "" ? { help } : {}) };
+};
+
+/** 엔게이지 아이템 단면 — 공격 무기면 빌더 무기 스펙(BuilderWeaponProp)을 동봉해 SpecPanel이 선다. */
+const emblemItemBrief = (iid: string, locale: Locale): EmblemItemProp | undefined => {
+  const row = items[iid] as unknown as Record<string, unknown> | undefined;
+  if (row === undefined) return undefined;
+  const name = label(locale, String(row["Name"] ?? "")) ?? iid;
+  const help = label(locale, String(row["Help"] ?? ""));
+  const icon = assetHref(manifest.items?.[String(row["Icon"] ?? "")]);
+  const prop = attackWeaponProp(iid, locale);
+  const efficacies = weaponEfficacies(row, locale);
+  const weapon: BuilderWeaponProp | undefined =
+    prop === undefined
+      ? undefined
+      : {
+          iid,
+          name: prop.name,
+          kind: prop.kind,
+          might: prop.might,
+          hit: prop.hit,
+          crit: prop.crit,
+          weight: prop.weight,
+          avoid: prop.avoid,
+          dodge: prop.dodge ?? 0,
+          magic: prop.magic,
+          rank: String(row["WeaponLevel"] ?? "N"),
+          ...(prop.engage === true ? { engage: true as const } : {}),
+          ...(prop.enhance !== undefined ? { enhance: prop.enhance } : {}),
+          ...(efficacies.length > 0 ? { efficacies } : {}),
+          ...(icon !== undefined ? { icon } : {}),
+        };
+  return {
+    iid,
+    name,
+    ...(help !== undefined && help !== "" ? { help } : {}),
+    ...(icon !== undefined ? { icon } : {}),
+    ...(weapon !== undefined ? { weapon } : {}),
+  };
+};
+
+/** 絆 레벨 누적 시너지 스탯 델타 — SID 누적·동계열 대체는 emblemSyncSids(보드 정본)가 소유하고,
+    합산은 엔진 staticEnhances와 같은 축(EnhanceValue 층)이다. 비영 키만 남긴다. */
+const emblemBonusAt = (gid: string, bond: number): Partial<Record<StatKey, number>> => {
+  const rows = emblemSyncSids(gid, bond)
+    .map((sid) => slimSkill(sid))
+    .filter((r): r is SkillRow => r !== undefined);
+  const zero = {} as StatBlock;
+  for (const key of STAT_KEYS) zero[key] = 0;
+  const sum = staticEnhances(zero, rows);
+  const out: Partial<Record<StatKey, number>> = {};
+  for (const key of STAT_KEYS) if (sum[key] !== 0) out[key] = sum[key];
+  return out;
+};
+
+/** 문장사(반지) 후보 — 판별은 builderEngraves와 동일(각인값 비영 + 대표 신장 Gbid) = 정확히 20행. */
+function builderEmblems(locale: Locale): BuilderEmblemProp[] {
+  const engraveFields = ["EngravePower", "EngraveWeight", "EngraveHit", "EngraveCritical", "EngraveAvoid", "EngraveSecure"];
+  const out: BuilderEmblemProp[] = [];
+  for (const [gid, row] of Object.entries(godsTable.gods)) {
+    if (engraveFields.every((f) => Number(row[f] ?? 0) === 0)) continue;
+    if (String(row["Gbid"] ?? "") !== gid.replace(/^GID_/, "GBID_")) continue;
+    const icon = assetHref(manifest.godRings?.[gid]);
+    const bonuses: Partial<Record<StatKey, number>>[] = [];
+    for (let bond = 1; bond <= 20; bond++) bonuses.push(emblemBonusAt(gid, bond));
+    const table = godsTable.growth[String(row["GrowTable"] ?? "")] ?? {};
+    const levels: EmblemLevelProp[] = [];
+    for (let bond = 1; bond <= 20; bond++) {
+      const lv = table[String(bond)];
+      if (lv === undefined) continue;
+      const synchro = (lv.SynchroSkills ?? []).flatMap((sid) => emblemSkillBrief(sid, locale) ?? []);
+      const engage = (lv.EngageSkills ?? []).flatMap((sid) => emblemSkillBrief(sid, locale) ?? []);
+      const weapons = (lv.EngageItems ?? []).flatMap((iid) => emblemItemBrief(iid, locale) ?? []);
+      if (synchro.length + engage.length + weapons.length === 0) continue;
+      levels.push({
+        bond,
+        ...(synchro.length > 0 ? { synchro } : {}),
+        ...(engage.length > 0 ? { engage } : {}),
+        ...(weapons.length > 0 ? { weapons } : {}),
+      });
+    }
+    out.push({
+      gid,
+      name: label(locale, String(row["Mid"] ?? "")) ?? gid,
+      ...(icon !== undefined ? { icon } : {}),
+      ...(gid === SPOILER_ENGRAVE_GID ? { spoiler: true as const } : {}),
+      ...((Number(row["Flag"] ?? 0) & GOD_FLAG_DLC) !== 0 ? { dlc: true as const } : {}),
+      bonuses,
+      levels,
     });
   }
   return out;
@@ -2240,6 +2393,11 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
     weapons: builderWeapons(locale),
     engraves: builderEngraves(locale),
+    emblems: builderEmblems(locale),
+    ...(() => {
+      const href = assetHref(manifest.ringCommons?.["Silver"]);
+      return href !== undefined ? { ringPlaceholder: href } : {};
+    })(),
     kindIcons: kindIconsOf(),
   };
 }

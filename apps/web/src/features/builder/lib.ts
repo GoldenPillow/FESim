@@ -26,6 +26,8 @@ export interface BuilderCell {
   /** 정렬 비교값 — 캡 정수도 같은 축에서 비교한다. */
   value: number;
   capped: boolean;
+  /** 문장사 絆 보너스로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
+  buffed?: boolean;
 }
 
 export interface BuilderRow {
@@ -157,6 +159,21 @@ export function moveLock(locked: readonly EntryLock[], from: number, to: number)
   const [entry] = next.splice(from, 1);
   if (entry !== undefined) next.splice(to, 0, entry);
   return next;
+}
+
+/**
+ * 문장사 絆 보너스 합산 — 성장 경로(growthPath) 밖 평면 가산(EnhanceValue 층, 보드 staticEnhances와 동축).
+ * 셀 표시·정렬값·상승 표식(buffed)을 함께 움직인다 — 원본 불변(정렬·유령 카드가 같은 행을 공유한다).
+ */
+export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey, number>>): BuilderRow {
+  const cells = { ...row.cells };
+  for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
+    if (d === 0) continue;
+    const cell = cells[key];
+    const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
+    cells[key] = { ...cell, text, value: cell.value + d, ...(d > 0 ? { buffed: true as const } : {}) };
+  }
+  return { ...row, cells };
 }
 
 /** 대기 목록 한 묶음 — ghost = 엔트리에 잠긴 캐릭터의 비교용 임시 카드(반투명·무반응, 정렬·비교표에는 참가). */

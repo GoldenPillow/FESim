@@ -1190,6 +1190,32 @@ describe("builderPropsFor.engraves — 각인 사영(2026-08-31)", () => {
   });
 });
 
+describe("builderPropsFor.emblems — 문장사 반지 사영(2026-08-31)", () => {
+  /**
+   * 왜 위험한가: 絆 보너스는 growth SynchroSkills(SID) → skills EnhanceValue 2단 사영이라
+   * 동계열 대체(力+1 → 力+2)가 무너지면 누적 합산(+1+2+3)으로 조용히 부풀고, 보드의 실사고
+   * (decisions.md:215 — 싱크로 EnhanceValue 미탑재로 물공 11 vs 실기 12)와 같은 축이 빌더에서 재발한다.
+   * 마르스 절대치(絆1 = 힘·기·속+1, 絆20 = 힘+3·기+4·속+4)를 앵커로 박제한다.
+   */
+  it("엠블렘 20행 — 마르스 絆 보너스 앵커, 반지 아이콘 전수, 스포일러·DLC 축, 레벨 상세", () => {
+    const { emblems } = builderPropsFor("ko");
+    expect(emblems).toHaveLength(20);
+    expect(emblems.filter((e) => e.spoiler === true).map((e) => e.gid)).toEqual(["GID_リュール"]);
+    expect(emblems.filter((e) => e.dlc === true)).toHaveLength(7);
+    expect(emblems.every((e) => e.icon?.includes("/assets/rings/") === true)).toBe(true);
+    const marth = emblems.find((e) => e.gid === "GID_マルス")!;
+    expect(marth.name).toBe("마르스");
+    expect(marth.bonuses).toHaveLength(20);
+    expect(marth.bonuses[0]).toEqual({ str: 1, dex: 1, spd: 1 });
+    expect(marth.bonuses[19]).toEqual({ str: 3, dex: 4, spd: 4 });
+    // 레벨 상세 — 絆1에 싱크로(견제)·엔게이지 무기(레이피어)가 서고, 무기는 스펙 단면을 동봉한다.
+    const lv1 = marth.levels.find((l) => l.bond === 1)!;
+    expect(lv1.synchro?.some((s) => s.sid === "SID_見切り" && s.name.length > 0)).toBe(true);
+    const rapier = lv1.weapons?.find((w) => w.iid === "IID_マルス_レイピア");
+    expect(rapier?.weapon?.might).toBeGreaterThan(0);
+  });
+});
+
 describe("builderPropsFor.targetJobs — 특수직(2026-08-31)", () => {
   /**
    * 왜 위험한가: 특수직(시프·댄서·사룡 계열)은 Rank 0 + MaxLevel 40 시그니처라 "랭크 1 = 상급직"

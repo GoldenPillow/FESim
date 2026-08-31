@@ -371,6 +371,49 @@ def bake_god_engraves(romfs: Path, data: Path) -> int:
     return 0
 
 
+def bake_god_rings(romfs: Path, data: Path) -> int:
+    """문장사 반지 아이콘 — ui_icon/godring 번들(엠블렘 20 + Common 레어도 4). 빌더 반지 슬롯이 소비
+    (2026-08-31 사용자 지시: 좌 아이콘·우 문장사 이름).
+
+    엠블렘 판별은 bake_god_engraves와 동일(Gbid 자기 참조 + 각인값 비영 = 대표 신장 20).
+    Common*(絆지환 레어도)은 미장착 플레이스홀더·후속 絆지환용으로 ringCommons에 따로 등재한다.
+    """
+    gods = json.loads((data / "tables" / "gods.json").read_text(encoding="utf-8"))["gods"]
+    sprites = load_sprites(romfs / "ui_icon" / "godring" / "godring.bundle")
+    out_dir = data / "assets" / "rings"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    engrave_fields = ("EngravePower", "EngraveWeight", "EngraveHit", "EngraveCritical", "EngraveAvoid", "EngraveSecure")
+    resolved, baked = {}, 0
+    for gid, god in gods.items():
+        key = god.get("AsciiName") or ""
+        if key not in sprites:
+            continue
+        if (god.get("Gbid") or "") != f"GBID_{gid.removeprefix('GID_')}":
+            continue
+        if all(int(god.get(f) or 0) == 0 for f in engrave_fields):
+            continue
+        dest = out_dir / f"{key}.webp"
+        if not dest.is_file():
+            write_webp(sprites[key].read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[gid] = f"assets/rings/{key}.webp"
+    commons = {}
+    for name in sorted(sprites):
+        if not name.startswith("Common"):
+            continue
+        dest = out_dir / f"{name}.webp"
+        if not dest.is_file():
+            write_webp(sprites[name].read().image.convert("RGBA"), dest)
+            baked += 1
+        commons[name.removeprefix("Common")] = f"assets/rings/{name}.webp"
+    manifest["godRings"] = dict(sorted(resolved.items()))
+    manifest["ringCommons"] = commons
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"god rings: {len(resolved)} rings + {len(commons)} commons ({baked} new)")
+    return 0
+
+
 def bake_roster_faces(data: Path, faces: dict) -> None:
     """챕터 dispos에 등장하지 않는 플레이어블(사룡의 장 보상 합류 5인) 얼굴 보강.
 
@@ -405,6 +448,7 @@ def main() -> int:
     parser.add_argument("--weapontypes", action="store_true", help="무기종 카테고리 아이콘 베이크(챕터·얼굴 스킵)")
     parser.add_argument("--engraves", action="store_true", help="각인 심볼 베이크(godsymbolengrave — 챕터·얼굴 스킵)")
     parser.add_argument("--efficacy", action="store_true", help="특효 아이콘 베이크(efficacy — 챕터·얼굴 스킵)")
+    parser.add_argument("--rings", action="store_true", help="문장사 반지 아이콘 베이크(godring — 챕터·얼굴 스킵)")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
@@ -418,6 +462,8 @@ def main() -> int:
         return bake_god_engraves(args.romfs, args.data)
     if args.efficacy:
         return bake_efficacy(args.romfs, args.data)
+    if args.rings:
+        return bake_god_rings(args.romfs, args.data)
 
     chapters = [args.chapter]
     if args.all:

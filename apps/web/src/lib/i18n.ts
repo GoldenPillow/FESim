@@ -179,6 +179,18 @@ export interface BuilderLabels {
   might: string;
   weight: string;
   stats: Record<StatKey, string>;
+  /** 문장사(엠블렘) — 반지 슬롯 접근성·레벨 상세 팝업 제목 축. */
+  emblem: string;
+  /** 반지 드롭다운 접근성 라벨. */
+  ring: string;
+  /** 반지 드롭다운 기본 옵션(미장착). */
+  ringNone: string;
+  /** 인연(絆) 레벨 드롭다운 라벨. */
+  bond: string;
+  /** 팝업 구획: 싱크로(장착 중 상시) 스킬. */
+  synchro: string;
+  /** 팝업 구획: 인게이지 중 스킬·무기. */
+  engage: string;
 }
 
 /** 메인 랜딩(허브) 라벨 — 섹션·링크는 정적 페이지가 그대로 편다. */
@@ -379,6 +391,12 @@ export const UI: Record<Locale, Strings> = {
         hp: "HP", str: "Str", mag: "Mag", dex: "Dex", spd: "Spd",
         lck: "Lck", def: "Def", res: "Res", bld: "Bld",
       },
+      emblem: "Emblem",
+      ring: "Ring",
+      ringNone: "No ring",
+      bond: "Bond",
+      synchro: "Sync",
+      engage: "Engage",
     },
     home: {
       intro:
@@ -556,6 +574,12 @@ export const UI: Record<Locale, Strings> = {
       efficacyNames: { Armor: "重装", Fly: "飛行", Horse: "騎馬", Dragon: "竜", Morph: "異形" },
       might: "威力",
       weight: "重さ",
+      emblem: "紋章士",
+      ring: "指輪",
+      ringNone: "指輪なし",
+      bond: "絆",
+      synchro: "シンクロ",
+      engage: "エンゲージ",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -735,6 +759,12 @@ export const UI: Record<Locale, Strings> = {
       efficacyNames: { Armor: "중갑", Fly: "비행", Horse: "기마", Dragon: "용", Morph: "이형" },
       might: "위력",
       weight: "무게",
+      emblem: "문장사",
+      ring: "반지",
+      ringNone: "반지 없음",
+      bond: "인연",
+      synchro: "싱크로",
+      engage: "인게이지",
       stats: {
         hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
 import {
+  applyEmblemBonus,
   builderRowGroups,
   canEquip,
   combatOf,
@@ -15,7 +16,13 @@ import {
   type BuilderSort,
   type EquippedWeapon,
 } from "./lib";
-import type { BuilderEngraveProp, BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
+import type {
+  BuilderEmblemProp,
+  BuilderEngraveProp,
+  BuilderJobProp,
+  BuilderProps,
+  BuilderWeaponProp,
+} from "../../lib/fe17";
 import {
   loadEntryLocks,
   loadShowDlc,
@@ -263,6 +270,18 @@ const engraveOptionsOf = (
   })),
 ];
 
+/** 반지 후보 — 좌 아이콘·우 문장사 이름(2026-08-31 사용자 지시). */
+const ringOptionsOf = (emblems: readonly BuilderEmblemProp[], labels: BuilderLabels): EquipOption[] => [
+  { value: "", label: labels.ringNone },
+  ...emblems.map((e) => ({ value: e.gid, label: e.name, ...(e.icon !== undefined ? { icon: e.icon } : {}) })),
+];
+
+/** 絆 레벨 1~20 — 반지 선택 시 기본 20(2026-08-31 사용자 지시)이라 20이 첫 항목이 되게 내림차순. */
+const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
+  value: String(20 - i),
+  label: String(20 - i),
+}));
+
 /**
  * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
  * 그린다(2026-08-31 사용자 지시: 옵션 호버 즉시 우측 상세 스펙). 트리거 = 상단 셀렉트풍 박스 + ▾.
@@ -372,6 +391,105 @@ function EquipDropdown({
           {spec !== undefined && (
             <span className="ml-1 rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
               <SpecPanel weapon={spec.weapon} plus={spec.plus} engrave={spec.engrave} labels={labels} />
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * 문장사 레벨 상세 팝업 — 카드 하단 문장사 이름 클릭으로 열고, 바깥클릭은 캡처 단계로 닫는다
+ * (드롭다운 교훈 공유 — 루트가 pointerdown 전파를 끊어 버블 리스너는 못 본다).
+ * 현재 絆 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시(2026-08-31 사용자 지시).
+ * 항목 호버 = 우측 상세(스킬 = 정본 설명문, 무기 = 스펙 패널).
+ */
+function EmblemPanel({
+  emblem,
+  bond,
+  labels,
+  onClose,
+}: {
+  emblem: BuilderEmblemProp;
+  bond: number;
+  labels: BuilderLabels;
+  onClose: () => void;
+}): React.JSX.Element {
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const [hover, setHover] = useState<{ name: string; help?: string; weapon?: BuilderWeaponProp } | null>(null);
+  useEffect(() => {
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const chip = (
+    key: string,
+    name: string,
+    cls: string,
+    detail: { name: string; help?: string; weapon?: BuilderWeaponProp },
+    icon?: string,
+  ): React.JSX.Element => (
+    <span
+      key={key}
+      className={`flex cursor-default items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
+      onMouseEnter={() => setHover(detail)}
+      onMouseLeave={() => setHover((h) => (h?.name === detail.name ? null : h))}
+    >
+      {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
+      {name}
+    </span>
+  );
+  return (
+    <span
+      ref={rootRef}
+      className="absolute left-0 top-full z-50 mt-1 flex items-start"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <span className="flex max-h-96 w-max flex-col overflow-y-auto rounded border border-rule bg-panel px-2.5 py-2 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+        <span className="pb-1 text-[14px] font-semibold text-ink">
+          {emblem.name} — {labels.bond} {bond}
+        </span>
+        {emblem.levels.map((lv) => (
+          <span
+            key={lv.bond}
+            className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
+          >
+            <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
+            <span className="flex max-w-[24rem] flex-wrap gap-1">
+              {lv.synchro?.map((s) =>
+                chip(`s-${s.sid}`, s.name, "text-ink", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
+              )}
+              {lv.engage?.map((s) =>
+                chip(`e-${s.sid}`, s.name, "text-engage", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
+              )}
+              {lv.weapons?.map((w) =>
+                chip(
+                  `w-${w.iid}`,
+                  w.name,
+                  "text-engage",
+                  { name: w.name, ...(w.help !== undefined ? { help: w.help } : {}), ...(w.weapon !== undefined ? { weapon: w.weapon } : {}) },
+                  w.icon,
+                ),
+              )}
+            </span>
+          </span>
+        ))}
+      </span>
+      {/* 항목 호버 상세 — 목록 우측 오버레이(무기 = 스펙 패널, 스킬 = 정본 설명문). */}
+      {hover !== null && (
+        <span className="ml-1 max-w-[18rem] rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
+          {hover.weapon !== undefined ? (
+            <SpecPanel weapon={hover.weapon} plus={0} labels={labels} />
+          ) : (
+            <span className="flex flex-col gap-1 text-[13px] leading-snug text-muted">
+              <span className="font-semibold text-ink">{hover.name}</span>
+              {hover.help !== undefined && <span className="whitespace-pre-line">{hover.help}</span>}
             </span>
           )}
         </span>
@@ -616,6 +734,8 @@ export default function BuilderIsland({
   starsphere,
   weapons,
   engraves,
+  emblems,
+  ringPlaceholder,
   kindIcons,
   labels,
 }: BuilderIslandProps) {
@@ -639,6 +759,14 @@ export default function BuilderIsland({
   const [overrides, setOverrides] = useState<Record<string, { iid?: string; plus?: number; engrave?: string }>>({});
   /** 잠그는 순간의 1회 충격파 — ☠잠금 상태 클래스에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
   const [pulsePid, setPulsePid] = useState<string | null>(null);
+  /** 카드 반지 장착(개인별, 2026-08-31 사용자 지시) — 세션 한정(저장 안 함, 개인 장비 overrides와 동형). */
+  const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
+  /** 문장사 레벨 상세 팝업이 열린 카드 pid(배타 열림). */
+  const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
+  /** 반지·絆 드롭다운이 열린 카드 pid — 열린 동안 그 th의 z를 올린다(다음 카드 sticky th에 가림 방지). */
+  const [ringDrop, setRingDrop] = useState<string | null>(null);
+  /** 세로폰 폴딩 — 포트레이트 탭으로 우측 전개한 카드 pid(2026-08-31 사용자 지시). */
+  const [foldPid, setFoldPid] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
@@ -651,6 +779,8 @@ export default function BuilderIsland({
       개인 오버라이드가 없으면 글로벌 장비가 그대로 장착된다(2026-08-31 사용자 설계). 해제 = 폐기. */
   const toggleLock = (pid: string, li: number): void => {
     const on = !locked.some((e) => e.pid === pid);
+    // 토글 직전 자리 스냅샷 — 커밋 후 FLIP(위로 이동 + 밀림)이 이 값으로 비행 경로를 계산한다.
+    snapshotFlip();
     let next: EntryLock[];
     if (on) {
       // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
@@ -677,7 +807,9 @@ export default function BuilderIsland({
     }
     saveEntryLocks(next);
     setLocked(next);
-    setPulsePid(on ? pid : null);
+    // 충격파는 즉시가 아니라 **도착 후** — FLIP 완료 콜백이 pendingPulse를 회수해 터뜨린다(2026-08-31 지시).
+    pendingPulse.current = on ? pid : null;
+    setPulsePid(null);
     // 행이 상단으로 이동하면 옛 자리의 mouseleave가 안 온다 — 호버 흔적을 지운다.
     setHoverRow(null);
   };
@@ -707,6 +839,55 @@ export default function BuilderIsland({
      끌리는 블록은 반투명으로 목표 자리를 미리 보이고, 나머지는 자리 양보 애니메이션(builder.css).
      놓는 순간 순서 확정 + 저장(온오프와 같은 저장 시점 규약). */
   const lockedRefs = useRef(new Map<string, HTMLTableSectionElement>());
+  /** 대기 블록 참조 — 잠금 FLIP(이동 애니메이션)의 출발·밀림 계산용. */
+  const waitingRefs = useRef(new Map<string, HTMLTableSectionElement>());
+  /** 잠금 토글 직전 각 블록의 화면 top(키 = "lock:"|"wait:" + pid) — 커밋 후 FLIP이 소비. */
+  const flipRects = useRef<Map<string, number> | null>(null);
+  /** 도착 대기 중인 충격파 pid — 카드가 목적지에 안착한 뒤에 터진다(2026-08-31 사용자 지시). */
+  const pendingPulse = useRef<string | null>(null);
+  const snapshotFlip = (): void => {
+    const rects = new Map<string, number>();
+    for (const [pid, el] of lockedRefs.current) rects.set(`lock:${pid}`, el.getBoundingClientRect().top);
+    for (const [pid, el] of waitingRefs.current) rects.set(`wait:${pid}`, el.getBoundingClientRect().top);
+    flipRects.current = rects;
+  };
+
+  // 잠금 FLIP — 새 잠금 블록은 옛 대기 카드 자리에서 날아오르고(z 상승), 밀려나는 블록들은 제자리 이동.
+  useLayoutEffect(() => {
+    const rects = flipRects.current;
+    if (rects === null) return;
+    flipRects.current = null;
+    const fly = (el: HTMLTableSectionElement, delta: number): Animation =>
+      el.animate([{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }], {
+        duration: 380,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      });
+    for (const [pid, el] of lockedRefs.current) {
+      // 새로 잠긴 블록의 출발점 = 그 캐릭터의 옛 대기 카드 자리(잠금 이력 블록은 자기 옛 자리).
+      const old = rects.get(`lock:${pid}`) ?? rects.get(`wait:${pid}`);
+      const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top;
+      if (Math.abs(delta) > 1) {
+        const anim = fly(el, delta);
+        // 비행 중엔 다른 sticky th(z-10)에 안 가리게 z 상승 — 도착 후 원복.
+        el.style.zIndex = "30";
+        const firePulse = pendingPulse.current === pid;
+        if (firePulse) pendingPulse.current = null;
+        anim.onfinish = () => {
+          el.style.zIndex = "";
+          if (firePulse) setPulsePid(pid);
+        };
+      } else if (pendingPulse.current === pid) {
+        pendingPulse.current = null;
+        setPulsePid(pid);
+      }
+    }
+    for (const [pid, el] of waitingRefs.current) {
+      const old = rects.get(`wait:${pid}`);
+      const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top;
+      if (Math.abs(delta) > 1) fly(el, delta);
+    }
+  }, [locked]);
+
   /** 잠금 블록 호버 — 열린 자물쇠(해제 버튼)를 이 블록에만 띄운다. */
   const [lockHover, setLockHover] = useState<string | null>(null);
   const [drag, setDrag] = useState<{
@@ -783,6 +964,12 @@ export default function BuilderIsland({
     () => engraves.filter((g) => (showSpoilers || g.spoiler !== true) && (showDlc || g.dlc !== true)),
     [engraves, showSpoilers, showDlc],
   );
+  // 문장사(반지) 후보도 같은 축 — 체커에 숨은 gid의 장착분은 조용히 미장착 강하(각인 게이트와 동형).
+  const visibleEmblems = useMemo(
+    () => emblems.filter((e) => (showSpoilers || e.spoiler !== true) && (showDlc || e.dlc !== true)),
+    [emblems, showSpoilers, showDlc],
+  );
+  const emblemByGid = useMemo(() => new Map(visibleEmblems.map((e) => [e.gid, e])), [visibleEmblems]);
 
   const compares: (BuilderCompare & { slot: number })[] = useMemo(
     () =>
@@ -828,10 +1015,16 @@ export default function BuilderIsland({
     () => chars.filter((c) => (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true)),
     [chars, showSpoilers, showDlc],
   );
-  const groups = useMemo(
-    () => waitingRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
-    [visibleChars, joinJobs, compares, sort, extraSkills, locked],
-  );
+  const groups = useMemo(() => {
+    const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
+    // 문장사 絆 보너스 — 정렬·유령 카드보다 먼저 합산해야 정렬값이 보너스를 본다(2026-08-31 사용자 지시).
+    const boosted = base.map((g) => {
+      const ring = rings[g[0]!.pid];
+      const delta = ring === undefined ? undefined : emblemByGid.get(ring.gid)?.bonuses[ring.bond - 1];
+      return delta === undefined ? g : g.map((r) => applyEmblemBonus(r, delta));
+    });
+    return waitingRowGroups(boosted, locked, sort);
+  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   const lockedRows = useMemo(
     () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves),
@@ -879,6 +1072,20 @@ export default function BuilderIsland({
       };
     });
   };
+  /** 카드 반지 변경 — "" = 해제. 새 반지 선택 시 기본 絆 20(2026-08-31 사용자 지시), 같은 반지 재선택은 유지. */
+  const setRing = (pid: string, gid: string): void =>
+    setRings((prev) => {
+      if (gid === "") {
+        const { [pid]: _drop, ...rest } = prev;
+        return rest;
+      }
+      const cur = prev[pid];
+      return { ...prev, [pid]: { gid, bond: cur?.gid === gid ? cur.bond : 20 } };
+    });
+
+  const setBond = (pid: string, bond: number): void =>
+    setRings((prev) => (prev[pid] === undefined ? prev : { ...prev, [pid]: { ...prev[pid]!, bond } }));
+
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
@@ -1345,19 +1552,103 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
+            const ring = rings[first.pid];
+            const emblem = ring === undefined ? undefined : emblemByGid.get(ring.gid);
+            const thRaised = emblemOpen === first.pid || ringDrop === first.pid || foldPid === first.pid;
             const nameTh = (
               <th
                 scope="row"
                 // 전투력 행이 라인마다 상시(공란 포함)라 rowSpan은 고정 — 호버로 표가 안 움직인다(2026-08-31).
                 rowSpan={g.length * 2 + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
+                // 반지 팝업·드롭다운이 열린 카드는 z를 올린다 — 아래 카드의 sticky th(z-10)가 DOM 후순위라 덮는다.
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${foldPid === first.pid ? "entry-fold-open" : ""} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
-                  <span className="entry-card">
+                  <span
+                    className="entry-card"
+                    // 세로폰: 포트레이트 탭 = 우측 폴딩 토글(반지 UI 전개, 2026-08-31 사용자 지시).
+                    // 데스크톱·가로폰 클릭은 그대로 행 잠금으로 흘린다(전파 유지).
+                    onClick={(e) => {
+                      const native = e.nativeEvent as PointerEvent;
+                      if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                        e.stopPropagation();
+                        setFoldPid((p) => (p === first.pid ? null : first.pid));
+                      }
+                    }}
+                  >
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
                     <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
+                    {/* 문장사 반지 블록 — 이름 우측 2글자 폭 여백(2026-08-31 사용자 지시): 반지 + 絆 드롭다운,
+                        그 아래 문장사 이름 가로 중앙(클릭 = 레벨 상세 팝업). 행 잠금으로 새면 안 된다. */}
+                    <span
+                      className="entry-ring ml-[2em] flex flex-col items-center self-center"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <span className="flex items-center gap-1">
+                        <EquipDropdown
+                          ariaLabel={labels.ring}
+                          value={emblem?.gid ?? ""}
+                          options={ringOptionsOf(visibleEmblems, labels)}
+                          onChange={(gid) => setRing(first.pid, gid)}
+                          onOpenChange={(o) => setRingDrop(o ? first.pid : null)}
+                          labels={labels}
+                          triggerClass="flex h-7 items-center gap-0.5 rounded border border-rule bg-sunken px-1"
+                          trigger={
+                            <>
+                              {emblem?.icon !== undefined ? (
+                                <img src={emblem.icon} alt="" className="h-6 w-6 object-contain" loading="lazy" />
+                              ) : ringPlaceholder !== undefined ? (
+                                <img src={ringPlaceholder} alt="" className="h-6 w-6 object-contain opacity-40" loading="lazy" />
+                              ) : (
+                                <span className="text-[13px] text-muted">{labels.ring}</span>
+                              )}
+                              {CARET}
+                            </>
+                          }
+                        />
+                        {ring !== undefined && emblem !== undefined && (
+                          <EquipDropdown
+                            ariaLabel={labels.bond}
+                            value={String(ring.bond)}
+                            options={BOND_OPTIONS}
+                            onChange={(v) => setBond(first.pid, Number(v))}
+                            onOpenChange={(o) => setRingDrop(o ? first.pid : null)}
+                            labels={labels}
+                            triggerClass="inline-flex h-7 min-w-[2.4rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1 text-[14px] font-semibold text-gold"
+                            trigger={
+                              <>
+                                {String(ring.bond)}
+                                {CARET}
+                              </>
+                            }
+                          />
+                        )}
+                      </span>
+                      <span className="relative flex w-full justify-center">
+                        {emblem !== undefined && ring !== undefined ? (
+                          <button
+                            type="button"
+                            className="h-[19px] cursor-pointer truncate px-1 text-[13px] font-semibold leading-tight text-engage hover:underline"
+                            onClick={() => setEmblemOpen((p) => (p === first.pid ? null : first.pid))}
+                          >
+                            {emblem.name}
+                          </button>
+                        ) : (
+                          <span className="h-[19px]" aria-hidden="true" />
+                        )}
+                        {emblemOpen === first.pid && emblem !== undefined && ring !== undefined && (
+                          <EmblemPanel
+                            emblem={emblem}
+                            bond={ring.bond}
+                            labels={labels}
+                            onClose={() => setEmblemOpen(null)}
+                          />
+                        )}
+                      </span>
+                    </span>
                   </span>
                   {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다).
                       호버 = 잠긴 자물쇠(= "이렇게 잠긴다" 예고, 2026-08-31 변경). */}
@@ -1389,7 +1680,14 @@ export default function BuilderIsland({
               </th>
             );
             return (
-              <tbody key={first.pid} className={`group${ghost ? " entry-ghost" : ""}`}>
+              <tbody
+                key={first.pid}
+                ref={(el) => {
+                  if (el !== null) waitingRefs.current.set(first.pid, el);
+                  else waitingRefs.current.delete(first.pid);
+                }}
+                className={`group${ghost ? " entry-ghost" : ""}`}
+              >
                 {showGrowth && (
                   // 고유 성장 라인 — 블록 첫 줄(기존 행은 한 칸씩 아래로), 개인 성장률을 블루로(2026-08-31 사용자 지시).
                   <tr className={groupInert ? "" : "cursor-pointer hover:bg-sunken"} {...rowActs(groupInert, -1)}>
@@ -1423,10 +1721,12 @@ export default function BuilderIsland({
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
                         const down = key === "spd" && li === activeLi && spdPenalty(row, eq);
+                        // 絆 보너스 상승 = 블루 — 무게로 깎인 SPD 레드와 겹치면 상승이 우선(2026-08-31 사용자 지시).
+                        const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                         return (
                           <td
                             key={key}
-                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${down ? "text-danger" : cell.capped ? "text-cap" : "text-ink"} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
+                            className={`stat-col min-w-[3.7rem] px-1 ${roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
                             {cell.text}
                           </td>

@@ -14817,5 +14817,33 @@
   "Nemesis": "assets/efficacy/Nemesis.webp",
   "Nergal": "assets/efficacy/Nergal.webp",
   "Veld": "assets/efficacy/Veld.webp"
+ },
+ "godRings": {
+  "GID_アイク": "assets/rings/Ike.webp",
+  "GID_エイリーク": "assets/rings/Eirik.webp",
+  "GID_エーデルガルト": "assets/rings/Edelgard.webp",
+  "GID_カミラ": "assets/rings/Camilla.webp",
+  "GID_カムイ": "assets/rings/Kamui.webp",
+  "GID_クロム": "assets/rings/Chrom.webp",
+  "GID_シグルド": "assets/rings/Siglud.webp",
+  "GID_セネリオ": "assets/rings/Senerio.webp",
+  "GID_セリカ": "assets/rings/Celica.webp",
+  "GID_チキ": "assets/rings/Tiki.webp",
+  "GID_ヘクトル": "assets/rings/Hector.webp",
+  "GID_ベレト": "assets/rings/Byleth.webp",
+  "GID_マルス": "assets/rings/Marth.webp",
+  "GID_ミカヤ": "assets/rings/Micaiah.webp",
+  "GID_リュール": "assets/rings/Lueur.webp",
+  "GID_リン": "assets/rings/Lin.webp",
+  "GID_リーフ": "assets/rings/Leaf.webp",
+  "GID_ルキナ": "assets/rings/Lucina.webp",
+  "GID_ロイ": "assets/rings/Roy.webp",
+  "GID_ヴェロニカ": "assets/rings/Veronica.webp"
+ },
+ "ringCommons": {
+  "Bronze": "assets/rings/CommonBronze.webp",
+  "Gold": "assets/rings/CommonGold.webp",
+  "Platinum": "assets/rings/CommonPlatinum.webp",
+  "Silver": "assets/rings/CommonSilver.webp"
  }
 }
