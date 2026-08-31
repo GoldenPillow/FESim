@@ -91,6 +91,8 @@ export interface AssetManifest {
   faces?: Record<string, string>;
   /** 문장사 초상 — GID 키(인물 얼굴은 pid 키라 같은 표에 못 넣는다: 엠블렘은 인물이 아니다). */
   godFaces?: Record<string, string>;
+  /** 각인(刻印) 심볼 — GID 키, ui_icon/godsymbolengrave 베이크 산출(대표 신장 20종). */
+  godEngraves?: Record<string, string>;
   /** 아이템 아이콘(items.json Icon 키) — ui_icon/item 번들 베이크 산출. */
   items?: Record<string, string>;
   /** 무기군(카테고리) 아이콘 — ui_icon/weapon 번들 베이크 산출(흰 실루엣.
@@ -2044,7 +2046,9 @@ const GOD_FLAG_DLC = 32;
 /** 불꽃의 문장(리유의 각인) — 본편 후반 스포일러(2026-08-31 사용자 지정: 각인 쪽 유일 스포일러). */
 const SPOILER_ENGRAVE_GID = "GID_リュール";
 
-/** 각인 후보 — 각인 필드가 하나라도 비영인 행만(정확히 엠블렘 22행 — 적 변형은 전부 0이라 걸러진다). */
+/** 각인 후보 — 각인 필드가 하나라도 비영인 행(적 변형은 전부 0) 중 **대표 신장**만(Gbid == 자기 GBID).
+    팔찌 변신형(디미트리·클로드)은 에델가르트 팔찌의 Gbid를 갖고, 각인 심볼 번들에도 없다 —
+    인게임 각인은 팔찌당 1개("삼정의 문장", 2026-08-31 사용자 실기 확인) = 정확히 20행. */
 function builderEngraves(locale: Locale): BuilderEngraveProp[] {
   const out: BuilderEngraveProp[] = [];
   for (const [gid, row] of Object.entries(godsTable.gods)) {
@@ -2057,7 +2061,9 @@ function builderEngraves(locale: Locale): BuilderEngraveProp[] {
       dodge: Number(row["EngraveSecure"] ?? 0),
     };
     if (Object.values(vals).every((v) => v === 0)) continue;
-    const icon = assetHref(manifest.godFaces?.[gid]);
+    if (String(row["Gbid"] ?? "") !== gid.replace(/^GID_/, "GBID_")) continue;
+    // 아이콘 = 각인 심볼(초상 대체, 2026-08-31 사용자 지시) — 베이크 전이면 이름 칩 폴백.
+    const icon = assetHref(manifest.godEngraves?.[gid]);
     out.push({
       gid,
       name: label(locale, String(row["EngraveWord"] ?? "")) ?? gid,

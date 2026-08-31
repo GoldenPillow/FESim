@@ -342,7 +342,8 @@ function EquipDropdown({
                   btnRef.current?.focus();
                 }}
               >
-                {o.icon !== undefined && <img src={o.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
+                {/* 각인 심볼은 비정방형 — contain으로 비율 보존(정방형 아이템 아이콘엔 무해). */}
+                {o.icon !== undefined && <img src={o.icon} alt="" className="h-5 w-5 shrink-0 object-contain" loading="lazy" />}
                 {o.label}
               </button>
             ))}
@@ -472,7 +473,7 @@ function CombatCells({
         trigger={
           <>
             {engrave?.icon !== undefined ? (
-              <img src={engrave.icon} alt="" className="h-6 w-6 object-cover" loading="lazy" />
+              <img src={engrave.icon} alt="" className="h-6 w-6 object-contain" loading="lazy" />
             ) : engrave !== undefined ? (
               <span className="max-w-[5rem] truncate text-[14px] font-semibold text-ink">{engrave.name}</span>
             ) : (
