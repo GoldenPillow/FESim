@@ -78,20 +78,6 @@ const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
   str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
 };
 
-/** 자물쇠 아이콘(머티리얼 계열 근사) — 대기 행 호버 = 잠김 형상 예고(클릭 = 잠금),
-    잠금 블록 호버 = 열린 형상(클릭 = 해제 — 행·배경 클릭으로는 안 풀린다, 2026-08-31 부주의 방지). */
-const LockIcon = ({ open = false }: { open?: boolean }): React.JSX.Element => (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-    <path
-      d={
-        open
-          ? "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9H9V6a3 3 0 0 1 5.91-.74l1.94-.49A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Z"
-          : "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z"
-      }
-    />
-  </svg>
-);
-
 /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
 const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
 
@@ -1882,7 +1868,7 @@ export default function BuilderIsland({
                               toggleLock(row.pid, -1);
                             }}
                           >
-                            <LockIcon open />
+                            <span className="text-[13px] font-bold tracking-tighter text-white">{">>"}</span>
                           </button>
                         )}
                       </td>
@@ -2018,7 +2004,7 @@ export default function BuilderIsland({
                               toggleLock(first.pid, -1);
                             }}
                           >
-                            <LockIcon />
+                            <span className="text-[13px] font-bold tracking-tighter text-white">{"<<"}</span>
                           </button>
                         )}
                       </td>
@@ -2062,7 +2048,7 @@ export default function BuilderIsland({
                                   toggleLock(first.pid, li);
                                 }}
                               >
-                                <LockIcon />
+                                <span className="text-[13px] font-bold tracking-tighter text-white">{"<<"}</span>
                               </button>
                             )}
                           </td>
