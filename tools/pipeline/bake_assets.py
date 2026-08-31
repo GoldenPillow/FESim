@@ -316,6 +316,41 @@ def bake_gods(data: Path, faces: dict) -> int:
     return 0
 
 
+def bake_god_engraves(romfs: Path, data: Path) -> int:
+    """각인(刻印) 심볼 — ui_icon/godsymbolengrave 번들(20종). 빌더 각인 슬롯이 초상(godFaces) 대신
+    이 심볼을 쓴다(2026-08-31 사용자 지시).
+
+    스프라이트 이름 = AsciiName. 등재는 대표 신장만(Gbid == 자기 GBID) — 팔찌 변신형(디미트리·클로드)은
+    심볼도 없고 Gbid가 에델가르트 팔찌를 가리킨다(= 인게임 각인 항목이 아니라는 교차 근거 2건).
+    """
+    gods = json.loads((data / "tables" / "gods.json").read_text(encoding="utf-8"))["gods"]
+    sprites = load_sprites(romfs / "ui_icon" / "godsymbolengrave" / "godsymbolengrave.bundle")
+    out_dir = data / "assets" / "engraves"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    engrave_fields = ("EngravePower", "EngraveWeight", "EngraveHit", "EngraveCritical", "EngraveAvoid", "EngraveSecure")
+    resolved, baked = {}, 0
+    for gid, god in gods.items():
+        key = god.get("AsciiName") or ""
+        if key not in sprites:
+            continue
+        if (god.get("Gbid") or "") != f"GBID_{gid.removeprefix('GID_')}":
+            continue
+        # 적 변형(GID_E*)은 자기 GBID를 갖고 통과한다 — 각인값 비영(엠블렘 본체만)으로 마저 거른다
+        # (빌더 사영 builderEngraves와 같은 판별 — 어긋나면 아이콘 결손이 조용히 샌다).
+        if all(int(god.get(f) or 0) == 0 for f in engrave_fields):
+            continue
+        dest = out_dir / f"{key}.webp"
+        if not dest.is_file():
+            write_webp(sprites[key].read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[gid] = f"assets/engraves/{key}.webp"
+    manifest["godEngraves"] = dict(sorted(resolved.items()))
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"god engraves: {len(resolved)} symbols ({baked} new)")
+    return 0
+
+
 def bake_roster_faces(data: Path, faces: dict) -> None:
     """챕터 dispos에 등장하지 않는 플레이어블(사룡의 장 보상 합류 5인) 얼굴 보강.
 
@@ -348,6 +383,7 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="chapterlist.json의 전 챕터 베이크")
     parser.add_argument("--items", action="store_true", help="items.json Icon 전수 베이크(챕터·얼굴 스킵)")
     parser.add_argument("--weapontypes", action="store_true", help="무기종 카테고리 아이콘 베이크(챕터·얼굴 스킵)")
+    parser.add_argument("--engraves", action="store_true", help="각인 심볼 베이크(godsymbolengrave — 챕터·얼굴 스킵)")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
@@ -357,6 +393,8 @@ def main() -> int:
         return bake_items(args.data, load_item_sprites(args.romfs))
     if args.weapontypes:
         return bake_weapontypes(args.romfs, args.data)
+    if args.engraves:
+        return bake_god_engraves(args.romfs, args.data)
 
     chapters = [args.chapter]
     if args.all:
@@ -369,6 +407,7 @@ def main() -> int:
 
     assets = load_assets(args.romfs)
     failed = bake_gods(args.data, assets["faces"])
+    bake_god_engraves(args.romfs, args.data)
     bake_roster_faces(args.data, assets["faces"])
     for chapter in chapters:
         failed += 1 if bake(args, chapter, assets) else 0

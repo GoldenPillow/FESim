@@ -14775,5 +14775,27 @@
   "Rod": "assets/weapontypes/Rod.webp",
   "Sword": "assets/weapontypes/Sword.webp",
   "Tool": "assets/weapontypes/Tool.webp"
+ },
+ "godEngraves": {
+  "GID_アイク": "assets/engraves/Ike.webp",
+  "GID_エイリーク": "assets/engraves/Eirik.webp",
+  "GID_エーデルガルト": "assets/engraves/Edelgard.webp",
+  "GID_カミラ": "assets/engraves/Camilla.webp",
+  "GID_カムイ": "assets/engraves/Kamui.webp",
+  "GID_クロム": "assets/engraves/Chrom.webp",
+  "GID_シグルド": "assets/engraves/Siglud.webp",
+  "GID_セネリオ": "assets/engraves/Senerio.webp",
+  "GID_セリカ": "assets/engraves/Celica.webp",
+  "GID_チキ": "assets/engraves/Tiki.webp",
+  "GID_ヘクトル": "assets/engraves/Hector.webp",
+  "GID_ベレト": "assets/engraves/Byleth.webp",
+  "GID_マルス": "assets/engraves/Marth.webp",
+  "GID_ミカヤ": "assets/engraves/Micaiah.webp",
+  "GID_リュール": "assets/engraves/Lueur.webp",
+  "GID_リン": "assets/engraves/Lin.webp",
+  "GID_リーフ": "assets/engraves/Leaf.webp",
+  "GID_ルキナ": "assets/engraves/Lucina.webp",
+  "GID_ロイ": "assets/engraves/Roy.webp",
+  "GID_ヴェロニカ": "assets/engraves/Veronica.webp"
  }
 }

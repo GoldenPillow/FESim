@@ -9,6 +9,7 @@ const ALLOW = [
   // 아이템 장착 피쳐 에셋(2026-08-31) — ☠빠뜨리면 아이콘만 조용히 404가 난다(정식판 실사고).
   /^\/fe17\/assets\/items\//,
   /^\/fe17\/assets\/weapontypes\//,
+  /^\/fe17\/assets\/engraves\//,
 ];
 
 export default {

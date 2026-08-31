@@ -1154,15 +1154,19 @@ describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
 
 describe("builderPropsFor.engraves — 각인 사영(2026-08-31)", () => {
   /**
-   * 왜 위험한가: 각인 목록은 gods.json에서 "각인 필드 비영" 필터 하나로 선다 — 필터가 흔들리면
-   * 적 변형(GID_E* 각인 0행)이 새어 들거나 엠블렘이 빠져도 오류가 없다. 22행(본편 13 + DLC 9)과
+   * 왜 위험한가: 각인 목록은 gods.json에서 "각인 필드 비영 + 대표 신장(Gbid)" 필터로 선다 — 흔들리면
+   * 적 변형(각인 0행)·팔찌 변신형(디미트리·클로드 = 삼정의 문장 중복)이 새어 들어도 오류가 없다.
+   * 20행(본편 13 + DLC 7 — 각인 심볼 번들 20종·사용자 실기 "삼정의 문장" 1개와 교차 일치)과
    * 스포일러(불꽃의 문장 = 리유)·DLC 플래그, 수치 앵커(마르스)를 통째로 박제한다.
    */
-  it("엠블렘 22행 — 리유 = 스포일러, DLC 9행 = dlc 표식, 마르스 수치 앵커", () => {
+  it("엠블렘 20행(팔찌는 대표 1행) — 리유 = 스포일러, DLC 7행, 마르스 수치 앵커, 심볼 전수", () => {
     const { engraves } = builderPropsFor("ko");
-    expect(engraves).toHaveLength(22);
+    expect(engraves).toHaveLength(20);
     expect(engraves.filter((g) => g.spoiler === true).map((g) => g.gid)).toEqual(["GID_リュール"]);
-    expect(engraves.filter((g) => g.dlc === true)).toHaveLength(9);
+    expect(engraves.filter((g) => g.dlc === true)).toHaveLength(7);
+    // 팔찌 변신형은 대표(에델가르트 = 삼정의 문장)만 남는다 — 실기 각인 목록과 동형.
+    expect(engraves.find((g) => g.gid === "GID_エーデルガルト")!.name).toBe("삼정의 문장");
+    expect(engraves.some((g) => g.gid === "GID_ディミトリ" || g.gid === "GID_クロード")).toBe(false);
     const marth = engraves.find((g) => g.gid === "GID_マルス")!;
     // god.xml 실측: Power 1 · Weight 0 · Hit 10 · Critical 10 · Avoid 5 · Secure 5.
     expect(marth).toMatchObject({ power: 1, weight: 0, hit: 10, crit: 10, avoid: 5, dodge: 5 });
@@ -1170,6 +1174,8 @@ describe("builderPropsFor.engraves — 각인 사영(2026-08-31)", () => {
     const lueur = engraves.find((g) => g.gid === "GID_リュール")!;
     expect(lueur.name).toBe("불꽃의 문장");
     expect(lueur.dlc).toBeUndefined(); // 불꽃의 문장은 본편(스포일러 축) — DLC 축에 얹으면 이중 게이트
+    // 아이콘 = 각인 심볼(초상 아님) 전수 — 베이크·매니페스트가 빠지면 이름 칩으로 조용히 강하하므로 박제.
+    expect(engraves.every((g) => g.icon?.includes("/assets/engraves/") === true)).toBe(true);
   });
 });
 
