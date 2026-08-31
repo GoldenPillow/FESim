@@ -228,22 +228,6 @@ tbody:hover .entry-wrap {
   }
 }
 
-/* 카드 장비 드롭다운(투명 오버레이 셀렉트) — 팝업(옵션 리스트)은 셀렉트의 배경·글자색을 물려받는다.
-   ☠배경 미지정이면 Chromium 팝업이 흰색으로 뜨고 다크 잉크(#e3e9ef)가 안 읽힌다(실사고 2026-08-31).
-   셀렉트 자체는 opacity 0이라 이 배경은 화면에 안 보이고 팝업·스크롤바 테마만 정한다. */
-.builder-table select {
-  background: var(--panel);
-  color: var(--ink);
-}
-.builder-table select option,
-.builder-table select optgroup {
-  background: var(--panel);
-  color: var(--ink);
-}
-.builder-table select option:disabled {
-  color: var(--muted);
-}
-
 /* 대기 행의 전투력 상시 자리(2026-08-31: 호버 시 표가 안 움직이게 처음부터 공란 확보) —
    호버가 없는 기기(터치)는 공란을 채울 수단이 없어 행·클래스명 슬롯을 통째로 걷는다.
    잠금 블록의 전투력 행은 combat-ghost가 아니라 그대로 남는다(상시 표시 + 카드 장비 변경). */
