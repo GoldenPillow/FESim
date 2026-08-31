@@ -1303,6 +1303,19 @@ export default function BuilderIsland({
     [chars, showSpoilers, showDlc],
   );
   const charByPid = useMemo(() => new Map(visibleChars.map((c) => [c.pid, c])), [visibleChars]);
+  /** 체커를 지난 목표 직업(UI 목록 전용 — 해석·스냅샷 조회는 전체 표를 쓴다). 전용직은 가능자(uniquePid)가
+      숨김이면 함께 숨긴다 — ☠전용직 이름이 숨김 캐릭터의 존재를 누설한다(스포일러 실사고 2026-09-01). */
+  const visibleTargetJobs = useMemo(() => {
+    const byPid = new Map(chars.map((c) => [c.pid, c]));
+    const shown = targetJobs.filter((j) => {
+      if (j.uniquePid === undefined) return true;
+      const c = byPid.get(j.uniquePid);
+      if (c === undefined) return true;
+      return (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true);
+    });
+    // 범용 선순위·전용직 후순위(2026-09-01 사용자 지시) — 각 구획 안은 인게임 Sort 순 유지.
+    return [...shown.filter((j) => j.uniquePid === undefined), ...shown.filter((j) => j.uniquePid !== undefined)];
+  }, [targetJobs, chars, showSpoilers, showDlc]);
   // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
   // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
   const groups = useMemo(() => {
@@ -1464,11 +1477,16 @@ export default function BuilderIsland({
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
-  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업(전용직 포함 — 참전 제한 없음, 2026-08-31). */
-  const classOptions = useMemo<EquipOption[]>(
-    () => [{ value: "", label: labels.jobNone }, ...targetJobs.map((j) => ({ value: j.jid, label: j.name }))],
-    [targetJobs, labels],
-  );
+  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업. 전용직(uniquePid)은 가능자 외 회색 비활성
+      (2026-09-01 사용자 지시: 댄서 = 세아다스 외 사용 불가 — 클릭 무반응, disabled 옵션 규약). */
+  const classOptionsFor = (pid: string): EquipOption[] => [
+    { value: "", label: labels.jobNone },
+    ...visibleTargetJobs.map((j) => ({
+      value: j.jid,
+      label: j.name,
+      ...(j.uniquePid !== undefined && j.uniquePid !== pid ? { disabled: true as const } : {}),
+    })),
+  ];
 
   /** 카드 클래스·In.Lv 드롭다운 행 — 카드(이름 포함) 열 전체 폭에 [클래스 flex-1(긴 직업명 여유)]
       [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
@@ -1489,7 +1507,7 @@ export default function BuilderIsland({
       <EquipDropdown
         ariaLabel={labels.job}
         value={jidValue}
-        options={classOptions}
+        options={classOptionsFor(pid)}
         onChange={(jid) => onPatch({ jid })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
@@ -1670,7 +1688,7 @@ export default function BuilderIsland({
   const jobSelect = (i: number): React.JSX.Element => (
     <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => setSlotJob(i, e.target.value)}>
       <option value="">{labels.jobNone}</option>
-      {targetJobs.map((j) => (
+      {visibleTargetJobs.map((j) => (
         <option key={j.jid} value={j.jid}>
           {jobLabel(j)}
         </option>
