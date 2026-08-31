@@ -1051,10 +1051,13 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
   /**
    * 왜 위험한가: 명단은 pid 문자열 직결이라 오타 하나면 그 캐릭터가 조용히 필터를 새어 나간다 —
    * 스포일러 방지는 새는 순간 기능 전체가 무의미해지므로 명단 전체를 박제한다.
+   * 2026-08-31 재지정: 스포일러(모브·베일)와 DLC 사룡의 장 5인은 **별도 체커** — 표식도 갈린다.
    */
-  it("스포일러 표식 — 본편 후반 2인(모브·베일) + 사룡의 장 5인만 (2026-08-31 사용자 지정)", () => {
+  it("스포일러 표식 = 본편 후반 2인(모브·베일) · DLC 표식 = 사룡의 장 5인 (2026-08-31 분리)", () => {
     expect(props.chars.filter((c) => c.spoiler === true).map((c) => c.pid)).toEqual([
       "PID_モーヴ", "PID_ヴェイル",
+    ]);
+    expect(props.chars.filter((c) => c.dlc === true).map((c) => c.pid)).toEqual([
       "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
     ]);
   });
@@ -1146,6 +1149,27 @@ describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
     for (let i = 1; i < shopSwords.length; i++) {
       expect(rankValue(shopSwords[i]!.rank)).toBeGreaterThanOrEqual(rankValue(shopSwords[i - 1]!.rank));
     }
+  });
+});
+
+describe("builderPropsFor.engraves — 각인 사영(2026-08-31)", () => {
+  /**
+   * 왜 위험한가: 각인 목록은 gods.json에서 "각인 필드 비영" 필터 하나로 선다 — 필터가 흔들리면
+   * 적 변형(GID_E* 각인 0행)이 새어 들거나 엠블렘이 빠져도 오류가 없다. 22행(본편 13 + DLC 9)과
+   * 스포일러(불꽃의 문장 = 리유)·DLC 플래그, 수치 앵커(마르스)를 통째로 박제한다.
+   */
+  it("엠블렘 22행 — 리유 = 스포일러, DLC 9행 = dlc 표식, 마르스 수치 앵커", () => {
+    const { engraves } = builderPropsFor("ko");
+    expect(engraves).toHaveLength(22);
+    expect(engraves.filter((g) => g.spoiler === true).map((g) => g.gid)).toEqual(["GID_リュール"]);
+    expect(engraves.filter((g) => g.dlc === true)).toHaveLength(9);
+    const marth = engraves.find((g) => g.gid === "GID_マルス")!;
+    // god.xml 실측: Power 1 · Weight 0 · Hit 10 · Critical 10 · Avoid 5 · Secure 5.
+    expect(marth).toMatchObject({ power: 1, weight: 0, hit: 10, crit: 10, avoid: 5, dodge: 5 });
+    expect(marth.name).toBe("시작의 문장"); // EngraveWord(MGEID) 로케일명 — 인게임 각인 표기
+    const lueur = engraves.find((g) => g.gid === "GID_リュール")!;
+    expect(lueur.name).toBe("불꽃의 문장");
+    expect(lueur.dlc).toBeUndefined(); // 불꽃의 문장은 본편(스포일러 축) — DLC 축에 얹으면 이중 게이트
   });
 });
 

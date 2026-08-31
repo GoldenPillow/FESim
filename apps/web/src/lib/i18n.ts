@@ -136,8 +136,10 @@ export interface BuilderLabels {
   internalShort: string;
   /** 성옥의 가호 체커 라벨(+15% 총 성장). */
   starsphere: string;
-  /** 스포일러 체커 라벨 — 켜면 후반(모브·베일)·사룡의 장 캐릭터 표시(기본 숨김, localStorage 저장). */
+  /** 스포일러 체커 라벨 — 켜면 후반 캐릭터(모브·베일)·불꽃의 문장 각인 표시(기본 숨김, localStorage 저장). */
   showSpoilers: string;
+  /** DLC 체커 라벨(스포일러와 분리, 2026-08-31) — 사룡의 장 5인 + DLC 각인 표시. */
+  showDlc: string;
   /** 멀티클래스 비교 추가 버튼 — 누르면 아래에 직업 선택기가 한 줄 늘어난다. */
   addCompare: string;
   /** 고유 성장률 체커 — 켜면 캐릭터 블록 첫 줄에 개인 성장률(블루)이 선다(기존 행은 한 칸씩 밀림). */
@@ -165,6 +167,10 @@ export interface BuilderLabels {
   itemNone: string;
   /** 강화 드롭다운 기본 옵션(노강화) — 단계는 +1~+5 숫자 표기라 라벨 불요. */
   refineNone: string;
+  /** 각인 슬롯 접근성 라벨 + 스펙 표기. */
+  engrave: string;
+  /** 각인 드롭다운 기본 옵션(무각인). */
+  engraveNone: string;
   /** 무기 스펙 라벨(명중·필살은 combat 재사용). */
   might: string;
   weight: string;
@@ -343,7 +349,8 @@ export const UI: Record<Locale, Strings> = {
       internal: "Internal level",
       internalShort: "Int. Lv",
       starsphere: "Starsphere (+15% growths)",
-      showSpoilers: "Show spoiler + Fell Xenologue (DLC) characters",
+      showSpoilers: "Show spoilers",
+      showDlc: "Show DLC & Fell Xenologue",
       addCompare: "Multiclass compare",
       personalGrowth: "Show personal growths",
       removeCompare: "Remove comparison",
@@ -358,6 +365,8 @@ export const UI: Record<Locale, Strings> = {
       item: "Weapon",
       itemNone: "Unarmed",
       refineNone: "Unforged",
+      engrave: "Engrave",
+      engraveNone: "No engrave",
       might: "Mt",
       weight: "Wt",
       stats: {
@@ -519,7 +528,8 @@ export const UI: Record<Locale, Strings> = {
       internal: "内部レベル",
       internalShort: "内部Lv",
       starsphere: "星玉の加護 (+15% 成長)",
-      showSpoilers: "ネタバレキャラ + DLC邪竜の章を表示",
+      showSpoilers: "ネタバレを表示",
+      showDlc: "DLC・邪竜の章を表示",
       addCompare: "マルチクラス比較",
       personalGrowth: "個人成長率を表示",
       removeCompare: "比較を削除",
@@ -534,6 +544,8 @@ export const UI: Record<Locale, Strings> = {
       item: "武器",
       itemNone: "素手",
       refineNone: "錬成なし",
+      engrave: "刻印",
+      engraveNone: "刻印なし",
       might: "威力",
       weight: "重さ",
       stats: {
@@ -693,7 +705,8 @@ export const UI: Record<Locale, Strings> = {
       internal: "내부 레벨",
       internalShort: "내부레벨",
       starsphere: "성옥의 가호 (+15% 성장)",
-      showSpoilers: "스포일러 캐릭터 + DLC 사룡의장 표시",
+      showSpoilers: "스포일러 표시",
+      showDlc: "DLC·사룡의 장 표시",
       addCompare: "멀티클래스 비교",
       personalGrowth: "고유 성장률 표시",
       removeCompare: "비교 제거",
@@ -708,6 +721,8 @@ export const UI: Record<Locale, Strings> = {
       item: "아이템",
       itemNone: "맨손",
       refineNone: "노강화",
+      engrave: "각인",
+      engraveNone: "무각인",
       might: "위력",
       weight: "무게",
       stats: {

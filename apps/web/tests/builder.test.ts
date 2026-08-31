@@ -11,8 +11,9 @@ import {
   rankValue,
   sortRowGroups,
   waitingRowGroups,
+  weaponAt,
 } from "../src/features/builder/lib";
-import type { BuilderCharProp, BuilderJobProp, BuilderWeaponProp } from "../src/lib/fe17";
+import type { BuilderCharProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp } from "../src/lib/fe17";
 
 /**
  * 엔트리 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
@@ -263,6 +264,63 @@ describe("전투력 사영 (combatOf) — 무기 합산", () => {
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const buffed: BuilderWeaponProp = { ...iron, enhance: { dex: 4 } };
     expect(combatOf(row!, { weapon: buffed, plus: 0 }).hit).toBe(120); // (10+4)x2 + 2 + 90
+  });
+});
+
+describe("각인(engrave) — 무기 실효치 직접 가산 (2026-08-31)", () => {
+  const iron: BuilderWeaponProp = {
+    iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+    weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+    refine: [{ power: 2, weight: 0, hit: 0, crit: 0 }],
+  };
+  const marth: BuilderEngraveProp = {
+    gid: "GID_マルス", name: "시작의 문장", power: 1, weight: 0, hit: 10, crit: 10, avoid: 5, dodge: 5,
+  };
+
+  /**
+   * 왜 위험한가: 각인은 전투 계산 단계 보정이 아니라 무기 스탯 게터 안 직접 가산이다
+   * (UnitItem.GetPower 계열 — fidelity weapons.forge-engrave §11). 계산 단계에서 따로 더하면
+   * 공속(무게) 게이트를 지나지 않아 회피가 어긋난다 — weaponAt 한 곳만 가산 지점이어야 한다.
+   */
+  it("weaponAt — 위력·명중·필살·회피·필살회피 가산, 강화와 중첩", () => {
+    const eff = weaponAt(iron, 1, marth);
+    expect(eff.might).toBe(8); // 5 + 錬成 2 + 각인 1
+    expect(eff.hit).toBe(100);
+    expect(eff.crit).toBe(10);
+    expect(eff.avoid).toBe(5);
+    expect(eff.dodge).toBe(5);
+  });
+
+  it("weaponAt — 각인 감량으로 음수가 될 무게는 0 하한(공속 max 게이트와 결과 동일)", () => {
+    const micaiah: BuilderEngraveProp = {
+      gid: "GID_ミカヤ", name: "새벽의 문장", power: -3, weight: -1, hit: 0, crit: 0, avoid: 40, dodge: 20,
+    };
+    expect(weaponAt({ ...iron, weight: 0 }, 0, micaiah).weight).toBe(0);
+    expect(weaponAt(iron, 0, micaiah).weight).toBe(4);
+  });
+
+  it("combatOf 관통 — 각인 명중·회피(무게 경유)가 정본 식으로 흘러든다", () => {
+    const roster = [
+      char("a", {
+        personOffset: block({ dex: 10, spd: 7, lck: 5 }),
+        personLimit: block({ dex: 40, spd: 40, lck: 40 }),
+      }),
+    ];
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const c = combatOf(row!, { weapon: iron, plus: 0, engrave: marth });
+    expect(c.hit).toBe(122); // 10x2 + 2 + (90+10)
+    expect(c.patk).toBeCloseTo(11.5); // 힘 5.5 + (5+1)
+    expect(c.avoid).toBe(11); // 공속 2x2 + 2 + 각인 회피 5
+    expect(c.ddg).toBe(10); // 행운 5 + 각인 필살회피 5
+  });
+
+  it("잠금 스냅샷 — 각인 gid를 되살리고, 목록 밖 gid는 무각인으로 강하한다", () => {
+    const armed = { pid: "a", internal: 0, iid: iron.iid, plus: 0, engrave: "GID_マルス" };
+    const rows = lockedDisplayRows(propsOf([char("a")]), [], [armed], undefined, [iron], [marth]);
+    expect(rows[0]!.equipped?.engrave?.gid).toBe("GID_マルス");
+    const hidden = lockedDisplayRows(propsOf([char("a")]), [], [armed], undefined, [iron], []);
+    expect(hidden[0]!.equipped?.engrave).toBeUndefined();
+    expect(hidden[0]!.equipped?.weapon.iid).toBe(iron.iid);
   });
 });
 

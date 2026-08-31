@@ -15,13 +15,15 @@ import {
   type BuilderSort,
   type EquippedWeapon,
 } from "./lib";
-import type { BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
+import type { BuilderEngraveProp, BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
 import {
   loadEntryLocks,
+  loadShowDlc,
   loadShowGrowth,
   loadShowSpoilers,
   loadStarsphere,
   saveEntryLocks,
+  saveShowDlc,
   saveShowGrowth,
   saveShowSpoilers,
   saveStarsphere,
@@ -46,12 +48,14 @@ const INTERNAL_LEVELS = [10, 15, 20, 25, 30, 35, 40, 45, 50];
 const MAX_JOBS = 4;
 
 /** 비교 슬롯 상태 — [0] = 기본 선택기. internal 미지정 = 1번(메인 내부 레벨) 추종(2026-08-31 사용자 지시).
-    iid = 장착 무기(빈 문자열 = 맨손), plus = 강화 단계(0 = 노강화). 직업이 바뀌면 무기는 초기화된다. */
+    iid = 장착 무기(빈 문자열 = 맨손), plus = 강화 단계(0 = 노강화), engrave = 각인(GID).
+    직업이 바뀌면 무기·각인은 초기화된다(슬롯 재구성). */
 interface BuilderSlot {
   jid: string;
   internal?: number;
   iid?: string;
   plus?: number;
+  engrave?: string;
 }
 
 export interface BuilderIslandProps extends BuilderProps {
@@ -81,12 +85,310 @@ const LockIcon = ({ open = false }: { open?: boolean }): React.JSX.Element => (
   </svg>
 );
 
+/** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
+const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
+
+/** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자까지 레드(2026-08-31 지시). 공속은 미표시라 여기서 경고. */
+const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean =>
+  equipped !== undefined &&
+  weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight >
+    row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0);
+
+/** 무기 스펙 한 줄 — 강화·각인 반영값, 변화는 블루/레드(무게는 반대: 증가가 악화다, 2026-08-31).
+    회피·필살회피는 대부분 0이라 비영일 때만 선다(각인이 처음으로 이 축을 흔든다). */
+const SpecLine = ({
+  weapon,
+  plus,
+  engrave,
+  labels,
+}: {
+  weapon: BuilderWeaponProp;
+  plus: number;
+  engrave?: BuilderEngraveProp | undefined;
+  labels: BuilderLabels;
+}): React.JSX.Element => {
+  const eff = weaponAt(weapon, plus, engrave);
+  const base = weaponAt(weapon, 0);
+  const cls = (v: number, b: number, invert = false): string =>
+    v === b ? "text-ink" : (v > b) !== invert ? "text-pgrow" : "text-danger";
+  const entry = (name: string, v: number, b: number, invert = false): React.JSX.Element => (
+    <span key={name} className="whitespace-nowrap">
+      {name} <span className={`font-semibold ${cls(v, b, invert)}`}>{v}</span>
+    </span>
+  );
+  return (
+    <span className="flex flex-wrap items-center gap-x-2.5 text-[14px] leading-tight text-muted">
+      <span className="rounded border border-rule px-1.5 text-[14px]">{weapon.rank}</span>
+      {entry(labels.might, eff.might, base.might)}
+      {entry(labels.combat.hit, eff.hit, base.hit)}
+      {entry(labels.combat.crit, eff.crit, base.crit)}
+      {entry(labels.weight, eff.weight, base.weight, true)}
+      {(eff.avoid !== 0 || base.avoid !== 0) && entry(labels.combat.avoid, eff.avoid, base.avoid)}
+      {(eff.dodge !== 0 || base.dodge !== 0) && entry(labels.combat.ddg, eff.dodge, base.dodge)}
+      {/* 장비 중 스탯 강화(Enhance) — 조용히 스탯을 바꾸는 무기 35종을 드러낸다(상승 블루·하락 레드). */}
+      {weapon.enhance !== undefined &&
+        (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
+          <span key={key} className="whitespace-nowrap">
+            {labels.stats[key]}{" "}
+            <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>
+              {v > 0 ? `+${v}` : v}
+            </span>
+          </span>
+        ))}
+    </span>
+  );
+};
+
+interface CombatCellsProps {
+  row: BuilderRow;
+  job: BuilderJobProp | undefined;
+  equipped: EquippedWeapon | undefined;
+  /** 공란 모드 — 자리(높이·폭)는 그대로 두고 내용만 숨긴다(호버 시 표가 안 움직이는 것이 목적). */
+  ghost: boolean;
+  /** 스펙 팝오버 — 카드 드롭다운 조작 중(행 포커스)에만 옆에 뜬다(2026-08-31 지시). */
+  specOpen: boolean;
+  weapons: readonly BuilderWeaponProp[];
+  engraves: readonly BuilderEngraveProp[];
+  kindIcons: Record<number, string>;
+  labels: BuilderLabels;
+  /** 카드 장비 변경 — iid/plus/engrave 부분 갱신("" = 해제). undefined 필드는 불변. */
+  onEquip: (patch: { iid?: string; plus?: number; engrave?: string }) => void;
+}
+
+/**
+ * 전투력 행의 셀 묶음 — 잠금·대기 공용(2026-08-31 배치 지시). 아이템 = IN.LV 하단(드롭다운으로 변경 가능),
+ * HP 하단 공란 = 강화(+N)·각인 슬롯(카드 장비 변경, 2026-08-31 지시), 전투력 = 스탯쪽 그리드 정렬
+ * (물공→STR … 필살회피→DEF), RES+BLD 병합 칸 = 클래스 무기군 흰 아이콘 · 실효 무기 무게.
+ * 무기 합산 델타: 상승 = 블루(pgrow) · 하락 = 레드(danger) — 무게의 악영향은 회피 하락으로 나타난다.
+ * 칩은 닫힘 = 간략(+N·각인 아이콘), 조작 중 = 스펙 팝오버가 옆에(레이아웃 불변 — 표가 안 움직인다).
+ * 세로 모바일 = 흐름 배치(combat-flow) — 표시는 builder.css 미디어가 가른다.
+ */
+function CombatCells({
+  row,
+  job,
+  equipped,
+  ghost,
+  specOpen,
+  weapons,
+  engraves,
+  kindIcons,
+  labels,
+  onEquip,
+}: CombatCellsProps): React.JSX.Element {
+  const bare = combatOf(row);
+  const c = equipped !== undefined ? combatOf(row, equipped) : bare;
+  const deltaCls = (key: (typeof COMBAT_KEYS)[number]): string =>
+    c[key] > bare[key] + 1e-9 ? "text-pgrow" : c[key] < bare[key] - 1e-9 ? "text-danger" : "text-ink";
+  const kinds =
+    job === undefined
+      ? []
+      : Object.keys(job.weaponRanks)
+          .map(Number)
+          .sort((a, b) => a - b);
+  const hide = ghost ? " invisible" : "";
+  const weapon = equipped?.weapon;
+  const engrave = equipped?.engrave;
+  const plus = equipped?.plus ?? 0;
+  const options = job === undefined ? [] : weapons.filter((w) => job.weaponRanks[w.kind] !== undefined);
+  // ☠드롭다운 조작이 행 클릭(잠금 토글)·블록 드래그로 새면 안 된다 — 셀렉트에서 전파를 끊는다.
+  const stop = {
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+  };
+
+  /** 무기 선택 — 보이는 건 아이콘+이름(간략), 그 위에 투명 셀렉트(네이티브 드롭다운). */
+  const weaponPicker = (justify: string): React.JSX.Element => (
+    <span
+      className={`relative flex items-center ${justify} gap-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}${hide}`}
+      title={weapon !== undefined ? `${weapon.name}${plus > 0 ? ` +${plus}` : ""}` : labels.item}
+    >
+      {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
+      <span className="max-w-[5.2rem] truncate">
+        {weapon !== undefined ? `${weapon.name}${plus > 0 ? `+${plus}` : ""}` : labels.itemNone}
+      </span>
+      {job !== undefined && (
+        <select
+          className="absolute inset-0 cursor-pointer opacity-0"
+          aria-label={labels.item}
+          value={weapon?.iid ?? ""}
+          {...stop}
+          onChange={(e) => onEquip({ iid: e.target.value })}
+        >
+          <option value="">{labels.itemNone}</option>
+          {options.map((w) => (
+            <option key={w.iid} value={w.iid} disabled={!canEquip(job!, w)}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </span>
+  );
+
+  /** 강화 칩 — 닫힘 = +N만(노강화 = +0 흐림, 강화 불가 무기는 반투명 비활성). */
+  const plusChip = (): React.JSX.Element | null =>
+    weapon === undefined ? null : (
+      <span
+        className={`relative inline-flex h-6 min-w-[1.7rem] items-center justify-center rounded border border-rule bg-sunken px-1 text-[13px] font-bold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+      >
+        {`+${plus}`}
+        <select
+          className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default"
+          aria-label={labels.refineNone}
+          value={plus}
+          disabled={weapon.refine === undefined}
+          {...stop}
+          onChange={(e) => onEquip({ plus: Number(e.target.value) })}
+        >
+          <option value={0}>{labels.refineNone}</option>
+          {(weapon.refine ?? []).map((_stage, si) => (
+            <option key={si} value={si + 1}>
+              {`+${si + 1}`}
+            </option>
+          ))}
+        </select>
+      </span>
+    );
+
+  /** 각인 칩 — 닫힘 = 엠블렘 아이콘만(무각인 = 점선 빈 칸, 아이콘 없는 엠블렘 = 이름 폴백). */
+  const engraveChip = (): React.JSX.Element | null =>
+    weapon === undefined ? null : (
+      <span
+        className={`relative inline-flex h-6 min-w-6 items-center justify-center overflow-hidden rounded border bg-sunken ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        title={engrave?.name ?? labels.engrave}
+      >
+        {engrave?.icon !== undefined ? (
+          <img src={engrave.icon} alt="" className="h-5 w-5 object-cover" loading="lazy" />
+        ) : engrave !== undefined ? (
+          <span className="max-w-[4rem] truncate px-1 text-[12px] font-semibold text-ink">{engrave.name}</span>
+        ) : null}
+        <select
+          className="absolute inset-0 cursor-pointer opacity-0"
+          aria-label={labels.engrave}
+          value={engrave?.gid ?? ""}
+          {...stop}
+          onChange={(e) => onEquip({ engrave: e.target.value })}
+        >
+          <option value="">{labels.engraveNone}</option>
+          {engraves.map((g) => (
+            <option key={g.gid} value={g.gid}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      </span>
+    );
+
+  const specPop =
+    specOpen && weapon !== undefined ? (
+      <span className="absolute left-0 top-full z-40 mt-1 flex w-max max-w-[26rem] rounded border border-rule bg-panel px-2 py-1 shadow-md">
+        <SpecLine weapon={weapon} plus={plus} engrave={engrave} labels={labels} />
+      </span>
+    ) : null;
+
+  return (
+    <>
+      <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
+        {(job !== undefined || weapon !== undefined) && weaponPicker("justify-center")}
+      </td>
+      {STAT_KEYS.map((key) => {
+        // HP 하단 = 강화·각인 슬롯(빈 칸 활용, 2026-08-31 지시) · RES = 클래스 적성(무기군) 아이콘 ·
+        // BLD = 실효 무기 무게(2026-08-31 배치 지시).
+        if (key === "hp") {
+          return (
+            <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-middle md:min-w-[5.5rem] md:px-2">
+              {weapon !== undefined && (
+                <span className={`relative flex items-center justify-center gap-1${hide}`}>
+                  {plusChip()}
+                  {engraveChip()}
+                  {specPop}
+                </span>
+              )}
+            </td>
+          );
+        }
+        if (key === "res") {
+          return (
+            <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
+              <span className={`flex items-center justify-start gap-1${hide}`}>
+                {kinds.map((k) =>
+                  kindIcons[k] !== undefined ? (
+                    <img key={k} src={kindIcons[k]} alt="" className="h-4 w-4" loading="lazy" />
+                  ) : null,
+                )}
+              </span>
+            </td>
+          );
+        }
+        if (key === "bld") {
+          const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
+          return (
+            <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
+              {eff !== undefined && (
+                <>
+                  <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
+                    {labels.weight}
+                  </span>
+                  <span
+                    className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}${hide}`}
+                  >
+                    {eff.weight}
+                  </span>
+                </>
+              )}
+            </td>
+          );
+        }
+        const ck = COMBAT_COL[key];
+        return (
+          <td
+            key={key}
+            className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2"
+          >
+            {ck !== undefined && (
+              <>
+                <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70${hide}`}>
+                  {labels.combat[ck]}
+                </span>
+                <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}${hide}`}>{fmtCombat(c[ck])}</span>
+              </>
+            )}
+          </td>
+        );
+      })}
+      <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
+        <span className={`relative flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink${hide}`}>
+          {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
+          {plusChip()}
+          {engraveChip()}
+          {COMBAT_KEYS.map((key) => (
+            <span key={key} className="whitespace-nowrap">
+              <span className="font-semibold opacity-70">{labels.combat[key]}</span>{" "}
+              <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
+            </span>
+          ))}
+          {equipped !== undefined && (
+            <span className="whitespace-nowrap">
+              <span className="font-semibold opacity-70">{labels.weight}</span>{" "}
+              <span className={spdPenalty(row, equipped) ? "text-danger" : ""}>
+                {weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight}
+              </span>
+            </span>
+          )}
+          {specPop}
+        </span>
+      </td>
+    </>
+  );
+}
+
 export default function BuilderIsland({
   chars,
   joinJobs,
   targetJobs,
   starsphere,
   weapons,
+  engraves,
   kindIcons,
   labels,
 }: BuilderIslandProps) {
@@ -98,25 +400,35 @@ export default function BuilderIsland({
   const [star, setStar] = useState(false);
   const [showGrowth, setShowGrowth] = useState(false);
   const [showSpoilers, setShowSpoilers] = useState(false);
+  const [showDlc, setShowDlc] = useState(false);
   // 잠금도 브라우저 저장 — 온오프 순간이 저장 시점(2026-08-31 사용자 지시).
   const [locked, setLocked] = useState<EntryLock[]>([]);
   const [hoverRow, setHoverRow] = useState<{ pid: string; li: number } | null>(null);
+  /** 카드 드롭다운 조작 중인 행 — 커서가 떠나도 전투력 행·팝오버를 유지한다(li = -1은 잠금 블록). */
+  const [focusRow, setFocusRow] = useState<{ pid: string; li: number } | null>(null);
+  /** 카드 개인 장비(2026-08-31 사용자 설계: 상단 = 글로벌 · 카드 = 개인) — 키 = `${pid}:${li}`.
+      카드를 만지는 순간 글로벌에서 분기(카피 온 라이트) — 이후 글로벌 변경은 그 카드에 안 닿는다.
+      세션 한정(저장 안 함) — 영속 개인 장비는 잠금 스냅샷이 소유한다. */
+  const [overrides, setOverrides] = useState<Record<string, { iid?: string; plus?: number; engrave?: string }>>({});
   /** 잠그는 순간의 1회 충격파 — ☠잠금 상태 클래스에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
   const [pulsePid, setPulsePid] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
     setShowSpoilers(loadShowSpoilers());
+    setShowDlc(loadShowDlc());
     setLocked(loadEntryLocks());
   }, []);
 
-  /** 잠금 = 클릭한 라인의 (직업, 레벨, 무기, 강화) + 현재 성옥 체커를 스냅샷으로 박제. 해제 = 폐기. */
+  /** 잠금 = 클릭한 라인의 (직업, 레벨, 무기·강화·각인 = 카드 표시 그대로) + 현재 성옥 체커를 스냅샷으로 박제.
+      개인 오버라이드가 없으면 글로벌 장비가 그대로 장착된다(2026-08-31 사용자 설계). 해제 = 폐기. */
   const toggleLock = (pid: string, li: number): void => {
     const on = !locked.some((e) => e.pid === pid);
     let next: EntryLock[];
     if (on) {
       // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
       const c = li >= 0 ? compares[li] : compares[0];
+      const eq = cardEquip(pid, li >= 0 ? li : 0);
       next = [
         ...locked,
         {
@@ -124,7 +436,13 @@ export default function BuilderIsland({
           internal: c?.internal ?? 0,
           ...(c !== undefined ? { jid: c.job.jid } : {}),
           ...(star ? { star: true } : {}),
-          ...(c?.equipped !== undefined ? { iid: c.equipped.weapon.iid, plus: c.equipped.plus } : {}),
+          ...(eq !== undefined
+            ? {
+                iid: eq.weapon.iid,
+                plus: eq.plus,
+                ...(eq.engrave !== undefined ? { engrave: eq.engrave.gid } : {}),
+              }
+            : {}),
         },
       ];
     } else {
@@ -135,6 +453,27 @@ export default function BuilderIsland({
     setPulsePid(on ? pid : null);
     // 행이 상단으로 이동하면 옛 자리의 mouseleave가 안 온다 — 호버 흔적을 지운다.
     setHoverRow(null);
+  };
+
+  /** 잠금 카드의 장비 변경 — 스냅샷의 무기·강화·각인만 갱신(저장 시점 = 변경 순간, 온오프 규약과 동일).
+      무기 변경 = 강화 리셋(강화표는 무기 소유) · 각인 유지(각인 보정은 무기 무관 동일). */
+  const patchLock = (pid: string, patch: { iid?: string; plus?: number; engrave?: string }): void => {
+    const next = locked.map((e) => {
+      if (e.pid !== pid) return e;
+      let out: EntryLock = { ...e };
+      if (patch.iid !== undefined) {
+        const { iid: _iid, plus: _plus, ...rest } = out;
+        out = patch.iid === "" ? rest : { ...rest, iid: patch.iid };
+      }
+      if (patch.plus !== undefined) out = { ...out, plus: patch.plus };
+      if (patch.engrave !== undefined) {
+        const { engrave: _engrave, ...rest } = out;
+        out = patch.engrave === "" ? rest : { ...rest, engrave: patch.engrave };
+      }
+      return out;
+    });
+    saveEntryLocks(next);
+    setLocked(next);
   };
 
   /* ── 잠금 블록 드래그 재정렬(2026-08-31) — 마우스 전용(터치는 탭 = 토글·스크롤 유지).
@@ -207,11 +546,18 @@ export default function BuilderIsland({
     setLocked([]);
     setPulsePid(null);
     setSlots([{ jid: "" }]);
+    setOverrides({});
     setInternal(40);
     setSort(undefined);
   };
 
-  const compares: BuilderCompare[] = useMemo(
+  // 각인 후보도 체커를 지난다(2026-08-31: 스포일러 = 불꽃의 문장 · DLC 체커 = DLC 각인 연동).
+  const visibleEngraves = useMemo(
+    () => engraves.filter((g) => (showSpoilers || g.spoiler !== true) && (showDlc || g.dlc !== true)),
+    [engraves, showSpoilers, showDlc],
+  );
+
+  const compares: (BuilderCompare & { slot: number })[] = useMemo(
     () =>
       slots.flatMap((s, i) => {
         const job = targetJobs.find((t) => t.jid === s.jid);
@@ -220,13 +566,16 @@ export default function BuilderIsland({
         const level = i === 0 ? internal : (s.internal ?? internal);
         // 장착 무기 — 직업 변경 뒤 남은 부적합 iid는 조용히 맨손 강하(장착 게이트가 정본).
         const weapon = weapons.find((w) => w.iid === s.iid);
+        // 각인 — 체커에 숨은 gid는 무각인 강하(visibleEngraves가 게이트).
+        const engrave = visibleEngraves.find((g) => g.gid === s.engrave);
         const equipped =
           weapon !== undefined && canEquip(job, weapon)
-            ? { equipped: { weapon, plus: s.plus ?? 0 } }
+            ? { equipped: { weapon, plus: s.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) } }
             : {};
-        return [{ job, internal: level - 1, ...equipped }];
+        // slot = 원본 슬롯 인덱스 — 카드 개인 장비의 분기 기준(빈 jid 슬롯은 라인을 안 만들어 li와 어긋난다).
+        return [{ job, internal: level - 1, slot: i, ...equipped }];
       }),
-    [slots, internal, targetJobs, weapons],
+    [slots, internal, targetJobs, weapons, visibleEngraves],
   );
 
   // 헤더 1행(스탯명)·성장률 행의 실측 높이 — 성장률 행 i의 sticky top = row1H + i x jobRowH.
@@ -247,9 +596,10 @@ export default function BuilderIsland({
     return () => ro.disconnect();
   }, [compares.length]);
   const extraSkills = star && starsphere !== undefined ? [starsphere] : undefined;
+  // 스포일러(모브·베일)와 DLC 사룡의 장은 별도 체커(2026-08-31 사용자 재지정 — 분리).
   const visibleChars = useMemo(
-    () => (showSpoilers ? chars : chars.filter((c) => c.spoiler !== true)),
-    [chars, showSpoilers],
+    () => chars.filter((c) => (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true)),
+    [chars, showSpoilers, showDlc],
   );
   const groups = useMemo(
     () => waitingRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
@@ -257,152 +607,91 @@ export default function BuilderIsland({
   );
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   const lockedRows = useMemo(
-    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons),
-    [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons],
+    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons, visibleEngraves),
+    [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves],
   );
+
+  /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
+  const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
+    const o = overrides[`${pid}:${li}`];
+    const job = compares[li]?.job;
+    if (o === undefined) return compares[li]?.equipped;
+    const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
+    if (weapon === undefined || job === undefined || !canEquip(job, weapon)) return undefined;
+    const engrave = o.engrave === undefined ? undefined : visibleEngraves.find((g) => g.gid === o.engrave);
+    return { weapon, plus: o.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) };
+  };
+
+  /** 카드 개인 장비 변경 — 첫 터치에 글로벌 스냅샷으로 분기 후 부분 갱신("" = 해제).
+      무기 변경 = 강화 리셋(강화표는 무기 소유) · 각인 유지(각인 보정은 무기 무관 동일). */
+  const applyCard = (pid: string, li: number, patch: { iid?: string; plus?: number; engrave?: string }): void => {
+    const key = `${pid}:${li}`;
+    setOverrides((prev) => {
+      const cur =
+        prev[key] ??
+        (() => {
+          const e = compares[li]?.equipped;
+          return e === undefined
+            ? {}
+            : {
+                iid: e.weapon.iid,
+                plus: e.plus,
+                ...(e.engrave !== undefined ? { engrave: e.engrave.gid } : {}),
+              };
+        })();
+      const iid = patch.iid !== undefined ? (patch.iid === "" ? undefined : patch.iid) : cur.iid;
+      const plus = patch.iid !== undefined ? 0 : (patch.plus ?? cur.plus);
+      const engrave = patch.engrave !== undefined ? (patch.engrave === "" ? undefined : patch.engrave) : cur.engrave;
+      return {
+        ...prev,
+        [key]: {
+          ...(iid !== undefined ? { iid } : {}),
+          ...(plus !== undefined ? { plus } : {}),
+          ...(engrave !== undefined ? { engrave } : {}),
+        },
+      };
+    });
+  };
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
   // 첫 클릭은 내림차순 — 스탯 표에서 먼저 보고 싶은 것은 상위값이다. 3클릭째 = 합류순 복귀.
   const toggle = (key: StatKey): void => setSort((s) => nextSort(s, key));
 
-  /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
-  const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
-  /** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자까지 레드(2026-08-31 지시). 공속은 미표시라 여기서 경고. */
-  const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean =>
-    equipped !== undefined &&
-    weaponAt(equipped.weapon, equipped.plus).weight >
-      row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0);
-  /**
-   * 전투력 행의 셀 묶음 — 잠금·호버 공용(2026-08-31 배치 지시). 아이템 = IN.LV 하단, 전투력 = 스탯쪽
-   * 그리드 정렬(물공→STR … 필살회피→DEF), RES+BLD 병합 칸 = 클래스 무기군 흰 아이콘(지팡이 포함, 좌정렬).
-   * 무기 합산 델타: 상승 = 블루(pgrow) · 하락 = 레드(danger) — 무게의 악영향은 회피 하락으로 나타난다.
-   * 세로 모바일 = 흐름 배치(combat-flow) — 표시는 builder.css 미디어가 가른다.
-   */
-  const combatCells = (
-    row: BuilderRow,
-    job: BuilderJobProp | undefined,
-    equipped: EquippedWeapon | undefined,
-  ): React.JSX.Element => {
-    const bare = combatOf(row);
-    const c = equipped !== undefined ? combatOf(row, equipped) : bare;
-    const deltaCls = (key: (typeof COMBAT_KEYS)[number]): string =>
-      c[key] > bare[key] + 1e-9 ? "text-pgrow" : c[key] < bare[key] - 1e-9 ? "text-danger" : "text-ink";
-    const kinds =
-      job === undefined
-        ? []
-        : Object.keys(job.weaponRanks)
-            .map(Number)
-            .sort((a, b) => a - b);
-    return (
-      <>
-        <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
-          {equipped !== undefined && (
-            <span
-              className={`flex items-center justify-center gap-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight ${equipped.weapon.engage === true ? "text-engage" : "text-ink"}`}
-              title={`${equipped.weapon.name}${equipped.plus > 0 ? ` +${equipped.plus}` : ""}`}
-            >
-              {equipped.weapon.icon !== undefined && (
-                <img src={equipped.weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />
-              )}
-              <span className="max-w-[5.2rem] truncate">
-                {equipped.weapon.name}
-                {equipped.plus > 0 ? `+${equipped.plus}` : ""}
-              </span>
-            </span>
-          )}
-        </td>
-        {STAT_KEYS.map((key) => {
-          // RES = 클래스 적성(무기군) 아이콘 · BLD = 실효 무기 무게(2026-08-31 배치 지시).
-          if (key === "res") {
-            return (
-              <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
-                <span className="flex items-center justify-start gap-1">
-                  {kinds.map((k) =>
-                    kindIcons[k] !== undefined ? (
-                      <img key={k} src={kindIcons[k]} alt="" className="h-4 w-4" loading="lazy" />
-                    ) : null,
-                  )}
-                </span>
-              </td>
-            );
-          }
-          if (key === "bld") {
-            const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus);
-            return (
-              <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
-                {eff !== undefined && (
-                  <>
-                    <span className="block text-[14px] font-semibold leading-5 text-ink opacity-70">
-                      {labels.weight}
-                    </span>
-                    <span
-                      className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}`}
-                    >
-                      {eff.weight}
-                    </span>
-                  </>
-                )}
-              </td>
-            );
-          }
-          const ck = COMBAT_COL[key];
-          return (
-            <td
-              key={key}
-              className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2"
-            >
-              {ck !== undefined && (
-                <>
-                  <span className="block text-[14px] font-semibold leading-5 text-ink opacity-70">
-                    {labels.combat[ck]}
-                  </span>
-                  <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
-                </>
-              )}
-            </td>
-          );
-        })}
-        <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink">
-            {equipped !== undefined && (
-              <span className={equipped.weapon.engage === true ? "text-engage" : ""}>
-                {equipped.weapon.name}
-                {equipped.plus > 0 ? `+${equipped.plus}` : ""}
-              </span>
-            )}
-            {COMBAT_KEYS.map((key) => (
-              <span key={key} className="whitespace-nowrap">
-                <span className="font-semibold opacity-70">{labels.combat[key]}</span>{" "}
-                <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
-              </span>
-            ))}
-            {equipped !== undefined && (
-              <span className="whitespace-nowrap">
-                <span className="font-semibold opacity-70">{labels.weight}</span>{" "}
-                <span className={spdPenalty(row, equipped) ? "text-danger" : ""}>
-                  {weaponAt(equipped.weapon, equipped.plus).weight}
-                </span>
-              </span>
-            )}
-          </span>
-        </td>
-      </>
-    );
-  };
+  /** 카드 드롭다운 포커스 추적 — 조작 중에는 커서가 떠나도 전투력 행·팝오버가 유지된다.
+      onBlur는 행 안 이동(무기→강화 셀렉트)이면 무시(relatedTarget 포함 검사) — 깜빡임 방지. */
+  const focusActs = (pid: string, li: number) => ({
+    onFocus: () => setFocusRow({ pid, li }),
+    onBlur: (e: React.FocusEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusRow(null);
+    },
+  });
+
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
-  /** 직업 변경 = 무기 초기화(장착 게이트가 직업 소유) — 내부 레벨만 승계한다. */
-  const setSlotJob = (i: number, jid: string): void =>
+  /** 직업 변경 = 무기·각인 초기화(장착 게이트가 직업 소유) — 내부 레벨만 승계한다.
+      그 슬롯 라인의 카드 개인 장비도 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
+  const setSlotJob = (i: number, jid: string): void => {
     setSlots((s) =>
       s.map((v, idx) => (idx === i ? { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}) } : v)),
     );
+    setOverrides((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.endsWith(`:${i}`))));
+  };
   const setSlotItem = (i: number, iid: string): void =>
     setSlots((s) =>
       s.map((v, idx) => {
         if (idx !== i) return v;
         const { iid: _iid, plus: _plus, ...rest } = v;
         return iid === "" ? rest : { ...rest, iid };
+      }),
+    );
+  /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립. */
+  const setSlotEngrave = (i: number, gid: string): void =>
+    setSlots((s) =>
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        const { engrave: _engrave, ...rest } = v;
+        return gid === "" ? rest : { ...rest, engrave: gid };
       }),
     );
 
@@ -434,39 +723,8 @@ export default function BuilderIsland({
     </select>
   );
 
-  /** 무기 스펙 한 줄 — 강화 반영값, 변화는 블루/레드(무게는 반대: 증가가 악화다, 2026-08-31). */
-  const specSpan = (weapon: BuilderWeaponProp, plus: number): React.JSX.Element => {
-    const eff = weaponAt(weapon, plus);
-    const base = weaponAt(weapon, 0);
-    const cls = (v: number, b: number, invert = false): string =>
-      v === b ? "text-ink" : (v > b) !== invert ? "text-pgrow" : "text-danger";
-    const entry = (name: string, v: number, b: number, invert = false): React.JSX.Element => (
-      <span key={name} className="whitespace-nowrap">
-        {name} <span className={`font-semibold ${cls(v, b, invert)}`}>{v}</span>
-      </span>
-    );
-    return (
-      <span className="flex flex-wrap items-center gap-x-2.5 pb-[6px] text-[14px] leading-tight text-muted">
-        <span className="rounded border border-rule px-1.5 text-[14px]">{weapon.rank}</span>
-        {entry(labels.might, eff.might, base.might)}
-        {entry(labels.combat.hit, eff.hit, base.hit)}
-        {entry(labels.combat.crit, eff.crit, base.crit)}
-        {entry(labels.weight, eff.weight, base.weight, true)}
-        {/* 장비 중 스탯 강화(Enhance) — 조용히 스탯을 바꾸는 무기 35종을 드러낸다(상승 블루·하락 레드). */}
-        {weapon.enhance !== undefined &&
-          (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
-            <span key={key} className="whitespace-nowrap">
-              {labels.stats[key]}{" "}
-              <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>
-                {v > 0 ? `+${v}` : v}
-              </span>
-            </span>
-          ))}
-      </span>
-    );
-  };
-
-  /** 아이템 + 강화 선택기(슬롯별) — 강화·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). */
+  /** 아이템 + 강화 + 각인 선택기(슬롯별 = 글로벌 장비, 2026-08-31 사용자 설계) —
+      강화·각인·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). */
   const itemControls = (i: number): React.JSX.Element => {
     const slot = slots[i];
     const job = targetJobs.find((t) => t.jid === slot?.jid);
@@ -474,6 +732,7 @@ export default function BuilderIsland({
     const options = job === undefined ? [] : weapons.filter((w) => job.weaponRanks[w.kind] !== undefined);
     const weapon = job === undefined ? undefined : options.find((w) => w.iid === slot?.iid && canEquip(job, w));
     const plus = slot?.plus ?? 0;
+    const engrave = visibleEngraves.find((g) => g.gid === slot?.engrave);
     return (
       <>
         <label className="flex flex-col gap-1">
@@ -513,7 +772,26 @@ export default function BuilderIsland({
             ))}
           </select>
         )}
-        {weapon !== undefined && specSpan(weapon, plus)}
+        {weapon !== undefined && (
+          <select
+            className={selectClass}
+            aria-label={labels.engrave}
+            value={engrave?.gid ?? ""}
+            onChange={(e) => setSlotEngrave(i, e.target.value)}
+          >
+            <option value="">{labels.engraveNone}</option>
+            {visibleEngraves.map((g) => (
+              <option key={g.gid} value={g.gid}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {weapon !== undefined && (
+          <span className="flex items-center pb-[6px]">
+            <SpecLine weapon={weapon} plus={plus} engrave={engrave} labels={labels} />
+          </span>
+        )}
       </>
     );
   };
@@ -564,6 +842,19 @@ export default function BuilderIsland({
               className="h-3.5 w-3.5 accent-[var(--gold)]"
             />
             {labels.showSpoilers}
+          </label>
+          {/* DLC 체커(스포일러와 분리, 2026-08-31) — 컨테이너가 flex-wrap이라 많으면 자동 두 줄. */}
+          <label className={checkerClass}>
+            <input
+              type="checkbox"
+              checked={showDlc}
+              onChange={(e) => {
+                setShowDlc(e.target.checked);
+                saveShowDlc(e.target.checked);
+              }}
+              className="h-3.5 w-3.5 accent-[var(--gold)]"
+            />
+            {labels.showDlc}
           </label>
           <button
             type="button"
@@ -625,7 +916,11 @@ export default function BuilderIsland({
                 type="button"
                 aria-label={labels.removeCompare}
                 title={labels.removeCompare}
-                onClick={() => setSlots((s) => s.filter((_v, idx) => idx !== i + 1))}
+                onClick={() => {
+                  // 슬롯 제거 = 인덱스가 밀린다 — 카드 개인 장비(키에 슬롯 인덱스)는 전부 폐기.
+                  setSlots((s) => s.filter((_v, idx) => idx !== i + 1));
+                  setOverrides({});
+                }}
                 className="rounded px-1.5 py-0.5 text-[15px] text-muted hover:bg-sunken hover:text-ink"
               >
                 ×
@@ -771,9 +1066,20 @@ export default function BuilderIsland({
                     );
                   })}
                 </tr>
-                {/* 전투력 행 — 잠금은 상시 표시. 아이템 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
-                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {combatCells(row, job, equipped)}
+                {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
+                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
+                  <CombatCells
+                    row={row}
+                    job={job}
+                    equipped={equipped}
+                    ghost={false}
+                    specOpen={focusRow !== null && focusRow.pid === row.pid && focusRow.li === -1}
+                    weapons={weapons}
+                    engraves={visibleEngraves}
+                    kindIcons={kindIcons}
+                    labels={labels}
+                    onEquip={(p) => patchLock(row.pid, p)}
+                  />
                 </tr>
               </tbody>
             );
@@ -786,8 +1092,13 @@ export default function BuilderIsland({
             // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
             const roomy = g.length > 1 ? "py-[15px]" : "py-1";
             const hovered = hoverRow !== null && hoverRow.pid === first.pid;
-            // 호버한 스탯 라인 아래에 전투력 행이 선다(고유 성장 라인 제외) — th rowSpan도 한 칸 는다.
-            const combatLi = hovered && hoverRow.li >= 0 ? hoverRow.li : undefined;
+            const focused = focusRow !== null && focusRow.pid === first.pid;
+            // 활성 라인(호버 우선, 카드 드롭다운 조작 중 포함) — 클래스명·SPD 페널티 표기의 기준.
+            const activeLi =
+              hovered && hoverRow.li >= 0 ? hoverRow.li : focused && focusRow.li >= 0 ? focusRow.li : undefined;
+            /** 전투력 행 공개 — 라인 호버 또는 그 라인의 카드 드롭다운 조작 중. 자리는 상시(공란). */
+            const revealed = (li: number): boolean =>
+              (hovered && hoverRow.li === li) || (focused && focusRow.li === li);
             // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
             const groupInert = g.every((r) => r.ineligible);
             /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
@@ -802,7 +1113,8 @@ export default function BuilderIsland({
             const nameTh = (
               <th
                 scope="row"
-                rowSpan={g.length + (showGrowth ? 1 : 0) + (combatLi !== undefined ? 1 : 0)}
+                // 전투력 행이 라인마다 상시(공란 포함)라 rowSpan은 고정 — 호버로 표가 안 움직인다(2026-08-31).
+                rowSpan={g.length * 2 + (showGrowth ? 1 : 0)}
                 className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
@@ -832,13 +1144,13 @@ export default function BuilderIsland({
                     <span className="entry-lock" aria-hidden="true" />
                   )}
                 </span>
-                {/* 호버 라인의 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). 전투력 행이 열린
-                    동안만 = th가 한 칸 늘어 있어 행 높이를 안 민다. */}
-                {combatLi !== undefined && compares[combatLi]?.job.name !== undefined && (
-                  <span className="block px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage">
-                    {compares[combatLi].job.name}
-                  </span>
-                )}
+                {/* 활성 라인의 클래스명 — 카드 하단(2026-08-31 배치 지시). 자리는 상시 예약(invisible)이라
+                    호버해도 th 내용 높이가 안 변한다. 터치(호버 없음)는 CSS가 슬롯째 걷는다(builder.css). */}
+                <span
+                  className={`entry-jobslot block h-[21px] truncate px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage${activeLi !== undefined ? "" : " invisible"}`}
+                >
+                  {(activeLi !== undefined ? compares[activeLi]?.job.name : compares[0]?.job.name) ?? ""}
+                </span>
               </th>
             );
             return (
@@ -860,6 +1172,7 @@ export default function BuilderIsland({
                   </tr>
                 )}
                 {g.flatMap((row, li) => {
+                  const eq = cardEquip(first.pid, li);
                   const line = (
                     <tr
                       key={li}
@@ -873,7 +1186,7 @@ export default function BuilderIsland({
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
-                        const down = key === "spd" && li === combatLi && spdPenalty(row, compares[li]?.equipped);
+                        const down = key === "spd" && li === activeLi && spdPenalty(row, eq);
                         return (
                           <td
                             key={key}
@@ -885,12 +1198,30 @@ export default function BuilderIsland({
                       })}
                     </tr>
                   );
-                  if (combatLi !== li) return [line];
-                  // 호버 전투력 행 — 같은 호버 상태를 유지해야 커서가 내려와도 안 사라진다(깜빡임 방지).
+                  // 전투력 행 상시 자리(2026-08-31 지시: 처음부터 크기 확보, 공란 — 표가 안 움직인다).
+                  // 내용은 호버·드롭다운 조작 중에만 공개. ☠호버 없는 기기(터치)는 공개 수단이 없어
+                  // CSS(@media hover:none)가 combat-ghost 행을 통째로 걷는다 — 잠금 블록 전투력 행은 남는다.
+                  const open = !row.ineligible && revealed(li);
                   return [
                     line,
-                    <tr key={`combat-${li}`} className="cursor-pointer hover:bg-sunken" {...rowActs(false, li)}>
-                      {combatCells(row, compares[li]?.job, compares[li]?.equipped)}
+                    <tr
+                      key={`combat-${li}`}
+                      className={`combat-ghost${row.ineligible ? "" : " cursor-pointer hover:bg-sunken"}`}
+                      {...rowActs(row.ineligible, li)}
+                      {...(row.ineligible ? {} : focusActs(first.pid, li))}
+                    >
+                      <CombatCells
+                        row={row}
+                        job={compares[li]?.job}
+                        equipped={eq}
+                        ghost={!open}
+                        specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
+                        weapons={weapons}
+                        engraves={visibleEngraves}
+                        kindIcons={kindIcons}
+                        labels={labels}
+                        onEquip={(p) => applyCard(first.pid, li, p)}
+                      />
                     </tr>,
                   ];
                 })}

@@ -227,3 +227,15 @@ tbody:hover .entry-wrap {
     display: none !important;
   }
 }
+
+/* 대기 행의 전투력 상시 자리(2026-08-31: 호버 시 표가 안 움직이게 처음부터 공란 확보) —
+   호버가 없는 기기(터치)는 공란을 채울 수단이 없어 행·클래스명 슬롯을 통째로 걷는다.
+   잠금 블록의 전투력 행은 combat-ghost가 아니라 그대로 남는다(상시 표시 + 카드 장비 변경). */
+@media (hover: none) {
+  .builder-table tr.combat-ghost {
+    display: none;
+  }
+  .builder-table .entry-jobslot {
+    display: none;
+  }
+}

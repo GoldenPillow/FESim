@@ -6,6 +6,8 @@ import {
   loadSlot,
   loadEntryLocks,
   saveEntryLocks,
+  loadShowDlc,
+  saveShowDlc,
   loadShowGrowth,
   loadShowSpoilers,
   loadStarsphere,
@@ -125,6 +127,18 @@ describe("스포일러 표시 저장(빌더 체커)", () => {
     expect(() => saveShowSpoilers(true)).not.toThrow();
   });
 
+  /** DLC 체커는 스포일러와 분리(2026-08-31 사용자 재지정) — 같은 왕복·강하 규약, 별도 키. */
+  it("DLC·사룡의 장 체커 — 기본 = 숨김(false), 왕복 저장, 이물은 기본으로 강하", () => {
+    const storage = memoryStorage();
+    use(storage);
+    expect(loadShowDlc()).toBe(false);
+    saveShowDlc(true);
+    expect(loadShowDlc()).toBe(true);
+    expect(loadShowSpoilers()).toBe(false); // ☠키가 섞이면 한 체커가 다른 체커를 켠다
+    storage.setItem("fesim:ui:dlc", "junk");
+    expect(loadShowDlc()).toBe(false);
+  });
+
   /** 체커는 전부 브라우저 저장(2026-08-31 사용자 지시) — 성옥·고유 성장도 같은 왕복·강하 규약. */
   it("성옥의 가호·고유 성장 체커 — 왕복 저장, 기본 false, 이물은 기본으로 강하", () => {
     const storage = memoryStorage();
@@ -151,11 +165,11 @@ describe("엔트리 잠금 저장(빌더)", () => {
     use(memoryStorage());
     expect(loadEntryLocks()).toEqual([]);
     saveEntryLocks([
-      { pid: "PID_c", internal: 11, jid: "JID_high", star: true },
+      { pid: "PID_c", internal: 11, jid: "JID_high", star: true, iid: "IID_鉄の剣", plus: 2, engrave: "GID_マルス" },
       { pid: "PID_a", internal: 0 },
     ]);
     expect(loadEntryLocks()).toEqual([
-      { pid: "PID_c", internal: 11, jid: "JID_high", star: true },
+      { pid: "PID_c", internal: 11, jid: "JID_high", star: true, iid: "IID_鉄の剣", plus: 2, engrave: "GID_マルス" },
       { pid: "PID_a", internal: 0 },
     ]);
     saveEntryLocks([]);
