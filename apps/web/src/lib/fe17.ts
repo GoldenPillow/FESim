@@ -93,6 +93,8 @@ export interface AssetManifest {
   godFaces?: Record<string, string>;
   /** 각인(刻印) 심볼 — GID 키, ui_icon/godsymbolengrave 베이크 산출(대표 신장 20종). */
   godEngraves?: Record<string, string>;
+  /** 특효(特効) 아이콘 — 키 = skills.IconLabel(Armor·Fly·…), ui_icon/efficacy 베이크 산출. */
+  efficacy?: Record<string, string>;
   /** 아이템 아이콘(items.json Icon 키) — ui_icon/item 번들 베이크 산출. */
   items?: Record<string, string>;
   /** 무기군(카테고리) 아이콘 — ui_icon/weapon 번들 베이크 산출(흰 실루엣.
@@ -1884,6 +1886,8 @@ export interface BuilderWeaponProp {
   engage?: true;
   /** 장비 중 스탯 강화(Enhance.*) — 스탯 합산 후 전투력을 평가한다. */
   enhance?: Partial<StatBlock>;
+  /** 특효(EquipSids의 Efficacy 스킬) — kind = IconLabel(아이콘·명칭 키), help = 정본 스킬 설명(로케일). */
+  efficacies?: { kind: string; help: string; icon?: string }[];
   /** 강화 +1~+5 누적 보정 — 없으면 강화 불가 무기. */
   refine?: RefineStage[];
   /** 아이콘 에셋 href — 베이크 전이면 undefined(표시는 이름만). */
@@ -2000,6 +2004,20 @@ function builderWeapons(locale: Locale): BuilderWeaponProp[] {
     const stages = refineTable[iid.replace(/^IID_/, "")];
     const icon = assetHref(manifest.items?.[String(row["Icon"] ?? "")]);
     const shopIdx = shopIndex.get(iid);
+    // 특효 — 무기 부여 스킬(EquipSids) 중 Efficacy 비영 행. 아이콘 키 = IconLabel(efficacy 스프라이트 동명).
+    const efficacies = ((row["EquipSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+      const skill = skills[sid] as Record<string, unknown> | undefined;
+      if (typeof skill?.["Efficacy"] !== "number" || skill["Efficacy"] === 0) return [];
+      const kind = String(skill["IconLabel"] ?? "");
+      const effIcon = assetHref(manifest.efficacy?.[kind]);
+      return [
+        {
+          kind,
+          help: label(locale, String(skill["Help"] ?? "")) ?? "",
+          ...(effIcon !== undefined ? { icon: effIcon } : {}),
+        },
+      ];
+    });
     list.push({
       iid,
       name: prop.name,
@@ -2016,6 +2034,7 @@ function builderWeapons(locale: Locale): BuilderWeaponProp[] {
       ...(shopIdx !== undefined ? { shop: true as const } : {}),
       ...(prop.engage === true ? { engage: true as const } : {}),
       ...(prop.enhance !== undefined ? { enhance: prop.enhance } : {}),
+      ...(efficacies.length > 0 ? { efficacies } : {}),
       ...(stages !== undefined ? { refine: stages } : {}),
       ...(icon !== undefined ? { icon } : {}),
       group: shopIdx !== undefined ? 0 : (flag & ITEM_FLAG_DOWNLOAD) !== 0 ? 2 : 1,

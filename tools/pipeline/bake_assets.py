@@ -316,6 +316,26 @@ def bake_gods(data: Path, faces: dict) -> int:
     return 0
 
 
+def bake_efficacy(romfs: Path, data: Path) -> int:
+    """특효(特効) 아이콘 — ui_icon/efficacy 번들 전수(18종). 키 = 스프라이트명 = skills.IconLabel
+    (SID_鎧特効 → Armor). 무기 스펙 상세의 특효 표기가 소비한다(2026-08-31 사용자 지시)."""
+    sprites = load_sprites(romfs / "ui_icon" / "efficacy" / "efficacy.bundle")
+    dest_dir = data / "assets" / "efficacy"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    resolved, baked = {}, 0
+    for name, obj in sorted(sprites.items()):
+        dest = dest_dir / f"{name}.webp"
+        if not dest.is_file():
+            write_webp(obj.read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[name] = f"assets/efficacy/{name}.webp"
+    manifest["efficacy"] = resolved
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"efficacy: {len(resolved)} icons ({baked} new)")
+    return 0
+
+
 def bake_god_engraves(romfs: Path, data: Path) -> int:
     """각인(刻印) 심볼 — ui_icon/godsymbolengrave 번들(20종). 빌더 각인 슬롯이 초상(godFaces) 대신
     이 심볼을 쓴다(2026-08-31 사용자 지시).
@@ -384,6 +404,7 @@ def main() -> int:
     parser.add_argument("--items", action="store_true", help="items.json Icon 전수 베이크(챕터·얼굴 스킵)")
     parser.add_argument("--weapontypes", action="store_true", help="무기종 카테고리 아이콘 베이크(챕터·얼굴 스킵)")
     parser.add_argument("--engraves", action="store_true", help="각인 심볼 베이크(godsymbolengrave — 챕터·얼굴 스킵)")
+    parser.add_argument("--efficacy", action="store_true", help="특효 아이콘 베이크(efficacy — 챕터·얼굴 스킵)")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
@@ -395,6 +416,8 @@ def main() -> int:
         return bake_weapontypes(args.romfs, args.data)
     if args.engraves:
         return bake_god_engraves(args.romfs, args.data)
+    if args.efficacy:
+        return bake_efficacy(args.romfs, args.data)
 
     chapters = [args.chapter]
     if args.all:
@@ -408,6 +431,7 @@ def main() -> int:
     assets = load_assets(args.romfs)
     failed = bake_gods(args.data, assets["faces"])
     bake_god_engraves(args.romfs, args.data)
+    bake_efficacy(args.romfs, args.data)
     bake_roster_faces(args.data, assets["faces"])
     for chapter in chapters:
         failed += 1 if bake(args, chapter, assets) else 0
