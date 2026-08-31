@@ -51,7 +51,8 @@ import type { BuilderLabels } from "../../lib/i18n";
  * 전용직 불가(ineligible) 행은 호버·클릭 무반응 — 해당 캐릭터만 반응한다.
  */
 
-const INTERNAL_LEVELS = [10, 15, 20, 25, 30, 35, 40, 45, 50];
+/** 내부 레벨 10~50 — 1단위 세분화(2026-09-01 사용자 지시, 기존 5단위 대체). 글로벌·카드 선택기 공용. */
+const INTERNAL_LEVELS = Array.from({ length: 41 }, (_, i) => 10 + i);
 /** 비교 상한(기본 1 + 추가 3) — 캐릭터당 라인이 이 배수로 늘므로 가독 한계에서 자른다. */
 const MAX_JOBS = 4;
 
