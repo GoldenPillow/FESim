@@ -25,16 +25,17 @@ const { locale, title } = Astro.props;
   </head>
   <body class="min-h-screen antialiased">
     <slot />
-    <!-- 채널 워터마크(규약 — rules/deploy.md): 베타 = 황색 BETA+버전 · 릴리즈 = 청회색 버전.
-         채널 판별은 호스트명(같은 빌드가 승격되므로 빌드 플래그로는 못 가른다). 버전 = git 짧은 해시. -->
+    <!-- 채널 워터마크(규약 — rules/deploy.md): 베타 = 황색 Beta+버전 · 빌더 정식판 = 오렌지 Latest+버전 ·
+         릴리즈 = 청회색 버전(2026-08-31 문구 확정). 채널 판별은 호스트명(같은 빌드가 승격되므로
+         빌드 플래그로는 못 가른다). 버전 = git 짧은 해시. -->
     <div id="chan-mark" hidden data-build={import.meta.env.PUBLIC_BUILD ?? "dev"}></div>
     <script is:inline>
       (() => {
         const el = document.getElementById("chan-mark");
-        // 빌더 단독 워커(builder-engage.*) = 오렌지 "ver. beta" (rules/deploy.md §빌더 채널, 2026-08-31)
+        // 빌더 단독 워커(builder-engage.*) = 오렌지 "Latest" (rules/deploy.md §빌더 채널 — 2026-08-31 문구 확정)
         const fb = location.hostname.startsWith("builder-engage.");
         const beta = location.hostname.startsWith("beta-") || location.hostname === "localhost";
-        el.textContent = fb ? "ver. beta " + el.dataset.build : (beta ? "BETA " : "") + el.dataset.build;
+        el.textContent = fb ? "Latest " + el.dataset.build : (beta ? "Beta " : "") + el.dataset.build;
         el.classList.add(fb ? "fb" : beta ? "beta" : "rel");
         el.hidden = false;
       })();

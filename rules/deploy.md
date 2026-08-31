@@ -11,7 +11,7 @@
 |---|---|---|
 | 스테이블(공개) | https://fesim.gpdev.workers.dev | **명시 지시 시에만** `./dev promote` |
 | 베타(관리자 전용) | https://beta-fesim.gpdev.workers.dev | main 머지마다 자동 |
-| ★빌더 단독(공개 — **릴리즈 처우**) | https://builder-engage.gpdev.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). ★별도 릴리즈 워커를 만들지 않고 **이 주소가 유저 배포 주소**다(2026-08-31 사용자 결정) — 워터마크는 builder-engage.* 호스트 분기로 **"ver. beta" 고정**(사용자는 베타로 인식, Base.astro). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 본체(fesim) 완성·흡수 시 워커를 **301 리다이렉트 스텁으로 격하**(폐기 금지 — 배포된 링크가 죽는다. §피쳐 채널 원칙) |
+| ★빌더 단독(공개 — **릴리즈 처우**) | https://builder-engage.gpdev.workers.dev | `./dev builder:publish` 수동 — 경량 게이트(타입+웹 테스트)만, 본체 게이트·기보와 분리(2026-08-31 사용자 결정: 작은 피쳐를 마감 절차 없이 낸다). ★별도 릴리즈 워커를 만들지 않고 **이 주소가 유저 배포 주소 = 정식판**이다(2026-08-31 사용자 결정) — 워터마크는 builder-engage.* 호스트 분기로 **"Latest"**(베타 채널은 "Beta" — 문구 확정 2026-08-31, 종전 "ver. beta" 대체). 구성 = `wrangler.builder.jsonc` + `workers/builder.js` 경로 가드(빌더·에셋 외 404, 홈 버튼 제거). ☠제거 조건 = 본체(fesim) 완성·흡수 시 워커를 **301 리다이렉트 스텁으로 격하**(폐기 금지 — 배포된 링크가 죽는다. §피쳐 채널 원칙) |
 | 브랜치 프리뷰 | `<버전해시8>-fesim.gpdev.workers.dev` | 비main 브랜치 푸시마다(버전별 URL) |
 
 ## 흐름
@@ -92,7 +92,7 @@
 
 ## 채널 워터마크 (2026-08-18 규약)
 
-- 전 페이지 하단 우측 고정 배지(layouts/Base.astro) — **베타 = 황색 `BETA <버전>` · 릴리즈(스테이블) = 청회색 `<버전>`**.
+- 전 페이지 하단 우측 고정 배지(layouts/Base.astro) — **베타 = 황색 `Beta <버전>` · 빌더 정식판 = 오렌지 `Latest <버전>` · 릴리즈(스테이블) = 청회색 `<버전>`**(문구 확정 2026-08-31 사용자 지시 — 종전 `BETA`/`ver. beta`를 대체). 테두리·배경 없이 글자+글로우만(2026-08-31).
 - 버전 = 빌드 시점 git 짧은 해시(astro.config.mjs가 `PUBLIC_BUILD`로 주입) — 승격·실기 대조의 식별자.
 - 표기 = 기본 굵기·JetBrains Mono 스택(웹폰트 미탑재 — 로컬 폰트 우선, 모노 폴백).
-- 채널 판별 = **호스트명 런타임 분기**(`beta-*`·localhost = 베타 · `builder-engage.*` = 오렌지 `ver. beta` 고정) — 승격이 같은 빌드를 재사용하므로 빌드 플래그로는 채널을 못 가른다.
+- 채널 판별 = **호스트명 런타임 분기**(`beta-*`·localhost = 베타 · `builder-engage.*` = 정식판 Latest) — 승격이 같은 빌드를 재사용하므로 빌드 플래그로는 채널을 못 가른다.
