@@ -10,7 +10,7 @@ import {
 import type { BuilderCharProp, BuilderJobProp, BuilderProps } from "../../lib/fe17";
 
 /**
- * 캐릭터 빌더 표시층 — 클라이언트 안전 순수 함수(☠fe17.ts는 타입만 참조한다).
+ * 엔트리 빌더 표시층 — 클라이언트 안전 순수 함수(☠fe17.ts는 타입만 참조한다).
  * 계산 자체는 엔진 growthPath 하나가 답한다(설계 design/avg_stats_builder.md §3 — 복제 금지).
  * 여기가 소유하는 것은 **표시 규약**뿐이다: 소수 1자리 · 캡 도달은 정수 · 전용직 가능자 상단.
  */
@@ -144,6 +144,24 @@ export function builderRowGroups(
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
  * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
+/**
+ * 잠금 반영 최종 순서 — 잠긴 캐릭터는 잠근 순서대로 최상단에 붙박이고(정렬·전용직 상단 규칙 제외),
+ * 대기 목록만 sortRowGroups를 지난다. 로스터에 없는 잠금 pid(스포일러 숨김·이물 저장값)는 조용히 건너뛴다.
+ */
+export function orderRowGroups(
+  groups: readonly BuilderRow[][],
+  locked: readonly string[],
+  sort: BuilderSort | undefined,
+): BuilderRow[][] {
+  const byPid = new Map(groups.map((g) => [g[0]!.pid, g]));
+  const top = locked.flatMap((pid) => {
+    const g = byPid.get(pid);
+    return g === undefined ? [] : [g];
+  });
+  const waiting = groups.filter((g) => !locked.includes(g[0]!.pid));
+  return [...top, ...sortRowGroups(waiting, sort)];
+}
+
 export function sortRowGroups(groups: readonly BuilderRow[][], sort: BuilderSort | undefined): BuilderRow[][] {
   const out = [...groups];
   out.sort((a, b) => {

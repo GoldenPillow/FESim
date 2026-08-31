@@ -4,6 +4,8 @@ import {
   clampZoom,
   clearSlot,
   loadSlot,
+  loadEntryLocks,
+  saveEntryLocks,
   loadShowGrowth,
   loadShowSpoilers,
   loadStarsphere,
@@ -137,6 +139,34 @@ describe("스포일러 표시 저장(빌더 체커)", () => {
     expect(loadStarsphere()).toBe(false);
     use(memoryStorage("getItem"));
     expect(loadShowGrowth()).toBe(false);
+  });
+});
+
+describe("엔트리 잠금 저장(빌더)", () => {
+  /**
+   * 왜 위험한가: 잠금은 온오프 순간이 저장 시점(2026-08-31 사용자 지시)이라 손상 저장값이
+   * 표 상단을 이물 pid로 붙들면 되돌릴 UI가 없다 — 이물은 빈 목록으로 강하해야 한다.
+   */
+  it("왕복 — 기본 = 빈 목록, 잠근 순서 그대로 돌아온다", () => {
+    use(memoryStorage());
+    expect(loadEntryLocks()).toEqual([]);
+    saveEntryLocks(["PID_c", "PID_a"]);
+    expect(loadEntryLocks()).toEqual(["PID_c", "PID_a"]);
+    saveEntryLocks([]);
+    expect(loadEntryLocks()).toEqual([]);
+  });
+
+  it("이물 값(비배열·비문자열 원소)·localStorage 예외는 빈 목록으로 강하한다", () => {
+    const storage = memoryStorage();
+    use(storage);
+    storage.setItem("fesim:ui:entrylocks", "junk");
+    expect(loadEntryLocks()).toEqual([]);
+    storage.setItem("fesim:ui:entrylocks", JSON.stringify(["PID_a", 7]));
+    expect(loadEntryLocks()).toEqual(["PID_a"]);
+    use(memoryStorage("getItem"));
+    expect(loadEntryLocks()).toEqual([]);
+    use(memoryStorage("setItem"));
+    expect(() => saveEntryLocks(["PID_a"])).not.toThrow();
   });
 });
 

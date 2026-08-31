@@ -1,4 +1,4 @@
-/* 캐릭터 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
+/* 엔트리 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
    테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
 .entry-wrap {
   filter: drop-shadow(0 0 1px var(--rule));
@@ -14,6 +14,62 @@ tbody:hover .entry-wrap {
   border-radius: 3px;
   background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
   padding: 3px 12px 3px 4px;
+}
+
+/* ── 잠금(2026-08-31) — 색은 인게이지 대표 블루(global.css --engage, 로고 실측). ── */
+/* 자물쇠 슬롯 — 카드와 IN.LV 사이 고정폭. 기본은 공백이라 아이콘이 떠도 표 폭이 안 움직인다. */
+.entry-lock {
+  display: flex;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  border-radius: 3px;
+}
+/* 잠금 카드 — 이중 테두리(1px 본선 + 2px 바깥 연하게). border 대신 box-shadow = 레이아웃 불변. */
+.entry-card.entry-locked {
+  box-shadow:
+    0 0 0 1px var(--engage),
+    0 0 0 3px color-mix(in srgb, var(--engage) 35%, transparent);
+}
+/* 잠그는 순간 1회 — 테두리 중심에서 바깥쪽 5px로 퍼지며 사라지는 그래디언트 링. */
+.entry-card.entry-lock-pulse {
+  animation: engage-lock-pulse 0.5s ease-out 1;
+}
+@keyframes engage-lock-pulse {
+  from {
+    box-shadow:
+      0 0 0 1px var(--engage),
+      0 0 0 3px color-mix(in srgb, var(--engage) 35%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--engage) 60%, transparent);
+  }
+  to {
+    box-shadow:
+      0 0 0 1px var(--engage),
+      0 0 0 3px color-mix(in srgb, var(--engage) 35%, transparent),
+      0 0 5px 5px color-mix(in srgb, var(--engage) 0%, transparent);
+  }
+}
+/* 호버 행 직업명 — 카드 아래 플로팅 태그. absolute = 행 높이 불변(단일 모드에선 아랫줄 위로 뜬다 —
+   그래서 th가 호버 중 z를 올린다, BuilderIsland). */
+.entry-jobtag {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 4px;
+  z-index: 5;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--panel);
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
 }
 .entry-face {
   /* 원본 = 176x74 눈 스트립(인게임 facethumb) — 비율 그대로 보여야 얼굴이 안 잘린다. */
@@ -83,6 +139,10 @@ tbody:hover .entry-wrap {
   .entry-name {
     display: none;
   }
+  /* 세로는 무스크롤 밀도가 우선 — 자물쇠 슬롯 숨김(잠금 상태는 카드 테두리로 보인다, 탭 = 토글). */
+  .entry-lock {
+    display: none;
+  }
 }
 
 /* 가로 모드(높이 520px 이하) — 사용자 결정 2026-08-31: **PC 풀피쳐 그대로 + 모두 펼침**(세로와 작동 다름).
@@ -138,7 +198,8 @@ tbody:hover .entry-wrap {
   }
   .entry-name {
     display: inline-block;
-    width: 6em !important;
+    /* PC와 동일 5em — 캐릭터명 최대 5자(2026-08-31 카드 1칸 축소). */
+    width: 5em !important;
     font-size: 17px !important;
   }
 }

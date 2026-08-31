@@ -209,6 +209,37 @@ export const loadStarsphere = (): boolean => loadPref(STAR_KEY, false);
 export const saveShowGrowth = (on: boolean): void => savePref(PGROWTH_KEY, on);
 export const loadShowGrowth = (): boolean => loadPref(PGROWTH_KEY, false);
 
+/* ── 엔트리 잠금(빌더) — 잠근 pid 목록, 순서 = 표 상단 고정 순서. 잠금 온오프 순간이 저장 시점
+   (2026-08-31 사용자 지시). 로스터 대조는 표시층(orderRowGroups)이 하므로 여기는 형태만 지킨다. */
+
+const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
+
+export function saveEntryLocks(pids: readonly string[]): void {
+  try {
+    storage()?.setItem(ENTRY_LOCKS_KEY, JSON.stringify(pids));
+  } catch {
+    // 쿼터·프라이빗 모드 = 저장 스킵.
+  }
+}
+
+/** 손상·이물은 빈 목록으로 강하 — 이물 pid가 표 상단을 붙들면 되돌릴 UI가 없다. */
+export function loadEntryLocks(): string[] {
+  let text: string | null | undefined;
+  try {
+    text = storage()?.getItem(ENTRY_LOCKS_KEY);
+  } catch {
+    return [];
+  }
+  if (text === null || text === undefined) return [];
+  try {
+    const list: unknown = JSON.parse(text);
+    if (!Array.isArray(list)) throw new Error("잠금 목록이 배열이 아니다");
+    return list.filter((p): p is string => typeof p === "string");
+  } catch {
+    return [];
+  }
+}
+
 /* ── 넘버링 세이브 — 사용자가 찍은 지점의 보관. ☠자동 저장(fesim:eph:*)과 다른 축이다:
    저쪽은 챕터당 1슬롯이 계속 덮어써지는 이어하기, 이쪽은 **번호가 붙어 남는** 보관이다.
    번호의 쓸모 = 대화 앵커("세이브 7의 국면") — 그래서 번호는 절대 재사용하지 않는다. */

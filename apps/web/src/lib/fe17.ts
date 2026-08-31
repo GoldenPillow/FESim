@@ -1792,7 +1792,7 @@ export function boardPropsFor(mapId: string, locale: Locale): BoardProps {
   });
 }
 
-/* ── 캐릭터 빌더 사영 (design/avg_stats_builder.md B2) ──
+/* ── 엔트리 빌더 사영 (design/avg_stats_builder.md B2) ──
    섬(BuilderIsland)은 여기서 만든 직렬화 props만 받는다 — 원천 테이블은 클라이언트에 싣지 않는다.
    계산 답변자는 엔진(growthPath·mergeStatCap·levelUpGrowthRate) — 여기는 테이블 필드 → 입력 사상만. */
 

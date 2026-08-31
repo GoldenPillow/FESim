@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
-import { builderRowGroups, nextSort, sortRowGroups, type BuilderCompare, type BuilderSort } from "./lib";
+import { builderRowGroups, nextSort, orderRowGroups, type BuilderCompare, type BuilderSort } from "./lib";
 import type { BuilderProps } from "../../lib/fe17";
 import {
+  loadEntryLocks,
   loadShowGrowth,
   loadShowSpoilers,
   loadStarsphere,
+  saveEntryLocks,
   saveShowGrowth,
   saveShowSpoilers,
   saveStarsphere,
@@ -13,11 +15,13 @@ import {
 import type { BuilderLabels } from "../../lib/i18n";
 
 /**
- * 캐릭터 빌더 — "상급직 xN x 전 캐릭터" 비교표(design/avg_stats_builder.md §4).
+ * 엔트리 빌더 — "상급직 xN x 전 캐릭터" 비교표(design/avg_stats_builder.md §4).
  * 입력 테이블은 빌드 타임(builderPropsFor)이 직렬화해 주고, 직업 x 내부 레벨 조합은 곱집합이라
  * 여기서 계산한다. 계산은 features/builder/lib(→ 엔진 growthPath)가 소유하고 이 파일은 표시만 한다.
  * 멀티클래스 비교(2026-08-31): 슬롯(직업+내부 레벨)마다 헤더 성장률 행 1줄 + 캐릭터마다 본문 라인 1줄 —
  * 두 줄의 순서 동치는 builderRowGroups 테스트가 지킨다. 고유 성장 체커는 블록 첫 줄에 개인 성장률(블루).
+ * 잠금(2026-08-31): 스탯 행 클릭 = 그 캐릭터를 상단에 고정(인게이지 블루 카드 테두리) + 정렬 제외.
+ * 전용직 불가(ineligible) 행은 호버·클릭 무반응 — 해당 캐릭터만 반응한다.
  */
 
 const INTERNAL_LEVELS = [10, 15, 20, 25, 30, 35, 40, 45, 50];
@@ -38,6 +42,19 @@ const STAT_EN: Record<StatKey, string> = {
   hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
 };
 
+/** 자물쇠 아이콘(머티리얼 계열 근사) — open = 호버 안내(풀림), closed = 잠김. */
+const LockIcon = ({ open }: { open: boolean }): React.JSX.Element => (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+    <path
+      d={
+        open
+          ? "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9H9V6a3 3 0 0 1 5.91-.74l1.94-.49A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Z"
+          : "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z"
+      }
+    />
+  </svg>
+);
+
 export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere, labels }: BuilderIslandProps) {
   const [slots, setSlots] = useState<BuilderSlot[]>([{ jid: "" }]);
   const [internal, setInternal] = useState(40);
@@ -47,11 +64,37 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const [star, setStar] = useState(false);
   const [showGrowth, setShowGrowth] = useState(false);
   const [showSpoilers, setShowSpoilers] = useState(false);
+  // 잠금도 브라우저 저장 — 온오프 순간이 저장 시점(2026-08-31 사용자 지시).
+  const [locked, setLocked] = useState<string[]>([]);
+  const [hoverRow, setHoverRow] = useState<{ pid: string; li: number } | null>(null);
+  /** 잠그는 순간의 1회 확산 링 — ☠잠금 상태(entry-locked)에 묶으면 저장 복원·재정렬 때마다 다시 터진다. */
+  const [pulsePid, setPulsePid] = useState<string | null>(null);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
     setShowSpoilers(loadShowSpoilers());
+    setLocked(loadEntryLocks());
   }, []);
+
+  const toggleLock = (pid: string): void => {
+    const on = !locked.includes(pid);
+    const next = on ? [...locked, pid] : locked.filter((p) => p !== pid);
+    saveEntryLocks(next);
+    setLocked(next);
+    setPulsePid(on ? pid : null);
+    // 행이 상단으로 이동하면 옛 자리의 mouseleave가 안 온다 — 호버 흔적을 지운다.
+    setHoverRow(null);
+  };
+
+  /** Reset = 잠금 전체 해제 + 직업 미선택 디폴트(2026-08-31 사용자 확정) — 체커 저장값은 유지. */
+  const reset = (): void => {
+    saveEntryLocks([]);
+    setLocked([]);
+    setPulsePid(null);
+    setSlots([{ jid: "" }]);
+    setInternal(40);
+    setSort(undefined);
+  };
 
   const compares: BuilderCompare[] = useMemo(
     () =>
@@ -88,8 +131,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
     [chars, showSpoilers],
   );
   const groups = useMemo(
-    () => sortRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), sort),
-    [visibleChars, joinJobs, compares, sort, extraSkills],
+    () => orderRowGroups(builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills), locked, sort),
+    [visibleChars, joinJobs, compares, sort, extraSkills, locked],
   );
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
@@ -184,6 +227,13 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             />
             {labels.showSpoilers}
           </label>
+          <button
+            type="button"
+            onClick={reset}
+            className="mb-0.5 rounded border border-rule px-2.5 py-[3px] text-[12px] text-muted hover:bg-sunken hover:text-ink"
+          >
+            {labels.reset}
+          </button>
         </span>
       </div>
 
@@ -282,19 +332,59 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
             // 멀티 모드는 라인마다 단일 모드 행 높이만큼 여백(2026-08-31 사용자 지시 — 답답함 방지,
             // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
             const roomy = g.length > 1 ? "py-[15px]" : "py-1";
+            const isLocked = locked.includes(first.pid);
+            const hovered = hoverRow !== null && hoverRow.pid === first.pid;
+            // 호버 중인 스탯 라인의 직업명 — 라인 순서 = compares 순서(builderRowGroups 동치). 미선택·고유성장 라인은 없음.
+            const jobTag =
+              hoverRow !== null && hoverRow.pid === first.pid && hoverRow.li >= 0
+                ? compares[hoverRow.li]?.job.name
+                : undefined;
+            // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
+            const groupInert = g.every((r) => r.ineligible);
+            /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
+            const rowActs = (inert: boolean, li: number) =>
+              inert
+                ? {}
+                : {
+                    onMouseEnter: () => setHoverRow({ pid: first.pid, li }),
+                    onMouseLeave: () => setHoverRow(null),
+                    onClick: () => toggleLock(first.pid),
+                  };
             const nameTh = (
               <th
                 scope="row"
                 rowSpan={g.length + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal group-hover:bg-sunken ${sep}`}
+                className={`sticky left-0 ${hovered ? "z-20" : "z-10"} bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}
               >
-                <span className="entry-wrap block">
-                  <span className="entry-card">
+                <span className="entry-wrap relative flex items-center">
+                  <span
+                    className={`entry-card${isLocked ? " entry-locked" : ""}${pulsePid === first.pid ? " entry-lock-pulse" : ""}`}
+                    onAnimationEnd={pulsePid === first.pid ? () => setPulsePid(null) : undefined}
+                  >
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
-                    <span className="entry-name inline-block w-[5em] truncate md:w-[6em] text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
+                    <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
+                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이 고정폭, 기본 공백(표가 안 움직인다). */}
+                  {isLocked || hovered ? (
+                    <button
+                      type="button"
+                      aria-label={isLocked ? labels.unlock : labels.lock}
+                      title={isLocked ? labels.unlock : labels.lock}
+                      aria-pressed={isLocked}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleLock(first.pid);
+                      }}
+                      className={`entry-lock ${isLocked ? "text-engage" : "text-muted hover:text-ink"}`}
+                    >
+                      <LockIcon open={!isLocked} />
+                    </button>
+                  ) : (
+                    <span className="entry-lock" aria-hidden="true" />
+                  )}
+                  {jobTag !== undefined && <span className="entry-jobtag">{jobTag}</span>}
                 </span>
               </th>
             );
@@ -302,7 +392,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               <tbody key={first.pid} className="group">
                 {showGrowth && (
                   // 고유 성장 라인 — 블록 첫 줄(기존 행은 한 칸씩 아래로), 개인 성장률을 블루로(2026-08-31 사용자 지시).
-                  <tr className="group-hover:bg-sunken">
+                  <tr className={groupInert ? "" : "cursor-pointer hover:bg-sunken"} {...rowActs(groupInert, -1)}>
                     {nameTh}
                     <td className={`inlv-col px-2 ${roomy} ${sep}`} />
                     {STAT_KEYS.map((key) => (
@@ -317,7 +407,12 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   </tr>
                 )}
                 {g.map((row, li) => (
-                  <tr key={li} className="group-hover:bg-sunken" {...(row.ineligible ? { title: labels.unavailable } : {})}>
+                  <tr
+                    key={li}
+                    className={row.ineligible ? "" : "cursor-pointer hover:bg-sunken"}
+                    {...rowActs(row.ineligible, li)}
+                    {...(row.ineligible ? { title: labels.unavailable } : {})}
+                  >
                     {li === 0 && !showGrowth && nameTh}
                     <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
                       {row.projected ? row.internal + 1 : `(${row.internal + 1})`}

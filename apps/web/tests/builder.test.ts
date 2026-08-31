@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
-import { builderRowGroups, builderRows, nextSort, sortRowGroups } from "../src/features/builder/lib";
+import { builderRowGroups, builderRows, nextSort, orderRowGroups, sortRowGroups } from "../src/features/builder/lib";
 import type { BuilderCharProp, BuilderJobProp } from "../src/lib/fe17";
 
 /**
- * 캐릭터 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
+ * 엔트리 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
  * 소수 1자리 표기 · 캡 도달은 정수 · 개인 캡 합성 · 정렬 토글 · 전용직 가능자 상단.
  * 합성 데이터로 짠다(실데이터는 파이프라인 산출물이라 값이 바뀌면 표시 규약과 무관하게 깨진다).
  */
@@ -122,6 +122,31 @@ describe("정렬", () => {
     expect(second).toEqual({ key: "hp", dir: "asc" });
     expect(nextSort(second, "hp")).toBeUndefined();
     expect(nextSort(second, "str")).toEqual({ key: "str", dir: "desc" });
+  });
+});
+
+describe("잠금 — 엔트리 상단 고정 (orderRowGroups)", () => {
+  const roster = [
+    char("a"),
+    char("b", { personOffset: block({ hp: 5 }) }),
+    char("c", { personOffset: block({ hp: 2 }) }),
+  ];
+  const groups = builderRowGroups(propsOf(roster), []);
+
+  /**
+   * 왜 위험한가: 잠금은 "비교 기준을 붙들어 두는" 기능이다 — 잠긴 캐릭터가 정렬에 딸려 움직이면
+   * 기준이 사라져 기능 자체가 죽는다. 잠근 순서 = 상단 순서, 정렬은 대기 목록만 흔든다.
+   */
+  it("잠긴 캐릭터는 잠근 순서대로 최상단 — 정렬에 흔들리지 않는다", () => {
+    expect(orderRowGroups(groups, ["c", "a"], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid)).toEqual([
+      "c", "a", "b",
+    ]);
+  });
+
+  it("잠금 해제 = 대기 목록의 정렬 자리로 복귀, 로스터에 없는 pid는 조용히 무시", () => {
+    expect(orderRowGroups(groups, ["ghost"], { key: "hp", dir: "desc" }).map((g) => g[0]!.pid)).toEqual([
+      "b", "c", "a",
+    ]);
   });
 });
 
