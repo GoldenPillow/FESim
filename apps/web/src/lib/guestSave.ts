@@ -212,7 +212,7 @@ export const loadShowGrowth = (): boolean => loadPref(PGROWTH_KEY, false);
 /* ── 엔트리 잠금(빌더) — 잠근 순서 = 표 상단 고정 순서. 잠금 온오프 순간이 저장 시점(2026-08-31 사용자 지시).
    로스터·직업 대조는 표시층(features/builder/lib)이 하므로 여기는 스냅샷 형태만 지킨다. */
 
-/** 잠금 스냅샷 — 잠근 순간의 (직업, 내부 레벨, 성옥 체커)를 박제한다(2026-08-31: 잠김은 당시 값으로 고정). */
+/** 잠금 스냅샷 — 잠근 순간의 (직업, 내부 레벨, 성옥 체커, 무기)를 박제한다(2026-08-31: 잠김은 당시 값으로 고정). */
 export interface EntryLock {
   pid: string;
   /** 목표 내부 레벨(0기점). 직업 미선택 잠금은 0(합류 상태라 소비되지 않는다). */
@@ -221,6 +221,10 @@ export interface EntryLock {
   jid?: string;
   /** 잠금 당시 성옥의 가호 체커 — 현재 체커와 무관하게 이 값만 반영한다. */
   star?: boolean;
+  /** 잠금 당시 장착 무기(iid) — 없음 = 맨손. */
+  iid?: string;
+  /** 잠금 당시 강화 단계(0 = 노강화). */
+  plus?: number;
 }
 
 const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
@@ -254,6 +258,8 @@ export function loadEntryLocks(): EntryLock[] {
           internal: raw.internal,
           ...(typeof raw.jid === "string" ? { jid: raw.jid } : {}),
           ...(raw.star === true ? { star: true } : {}),
+          ...(typeof raw.iid === "string" ? { iid: raw.iid } : {}),
+          ...(typeof raw.plus === "number" ? { plus: raw.plus } : {}),
         },
       ];
     });

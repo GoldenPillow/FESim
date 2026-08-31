@@ -2,16 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
 import {
   builderRowGroups,
+  canEquip,
   combatOf,
   COMBAT_KEYS,
   lockedDisplayRows,
   nextSort,
   waitingRowGroups,
+  weaponAt,
   type BuilderCompare,
   type BuilderRow,
   type BuilderSort,
+  type EquippedWeapon,
 } from "./lib";
-import type { BuilderProps } from "../../lib/fe17";
+import type { BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
 import {
   loadEntryLocks,
   loadShowGrowth,
@@ -41,10 +44,13 @@ const INTERNAL_LEVELS = [10, 15, 20, 25, 30, 35, 40, 45, 50];
 /** 비교 상한(기본 1 + 추가 3) — 캐릭터당 라인이 이 배수로 늘므로 가독 한계에서 자른다. */
 const MAX_JOBS = 4;
 
-/** 비교 슬롯 상태 — [0] = 기본 선택기. internal 미지정 = 1번(메인 내부 레벨) 추종(2026-08-31 사용자 지시). */
+/** 비교 슬롯 상태 — [0] = 기본 선택기. internal 미지정 = 1번(메인 내부 레벨) 추종(2026-08-31 사용자 지시).
+    iid = 장착 무기(빈 문자열 = 맨손), plus = 강화 단계(0 = 노강화). 직업이 바뀌면 무기는 초기화된다. */
 interface BuilderSlot {
   jid: string;
   internal?: number;
+  iid?: string;
+  plus?: number;
 }
 
 export interface BuilderIslandProps extends BuilderProps {
@@ -67,7 +73,15 @@ const LockIcon = (): React.JSX.Element => (
   </svg>
 );
 
-export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere, labels }: BuilderIslandProps) {
+export default function BuilderIsland({
+  chars,
+  joinJobs,
+  targetJobs,
+  starsphere,
+  weapons,
+  kindIcons,
+  labels,
+}: BuilderIslandProps) {
   const [slots, setSlots] = useState<BuilderSlot[]>([{ jid: "" }]);
   const [internal, setInternal] = useState(40);
   const [sort, setSort] = useState<BuilderSort | undefined>(undefined);
@@ -88,7 +102,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
     setLocked(loadEntryLocks());
   }, []);
 
-  /** 잠금 = 클릭한 라인의 (직업, 레벨) + 현재 성옥 체커를 스냅샷으로 박제. 해제 = 스냅샷 폐기. */
+  /** 잠금 = 클릭한 라인의 (직업, 레벨, 무기, 강화) + 현재 성옥 체커를 스냅샷으로 박제. 해제 = 폐기. */
   const toggleLock = (pid: string, li: number): void => {
     const on = !locked.some((e) => e.pid === pid);
     let next: EntryLock[];
@@ -102,6 +116,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           internal: c?.internal ?? 0,
           ...(c !== undefined ? { jid: c.job.jid } : {}),
           ...(star ? { star: true } : {}),
+          ...(c?.equipped !== undefined ? { iid: c.equipped.weapon.iid, plus: c.equipped.plus } : {}),
         },
       ];
     } else {
@@ -131,9 +146,15 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
         if (job === undefined) return [];
         // 표기는 1기점(사용자 결정 2026-08-31) — 계산·정본은 0기점이라 여기서만 ±1 변환한다.
         const level = i === 0 ? internal : (s.internal ?? internal);
-        return [{ job, internal: level - 1 }];
+        // 장착 무기 — 직업 변경 뒤 남은 부적합 iid는 조용히 맨손 강하(장착 게이트가 정본).
+        const weapon = weapons.find((w) => w.iid === s.iid);
+        const equipped =
+          weapon !== undefined && canEquip(job, weapon)
+            ? { equipped: { weapon, plus: s.plus ?? 0 } }
+            : {};
+        return [{ job, internal: level - 1, ...equipped }];
       }),
-    [slots, internal, targetJobs],
+    [slots, internal, targetJobs, weapons],
   );
 
   // 헤더 1행(스탯명)·성장률 행의 실측 높이 — 성장률 행 i의 sticky top = row1H + i x jobRowH.
@@ -164,8 +185,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   );
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   const lockedRows = useMemo(
-    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere),
-    [visibleChars, joinJobs, targetJobs, locked, starsphere],
+    () => lockedDisplayRows({ chars: visibleChars, joinJobs }, targetJobs, locked, starsphere, weapons),
+    [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons],
   );
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
@@ -176,23 +197,59 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
   const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
   /**
-   * 전투력 행의 셀 묶음 — 잠금·호버 공용. 직업명 = IN.LV 하단(로열블루), 전투력 = 스탯쪽(2026-08-31).
-   * PC·가로 = 스탯 열 그리드에 캡션·값 2단으로 수직 정렬(물공→STR … 필살회피→DEF, 인게임 순).
-   * 세로 모바일 = 열이 좁아 캡션이 안 들어가므로 흐름 배치 — 표시는 builder.css 미디어가 가른다.
-   * 캡션은 muted가 흐릿하다는 지시(2026-08-31)로 본문색 세미볼드 + 감쇠로 처리.
+   * 전투력 행의 셀 묶음 — 잠금·호버 공용(2026-08-31 배치 지시). 아이템 = IN.LV 하단, 전투력 = 스탯쪽
+   * 그리드 정렬(물공→STR … 필살회피→DEF), RES+BLD 병합 칸 = 클래스 무기군 흰 아이콘(지팡이 포함, 좌정렬).
+   * 무기 합산 델타: 상승 = 블루(pgrow) · 하락 = 레드(danger) — 무게의 악영향은 회피 하락으로 나타난다.
+   * 세로 모바일 = 흐름 배치(combat-flow) — 표시는 builder.css 미디어가 가른다.
    */
-  const combatCells = (row: BuilderRow, jobName: string | undefined): React.JSX.Element => {
-    const c = combatOf(row);
+  const combatCells = (
+    row: BuilderRow,
+    job: BuilderJobProp | undefined,
+    equipped: EquippedWeapon | undefined,
+  ): React.JSX.Element => {
+    const bare = combatOf(row);
+    const c = equipped !== undefined ? combatOf(row, equipped) : bare;
+    const deltaCls = (key: (typeof COMBAT_KEYS)[number]): string =>
+      c[key] > bare[key] + 1e-9 ? "text-pgrow" : c[key] < bare[key] - 1e-9 ? "text-danger" : "text-ink";
+    const kinds =
+      job === undefined
+        ? []
+        : Object.keys(job.weaponRanks)
+            .map(Number)
+            .sort((a, b) => a - b);
     return (
       <>
         <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-middle">
-          {jobName !== undefined && (
-            <span className="block whitespace-nowrap text-[12px] font-semibold leading-tight text-engage">
-              {jobName}
+          {equipped !== undefined && (
+            <span
+              className={`flex items-center justify-center gap-0.5 whitespace-nowrap text-[11px] font-semibold leading-tight ${equipped.weapon.engage === true ? "text-engage" : "text-ink"}`}
+              title={`${equipped.weapon.name}${equipped.plus > 0 ? ` +${equipped.plus}` : ""}`}
+            >
+              {equipped.weapon.icon !== undefined && (
+                <img src={equipped.weapon.icon} alt="" className="h-4 w-4 shrink-0" loading="lazy" />
+              )}
+              <span className="max-w-[4.2rem] truncate">
+                {equipped.weapon.name}
+                {equipped.plus > 0 ? `+${equipped.plus}` : ""}
+              </span>
             </span>
           )}
         </td>
         {STAT_KEYS.map((key) => {
+          if (key === "bld") return null; // RES 셀이 colSpan 2로 흡수(무기군 아이콘 자리)
+          if (key === "res") {
+            return (
+              <td key={key} colSpan={2} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] text-left align-middle md:px-2">
+                <span className="flex items-center justify-start gap-1">
+                  {kinds.map((k) =>
+                    kindIcons[k] !== undefined ? (
+                      <img key={k} src={kindIcons[k]} alt="" className="h-4 w-4" loading="lazy" />
+                    ) : null,
+                  )}
+                </span>
+              </td>
+            );
+          }
           const ck = COMBAT_COL[key];
           return (
             <td
@@ -204,7 +261,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   <span className="block text-[12px] font-semibold leading-4 text-ink opacity-70">
                     {labels.combat[ck]}
                   </span>
-                  <span className="block text-[14px] font-bold leading-5 text-ink">{fmtCombat(c[ck])}</span>
+                  <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
                 </>
               )}
             </td>
@@ -212,10 +269,16 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
         })}
         <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[13px] font-bold leading-tight text-ink">
+            {equipped !== undefined && (
+              <span className={`text-[12px] ${equipped.weapon.engage === true ? "text-engage" : ""}`}>
+                {equipped.weapon.name}
+                {equipped.plus > 0 ? `+${equipped.plus}` : ""}
+              </span>
+            )}
             {COMBAT_KEYS.map((key) => (
               <span key={key} className="whitespace-nowrap">
                 <span className="text-[12px] font-semibold opacity-70">{labels.combat[key]}</span>{" "}
-                {fmtCombat(c[key])}
+                <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
               </span>
             ))}
           </span>
@@ -225,6 +288,19 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   };
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
+  /** 직업 변경 = 무기 초기화(장착 게이트가 직업 소유) — 내부 레벨만 승계한다. */
+  const setSlotJob = (i: number, jid: string): void =>
+    setSlots((s) =>
+      s.map((v, idx) => (idx === i ? { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}) } : v)),
+    );
+  const setSlotItem = (i: number, iid: string): void =>
+    setSlots((s) =>
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        const { iid: _iid, plus: _plus, ...rest } = v;
+        return iid === "" ? rest : { ...rest, iid };
+      }),
+    );
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
@@ -232,7 +308,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
   const checkerClass = "flex items-center gap-1.5 pb-1.5 text-[12px] text-ink";
 
   const jobSelect = (i: number): React.JSX.Element => (
-    <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => patchSlot(i, { jid: e.target.value })}>
+    <select className={selectClass} value={slots[i]?.jid ?? ""} onChange={(e) => setSlotJob(i, e.target.value)}>
       <option value="">{labels.jobNone}</option>
       {targetJobs.map((j) => (
         <option key={j.jid} value={j.jid}>
@@ -242,39 +318,89 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
     </select>
   );
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* 미선택 안내 — 인트로 다음 줄, 항상 같은 높이로 렌더(선택·Reset에도 표가 안 움직인다, 2026-08-31). */}
-      <p className="-mt-4 mb-3 h-4 shrink-0 text-[12px] leading-4 text-muted [@media(max-height:520px)]:hidden">
-        {compares.length === 0 ? labels.joinedNote : ""}
-      </p>
-      <div className="mb-4 flex shrink-0 flex-wrap items-end gap-x-5 gap-y-3">
-        <label className="flex flex-col gap-1">
-          <span className={legendClass}>{labels.job}</span>
-          {jobSelect(0)}
-        </label>
+  /** 무기 스펙 한 줄 — 강화 반영값, 변화는 블루/레드(무게는 반대: 증가가 악화다, 2026-08-31). */
+  const specSpan = (weapon: BuilderWeaponProp, plus: number): React.JSX.Element => {
+    const eff = weaponAt(weapon, plus);
+    const base = weaponAt(weapon, 0);
+    const cls = (v: number, b: number, invert = false): string =>
+      v === b ? "text-ink" : (v > b) !== invert ? "text-pgrow" : "text-danger";
+    const entry = (name: string, v: number, b: number, invert = false): React.JSX.Element => (
+      <span key={name} className="whitespace-nowrap">
+        {name} <span className={`font-semibold ${cls(v, b, invert)}`}>{v}</span>
+      </span>
+    );
+    return (
+      <span className="flex flex-wrap items-center gap-x-2.5 pb-[7px] text-[12px] leading-tight text-muted">
+        <span className="rounded border border-rule px-1 text-[11px]">{weapon.rank}</span>
+        {entry(labels.might, eff.might, base.might)}
+        {entry(labels.combat.hit, eff.hit, base.hit)}
+        {entry(labels.combat.crit, eff.crit, base.crit)}
+        {entry(labels.weight, eff.weight, base.weight, true)}
+      </span>
+    );
+  };
 
+  /** 아이템 + 강화 선택기(슬롯별) — 강화·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). */
+  const itemControls = (i: number): React.JSX.Element => {
+    const slot = slots[i];
+    const job = targetJobs.find((t) => t.jid === slot?.jid);
+    // 클래스 무기군만 표시, 랭크 밖은 회색 비활성(2026-08-31) — 게이트 정본 = canEquip.
+    const options = job === undefined ? [] : weapons.filter((w) => job.weaponRanks[w.kind] !== undefined);
+    const weapon = job === undefined ? undefined : options.find((w) => w.iid === slot?.iid && canEquip(job, w));
+    const plus = slot?.plus ?? 0;
+    return (
+      <>
         <label className="flex flex-col gap-1">
-          <span className={legendClass}>{labels.internal}</span>
-          <select className={selectClass} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
-            {INTERNAL_LEVELS.map((n) => (
-              <option key={n} value={n}>
-                {n}
+          {i === 0 && <span className={legendClass}>{labels.item}</span>}
+          <span className="flex items-center gap-1">
+            {/* 아이콘 + 아이템명 — option 안에는 이미지가 못 들어가 아이콘은 선택기 옆에 선다. */}
+            <span className="flex h-[30px] w-5 shrink-0 items-center justify-center">
+              {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5" />}
+            </span>
+            <select
+              className={`${selectClass} max-w-[10.5rem]`}
+              value={weapon?.iid ?? ""}
+              disabled={job === undefined}
+              onChange={(e) => setSlotItem(i, e.target.value)}
+            >
+              <option value="">{labels.itemNone}</option>
+              {options.map((w) => (
+                <option key={w.iid} value={w.iid} disabled={job !== undefined && !canEquip(job, w)}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+        {weapon !== undefined && (
+          <select
+            className={selectClass}
+            value={plus}
+            disabled={weapon.refine === undefined}
+            onChange={(e) => patchSlot(i, { plus: Number(e.target.value) })}
+          >
+            <option value={0}>{labels.refineNone}</option>
+            {(weapon.refine ?? []).map((_stage, si) => (
+              <option key={si} value={si + 1}>
+                {`+${si + 1}`}
               </option>
             ))}
           </select>
-        </label>
+        )}
+        {weapon !== undefined && specSpan(weapon, plus)}
+      </>
+    );
+  };
 
-        <button
-          type="button"
-          onClick={() => setSlots((s) => [...s, { jid: "" }])}
-          disabled={slots.length >= MAX_JOBS}
-          className="rounded px-3 py-[5px] text-[14px] font-bold text-gold hover:bg-sunken disabled:opacity-40"
-        >
-          {`+ ${labels.addCompare}`}
-        </button>
-
-        <span className="ml-auto flex flex-wrap items-end gap-x-5 gap-y-3">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* 윗줄 = 미선택 안내(좌, 고정 높이) + 체커·Reset(우) — 아이템 선택기가 아랫줄 우측 공간을
+          쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다. */}
+      <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1">
+        <p className="h-4 text-[12px] leading-4 text-muted [@media(max-height:520px)]:hidden">
+          {compares.length === 0 ? labels.joinedNote : ""}
+        </p>
+        <span className="ml-auto flex flex-wrap items-end gap-x-5 gap-y-2">
           {starsphere !== undefined && (
             <label className={checkerClass}>
               <input
@@ -322,11 +448,39 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           </button>
         </span>
       </div>
+      <div className="mb-4 flex shrink-0 flex-wrap items-end gap-x-5 gap-y-3">
+        <label className="flex flex-col gap-1">
+          <span className={legendClass}>{labels.job}</span>
+          {jobSelect(0)}
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className={legendClass}>{labels.internal}</span>
+          <select className={selectClass} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
+            {INTERNAL_LEVELS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {itemControls(0)}
+
+        <button
+          type="button"
+          onClick={() => setSlots((s) => [...s, { jid: "" }])}
+          disabled={slots.length >= MAX_JOBS}
+          className="rounded px-3 py-[5px] text-[14px] font-bold text-gold hover:bg-sunken disabled:opacity-40"
+        >
+          {`+ ${labels.addCompare}`}
+        </button>
+      </div>
 
       {slots.length > 1 && (
         <div className="-mt-2 mb-4 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
           {slots.slice(1).map((slot, i) => (
-            <span key={i} className="flex items-center gap-1">
+            <span key={i} className="flex flex-wrap items-center gap-1.5">
               {jobSelect(i + 1)}
               {/* 슬롯 내부 레벨 — 값 미지정이면 1번(메인) 추종, 고르면 그 슬롯만 고정(2026-08-31). */}
               <select
@@ -340,6 +494,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   </option>
                 ))}
               </select>
+              {itemControls(i + 1)}
               <button
                 type="button"
                 aria-label={labels.removeCompare}
@@ -413,7 +568,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
           </thead>
           {/* ── 잠금 블록 — 스냅샷 1행 + 전투력 행. 블록 전체 인게이지 블루 테두리(builder.css ::after).
               자물쇠 아이콘은 잠금 후 사라진다(테두리가 상태 표지) — 슬롯은 공백으로 남아 표가 안 움직인다. ── */}
-          {lockedRows.map(({ row, jobName }, gi) => {
+          {lockedRows.map(({ row, job, equipped }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
             const unlock = (): void => toggleLock(row.pid, -1);
@@ -435,6 +590,12 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                       </span>
                       <span className="entry-lock" aria-hidden="true" />
                     </span>
+                    {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
+                    {job !== undefined && (
+                      <span className="block px-1 pt-[3px] text-[12px] font-semibold leading-tight text-engage">
+                        {job.name}
+                      </span>
+                    )}
                   </th>
                   <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
                     {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
@@ -451,9 +612,9 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                     );
                   })}
                 </tr>
-                {/* 전투력 행 — 잠금은 상시 표시. 직업명 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
+                {/* 전투력 행 — 잠금은 상시 표시. 아이템 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
                 <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
-                  {combatCells(row, jobName)}
+                  {combatCells(row, job, equipped)}
                 </tr>
               </tbody>
             );
@@ -512,6 +673,13 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                     <span className="entry-lock" aria-hidden="true" />
                   )}
                 </span>
+                {/* 호버 라인의 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). 전투력 행이 열린
+                    동안만 = th가 한 칸 늘어 있어 행 높이를 안 민다. */}
+                {combatLi !== undefined && compares[combatLi]?.job.name !== undefined && (
+                  <span className="block px-1 pt-[3px] text-[12px] font-semibold leading-tight text-engage">
+                    {compares[combatLi].job.name}
+                  </span>
+                )}
               </th>
             );
             return (
@@ -562,7 +730,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   return [
                     line,
                     <tr key={`combat-${li}`} className="cursor-pointer hover:bg-sunken" {...rowActs(false, li)}>
-                      {combatCells(row, compares[li]?.job.name)}
+                      {combatCells(row, compares[li]?.job, compares[li]?.equipped)}
                     </tr>,
                   ];
                 })}

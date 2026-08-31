@@ -11,7 +11,7 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import type { BuilderCharProp, BuilderJobProp, BuilderProps } from "../../lib/fe17";
+import type { BuilderCharProp, BuilderJobProp, BuilderProps, BuilderWeaponProp } from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -125,10 +125,12 @@ export function builderRows(
   return rows;
 }
 
-/** 비교 슬롯 — 직업 + 그 슬롯의 목표 내부 레벨(0기점 · 2026-08-31: 슬롯마다 선택기, 기본은 1번 추종). */
+/** 비교 슬롯 — 직업 + 그 슬롯의 목표 내부 레벨(0기점 · 2026-08-31: 슬롯마다 선택기, 기본은 1번 추종).
+    equipped는 전투력 행에서만 소비된다(성장 스탯은 장비 무관). */
 export interface BuilderCompare {
   job: BuilderJobProp;
   internal: number;
+  equipped?: EquippedWeapon;
 }
 
 /**
@@ -164,12 +166,14 @@ export function waitingRowGroups(
 
 export interface LockedDisplay {
   row: BuilderRow;
-  /** 스냅샷 직업명 — 직업 미선택 잠금·사라진 jid는 없음(합류 상태 표시). */
-  jobName?: string;
+  /** 스냅샷 직업 — 직업 미선택 잠금·사라진 jid는 없음(합류 상태 표시). 이름·무기군 아이콘이 소비. */
+  job?: BuilderJobProp;
+  /** 스냅샷 무기(iid·강화) — 사라진 iid는 맨손으로 강하. */
+  equipped?: EquippedWeapon;
 }
 
 /**
- * 잠금 스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 (직업, 내부 레벨, 성옥)만 소비한다("고정"의 실체).
+ * 잠금 스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 (직업, 내부 레벨, 성옥, 무기)만 소비한다("고정"의 실체).
  * 로스터에 없는 pid(스포일러 숨김·이물 저장값)는 건너뛰고, 사라진 jid는 합류 상태로 강하한다
  * (괄호·흐림 표시가 강하를 드러낸다 — 조용히 다른 직업 수치를 파는 것보다 낫다).
  */
@@ -178,6 +182,7 @@ export function lockedDisplayRows(
   jobs: readonly BuilderJobProp[],
   locked: readonly EntryLock[],
   starsphere?: SkillRow,
+  weapons: readonly BuilderWeaponProp[] = [],
 ): LockedDisplay[] {
   const byPid = new Map(props.chars.map((c) => [c.pid, c]));
   const out: LockedDisplay[] = [];
@@ -189,13 +194,56 @@ export function lockedDisplayRows(
     const job = entry.jid === undefined ? undefined : jobs.find((j) => j.jid === entry.jid);
     const extra = entry.star === true && starsphere !== undefined ? [starsphere] : undefined;
     const row = builderRow(char, joinJob, job, entry.internal, extra);
-    out.push(job === undefined ? { row } : { row, jobName: job.name });
+    const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
+    out.push({
+      row,
+      ...(job !== undefined ? { job } : {}),
+      ...(weapon !== undefined ? { equipped: { weapon, plus: entry.plus ?? 0 } } : {}),
+    });
   }
   return out;
 }
 
+/* ── 장착 게이트 — 무기군(Kind) + 랭크(WeaponLevel ≤ MaxWeaponLevel). ── */
+
+/** 무기 랭크 서열(N = 착용 불가) — 인게임 무기 레벨 표기 정본. */
+const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
+
+/** '+'는 반 단계(C+ = 3.5) — job MaxWeaponLevel에 등장한다. */
+export const rankValue = (rank: string): number =>
+  (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
+
+/** 클래스가 이 무기를 들 수 있나 — 무기군 적성 + 랭크 게이트(Flag 256 = 랭크 무시). */
+export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolean => {
+  const max = job.weaponRanks[weapon.kind];
+  if (max === undefined) return false;
+  return weapon.ignoreRank === true || rankValue(weapon.rank) <= rankValue(max);
+};
+
+/** 장착 상태 — plus 0 = 노강화, 1~5 = 錬成 단계(refine 누적 보정). */
+export interface EquippedWeapon {
+  weapon: BuilderWeaponProp;
+  plus: number;
+}
+
+/** 강화 반영 실효 무기 수치 — 스펙 표시·전투력 env가 같은 값을 쓴다(이중화 금지). */
+export function weaponAt(weapon: BuilderWeaponProp, plus: number): {
+  might: number; hit: number; crit: number; weight: number; avoid: number; dodge: number; magic: boolean;
+} {
+  const stage = plus > 0 ? weapon.refine?.[plus - 1] : undefined;
+  return {
+    might: weapon.might + (stage?.power ?? 0),
+    hit: weapon.hit + (stage?.hit ?? 0),
+    crit: weapon.crit + (stage?.crit ?? 0),
+    weight: weapon.weight + (stage?.weight ?? 0),
+    avoid: weapon.avoid,
+    dodge: weapon.dodge,
+    magic: weapon.magic,
+  };
+}
+
 /* ── 전투력 사영 — 인게임 유닛 단면(전투 능력)의 self-only 식을 정본(calculator.json) 그대로 평가한다.
-   맨손 기준(2026-08-31 사용자 지시): 무기·지원·지형 항은 전부 0, 공격 속성은 물리(공격 = 힘). */
+   맨손 = 무기·지원·지형 항 전부 0. 장착 = 정본 식의 무기 변수를 채우는 것만이 합산이다(2026-08-31). */
 
 const calculator = createCalculator(JSON.parse(calculatorRaw) as CalculatorData);
 
@@ -213,9 +261,13 @@ const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
   ddg: "必殺回避計算",
 };
 
-/** 평균 스탯의 전투력 — 소수를 유지한 채 정본 식을 평가한다(표시 반올림은 표시층 소관). */
-export function combatOf(row: BuilderRow): Record<CombatKey, number> {
-  const v = (key: StatKey): number => row.cells[key].value;
+/** 평균 스탯의 전투력 — 소수를 유지한 채 정본 식을 평가한다(표시 반올림은 표시층 소관).
+    장착 시: Enhance는 스탯에 합산 후 평가, 무기 항은 env 변수로 채운다(공속 게이트가 회피에 산다).
+    공격은 무기 속성 쪽에만 위력이 합산되고 반대쪽은 순수 스탯이다(물공·마공 분리 표기). */
+export function combatOf(row: BuilderRow, equipped?: EquippedWeapon): Record<CombatKey, number> {
+  const enhance = equipped?.weapon.enhance;
+  const v = (key: StatKey): number => row.cells[key].value + (enhance?.[key] ?? 0);
+  const weapon = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus);
   const env = combatEnv({
     stats: {
       maxHp: v("hp"),
@@ -229,14 +281,19 @@ export function combatOf(row: BuilderRow): Record<CombatKey, number> {
       res: v("res"),
       bld: v("bld"),
     },
+    ...(weapon !== undefined ? { weapon } : {}),
   });
   const out = {} as Record<CombatKey, number>;
   for (const key of Object.keys(COMBAT_FORMULAS) as (keyof typeof COMBAT_FORMULAS)[]) {
     out[key] = calculator.eval(COMBAT_FORMULAS[key], env) as number;
   }
-  // 마공 = 같은 정본 식(攻撃力計算 → ユニット攻撃力計算)을 공격 속성만 마법으로 바꿔 평가 — 식 복제 금지.
-  const magicEnv = { ...env, lookup: (name: string) => (name === "攻撃属性" ? "魔法属性" : env.lookup(name)) };
-  out.matk = calculator.eval("攻撃力計算", magicEnv) as number;
+  // 攻撃力計算은 무기 속성이 힘/마력을 고른다 — 반대쪽 공격은 순수 스탯으로 되돌린다(중복 합산 금지).
+  if (weapon?.magic === true) {
+    out.matk = out.patk;
+    out.patk = v("str");
+  } else {
+    out.matk = v("mag");
+  }
   return out;
 }
 

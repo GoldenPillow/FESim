@@ -91,6 +91,11 @@ export interface AssetManifest {
   faces?: Record<string, string>;
   /** 문장사 초상 — GID 키(인물 얼굴은 pid 키라 같은 표에 못 넣는다: 엠블렘은 인물이 아니다). */
   godFaces?: Record<string, string>;
+  /** 아이템 아이콘(items.json Icon 키) — ui_icon/item 번들 베이크 산출. */
+  items?: Record<string, string>;
+  /** 무기군(카테고리) 아이콘 — ui_icon/weapon 번들 베이크 산출(흰 실루엣.
+      ☠weaponoutline 번들이 아니다 — 그쪽은 어두운 그림자 레이어, 이름과 반대. 베이크 보고 2026-08-31). */
+  weapontypes?: Record<string, string>;
 }
 
 interface NamedRow {
@@ -168,6 +173,26 @@ const items =
       import: "default",
     }) as Record<string, string>,
   ) ?? {};
+
+/** 무기 강화(+1~+5) 누적 보정 — 키 = IID_ 접미사(transform build_refine). */
+const refineTable =
+  optional<Record<string, { power: number; weight: number; hit: number; crit: number }[]>>(
+    import.meta.glob("../../../../data/fe17/tables/refine.json", {
+      eager: true,
+      query: "?raw",
+      import: "default",
+    }) as Record<string, string>,
+  ) ?? {};
+
+/** 무기 상점 판매 목록(첫 등장 순) — 빌더 정렬(기본무기군 전열)의 정본. */
+const shopTable =
+  optional<{ weapons: string[] }>(
+    import.meta.glob("../../../../data/fe17/tables/shop.json", {
+      eager: true,
+      query: "?raw",
+      import: "default",
+    }) as Record<string, string>,
+  ) ?? { weapons: [] };
 
 const scriptFiles = Object.fromEntries(
   Object.entries(
@@ -1821,6 +1846,44 @@ export interface BuilderJobProp extends GrowthPathJob {
   name: string;
   /** 전용직의 가능 캐릭터(정확히 1명 — Q3: 가능자 상단 표시) — 범용은 undefined. */
   uniquePid?: string;
+  /** 착용 가능 무기군 → 최대 랭크(job Weapon*=1 && MaxWeaponLevel* != N). 키 = Kind(지팡이 7 포함). */
+  weaponRanks: Record<number, string>;
+}
+
+/** 강화 단계 하나의 누적 보정(refine.json — 錬成 시트 정본). */
+export interface RefineStage {
+  power: number;
+  weight: number;
+  hit: number;
+  crit: number;
+}
+
+/** 빌더 장비 후보 무기 — 표시·전투력 합산에 필요한 단면만(적 전용·비공개는 사영 전에 걸린다). */
+export interface BuilderWeaponProp {
+  iid: string;
+  name: string;
+  /** items.json Kind(1검 2창 3도끼 4활 5나이프 6마도서 8체술 9특수) — 장착 가능 판정·정렬 축. */
+  kind: number;
+  might: number;
+  hit: number;
+  crit: number;
+  weight: number;
+  avoid: number;
+  dodge: number;
+  magic: boolean;
+  /** 착용 요구 랭크(WeaponLevel) — ignoreRank(Flag 256)면 무시. */
+  rank: string;
+  ignoreRank?: true;
+  /** 무기 상점 판매(기본무기군 = 전열 정렬) — 없으면 유니크류 후열. */
+  shop?: true;
+  /** 엠블렘(엔게이지) 무기 — 목록 글자색 표지(인게임 시안 관례). */
+  engage?: true;
+  /** 장비 중 스탯 강화(Enhance.*) — 스탯 합산 후 전투력을 평가한다. */
+  enhance?: Partial<StatBlock>;
+  /** 강화 +1~+5 누적 보정 — 없으면 강화 불가 무기. */
+  refine?: RefineStage[];
+  /** 아이콘 에셋 href — 베이크 전이면 undefined(표시는 이름만). */
+  icon?: string;
 }
 
 export interface BuilderProps {
@@ -1833,6 +1896,10 @@ export interface BuilderProps {
   joinJobs: Record<string, GrowthPathJob>;
   /** 드롭다운 목록(Sort 순): 범용 + 전용. limit는 job.Limit 원값(개인 보정은 섬이 합성). */
   targetJobs: BuilderJobProp[];
+  /** 장비 후보 무기 전량 — 상점 전열(등장순) → 유니크 후열(kind → 랭크 → 가격). */
+  weapons: BuilderWeaponProp[];
+  /** 무기군 아이콘(흰 실루엣) href — 키 = Kind(1~9, 지팡이 7 포함). 베이크 전이면 빈 객체. */
+  kindIcons: Record<number, string>;
 }
 
 /** 스포일러 명단(2026-08-31 사용자 지정) — 본편 후반 합류(모브 m021·베일 m022) + 사룡의 장 5인. */
@@ -1840,6 +1907,97 @@ const SPOILER_PIDS = new Set([
   "PID_モーヴ", "PID_ヴェイル",
   "PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン",
 ]);
+
+/** job.xml 무기 적성 ↔ items Kind — 지팡이(7)는 무기군 아이콘 표시용(장비 후보 목록은 공격 무기만). */
+const JOB_WEAPON_FIELDS: readonly [number, string, string][] = [
+  [1, "WeaponSword", "MaxWeaponLevelSword"],
+  [2, "WeaponLance", "MaxWeaponLevelLance"],
+  [3, "WeaponAxe", "MaxWeaponLevelAxe"],
+  [4, "WeaponBow", "MaxWeaponLevelBow"],
+  [5, "WeaponDagger", "MaxWeaponLevelDagger"],
+  [6, "WeaponMagic", "MaxWeaponLevelMagic"],
+  [7, "WeaponRod", "MaxWeaponLevelRod"],
+  [8, "WeaponFist", "MaxWeaponLevelFist"],
+  [9, "WeaponSpecial", "MaxWeaponLevelSpecial"],
+];
+
+const jobWeaponRanks = (r: Record<string, unknown>): Record<number, string> => {
+  const out: Record<number, string> = {};
+  for (const [kind, flagField, rankField] of JOB_WEAPON_FIELDS) {
+    // Weapon*는 0/1/2 열거(0 불가 · 1 고정 · 2 전직 선택 무기군) — 선택 무기군도 전부 적용한다
+    // (2026-08-31 사용자 지시: 드래곤나이트 = 검·창·도끼).
+    if (Number(r[flagField] ?? 0) === 0) continue;
+    const rank = String(r[rankField] ?? "N");
+    if (rank !== "N") out[kind] = rank;
+  }
+  return out;
+};
+
+/* items.json Flag 비트(정본 ItemData.Flags, dump.cs:600892~) — 빌더 목록 필터·랭크 무시. */
+const ITEM_FLAG_ONLY_ENEMY = 16;
+const ITEM_FLAG_IGNORE_RANK = 256;
+const ITEM_FLAG_UNPUBLIC = 512;
+
+/** 장비 후보 무기 전량 — 적 전용(OnlyEnemy)·비공개(Unpublic) 제외, 상점 전열 → 유니크 후열. */
+function builderWeapons(locale: Locale): BuilderWeaponProp[] {
+  const shopIndex = new Map(shopTable.weapons.map((iid, i) => [iid, i]));
+  const list: (BuilderWeaponProp & { order: number })[] = [];
+  for (const iid of Object.keys(items)) {
+    const row = items[iid] as unknown as Record<string, unknown>;
+    const flag = Number(row["Flag"] ?? 0);
+    if ((flag & (ITEM_FLAG_ONLY_ENEMY | ITEM_FLAG_UNPUBLIC)) !== 0) continue;
+    const prop = attackWeaponProp(iid, locale);
+    if (prop === undefined) continue;
+    const stages = refineTable[iid.replace(/^IID_/, "")];
+    const icon = assetHref(manifest.items?.[String(row["Icon"] ?? "")]);
+    const shopIdx = shopIndex.get(iid);
+    list.push({
+      iid,
+      name: prop.name,
+      kind: prop.kind,
+      might: prop.might,
+      hit: prop.hit,
+      crit: prop.crit,
+      weight: prop.weight,
+      avoid: prop.avoid,
+      dodge: prop.dodge ?? 0,
+      magic: prop.magic,
+      rank: String(row["WeaponLevel"] ?? "N"),
+      ...((flag & ITEM_FLAG_IGNORE_RANK) !== 0 ? { ignoreRank: true as const } : {}),
+      ...(shopIdx !== undefined ? { shop: true as const } : {}),
+      ...(prop.engage === true ? { engage: true as const } : {}),
+      ...(prop.enhance !== undefined ? { enhance: prop.enhance } : {}),
+      ...(stages !== undefined ? { refine: stages } : {}),
+      ...(icon !== undefined ? { icon } : {}),
+      // 전열(상점) = 등장 순 · 후열(유니크) = 가격 순 — kind가 1차 축이라 무기군끼리 모인다.
+      order: shopIdx ?? 100000 + Number(row["Price"] ?? 0),
+    });
+  }
+  list.sort(
+    (a, b) =>
+      Number(a.shop !== true) - Number(b.shop !== true) ||
+      a.kind - b.kind ||
+      a.order - b.order ||
+      a.name.localeCompare(b.name),
+  );
+  return list.map(({ order: _order, ...weapon }) => weapon);
+}
+
+/** 무기군 아이콘 스프라이트 이름(ui_icon/weapon 번들 베이크 실측 — Kind 1~9, 흰 실루엣).
+    Kind 9는 Breath·Bullet로 갈리는데 직업 플래그로는 구분 불가 — Breath 대표값(플랜 §0 이월). */
+const KIND_ICON_NAMES: Record<number, string> = {
+  1: "Sword", 2: "Lance", 3: "Ax", 4: "Bow", 5: "Dagger", 6: "Magic", 7: "Rod", 8: "Fist", 9: "Breath",
+};
+
+const kindIconsOf = (): Record<number, string> => {
+  const table = manifest.weapontypes ?? {};
+  const out: Record<number, string> = {};
+  for (const [kind, name] of Object.entries(KIND_ICON_NAMES)) {
+    const href = assetHref(table[name]);
+    if (href !== undefined) out[Number(kind)] = href;
+  }
+  return out;
+};
 
 const pathJobOf = (jid: string): GrowthPathJob | undefined => {
   const job = jobs[jid] as unknown as Record<string, unknown> | undefined;
@@ -1942,6 +2100,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       name: label(locale, String(r["Name"])) ?? jid,
       ...path,
       ...(uniquePid !== undefined ? { uniquePid } : {}),
+      weaponRanks: jobWeaponRanks(r),
       sort: Number(r["Sort"] ?? 0),
     });
   }
@@ -1962,5 +2121,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     chars,
     joinJobs,
     targetJobs: targetJobs.map(({ sort: _sort, ...job }) => job),
+    weapons: builderWeapons(locale),
+    kindIcons: kindIconsOf(),
   };
 }

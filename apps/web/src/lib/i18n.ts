@@ -157,8 +157,17 @@ export interface BuilderLabels {
   unlock: string;
   /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
   reset: string;
-  /** 전투력 행(호버·잠금) — 물공·마공(맨손 = 순수 힘·마력, 장비 피쳐 시 합산) + 파생치 4종. */
+  /** 전투력 행(호버·잠금) — 물공·마공(맨손 = 순수 힘·마력, 장착 시 무기 합산) + 파생치 4종. */
   combat: Record<"patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
+  /** 아이템(무기) 선택기 라벨 — 클래스·내부 레벨 우측(2026-08-31). */
+  item: string;
+  /** 아이템 미선택 옵션 = 맨손(순수 스탯). */
+  itemNone: string;
+  /** 강화 드롭다운 기본 옵션(노강화) — 단계는 +1~+5 숫자 표기라 라벨 불요. */
+  refineNone: string;
+  /** 무기 스펙 라벨(명중·필살은 combat 재사용). */
+  might: string;
+  weight: string;
   stats: Record<StatKey, string>;
 }
 
@@ -346,6 +355,11 @@ export const UI: Record<Locale, Strings> = {
       unlock: "Unpin entry",
       reset: "Reset",
       combat: { patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
+      item: "Weapon",
+      itemNone: "Unarmed",
+      refineNone: "Unforged",
+      might: "Mt",
+      weight: "Wt",
       stats: {
         hp: "HP", str: "Str", mag: "Mag", dex: "Dex", spd: "Spd",
         lck: "Lck", def: "Def", res: "Res", bld: "Bld",
@@ -517,6 +531,11 @@ export const UI: Record<Locale, Strings> = {
       unlock: "固定を解除",
       reset: "リセット",
       combat: { patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
+      item: "武器",
+      itemNone: "素手",
+      refineNone: "錬成なし",
+      might: "威力",
+      weight: "重さ",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -686,6 +705,11 @@ export const UI: Record<Locale, Strings> = {
       unlock: "잠금 해제",
       reset: "Reset",
       combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
+      item: "아이템",
+      itemNone: "맨손",
+      refineNone: "노강화",
+      might: "위력",
+      weight: "무게",
       stats: {
         hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",
