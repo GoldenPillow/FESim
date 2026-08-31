@@ -704,7 +704,8 @@ function CombatCells({
   /** 무기 선택 — 상단 드롭다운 스타일 박스(아이콘+이름+▾). 강화 단계는 우측 칩이 맡아 이름만 쓴다
       (2026-08-31 사용자 지시 — 폭도 잘리지 않게 넉넉히). */
   const weaponPicker = (justify: string): React.JSX.Element => (
-    <span className={`flex items-center ${justify}${hide}`}>
+    // 장비 슬롯은 상시 표시(2026-09-01 사용자 지시: 글로벌 무기 선택 시 대기 멤버 전원에 표시).
+    <span className={`flex items-center ${justify}`}>
       <EquipDropdown
         ariaLabel={labels.item}
         value={weapon?.iid ?? ""}
@@ -794,7 +795,7 @@ function CombatCells({
           return (
             <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-middle md:min-w-[5.5rem] md:px-2">
               {weapon !== undefined && (
-                <span className={`relative flex items-center justify-start gap-1.5${hide}`}>
+                <span className="relative flex items-center justify-start gap-1.5">
                   {plusChip()}
                   {engraveChip()}
                   {specPop}
