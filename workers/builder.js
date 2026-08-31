@@ -10,6 +10,7 @@ const ALLOW = [
   /^\/fe17\/assets\/items\//,
   /^\/fe17\/assets\/weapontypes\//,
   /^\/fe17\/assets\/engraves\//,
+  /^\/fe17\/assets\/efficacy\//,
 ];
 
 export default {

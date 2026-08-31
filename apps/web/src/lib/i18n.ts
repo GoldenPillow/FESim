@@ -171,6 +171,10 @@ export interface BuilderLabels {
   engrave: string;
   /** 각인 드롭다운 기본 옵션(무각인). */
   engraveNone: string;
+  /** 특효 행 라벨(스펙 상세) — 데이터 설명(Help)은 정본 스킬 텍스트가 소유, 여기는 표기만. */
+  efficacy: string;
+  /** 특효 분류 명사(키 = skills.IconLabel) — 정본 사전에 단독 명칭 MSID가 없어 UI 문자열이 소유. */
+  efficacyNames: Record<string, string>;
   /** 무기 스펙 라벨(명중·필살은 combat 재사용). */
   might: string;
   weight: string;
@@ -367,6 +371,8 @@ export const UI: Record<Locale, Strings> = {
       refineNone: "Unforged",
       engrave: "Engrave",
       engraveNone: "No engrave",
+      efficacy: "Effective",
+      efficacyNames: { Armor: "Armored", Fly: "Flying", Horse: "Cavalry", Dragon: "Dragon", Morph: "Corrupted" },
       might: "Mt",
       weight: "Wt",
       stats: {
@@ -546,6 +552,8 @@ export const UI: Record<Locale, Strings> = {
       refineNone: "錬成なし",
       engrave: "刻印",
       engraveNone: "刻印なし",
+      efficacy: "特効",
+      efficacyNames: { Armor: "重装", Fly: "飛行", Horse: "騎馬", Dragon: "竜", Morph: "異形" },
       might: "威力",
       weight: "重さ",
       stats: {
@@ -723,6 +731,8 @@ export const UI: Record<Locale, Strings> = {
       refineNone: "노강화",
       engrave: "각인",
       engraveNone: "무각인",
+      efficacy: "특효",
+      efficacyNames: { Armor: "중갑", Fly: "비행", Horse: "기마", Dragon: "용", Morph: "이형" },
       might: "위력",
       weight: "무게",
       stats: {

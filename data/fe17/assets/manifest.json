@@ -14797,5 +14797,25 @@
   "GID_ルキナ": "assets/engraves/Lucina.webp",
   "GID_ロイ": "assets/engraves/Roy.webp",
   "GID_ヴェロニカ": "assets/engraves/Veronica.webp"
+ },
+ "efficacy": {
+  "Armor": "assets/efficacy/Armor.webp",
+  "Ashnard": "assets/efficacy/Ashnard.webp",
+  "Astarte": "assets/efficacy/Astarte.webp",
+  "Dragon": "assets/efficacy/Dragon.webp",
+  "Duma": "assets/efficacy/Duma.webp",
+  "EvilDragon": "assets/efficacy/EvilDragon.webp",
+  "Fly": "assets/efficacy/Fly.webp",
+  "Fodeth": "assets/efficacy/Fodeth.webp",
+  "Gimle": "assets/efficacy/Gimle.webp",
+  "Horse": "assets/efficacy/Horse.webp",
+  "Hydra": "assets/efficacy/Hydra.webp",
+  "Idenn": "assets/efficacy/Idenn.webp",
+  "Loptous": "assets/efficacy/Loptous.webp",
+  "Mediuth": "assets/efficacy/Mediuth.webp",
+  "Morph": "assets/efficacy/Morph.webp",
+  "Nemesis": "assets/efficacy/Nemesis.webp",
+  "Nergal": "assets/efficacy/Nergal.webp",
+  "Veld": "assets/efficacy/Veld.webp"
  }
 }

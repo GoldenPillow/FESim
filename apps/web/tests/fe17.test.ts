@@ -1145,6 +1145,17 @@ describe("builderPropsFor.weapons — 목록 불변식(2026-08-31)", () => {
     expect(names).not.toContain("라그넬");
     const firstNonShop = weapons.findIndex((w) => w.shop !== true);
     expect(weapons.slice(firstNonShop).every((w) => w.shop !== true)).toBe(true);
+    // 특효(2026-08-31) — EquipSids의 Efficacy 스킬을 아이콘·설명과 함께 싣는다.
+    // 배선이 한 층이라도 끊기면(스킬 표·IconLabel·베이크) 특효 표기가 조용히 사라진다.
+    const armorslayer = weapons.find((w) => w.name === "아머 킬러")!;
+    expect(armorslayer.efficacies).toHaveLength(1);
+    expect(armorslayer.efficacies![0]!.kind).toBe("Armor");
+    expect(armorslayer.efficacies![0]!.icon).toContain("/assets/efficacy/Armor.webp");
+    expect(armorslayer.efficacies![0]!.help).toContain("중갑");
+    const ironBow = weapons.find((w) => w.name === "철의 활")!;
+    expect(ironBow.efficacies![0]!.kind).toBe("Fly");
+    const ironSword = weapons.find((w) => w.name === "철의 검")!;
+    expect(ironSword.efficacies).toBeUndefined();
     const shopSwords = weapons.filter((w) => w.shop === true && w.kind === 1);
     for (let i = 1; i < shopSwords.length; i++) {
       expect(rankValue(shopSwords[i]!.rank)).toBeGreaterThanOrEqual(rankValue(shopSwords[i - 1]!.rank));
