@@ -1429,8 +1429,8 @@ export default function BuilderIsland({
     onPatch: (patch: { jid?: string; internal?: number }) => void,
   ): React.JSX.Element => (
     <span
-      // bottom 7px = 반지 행 셀의 수직 센터링 슬랙 실측 보정 — 우측 드롭다운들과 하단 일치.
-      className="entry-classrow absolute inset-x-2 bottom-[7px] flex items-center gap-[6px]"
+      // bottom 16px = 전투력 행 무기 슬롯과 하단 일치 실측 보정(2026-09-01: 정렬 기준 = 무기).
+      className="entry-classrow absolute inset-x-2 bottom-[16px] flex items-center gap-[6px]"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -1926,11 +1926,11 @@ export default function BuilderIsland({
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {/* 카드 th = 스탯 + 반지 행까지 — 하단에 클래스 행이 절대배치(우측 드롭다운과 정렬).
-                      전투력 행은 필러 th가 잇는다(2026-08-31). */}
+                  {/* 카드 th = 블록 전체(스탯+반지+전투력) — 하단(무기 슬롯 밴드)에 클래스 행 절대배치
+                      (2026-09-01 정정: 하단 정렬 기준 = 무기). */}
                   <th
                     scope="row"
-                    rowSpan={2}
+                    rowSpan={3}
                     className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
                   >
                     <span className="entry-wrap flex items-center">
@@ -2015,8 +2015,6 @@ export default function BuilderIsland({
                 {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
-                  {/* 필러 th — 카드 th가 반지 행까지만 덮는다(sticky 배경 유지). */}
-                  <th scope="row" aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                   <CombatCells
                     row={row}
                     job={job}
@@ -2066,9 +2064,9 @@ export default function BuilderIsland({
             const nameTh = (
               <th
                 scope="row"
-                // 카드 th = [고유성장?]+스탯0+반지 행까지 — 하단(반지 행 밴드)에 클래스 행이 절대배치로
-                // 앉아 우측 드롭다운들과 높이·하단 정렬된다(2026-08-31). 이후 행은 필러 th가 잇는다.
-                rowSpan={(showGrowth ? 1 : 0) + 2}
+                // 카드 th = [고유성장?]+스탯0+반지+전투력0 행까지 — 하단(무기 슬롯 밴드)에 클래스 행이
+                // 절대배치로 앉아 무기·강화·각인과 하단 정렬된다(2026-09-01 정정). 이후 행은 필러 th.
+                rowSpan={(showGrowth ? 1 : 0) + 3}
                 className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
@@ -2165,6 +2163,10 @@ export default function BuilderIsland({
                       {...(row.ineligible ? { title: labels.unavailable } : {})}
                     >
                       {li === 0 && !showGrowth && nameTh}
+                      {/* 필러 th — 카드 th가 전투력0 행까지만 덮으므로 남은 라인의 이름 열을 잇는다. */}
+                      {li === 1 && (
+                        <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
+                      )}
                       <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
                         {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
                       </td>
@@ -2213,10 +2215,6 @@ export default function BuilderIsland({
                       {...rowActs(inert, li)}
                       {...(inert ? {} : focusActs(first.pid, li))}
                     >
-                      {/* 필러 th — 카드 th가 반지 행까지만 덮으므로 남은 행의 이름 열을 잇는다(sticky 배경 유지). */}
-                      {li === 0 && (
-                        <th scope="row" rowSpan={g.length * 2 - 1} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
-                      )}
                       <CombatCells
                         row={row}
                         job={cardCompareOf(first.pid, li)?.job}
