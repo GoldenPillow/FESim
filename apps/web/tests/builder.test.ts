@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock } from "@fesim/engine";
+import { STAT_KEYS, type GrowthPathJob, type SkillRow, type StatBlock, type StatKey } from "@fesim/engine";
 import {
   applyEmblemBonus,
   builderRowGroups,
@@ -178,6 +178,23 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     expect(rows).toHaveLength(1);
     expect(rows[0]!.row.projected).toBe(false);
     expect(rows[0]!.job).toBeUndefined();
+  });
+
+  it("잠금 스냅샷에 문장사 絆 보너스가 붙는다 — 체커에 숨은 gid는 조용히 무보정 강하", () => {
+    const emblem = {
+      gid: "GID_M",
+      name: "M",
+      bonuses: [{}, { str: 2 }] as Partial<Record<StatKey, number>>[],
+      levels: [],
+    };
+    const entry = { pid: "a", internal: 11, jid: "JID_high", gid: "GID_M", bond: 2 };
+    const on = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], undefined, [], [], [emblem])[0]!;
+    expect(on.row.cells.str.buffed).toBe(true);
+    expect(parseFloat(on.row.cells.str.text)).toBeCloseTo(13.4 + 2, 5);
+    // 목록 밖 gid(체커 숨김) = 무보정 — 각인·무기 강하와 같은 축.
+    const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], undefined, [], [], [])[0]!;
+    expect(off.row.cells.str.buffed).toBeUndefined();
+    expect(off.row.cells.str.text).toBe("13.4");
   });
 
   it("성옥 스냅샷 — 잠금 당시 체커만 반영한다(현재 체커와 무관)", () => {

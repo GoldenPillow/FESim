@@ -11,7 +11,7 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import { rankValue, type BuilderCharProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
+import { rankValue, type BuilderCharProp, type BuilderEmblemProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -212,6 +212,7 @@ export function lockedDisplayRows(
   starsphere?: SkillRow,
   weapons: readonly BuilderWeaponProp[] = [],
   engraves: readonly BuilderEngraveProp[] = [],
+  emblems: readonly BuilderEmblemProp[] = [],
 ): LockedDisplay[] {
   const byPid = new Map(props.chars.map((c) => [c.pid, c]));
   const out: LockedDisplay[] = [];
@@ -226,8 +227,11 @@ export function lockedDisplayRows(
     const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
     // 각인도 무기처럼 강하 — 목록 밖 gid(체커 숨김·이물)는 무각인으로(괄호 표시는 없지만 값 오염보다 낫다).
     const engrave = entry.engrave === undefined ? undefined : engraves.find((g) => g.gid === entry.engrave);
+    // 문장사 반지도 같은 강하 축 — 목록 밖 gid는 무보정. 보너스는 스냅샷 셀에 직접 붙는다(블루 표기).
+    const emblem = entry.gid === undefined ? undefined : emblems.find((m) => m.gid === entry.gid);
+    const delta = emblem === undefined || entry.bond === undefined ? undefined : emblem.bonuses[entry.bond - 1];
     out.push({
-      row,
+      row: delta === undefined ? row : applyEmblemBonus(row, delta),
       ...(job !== undefined ? { job } : {}),
       ...(weapon !== undefined
         ? { equipped: { weapon, plus: entry.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) } }
