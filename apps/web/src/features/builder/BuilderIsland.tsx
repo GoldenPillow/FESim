@@ -287,6 +287,7 @@ function EquipDropdown({
   labels,
   trigger,
   triggerClass,
+  rootClass,
 }: {
   ariaLabel: string;
   value: string;
@@ -298,6 +299,8 @@ function EquipDropdown({
   labels: BuilderLabels;
   trigger: React.ReactNode;
   triggerClass: string;
+  /** 루트(포지셔닝 스팬) 추가 클래스 — flex 컨테이너 안에서 늘어나야 할 때(flex-1) 쓴다. */
+  rootClass?: string;
 }): React.JSX.Element {
   const [open, setOpenRaw] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
@@ -326,7 +329,7 @@ function EquipDropdown({
   return (
     <span
       ref={rootRef}
-      className="relative inline-flex"
+      className={`relative inline-flex${rootClass !== undefined ? ` ${rootClass}` : ""}`}
       // ☠행 클릭(잠금 토글)·블록 드래그로 새면 안 된다 — 드롭다운 전체에서 전파를 끊는다.
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -1416,8 +1419,9 @@ export default function BuilderIsland({
     [targetJobs, labels],
   );
 
-  /** 카드 클래스·In.Lv 드롭다운 행 — 포트레이트 폭(6.6rem)에 [클래스 flex-1][In.Lv 34px] 정합
-      (2026-08-31 사용자 지시: 포트레이트 가로폭 = 클래스 + 공백 + In.Lv). */
+  /** 카드 클래스·In.Lv 드롭다운 행 — 카드(이름 포함) 열 전체 폭에 [클래스 flex-1(긴 직업명 여유)]
+      [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
+      (2026-08-31 사용자 지시: 폰트 14px 통일). */
   const classRowUi = (
     jidValue: string,
     jobName: string | undefined,
@@ -1425,7 +1429,8 @@ export default function BuilderIsland({
     onPatch: (patch: { jid?: string; internal?: number }) => void,
   ): React.JSX.Element => (
     <span
-      className="entry-classrow flex w-[6.6rem] items-center gap-[6px] pt-[3px]"
+      // bottom 7px = 반지 행 셀의 수직 센터링 슬랙 실측 보정 — 우측 드롭다운들과 하단 일치.
+      className="entry-classrow absolute inset-x-2 bottom-[7px] flex items-center gap-[6px]"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -1435,7 +1440,8 @@ export default function BuilderIsland({
         options={classOptions}
         onChange={(jid) => onPatch({ jid })}
         labels={labels}
-        triggerClass="flex h-6 min-w-0 flex-1 items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1 text-[12px] font-semibold text-ink"
+        rootClass="min-w-0 flex-1"
+        triggerClass="flex h-7 w-full items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight text-ink"
         trigger={
           <>
             <span className="truncate">{jobName ?? labels.jobNone}</span>
@@ -1449,7 +1455,7 @@ export default function BuilderIsland({
         options={INLV_OPTIONS}
         onChange={(v) => onPatch({ internal: Number(v) })}
         labels={labels}
-        triggerClass="flex h-6 w-[34px] shrink-0 items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[12px] font-semibold text-gold"
+        triggerClass="flex h-7 w-[38px] shrink-0 items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
         trigger={
           <>
             {internalDisplay}
@@ -1920,10 +1926,11 @@ export default function BuilderIsland({
                 onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
               >
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
-                  {/* rowSpan 3 = 스탯 + 반지 + 전투력 행 — 포트레이트가 블록 세로 중앙에 선다. */}
+                  {/* 카드 th = 스탯 + 반지 행까지 — 하단에 클래스 행이 절대배치(우측 드롭다운과 정렬).
+                      전투력 행은 필러 th가 잇는다(2026-08-31). */}
                   <th
                     scope="row"
-                    rowSpan={3}
+                    rowSpan={2}
                     className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
                   >
                     <span className="entry-wrap flex items-center">
@@ -1947,6 +1954,8 @@ export default function BuilderIsland({
                       {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바(2026-08-31 재설계) —
                           행·배경 클릭은 계속 무반응(부주의 방지). 반지 슬롯은 하단 반지 행이 소유. */}
                     </span>
+                    {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
+                    <span className="block h-[32px]" aria-hidden="true" />
                     {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 정적 클래스명 라벨을 대체.
                         변경 = 스냅샷 직접 갱신·즉시 저장, 부적합 무기는 미착용 복귀. */}
                     {classRowUi(
@@ -2006,6 +2015,8 @@ export default function BuilderIsland({
                 {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
+                  {/* 필러 th — 카드 th가 반지 행까지만 덮는다(sticky 배경 유지). */}
+                  <th scope="row" aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                   <CombatCells
                     row={row}
                     job={job}
@@ -2055,8 +2066,9 @@ export default function BuilderIsland({
             const nameTh = (
               <th
                 scope="row"
-                // 전투력 행이 라인마다 상시(공란 포함) + 반지 행 1줄 — rowSpan 고정(호버로 표가 안 움직인다).
-                rowSpan={g.length * 2 + (showGrowth ? 1 : 0) + 1}
+                // 카드 th = [고유성장?]+스탯0+반지 행까지 — 하단(반지 행 밴드)에 클래스 행이 절대배치로
+                // 앉아 우측 드롭다운들과 높이·하단 정렬된다(2026-08-31). 이후 행은 필러 th가 잇는다.
+                rowSpan={(showGrowth ? 1 : 0) + 2}
                 className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
@@ -2085,13 +2097,9 @@ export default function BuilderIsland({
                   cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
                   (p) => patchCardClass(first.pid, p),
                 )}
-                {/* 활성 라인의 클래스명 — 카드 하단(2026-08-31 배치 지시). 자리는 상시 예약(invisible)이라
-                    호버해도 th 내용 높이가 안 변한다. 터치(호버 없음)는 CSS가 슬롯째 걷는다(builder.css). */}
-                <span
-                  className={`entry-jobslot block h-[21px] truncate px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage${activeLi !== undefined ? "" : " invisible"}`}
-                >
-                  {cardCompareOf(first.pid, activeLi ?? 0)?.job.name ?? ""}
-                </span>
+                {/* 호버 클래스명 라인(jobslot)은 폐기 — 카드 하단 밴드를 클래스 드롭다운이 차지한다
+                    (2026-08-31: 클래스 개별 편집이 표시를 겸한다). 절대배치 클래스 행의 자리 확보용 여백. */}
+                <span className="block h-[32px]" aria-hidden="true" />
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                     카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
                 <RingSlot
@@ -2205,6 +2213,10 @@ export default function BuilderIsland({
                       {...rowActs(inert, li)}
                       {...(inert ? {} : focusActs(first.pid, li))}
                     >
+                      {/* 필러 th — 카드 th가 반지 행까지만 덮으므로 남은 행의 이름 열을 잇는다(sticky 배경 유지). */}
+                      {li === 0 && (
+                        <th scope="row" rowSpan={g.length * 2 - 1} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
+                      )}
                       <CombatCells
                         row={row}
                         job={cardCompareOf(first.pid, li)?.job}
