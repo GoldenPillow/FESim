@@ -288,8 +288,10 @@ function EquipDropdown({
         onOpenChange?.(false);
       }
     };
-    document.addEventListener("pointerdown", onDoc);
-    return () => document.removeEventListener("pointerdown", onDoc);
+    // ☠캡처 단계 필수 — 드롭다운 루트마다 pointerdown 전파를 끊으므로(행 잠금 오발 방지)
+    //   버블 리스너는 다른 드롭다운 위 클릭을 못 본다 = 기존 목록이 안 닫힌다(실사고 2026-08-31).
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
     // onOpenChange는 렌더마다 새 함수라 의존성에 넣지 않는다(열림 동안 재구독 방지 — open만 본다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
