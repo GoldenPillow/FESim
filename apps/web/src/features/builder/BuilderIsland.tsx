@@ -94,8 +94,30 @@ const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): bool
   weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight >
     row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0);
 
-/** 무기 스펙 한 줄 — 강화·각인 반영값, 변화는 블루/레드(무게는 반대: 증가가 악화다, 2026-08-31).
-    회피·필살회피는 대부분 0이라 비영일 때만 선다(각인이 처음으로 이 축을 흔든다). */
+/** 스펙 델타색 — 무강화·무각인 원본 대비, 상승 블루·하락 레드(무게는 반대: 증가가 악화다, 2026-08-31). */
+const specCls = (v: number, b: number, invert = false): string =>
+  v === b ? "text-ink" : (v > b) !== invert ? "text-pgrow" : "text-danger";
+
+/** 스펙 6항목 — ★전 항목 고정 표시(0·음수 포함) — 정렬이 일정해야 비교가 된다(2026-08-31 사용자 지시). */
+const specRows = (
+  weapon: BuilderWeaponProp,
+  plus: number,
+  engrave: BuilderEngraveProp | undefined,
+  labels: BuilderLabels,
+): [string, number, number, boolean][] => {
+  const eff = weaponAt(weapon, plus, engrave);
+  const base = weaponAt(weapon, 0);
+  return [
+    [labels.might, eff.might, base.might, false],
+    [labels.combat.hit, eff.hit, base.hit, false],
+    [labels.combat.crit, eff.crit, base.crit, false],
+    [labels.weight, eff.weight, base.weight, true],
+    [labels.combat.avoid, eff.avoid, base.avoid, false],
+    [labels.combat.ddg, eff.dodge, base.dodge, false],
+  ];
+};
+
+/** 무기 스펙 한 줄(가로) — 상단 컨트롤·카드 포커스 팝오버가 소비. */
 const SpecLine = ({
   weapon,
   plus,
@@ -106,38 +128,236 @@ const SpecLine = ({
   plus: number;
   engrave?: BuilderEngraveProp | undefined;
   labels: BuilderLabels;
-}): React.JSX.Element => {
-  const eff = weaponAt(weapon, plus, engrave);
-  const base = weaponAt(weapon, 0);
-  const cls = (v: number, b: number, invert = false): string =>
-    v === b ? "text-ink" : (v > b) !== invert ? "text-pgrow" : "text-danger";
-  const entry = (name: string, v: number, b: number, invert = false): React.JSX.Element => (
-    <span key={name} className="whitespace-nowrap">
-      {name} <span className={`font-semibold ${cls(v, b, invert)}`}>{v}</span>
-    </span>
-  );
-  return (
-    <span className="flex flex-wrap items-center gap-x-2.5 text-[14px] leading-tight text-muted">
-      <span className="rounded border border-rule px-1.5 text-[14px]">{weapon.rank}</span>
-      {entry(labels.might, eff.might, base.might)}
-      {entry(labels.combat.hit, eff.hit, base.hit)}
-      {entry(labels.combat.crit, eff.crit, base.crit)}
-      {entry(labels.weight, eff.weight, base.weight, true)}
-      {(eff.avoid !== 0 || base.avoid !== 0) && entry(labels.combat.avoid, eff.avoid, base.avoid)}
-      {(eff.dodge !== 0 || base.dodge !== 0) && entry(labels.combat.ddg, eff.dodge, base.dodge)}
-      {/* 장비 중 스탯 강화(Enhance) — 조용히 스탯을 바꾸는 무기 35종을 드러낸다(상승 블루·하락 레드). */}
-      {weapon.enhance !== undefined &&
-        (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
-          <span key={key} className="whitespace-nowrap">
-            {labels.stats[key]}{" "}
-            <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>
-              {v > 0 ? `+${v}` : v}
-            </span>
+}): React.JSX.Element => (
+  <span className="flex flex-wrap items-center gap-x-2.5 text-[14px] leading-tight text-muted">
+    <span className="rounded border border-rule px-1.5 text-[14px]">{weapon.rank}</span>
+    {specRows(weapon, plus, engrave, labels).map(([name, v, b, invert]) => (
+      <span key={name} className="whitespace-nowrap">
+        {name} <span className={`font-semibold ${specCls(v, b, invert)}`}>{v}</span>
+      </span>
+    ))}
+    {/* 장비 중 스탯 강화(Enhance) — 조용히 스탯을 바꾸는 무기 35종을 드러낸다(상승 블루·하락 레드). */}
+    {weapon.enhance !== undefined &&
+      (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
+        <span key={key} className="whitespace-nowrap">
+          {labels.stats[key]}{" "}
+          <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>
+            {v > 0 ? `+${v}` : v}
           </span>
-        ))}
+        </span>
+      ))}
+  </span>
+);
+
+/** 후보 스펙 패널(세로) — 드롭다운 옵션 호버 오버레이. 라벨 좌·수치 우 고정 정렬. */
+const SpecPanel = ({
+  weapon,
+  plus,
+  engrave,
+  labels,
+}: {
+  weapon: BuilderWeaponProp;
+  plus: number;
+  engrave?: BuilderEngraveProp | undefined;
+  labels: BuilderLabels;
+}): React.JSX.Element => (
+  <span className="flex w-max flex-col gap-[3px] text-[14px] leading-tight text-muted">
+    <span className="flex items-center gap-1.5 pb-1">
+      <span className="rounded border border-rule px-1.5 text-ink">{weapon.rank}</span>
+      <span className="max-w-[9rem] truncate font-semibold text-ink">{weapon.name}</span>
+    </span>
+    {specRows(weapon, plus, engrave, labels).map(([name, v, b, invert]) => (
+      <span key={name} className="flex items-center justify-between gap-4">
+        {name}
+        <span className={`font-semibold ${specCls(v, b, invert)}`}>{v}</span>
+      </span>
+    ))}
+    {weapon.enhance !== undefined &&
+      (Object.entries(weapon.enhance) as [StatKey, number][]).map(([key, v]) => (
+        <span key={key} className="flex items-center justify-between gap-4">
+          {labels.stats[key]}
+          <span className={`font-semibold ${v > 0 ? "text-pgrow" : "text-danger"}`}>{v > 0 ? `+${v}` : v}</span>
+        </span>
+      ))}
+  </span>
+);
+
+/** 드롭다운 표지 화살표 — 카드·상단 슬롯 공용, "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
+const CARET = (
+  <span aria-hidden="true" className="text-[12px] leading-none text-muted">
+    ▾
+  </span>
+);
+
+/** 드롭다운 옵션 — spec이 있으면 호버 즉시 우측에 스펙 오버레이가 선다(2026-08-31 사용자 지시). */
+interface EquipOption {
+  value: string;
+  label: string;
+  icon?: string;
+  disabled?: boolean;
+  engage?: boolean;
+  spec?: { weapon: BuilderWeaponProp; plus: number; engrave?: BuilderEngraveProp | undefined };
+}
+
+/** 무기 후보 목록 — 각인은 현 슬롯 값 유지, 강화는 무기 소유라 0부터(선택 시 리셋과 동형). */
+const weaponOptionsOf = (
+  options: readonly BuilderWeaponProp[],
+  job: BuilderJobProp | undefined,
+  engrave: BuilderEngraveProp | undefined,
+  labels: BuilderLabels,
+): EquipOption[] => [
+  { value: "", label: labels.itemNone },
+  ...options.map((w) => ({
+    value: w.iid,
+    label: w.name,
+    ...(w.icon !== undefined ? { icon: w.icon } : {}),
+    ...(job !== undefined && !canEquip(job, w) ? { disabled: true as const } : {}),
+    ...(w.engage === true ? { engage: true as const } : {}),
+    spec: { weapon: w, plus: 0, engrave },
+  })),
+];
+
+const plusOptionsOf = (
+  weapon: BuilderWeaponProp,
+  engrave: BuilderEngraveProp | undefined,
+  labels: BuilderLabels,
+): EquipOption[] => [
+  { value: "0", label: labels.refineNone, spec: { weapon, plus: 0, engrave } },
+  ...(weapon.refine ?? []).map((_stage, si) => ({
+    value: String(si + 1),
+    label: `+${si + 1}`,
+    spec: { weapon, plus: si + 1, engrave },
+  })),
+];
+
+const engraveOptionsOf = (
+  weapon: BuilderWeaponProp,
+  plus: number,
+  engraves: readonly BuilderEngraveProp[],
+  labels: BuilderLabels,
+): EquipOption[] => [
+  { value: "", label: labels.engraveNone, spec: { weapon, plus } },
+  ...engraves.map((g) => ({
+    value: g.gid,
+    label: g.name,
+    ...(g.icon !== undefined ? { icon: g.icon } : {}),
+    spec: { weapon, plus, engrave: g },
+  })),
+];
+
+/**
+ * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
+ * 그린다(2026-08-31 사용자 지시: 옵션 호버 즉시 우측 상세 스펙). 트리거 = 상단 셀렉트풍 박스 + ▾.
+ * 선택 즉시 닫고 트리거로 포커스 복귀 — 포커스가 끊기면 대기 행의 전투력 행이 접힌다(focusRow 규약).
+ */
+function EquipDropdown({
+  ariaLabel,
+  value,
+  options,
+  disabled = false,
+  onChange,
+  onOpenChange,
+  labels,
+  trigger,
+  triggerClass,
+}: {
+  ariaLabel: string;
+  value: string;
+  options: readonly EquipOption[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  /** 열림 상태 통지 — 호출측이 겹치는 보조 표시(포커스 팝오버)를 접는 데 쓴다. */
+  onOpenChange?: (open: boolean) => void;
+  labels: BuilderLabels;
+  trigger: React.ReactNode;
+  triggerClass: string;
+}): React.JSX.Element {
+  const [open, setOpenRaw] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const setOpen = (next: boolean): void => {
+    setOpenRaw(next);
+    onOpenChange?.(next);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) {
+        setOpenRaw(false);
+        onOpenChange?.(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
+    // onOpenChange는 렌더마다 새 함수라 의존성에 넣지 않는다(열림 동안 재구독 방지 — open만 본다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const spec = options.find((o) => o.value === hover)?.spec;
+  return (
+    <span
+      ref={rootRef}
+      className="relative inline-flex"
+      // ☠행 클릭(잠금 토글)·블록 드래그로 새면 안 된다 — 드롭다운 전체에서 전파를 끊는다.
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+          btnRef.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        className={`${triggerClass}${disabled ? "" : " cursor-pointer"}`}
+        onClick={() => setOpen(!open)}
+      >
+        {trigger}
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
+          <span className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+            {options.map((o) => (
+              // ☠disabled 속성 금지 — 비활성 버튼은 마우스 이벤트가 죽어 호버 스펙이 안 선다(aria만).
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
+                aria-disabled={o.disabled === true}
+                className={`flex w-full items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-left text-[14px] font-semibold leading-tight ${o.disabled === true ? "cursor-default opacity-40" : "cursor-pointer hover:bg-sunken"} ${o.engage === true ? "text-engage" : "text-ink"} ${o.value === value ? "bg-sunken" : ""}`}
+                onMouseEnter={() => setHover(o.value)}
+                onMouseLeave={() => setHover((h) => (h === o.value ? null : h))}
+                onClick={() => {
+                  if (o.disabled === true) return;
+                  onChange(o.value);
+                  setOpen(false);
+                  btnRef.current?.focus();
+                }}
+              >
+                {o.icon !== undefined && <img src={o.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
+                {o.label}
+              </button>
+            ))}
+          </span>
+          {/* 옵션 호버 스펙 — 목록 우측 오버레이(2026-08-31 사용자 지시). */}
+          {spec !== undefined && (
+            <span className="ml-1 rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
+              <SpecPanel weapon={spec.weapon} plus={spec.plus} engrave={spec.engrave} labels={labels} />
+            </span>
+          )}
+        </span>
+      )}
     </span>
   );
-};
+}
 
 interface CombatCellsProps {
   row: BuilderRow;
@@ -186,113 +406,86 @@ function CombatCells({
           .map(Number)
           .sort((a, b) => a - b);
   const hide = ghost ? " invisible" : "";
+  /** 이 행의 드롭다운이 하나라도 열려 있나 — 열림 중엔 포커스 팝오버를 접는다(목록·호버 스펙과 겹침). */
+  const [openDrop, setOpenDrop] = useState(false);
   const weapon = equipped?.weapon;
   const engrave = equipped?.engrave;
   const plus = equipped?.plus ?? 0;
   const options = job === undefined ? [] : weapons.filter((w) => job.weaponRanks[w.kind] !== undefined);
-  // ☠드롭다운 조작이 행 클릭(잠금 토글)·블록 드래그로 새면 안 된다 — 셀렉트에서 전파를 끊는다.
-  const stop = {
-    onClick: (e: React.MouseEvent) => e.stopPropagation(),
-    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
-  };
 
-  /** 드롭다운 표지 화살표 — 카드 슬롯도 상단 셀렉트처럼 "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
-  const caret = <span aria-hidden="true" className="text-[12px] leading-none text-muted">▾</span>;
-
-  /** 무기 선택 — 보이는 건 상단 드롭다운 스타일 박스(아이콘+이름+▾), 그 위에 투명 셀렉트(네이티브 드롭다운). */
+  /** 무기 선택 — 상단 드롭다운 스타일 박스(아이콘+이름+▾). 강화 단계는 우측 칩이 맡아 이름만 쓴다
+      (2026-08-31 사용자 지시 — 폭도 잘리지 않게 넉넉히). */
   const weaponPicker = (justify: string): React.JSX.Element => (
-    <span className={`relative flex items-center ${justify}${hide}`}>
-      <span
-        className={`flex h-7 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}`}
-        title={weapon !== undefined ? `${weapon.name}${plus > 0 ? ` +${plus}` : ""}` : labels.item}
-      >
-        {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
-        <span className="max-w-[5.2rem] truncate">
-          {weapon !== undefined ? `${weapon.name}${plus > 0 ? `+${plus}` : ""}` : labels.itemNone}
-        </span>
-        {caret}
-      </span>
-      {job !== undefined && (
-        <select
-          // 반응 영역은 표시보다 넓게(-inset — 2026-08-31 사용자 지시: 쉽게 클릭되게).
-          className="absolute -inset-1 cursor-pointer opacity-0"
-          aria-label={labels.item}
-          value={weapon?.iid ?? ""}
-          {...stop}
-          onChange={(e) => onEquip({ iid: e.target.value })}
-        >
-          <option value="">{labels.itemNone}</option>
-          {options.map((w) => (
-            <option key={w.iid} value={w.iid} disabled={!canEquip(job!, w)}>
-              {w.name}
-            </option>
-          ))}
-        </select>
-      )}
+    <span className={`flex items-center ${justify}${hide}`}>
+      <EquipDropdown
+        ariaLabel={labels.item}
+        value={weapon?.iid ?? ""}
+        options={weaponOptionsOf(options, job, engrave, labels)}
+        disabled={job === undefined}
+        onChange={(iid) => onEquip({ iid })}
+        onOpenChange={setOpenDrop}
+        labels={labels}
+        triggerClass={`flex h-7 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}`}
+        trigger={
+          <>
+            {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
+            <span className="max-w-[10rem] truncate">{weapon?.name ?? labels.itemNone}</span>
+            {CARET}
+          </>
+        }
+      />
     </span>
   );
 
-  /** 강화 칩 — 닫힘 = +N만(노강화 = +0 흐림, 강화 불가 무기는 반투명 비활성).
-      문자 = 컨트롤 14px 통일 규약 · 반응 영역은 칩보다 넓게(-inset, 2026-08-31 사용자 지시). */
+  /** 강화 칩 — 닫힘 = +N만(노강화 = +0 흐림, 강화 불가 무기는 반투명 비활성). 문자 = 컨트롤 14px 통일. */
   const plusChip = (): React.JSX.Element | null =>
     weapon === undefined ? null : (
-      <span
-        className={`relative inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
-      >
-        {`+${plus}`}
-        {caret}
-        <select
-          className="absolute -inset-1 cursor-pointer opacity-0 disabled:cursor-default"
-          aria-label={labels.refineNone}
-          value={plus}
-          disabled={weapon.refine === undefined}
-          {...stop}
-          onChange={(e) => onEquip({ plus: Number(e.target.value) })}
-        >
-          <option value={0}>{labels.refineNone}</option>
-          {(weapon.refine ?? []).map((_stage, si) => (
-            <option key={si} value={si + 1}>
-              {`+${si + 1}`}
-            </option>
-          ))}
-        </select>
-      </span>
+      <EquipDropdown
+        ariaLabel={labels.refineNone}
+        value={String(plus)}
+        options={plusOptionsOf(weapon, engrave, labels)}
+        disabled={weapon.refine === undefined}
+        onChange={(v) => onEquip({ plus: Number(v) })}
+        onOpenChange={setOpenDrop}
+        labels={labels}
+        triggerClass={`inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+        trigger={
+          <>
+            {`+${plus}`}
+            {CARET}
+          </>
+        }
+      />
     );
 
   /** 각인 칩 — 닫힘 = 엠블렘 아이콘만(무각인 = 점선 빈 칸, 아이콘 없는 엠블렘 = 이름 폴백). */
   const engraveChip = (): React.JSX.Element | null =>
     weapon === undefined ? null : (
-      <span
-        className={`relative inline-flex h-7 items-center justify-center gap-0.5 overflow-hidden rounded border bg-sunken px-1 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
-        title={engrave?.name ?? labels.engrave}
-      >
-        {engrave?.icon !== undefined ? (
-          <img src={engrave.icon} alt="" className="h-6 w-6 object-cover" loading="lazy" />
-        ) : engrave !== undefined ? (
-          <span className="max-w-[5rem] truncate text-[14px] font-semibold text-ink">{engrave.name}</span>
-        ) : (
-          <span className="w-4" aria-hidden="true" />
-        )}
-        {caret}
-        <select
-          className="absolute -inset-1 cursor-pointer opacity-0"
-          aria-label={labels.engrave}
-          value={engrave?.gid ?? ""}
-          {...stop}
-          onChange={(e) => onEquip({ engrave: e.target.value })}
-        >
-          <option value="">{labels.engraveNone}</option>
-          {engraves.map((g) => (
-            <option key={g.gid} value={g.gid}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-      </span>
+      <EquipDropdown
+        ariaLabel={engrave?.name ?? labels.engrave}
+        value={engrave?.gid ?? ""}
+        options={engraveOptionsOf(weapon, plus, engraves, labels)}
+        onChange={(gid) => onEquip({ engrave: gid })}
+        onOpenChange={setOpenDrop}
+        labels={labels}
+        triggerClass={`inline-flex h-7 items-center justify-center gap-0.5 rounded border bg-sunken px-1 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        trigger={
+          <>
+            {engrave?.icon !== undefined ? (
+              <img src={engrave.icon} alt="" className="h-6 w-6 object-cover" loading="lazy" />
+            ) : engrave !== undefined ? (
+              <span className="max-w-[5rem] truncate text-[14px] font-semibold text-ink">{engrave.name}</span>
+            ) : (
+              <span className="w-4" aria-hidden="true" />
+            )}
+            {CARET}
+          </>
+        }
+      />
     );
 
   const specPop =
-    specOpen && weapon !== undefined ? (
+    specOpen && weapon !== undefined && !openDrop ? (
       <span className="absolute left-0 top-full z-40 mt-1 flex w-max max-w-[26rem] rounded border border-rule bg-panel px-2 py-1 shadow-md">
         <SpecLine weapon={weapon} plus={plus} engrave={engrave} labels={labels} />
       </span>
@@ -737,7 +930,9 @@ export default function BuilderIsland({
   );
 
   /** 아이템 + 강화 + 각인 선택기(슬롯별 = 글로벌 장비, 2026-08-31 사용자 설계) —
-      강화·각인·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). */
+      강화·각인·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). 카드와 같은 커스텀 드롭다운
+      (옵션 호버 = 우측 스펙 오버레이) — 셀렉트풍 트리거로 기존 외형을 유지한다. */
+  const dropTriggerClass = "flex items-center gap-1 rounded border border-rule bg-sunken px-2 py-1 text-[14px]";
   const itemControls = (i: number): React.JSX.Element => {
     const slot = slots[i];
     const job = targetJobs.find((t) => t.jid === slot?.jid);
@@ -748,57 +943,62 @@ export default function BuilderIsland({
     const engrave = visibleEngraves.find((g) => g.gid === slot?.engrave);
     return (
       <>
-        <label className="flex flex-col gap-1">
+        <span className="flex flex-col gap-1">
           {i === 0 && <span className={legendClass}>{labels.item}</span>}
           <span className="flex items-center gap-1">
-            {/* 아이콘 + 아이템명 — option 안에는 이미지가 못 들어가 아이콘은 선택기 옆에 선다. */}
+            {/* 선택 무기 아이콘 — 트리거 밖 고정 폭(선택 전에도 자리 유지 = 줄이 안 움직인다). */}
             <span className="flex h-[30px] w-5 shrink-0 items-center justify-center">
               {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5" />}
             </span>
-            <select
-              className={`${selectClass} max-w-[10.5rem]`}
+            <EquipDropdown
+              ariaLabel={labels.item}
               value={weapon?.iid ?? ""}
+              options={weaponOptionsOf(options, job, engrave, labels)}
               disabled={job === undefined}
-              onChange={(e) => setSlotItem(i, e.target.value)}
-            >
-              <option value="">{labels.itemNone}</option>
-              {options.map((w) => (
-                <option key={w.iid} value={w.iid} disabled={job !== undefined && !canEquip(job, w)}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+              onChange={(iid) => setSlotItem(i, iid)}
+              labels={labels}
+              triggerClass={`${dropTriggerClass} ${weapon !== undefined ? "text-ink" : "text-muted"}${job === undefined ? " opacity-50" : ""}`}
+              trigger={
+                <>
+                  <span className="max-w-[10rem] truncate">{weapon?.name ?? labels.itemNone}</span>
+                  {CARET}
+                </>
+              }
+            />
           </span>
-        </label>
+        </span>
         {weapon !== undefined && (
-          <select
-            className={selectClass}
-            value={plus}
+          <EquipDropdown
+            ariaLabel={labels.refineNone}
+            value={String(plus)}
+            options={plusOptionsOf(weapon, engrave, labels)}
             disabled={weapon.refine === undefined}
-            onChange={(e) => patchSlot(i, { plus: Number(e.target.value) })}
-          >
-            <option value={0}>{labels.refineNone}</option>
-            {(weapon.refine ?? []).map((_stage, si) => (
-              <option key={si} value={si + 1}>
-                {`+${si + 1}`}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => patchSlot(i, { plus: Number(v) })}
+            labels={labels}
+            triggerClass={`${dropTriggerClass} text-ink${weapon.refine === undefined ? " opacity-50" : ""}`}
+            trigger={
+              <>
+                {plus > 0 ? `+${plus}` : labels.refineNone}
+                {CARET}
+              </>
+            }
+          />
         )}
         {weapon !== undefined && (
-          <select
-            className={selectClass}
-            aria-label={labels.engrave}
+          <EquipDropdown
+            ariaLabel={labels.engrave}
             value={engrave?.gid ?? ""}
-            onChange={(e) => setSlotEngrave(i, e.target.value)}
-          >
-            <option value="">{labels.engraveNone}</option>
-            {visibleEngraves.map((g) => (
-              <option key={g.gid} value={g.gid}>
-                {g.name}
-              </option>
-            ))}
-          </select>
+            options={engraveOptionsOf(weapon, plus, visibleEngraves, labels)}
+            onChange={(gid) => setSlotEngrave(i, gid)}
+            labels={labels}
+            triggerClass={`${dropTriggerClass} text-ink`}
+            trigger={
+              <>
+                <span className="max-w-[8rem] truncate">{engrave?.name ?? labels.engraveNone}</span>
+                {CARET}
+              </>
+            }
+          />
         )}
         {weapon !== undefined && (
           <span className="flex items-center pb-[6px]">
