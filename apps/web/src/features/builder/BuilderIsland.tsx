@@ -55,16 +55,10 @@ const STAT_EN: Record<StatKey, string> = {
   hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
 };
 
-/** 자물쇠 아이콘(머티리얼 계열 근사) — open = 호버 안내(풀림), closed = 잠김. */
-const LockIcon = ({ open }: { open: boolean }): React.JSX.Element => (
+/** 자물쇠 아이콘(잠김 형상, 머티리얼 계열 근사) — 호버 = "이렇게 잠긴다" 예고. 잠금 후엔 사라진다. */
+const LockIcon = (): React.JSX.Element => (
   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-    <path
-      d={
-        open
-          ? "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9H9V6a3 3 0 0 1 5.91-.74l1.94-.49A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Z"
-          : "M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z"
-      }
-    />
+    <path d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-9h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9V6Z" />
   </svg>
 );
 
@@ -176,19 +170,31 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
 
   /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
   const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
-  /** 전투력 정리바(로열블루) — 잠금·호버 행 아래 공용. 직업명은 멀티클래스 식별용. */
-  const combatLine = (row: BuilderRow, jobName: string | undefined): React.JSX.Element => {
+  /**
+   * 전투력 행의 (IN.LV 하단 = 직업명, 스탯쪽 = 전투력) 셀 짝 — 잠금·호버 공용(2026-08-31 배치 지시).
+   * 값은 본문과 같은 화이트 볼드 14px, 직업명은 로열블루(멀티클래스 식별).
+   */
+  const combatCells = (row: BuilderRow, jobName: string | undefined): React.JSX.Element => {
     const c = combatOf(row);
     return (
-      <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1 text-[12px] leading-tight text-engage md:gap-x-4 md:text-[13px]">
-        {jobName !== undefined && <span className="font-bold">{jobName}</span>}
-        {COMBAT_KEYS.map((key) => (
-          <span key={key} className="whitespace-nowrap">
-            <span className="opacity-80">{labels.combat[key]}</span>{" "}
-            <span className="font-bold">{fmtCombat(c[key])}</span>
+      <>
+        <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-top">
+          {jobName !== undefined && (
+            <span className="block whitespace-nowrap text-[12px] font-semibold leading-tight text-engage">
+              {jobName}
+            </span>
+          )}
+        </td>
+        <td colSpan={STAT_KEYS.length} className="px-2 pb-[10px] pt-[2px] text-left">
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink">
+            {COMBAT_KEYS.map((key) => (
+              <span key={key} className="whitespace-nowrap">
+                <span className="font-normal text-muted">{labels.combat[key]}</span> {fmtCombat(c[key])}
+              </span>
+            ))}
           </span>
-        ))}
-      </span>
+        </td>
+      </>
     );
   };
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
@@ -212,6 +218,10 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* 미선택 안내 — 인트로 다음 줄, 항상 같은 높이로 렌더(선택·Reset에도 표가 안 움직인다, 2026-08-31). */}
+      <p className="-mt-4 mb-3 h-4 shrink-0 text-[12px] leading-4 text-muted [@media(max-height:520px)]:hidden">
+        {compares.length === 0 ? labels.joinedNote : ""}
+      </p>
       <div className="mb-4 flex shrink-0 flex-wrap items-end gap-x-5 gap-y-3">
         <label className="flex flex-col gap-1">
           <span className={legendClass}>{labels.job}</span>
@@ -237,8 +247,6 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
         >
           {`+ ${labels.addCompare}`}
         </button>
-
-        {compares.length === 0 && <p className="pb-1 text-[11px] text-muted">{labels.joinedNote}</p>}
 
         <span className="ml-auto flex flex-wrap items-end gap-x-5 gap-y-3">
           {starsphere !== undefined && (
@@ -377,18 +385,19 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
               );
             })}
           </thead>
-          {/* ── 잠금 블록 — 스냅샷 1행 + 전투력 행. 행 전체 인게이지 블루 테두리(builder.css ::after). ── */}
+          {/* ── 잠금 블록 — 스냅샷 1행 + 전투력 행. 블록 전체 인게이지 블루 테두리(builder.css ::after).
+              자물쇠 아이콘은 잠금 후 사라진다(테두리가 상태 표지) — 슬롯은 공백으로 남아 표가 안 움직인다. ── */}
           {lockedRows.map(({ row, jobName }, gi) => {
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
             const unlock = (): void => toggleLock(row.pid, -1);
             return (
-              <tbody key={`lock-${row.pid}`} className="group">
-                <tr
-                  className={`entry-locked-row cursor-pointer hover:bg-sunken${isPulse ? " entry-lock-pulse" : ""}`}
-                  onClick={unlock}
-                  onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
-                >
+              <tbody
+                key={`lock-${row.pid}`}
+                className={`group entry-locked-block${isPulse ? " entry-lock-pulse" : ""}`}
+                onAnimationEnd={isPulse ? () => setPulsePid(null) : undefined}
+              >
+                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
                   <th scope="row" className={`sticky left-0 z-10 bg-panel px-2 py-[3px] text-left align-middle font-normal ${sep}`}>
                     <span className="entry-wrap flex items-center">
                       <span className="entry-card">
@@ -397,19 +406,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                         )}
                         <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
                       </span>
-                      <button
-                        type="button"
-                        aria-label={labels.unlock}
-                        title={labels.unlock}
-                        aria-pressed="true"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          unlock();
-                        }}
-                        className="entry-lock text-engage"
-                      >
-                        <LockIcon open={false} />
-                      </button>
+                      <span className="entry-lock" aria-hidden="true" />
                     </span>
                   </th>
                   <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${sep}`}>
@@ -427,13 +424,10 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                     );
                   })}
                 </tr>
-                {/* 전투력 행 — 잠금은 상시 표시(스냅샷 직업명 포함). */}
-                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock}>
+                {/* 전투력 행 — 잠금은 상시 표시. 직업명 = IN.LV 하단, 전투력 = 스탯쪽(2026-08-31). */}
+                <tr className="cursor-pointer hover:bg-sunken" onClick={unlock} title={labels.unlock}>
                   <td className="sticky left-0 z-10 bg-panel" />
-                  <td className="inlv-col" />
-                  <td colSpan={STAT_KEYS.length} className="px-2 pb-[6px] pt-0 text-left md:px-2">
-                    {combatLine(row, jobName)}
-                  </td>
+                  {combatCells(row, jobName)}
                 </tr>
               </tbody>
             );
@@ -472,7 +466,8 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                     )}
                     <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
-                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다). */}
+                  {/* 자물쇠 슬롯 — 카드와 IN.LV 사이, 기본 공백(표가 안 움직인다).
+                      호버 = 잠긴 자물쇠(= "이렇게 잠긴다" 예고, 2026-08-31 변경). */}
                   {hovered ? (
                     <button
                       type="button"
@@ -483,9 +478,9 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                         e.stopPropagation();
                         toggleLock(first.pid, hoverRow.li);
                       }}
-                      className="entry-lock text-muted hover:text-ink"
+                      className="entry-lock text-muted hover:text-engage"
                     >
-                      <LockIcon open={true} />
+                      <LockIcon />
                     </button>
                   ) : (
                     <span className="entry-lock" aria-hidden="true" />
@@ -541,10 +536,7 @@ export default function BuilderIsland({ chars, joinJobs, targetJobs, starsphere,
                   return [
                     line,
                     <tr key={`combat-${li}`} className="cursor-pointer hover:bg-sunken" {...rowActs(false, li)}>
-                      <td className="inlv-col" />
-                      <td colSpan={STAT_KEYS.length} className="px-2 pb-[6px] pt-0 text-left md:px-2">
-                        {combatLine(row, compares[li]?.job.name)}
-                      </td>
+                      {combatCells(row, compares[li]?.job.name)}
                     </tr>,
                   ];
                 })}

@@ -30,9 +30,9 @@
   --replay: #5b9dff;
   /* 개인(고유) 성장률 표지색(빌더) — 블루 지정(2026-08-31 사용자). 직업 성장(gold)·캡(cap)과 구분. */
   --pgrow: #5b9dff;
-  /* 인게이지 대표 블루 — 공식 로고 파랑 최빈값 실측 #0040b8(Wikimedia 로고 픽셀 샘플링, 2026-08-31).
-     다크 테마는 같은 색상(hue 219)의 밝기 보정판 — 원값은 다크 패널에서 안 읽힌다. 라이트 = 원값. */
-  --engage: #2e70ea;
+  /* 인게이지 대표 블루 — 앵커 = 공식 로고 파랑 최빈값 실측 #0040b8(Wikimedia 로고 픽셀 샘플링).
+     실사용 값은 앵커에서 하늘색 쪽으로 색상 보정(hue 219→~208) + 다크 밝기 보정(2026-08-31 사용자 지시). */
+  --engage: #3b96ee;
   --board-frame: #3a444f;
   --board-shadow: 0 22px 50px -26px rgb(0 0 0 / 0.9);
   color-scheme: dark;
@@ -49,7 +49,7 @@
   --cap: #1e9e50;
   --replay: #1f5fd0;
   --pgrow: #1f5fd0;
-  --engage: #0040b8;
+  --engage: #0060c8;
   --board-frame: #b9c2cc;
   --board-shadow: 0 18px 40px -24px rgb(23 29 36 / 0.55);
   color-scheme: light;
