@@ -180,21 +180,12 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     expect(rows[0]!.job).toBeUndefined();
   });
 
-  it("잠금 스냅샷에 문장사 絆 보너스가 붙는다 — 체커에 숨은 gid는 조용히 무보정 강하", () => {
-    const emblem = {
-      gid: "GID_M",
-      name: "M",
-      bonuses: [{}, { str: 2 }] as Partial<Record<StatKey, number>>[],
-      levels: [],
-    };
+  it("반지(gid·bond)는 스냅샷에 실려도 본스탯 행을 오염시키지 않는다 — 최종스탯은 반지 행 소유(2026-08-31)", () => {
     const entry = { pid: "a", internal: 11, jid: "JID_high", gid: "GID_M", bond: 2 };
-    const on = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], undefined, [], [], [emblem])[0]!;
-    expect(on.row.cells.str.buffed).toBe(true);
-    expect(parseFloat(on.row.cells.str.text)).toBeCloseTo(13.4 + 2, 5);
-    // 목록 밖 gid(체커 숨김) = 무보정 — 각인·무기 강하와 같은 축.
-    const off = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry], undefined, [], [], [])[0]!;
-    expect(off.row.cells.str.buffed).toBeUndefined();
-    expect(off.row.cells.str.text).toBe("13.4");
+    const out = lockedDisplayRows(propsOf([char("a")]), [HIGH], [entry])[0]!;
+    expect(out.row.cells.str.text).toBe("13.4");
+    expect(out.row.cells.str.buffed).toBeUndefined();
+    expect(out.row.emblemDelta).toBeUndefined();
   });
 
   it("성옥 스냅샷 — 잠금 당시 체커만 반영한다(현재 체커와 무관)", () => {
@@ -220,6 +211,7 @@ describe("문장사 보너스 (applyEmblemBonus)", () => {
     expect(out.cells.str.text).toContain(".");
     expect(out.cells.str.buffed).toBe(true);
     expect(out.cells.hp.buffed).toBeUndefined();
+    expect(out.emblemDelta).toEqual({ str: 2 }); // 반지 행("+N"·최종스탯)의 데이터원
     expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
   });
 

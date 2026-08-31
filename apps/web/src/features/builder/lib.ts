@@ -11,7 +11,7 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import { rankValue, type BuilderCharProp, type BuilderEmblemProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
+import { rankValue, type BuilderCharProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -41,6 +41,8 @@ export interface BuilderRow {
   /** 전용직 대상 밖 — 합류 상태 값으로 남긴다(회색 표시 신호). */
   ineligible: boolean;
   cells: Record<StatKey, BuilderCell>;
+  /** 문장사 絆 보너스 델타(비영 키만) — 카드 하단 "+N" 행이 소비(2026-08-31 사용자 지시). */
+  emblemDelta?: Partial<Record<StatKey, number>>;
 }
 
 export interface BuilderSort {
@@ -173,7 +175,7 @@ export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey,
     const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
     cells[key] = { ...cell, text, value: cell.value + d, ...(d > 0 ? { buffed: true as const } : {}) };
   }
-  return { ...row, cells };
+  return { ...row, cells, emblemDelta: delta };
 }
 
 /** 대기 목록 한 묶음 — ghost = 엔트리에 잠긴 캐릭터의 비교용 임시 카드(반투명·무반응, 정렬·비교표에는 참가). */
@@ -212,7 +214,6 @@ export function lockedDisplayRows(
   starsphere?: SkillRow,
   weapons: readonly BuilderWeaponProp[] = [],
   engraves: readonly BuilderEngraveProp[] = [],
-  emblems: readonly BuilderEmblemProp[] = [],
 ): LockedDisplay[] {
   const byPid = new Map(props.chars.map((c) => [c.pid, c]));
   const out: LockedDisplay[] = [];
@@ -226,12 +227,11 @@ export function lockedDisplayRows(
     const row = builderRow(char, joinJob, job, entry.internal, extra);
     const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
     // 각인도 무기처럼 강하 — 목록 밖 gid(체커 숨김·이물)는 무각인으로(괄호 표시는 없지만 값 오염보다 낫다).
+    // ☠반지(gid·bond)는 여기서 합산하지 않는다 — 본스탯 행은 순수값, 최종스탯은 반지 행이 소유
+    //   (applyEmblemBonus를 렌더 층이 호출, 2026-08-31 사용자 지시).
     const engrave = entry.engrave === undefined ? undefined : engraves.find((g) => g.gid === entry.engrave);
-    // 문장사 반지도 같은 강하 축 — 목록 밖 gid는 무보정. 보너스는 스냅샷 셀에 직접 붙는다(블루 표기).
-    const emblem = entry.gid === undefined ? undefined : emblems.find((m) => m.gid === entry.gid);
-    const delta = emblem === undefined || entry.bond === undefined ? undefined : emblem.bonuses[entry.bond - 1];
     out.push({
-      row: delta === undefined ? row : applyEmblemBonus(row, delta),
+      row,
       ...(job !== undefined ? { job } : {}),
       ...(weapon !== undefined
         ? { equipped: { weapon, plus: entry.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) } }
