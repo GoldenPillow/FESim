@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STAT_KEYS, type StatKey } from "@fesim/engine";
 import {
   applyEmblemBonus,
+  builderRow,
   builderRowGroups,
   canEquip,
   combatOf,
@@ -267,6 +268,9 @@ const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
   value: String(i + 1),
   label: String(i + 1),
 }));
+
+/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계. */
+const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: String(n) }));
 
 /**
  * 장비 커스텀 드롭다운 — 네이티브 셀렉트 팝업은 옵션 호버 감지·옆 오버레이가 불가능해 목록을 직접
@@ -965,6 +969,9 @@ export default function BuilderIsland({
   /** 대기 카드 반지(2026-08-31: 엔트리 구분 없이 편집) — 세션 상태(개인 장비 overrides와 동형).
       잠금 순간 스냅샷으로 이관되고 해제 시 되돌아온다(잠금 중 정본 = EntryLock.gid/bond). */
   const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
+  /** 카드 개별 클래스·내부 레벨(2026-08-31: 포트레이트 아래 드롭다운) — 라인 0(메인 슬롯)을 대체.
+      세션 상태. jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 추종. */
+  const [cardClass, setCardClass] = useState<Record<string, { jid?: string; internal?: number }>>({});
   /** 문장사 레벨 상세 팝업이 열린 카드 pid(세로폰 폴딩 전용 — 데스크톱은 인연 드롭다운이 상세를 겸한다). */
   const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
   /** 인연 옵션 호버 미리보기 — 본스탯 합산·+N이 이 레벨로 라이브 연동(2026-08-31 사용자 지시). */
@@ -988,7 +995,8 @@ export default function BuilderIsland({
     let next: EntryLock[];
     if (on) {
       // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
-      const c = li >= 0 ? compares[li] : compares[0];
+      // 라인 0은 카드 개별 클래스(cardClass)가 글로벌을 대체한다(2026-08-31).
+      const c = cardCompareOf(pid, li >= 0 ? li : 0);
       const eq = cardEquip(pid, li >= 0 ? li : 0);
       // 대기 반지는 스냅샷으로 이관(2026-08-31: 구분 없는 편집의 왕복) — 세션 쪽은 걷는다.
       const ring = rings[pid];
@@ -1184,6 +1192,17 @@ export default function BuilderIsland({
     [emblems, showSpoilers, showDlc],
   );
   const emblemByGid = useMemo(() => new Map(visibleEmblems.map((e) => [e.gid, e])), [visibleEmblems]);
+  const jobByJid = useMemo(() => new Map(targetJobs.map((j) => [j.jid, j])), [targetJobs]);
+
+  /** 라인 li의 실효 (직업, 내부 레벨) — 라인 0은 카드 개별 편집(cardClass)이 글로벌 슬롯을 대체한다. */
+  const cardCompareOf = (pid: string, li: number): BuilderCompare | undefined => {
+    if (li !== 0) return compares[li];
+    const ov = cardClass[pid];
+    if (ov === undefined) return compares[0];
+    const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
+    if (job === undefined) return undefined; // 직업 미선택 = 합류 상태(장비 게이트도 직업 없음).
+    return { job, internal: (ov.internal ?? internal) - 1 };
+  };
 
   const compares: (BuilderCompare & { slot: number })[] = useMemo(
     () =>
@@ -1229,12 +1248,25 @@ export default function BuilderIsland({
     () => chars.filter((c) => (showSpoilers || c.spoiler !== true) && (showDlc || c.dlc !== true)),
     [chars, showSpoilers, showDlc],
   );
+  const charByPid = useMemo(() => new Map(visibleChars.map((c) => [c.pid, c])), [visibleChars]);
   // 絆 보너스는 본스탯 행에 합산(보정 스탯 블루) — 정렬도 합산값 기준. 반지 행은 추가분(+N)만 표기
   // (2026-08-31 사용자 최종 확정). 소스 = 잠금 스냅샷 우선, 아니면 대기 세션 반지.
   const groups = useMemo(() => {
     const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
+    // 카드 개별 클래스·In.Lv(2026-08-31) — 라인 0을 카드 값으로 재계산(글로벌 슬롯 대체).
+    const personalized = base.map((g) => {
+      const pid = g[0]!.pid;
+      const ov = cardClass[pid];
+      if (ov === undefined) return g;
+      const char = charByPid.get(pid);
+      const joinJob = char === undefined ? undefined : joinJobs[char.joinJid];
+      if (char === undefined || joinJob === undefined) return g;
+      const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
+      const target = job === undefined ? 0 : (ov.internal ?? internal) - 1;
+      return [builderRow(char, joinJob, job, target, extraSkills), ...g.slice(1)];
+    });
     const lockByPid = new Map(locked.map((e) => [e.pid, e]));
-    const boosted = base.map((g) => {
+    const boosted = personalized.map((g) => {
       const pid = g[0]!.pid;
       const entry = lockByPid.get(pid);
       const src = entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : rings[pid];
@@ -1245,7 +1277,7 @@ export default function BuilderIsland({
       return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
     });
     return waitingRowGroups(boosted, locked, sort);
-  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview]);
+  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
   const lockedRows = useMemo(() => {
@@ -1263,12 +1295,15 @@ export default function BuilderIsland({
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
     const o = overrides[`${pid}:${li}`];
-    const job = compares[li]?.job;
-    if (o === undefined) return compares[li]?.equipped;
+    // 게이트는 실효 직업 기준 — 카드 클래스 변경 후 부적합해진 장비는 미착용으로 강하(2026-08-31 되돌림).
+    const job = cardCompareOf(pid, li)?.job;
+    const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
+      eq === undefined || job === undefined || !canEquip(job, eq.weapon) ? undefined : eq;
+    if (o === undefined) return gate(compares[li]?.equipped);
     const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
-    if (weapon === undefined || job === undefined || !canEquip(job, weapon)) return undefined;
+    if (weapon === undefined) return undefined;
     const engrave = o.engrave === undefined ? undefined : visibleEngraves.find((g) => g.gid === o.engrave);
-    return { weapon, plus: o.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) };
+    return gate({ weapon, plus: o.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) });
   };
 
   /** 카드 개인 장비 변경 — 첫 터치에 글로벌 스냅샷으로 분기 후 부분 갱신("" = 해제).
@@ -1333,8 +1368,97 @@ export default function BuilderIsland({
       return prev;
     });
 
+  /** 카드 클래스·In.Lv 변경(대기) — 첫 터치에 글로벌 슬롯 0을 스냅샷으로 분기(개인 장비와 같은 규약).
+      부적합해진 장비는 cardEquip 게이트가 미착용으로 강하한다(표시 = 미착용). */
+  const patchCardClass = (pid: string, patch: { jid?: string; internal?: number }): void =>
+    setCardClass((prev) => {
+      const cur =
+        prev[pid] ??
+        (compares[0] !== undefined ? { jid: compares[0].job.jid, internal: compares[0].internal + 1 } : {});
+      const jid = patch.jid !== undefined ? (patch.jid === "" ? undefined : patch.jid) : cur.jid;
+      const nextInternal = patch.internal ?? cur.internal;
+      return {
+        ...prev,
+        [pid]: { ...(jid !== undefined ? { jid } : {}), ...(nextInternal !== undefined ? { internal: nextInternal } : {}) },
+      };
+    });
+
+  /** 잠금 카드 클래스·In.Lv 변경 — 스냅샷 직접 갱신·즉시 저장. 새 직업이 못 드는 무기는
+      명시적으로 미착용 복귀(강화·각인 동반 제거 — 2026-08-31 "되돌린다"). */
+  const patchLockClass = (pid: string, patch: { jid?: string; internal?: number }): void => {
+    const next = locked.map((e) => {
+      if (e.pid !== pid) return e;
+      let out: EntryLock = { ...e };
+      if (patch.jid !== undefined) {
+        const { jid: _j, ...rest } = out;
+        // 미선택(내부 0) 잠금에서 클래스를 고르면 글로벌 In.Lv를 기본으로(대기 카드와 같은 추종).
+        out = patch.jid === "" ? { ...rest, internal: 0 } : { ...rest, jid: patch.jid, internal: out.internal || internal - 1 };
+      }
+      if (patch.internal !== undefined) out = { ...out, internal: patch.internal - 1 };
+      const job = out.jid === undefined ? undefined : jobByJid.get(out.jid);
+      const weapon = out.iid === undefined ? undefined : weapons.find((w) => w.iid === out.iid);
+      if (weapon !== undefined && (job === undefined || !canEquip(job, weapon))) {
+        const { iid: _i, plus: _p, engrave: _g, ...bare } = out;
+        out = bare;
+      }
+      return out;
+    });
+    saveEntryLocks(next);
+    setLocked(next);
+  };
+
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
+
+  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업(전용직 포함 — 참전 제한 없음, 2026-08-31). */
+  const classOptions = useMemo<EquipOption[]>(
+    () => [{ value: "", label: labels.jobNone }, ...targetJobs.map((j) => ({ value: j.jid, label: j.name }))],
+    [targetJobs, labels],
+  );
+
+  /** 카드 클래스·In.Lv 드롭다운 행 — 포트레이트 폭(6.6rem)에 [클래스 flex-1][In.Lv 34px] 정합
+      (2026-08-31 사용자 지시: 포트레이트 가로폭 = 클래스 + 공백 + In.Lv). */
+  const classRowUi = (
+    jidValue: string,
+    jobName: string | undefined,
+    internalDisplay: number,
+    onPatch: (patch: { jid?: string; internal?: number }) => void,
+  ): React.JSX.Element => (
+    <span
+      className="entry-classrow flex w-[6.6rem] items-center gap-[6px] pt-[3px]"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <EquipDropdown
+        ariaLabel={labels.job}
+        value={jidValue}
+        options={classOptions}
+        onChange={(jid) => onPatch({ jid })}
+        labels={labels}
+        triggerClass="flex h-6 min-w-0 flex-1 items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1 text-[12px] font-semibold text-ink"
+        trigger={
+          <>
+            <span className="truncate">{jobName ?? labels.jobNone}</span>
+            {CARET}
+          </>
+        }
+      />
+      <EquipDropdown
+        ariaLabel={labels.internal}
+        value={String(internalDisplay)}
+        options={INLV_OPTIONS}
+        onChange={(v) => onPatch({ internal: Number(v) })}
+        labels={labels}
+        triggerClass="flex h-6 w-[34px] shrink-0 items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[12px] font-semibold text-gold"
+        trigger={
+          <>
+            {internalDisplay}
+            {CARET}
+          </>
+        }
+      />
+    </span>
+  );
 
   /** 잠금 스냅샷의 반지 단면 — 유령 카드·잠금 블록의 반지 행이 공유하는 소스. */
   const lockRingOf = (pid: string): { gid: string; bond: number } | undefined => {
@@ -1770,6 +1894,7 @@ export default function BuilderIsland({
             const sep = gi > 0 ? "border-t border-rule" : "";
             const isPulse = pulsePid === row.pid;
             const lockRing = lockRingOf(row.pid);
+            const lockEntry = locked.find((e) => e.pid === row.pid);
             const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
             const thRaised = emblemOpen === row.pid || foldPid === row.pid;
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
@@ -1822,11 +1947,13 @@ export default function BuilderIsland({
                       {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바(2026-08-31 재설계) —
                           행·배경 클릭은 계속 무반응(부주의 방지). 반지 슬롯은 하단 반지 행이 소유. */}
                     </span>
-                    {/* 스냅샷 클래스명 — 캐릭터(카드) 하단(2026-08-31 배치 지시). */}
-                    {job !== undefined && (
-                      <span className="block px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage">
-                        {job.name}
-                      </span>
+                    {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 정적 클래스명 라벨을 대체.
+                        변경 = 스냅샷 직접 갱신·즉시 저장, 부적합 무기는 미착용 복귀. */}
+                    {classRowUi(
+                      lockEntry?.jid ?? "",
+                      job?.name,
+                      (lockEntry?.internal ?? 0) + 1,
+                      (p) => patchLockClass(row.pid, p),
                     )}
                     {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                         카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
@@ -1910,9 +2037,9 @@ export default function BuilderIsland({
             /** 전투력 행 공개 — 라인 호버 또는 그 라인의 카드 드롭다운 조작 중. 자리는 상시(공란). */
             const revealed = (li: number): boolean =>
               (hovered && hoverRow.li === li) || (focused && focusRow.li === li);
-            // 전 라인이 전용직 불가면 캐릭터 자체가 무반응 — 고유 성장 라인이 차단을 우회하면 안 된다(헤드리스 실측 결함).
-            // 유령 카드(엔트리 잠금분의 비교용 사본)도 전 라인 무반응 — 조작은 잠금 블록이 소유한다.
-            const groupInert = ghost || g.every((r) => r.ineligible);
+            // 유령 카드(엔트리 잠금분의 비교용 사본)만 무반응 — 전용직 불가 행도 참전(잠금)은 제한 없음
+            // (2026-08-31 사용자 지시 — 합류 상태 값으로 잠긴다).
+            const groupInert = ghost;
             /** 행 단위 호버·클릭 반응 — 전용직 불가(ineligible) 행은 차단: 해당 캐릭터만 반응(2026-08-31). */
             const rowActs = (inert: boolean, li: number) =>
               inert
@@ -1951,12 +2078,19 @@ export default function BuilderIsland({
                   </span>
                   {/* 자물쇠 슬롯 폐기(2026-08-31 재설계) — 잠금 버튼은 행 호버 시 마지막 셀 우측 바로. */}
                 </span>
+                {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
+                {classRowUi(
+                  cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
+                  cardCompareOf(first.pid, 0)?.job.name,
+                  cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
+                  (p) => patchCardClass(first.pid, p),
+                )}
                 {/* 활성 라인의 클래스명 — 카드 하단(2026-08-31 배치 지시). 자리는 상시 예약(invisible)이라
                     호버해도 th 내용 높이가 안 변한다. 터치(호버 없음)는 CSS가 슬롯째 걷는다(builder.css). */}
                 <span
                   className={`entry-jobslot block h-[21px] truncate px-1 pt-[3px] text-[14px] font-semibold leading-tight text-engage${activeLi !== undefined ? "" : " invisible"}`}
                 >
-                  {(activeLi !== undefined ? compares[activeLi]?.job.name : compares[0]?.job.name) ?? ""}
+                  {cardCompareOf(first.pid, activeLi ?? 0)?.job.name ?? ""}
                 </span>
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                     카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
@@ -2013,7 +2147,8 @@ export default function BuilderIsland({
                 )}
                 {g.flatMap((row, li) => {
                   const eq = cardEquip(first.pid, li);
-                  const inert = ghost || row.ineligible;
+                  // 참전 제한 없음(2026-08-31) — 전용직 불가 행도 호버·잠금 가능(표시는 계속 흐림).
+                  const inert = ghost;
                   const line = (
                     <tr
                       key={li}
@@ -2072,7 +2207,7 @@ export default function BuilderIsland({
                     >
                       <CombatCells
                         row={row}
-                        job={compares[li]?.job}
+                        job={cardCompareOf(first.pid, li)?.job}
                         equipped={eq}
                         ghost={!open}
                         specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
