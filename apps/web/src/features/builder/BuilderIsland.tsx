@@ -196,19 +196,26 @@ function CombatCells({
     onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
   };
 
-  /** 무기 선택 — 보이는 건 아이콘+이름(간략), 그 위에 투명 셀렉트(네이티브 드롭다운). */
+  /** 드롭다운 표지 화살표 — 카드 슬롯도 상단 셀렉트처럼 "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
+  const caret = <span aria-hidden="true" className="text-[12px] leading-none text-muted">▾</span>;
+
+  /** 무기 선택 — 보이는 건 상단 드롭다운 스타일 박스(아이콘+이름+▾), 그 위에 투명 셀렉트(네이티브 드롭다운). */
   const weaponPicker = (justify: string): React.JSX.Element => (
-    <span
-      className={`relative flex items-center ${justify} gap-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}${hide}`}
-      title={weapon !== undefined ? `${weapon.name}${plus > 0 ? ` +${plus}` : ""}` : labels.item}
-    >
-      {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
-      <span className="max-w-[5.2rem] truncate">
-        {weapon !== undefined ? `${weapon.name}${plus > 0 ? `+${plus}` : ""}` : labels.itemNone}
+    <span className={`relative flex items-center ${justify}${hide}`}>
+      <span
+        className={`flex h-7 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}`}
+        title={weapon !== undefined ? `${weapon.name}${plus > 0 ? ` +${plus}` : ""}` : labels.item}
+      >
+        {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
+        <span className="max-w-[5.2rem] truncate">
+          {weapon !== undefined ? `${weapon.name}${plus > 0 ? `+${plus}` : ""}` : labels.itemNone}
+        </span>
+        {caret}
       </span>
       {job !== undefined && (
         <select
-          className="absolute inset-0 cursor-pointer opacity-0"
+          // 반응 영역은 표시보다 넓게(-inset — 2026-08-31 사용자 지시: 쉽게 클릭되게).
+          className="absolute -inset-1 cursor-pointer opacity-0"
           aria-label={labels.item}
           value={weapon?.iid ?? ""}
           {...stop}
@@ -225,15 +232,17 @@ function CombatCells({
     </span>
   );
 
-  /** 강화 칩 — 닫힘 = +N만(노강화 = +0 흐림, 강화 불가 무기는 반투명 비활성). */
+  /** 강화 칩 — 닫힘 = +N만(노강화 = +0 흐림, 강화 불가 무기는 반투명 비활성).
+      문자 = 컨트롤 14px 통일 규약 · 반응 영역은 칩보다 넓게(-inset, 2026-08-31 사용자 지시). */
   const plusChip = (): React.JSX.Element | null =>
     weapon === undefined ? null : (
       <span
-        className={`relative inline-flex h-6 min-w-[1.7rem] items-center justify-center rounded border border-rule bg-sunken px-1 text-[13px] font-bold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+        className={`relative inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
       >
         {`+${plus}`}
+        {caret}
         <select
-          className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default"
+          className="absolute -inset-1 cursor-pointer opacity-0 disabled:cursor-default"
           aria-label={labels.refineNone}
           value={plus}
           disabled={weapon.refine === undefined}
@@ -254,16 +263,19 @@ function CombatCells({
   const engraveChip = (): React.JSX.Element | null =>
     weapon === undefined ? null : (
       <span
-        className={`relative inline-flex h-6 min-w-6 items-center justify-center overflow-hidden rounded border bg-sunken ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        className={`relative inline-flex h-7 items-center justify-center gap-0.5 overflow-hidden rounded border bg-sunken px-1 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
         title={engrave?.name ?? labels.engrave}
       >
         {engrave?.icon !== undefined ? (
-          <img src={engrave.icon} alt="" className="h-5 w-5 object-cover" loading="lazy" />
+          <img src={engrave.icon} alt="" className="h-6 w-6 object-cover" loading="lazy" />
         ) : engrave !== undefined ? (
-          <span className="max-w-[4rem] truncate px-1 text-[12px] font-semibold text-ink">{engrave.name}</span>
-        ) : null}
+          <span className="max-w-[5rem] truncate text-[14px] font-semibold text-ink">{engrave.name}</span>
+        ) : (
+          <span className="w-4" aria-hidden="true" />
+        )}
+        {caret}
         <select
-          className="absolute inset-0 cursor-pointer opacity-0"
+          className="absolute -inset-1 cursor-pointer opacity-0"
           aria-label={labels.engrave}
           value={engrave?.gid ?? ""}
           {...stop}
@@ -298,7 +310,7 @@ function CombatCells({
           return (
             <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-middle md:min-w-[5.5rem] md:px-2">
               {weapon !== undefined && (
-                <span className={`relative flex items-center justify-center gap-1${hide}`}>
+                <span className={`relative flex items-center justify-center gap-1.5${hide}`}>
                   {plusChip()}
                   {engraveChip()}
                   {specPop}
