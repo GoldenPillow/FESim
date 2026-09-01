@@ -236,6 +236,12 @@ const EngraveSpecPanel = ({
   );
 };
 
+/** 세로폰 판별 — builder.css의 세로 블록(max-width:767) − 가로폰 PC 복원 블록(max-height:520)과 동일 경계.
+    ☠가로 모드는 PC와 같은 동작(2026-09-01 사용자 지시) — 폭 게이트만 보면 좁은 가로폰(≤767px)이
+    세로폰 취급돼 CSS(PC 레이아웃·폴딩 숨김)와 어긋난다(탭이 숨은 폴딩을 열어 무반응 — 실사고). */
+const isPortraitPhone = (): boolean =>
+  window.matchMedia("(max-width: 767px)").matches && !window.matchMedia("(max-height: 520px)").matches;
+
 /** 드롭다운 표지 화살표 — 카드·상단 슬롯 공용, "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
 const CARET = (
   <span aria-hidden="true" className="text-[12px] leading-none text-muted">
@@ -2073,7 +2079,7 @@ export default function BuilderIsland({
                     // 잠금 해제 탭은 스탯 영역이 맡는다(전파 차단으로 오발 방지).
                     onClick={(e) => {
                       const native = e.nativeEvent as PointerEvent;
-                      if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                      if (native.pointerType === "touch" && isPortraitPhone()) {
                         e.stopPropagation();
                         setFoldPid((p) => (p === row.pid ? null : row.pid));
                       }
@@ -2231,7 +2237,7 @@ export default function BuilderIsland({
                     // 세로폰: 포트레이트 탭 = 반지 슬롯 우측 폴딩 토글(유령 카드는 무반응, 2026-08-31).
                     onClick={(e) => {
                       const native = e.nativeEvent as PointerEvent;
-                      if (!ghost && native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                      if (!ghost && native.pointerType === "touch" && isPortraitPhone()) {
                         e.stopPropagation();
                         setFoldPid((p) => (p === first.pid ? null : first.pid));
                       }
