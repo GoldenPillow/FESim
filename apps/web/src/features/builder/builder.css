@@ -77,6 +77,10 @@
    inset 3px = 본선 1px + 바깥 링 2px 마감까지 블록 안에 딱 맞아 상하 카드를 침범하지 않는다(2026-08-31). */
 .builder-table tbody.entry-locked-block {
   position: relative;
+  /* ☠WebKit(iOS Safari)은 tbody의 position:relative를 무시한다(computed가 static으로 떨어진다) —
+     ::after의 컨테이닝 블록이 뷰포트(ICB)가 돼 파란 테두리가 페이지 전체를 덮었다(2026-09-01 실기 스크린샷).
+     transform은 표준 폴백 컨테이닝 블록(css-transforms — row group도 transformable) — WebKit 실측 확인. */
+  transform: translate(0, 0);
 }
 .builder-table tbody.entry-locked-block::after {
   content: "";

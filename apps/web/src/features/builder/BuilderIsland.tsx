@@ -1857,8 +1857,9 @@ export default function BuilderIsland({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 윗줄 = 미선택 안내(좌, 고정 높이) + 체커·Reset(우) — 아이템 선택기가 아랫줄 우측 공간을
-          쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다. */}
-      <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1">
+          쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다.
+          ☠-mt-4는 설명문(<p>)의 mb-5를 파먹는 값 — 가로폰은 설명문이 숨어 타이틀을 덮으므로 mt-0(2026-09-01 실기). */}
+      <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1 [@media(max-height:520px)]:mt-0">
         <p className="h-5 text-[14px] leading-5 text-muted [@media(max-height:520px)]:hidden">
           {compares.length === 0 ? labels.joinedNote : ""}
         </p>
