@@ -263,6 +263,31 @@ export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolea
   return weapon.ignoreRank === true || rankValue(weapon.rank) <= rankValue(max);
 };
 
+/** 직업 변경 시 장비 승계 판정(2026-09-01 사용자 지시) — 씨드 장비(그 슬롯 현재분, 없으면 메인 슬롯)를
+    새 직업이 들 수 있으면 그대로 장착(강화·각인 동반), 못 들거나 직업·씨드 미지정이면 미장착(undefined). */
+export function carriedEquip(
+  job: BuilderJobProp | undefined,
+  seed: { iid?: string; plus?: number; engrave?: string },
+  weapons: readonly BuilderWeaponProp[],
+): { iid: string; plus?: number; engrave?: string } | undefined {
+  if (job === undefined || seed.iid === undefined) return undefined;
+  const weapon = weapons.find((w) => w.iid === seed.iid);
+  if (weapon === undefined || !canEquip(job, weapon)) return undefined;
+  return {
+    iid: weapon.iid,
+    ...(seed.plus !== undefined ? { plus: seed.plus } : {}),
+    ...(seed.engrave !== undefined ? { engrave: seed.engrave } : {}),
+  };
+}
+
+/** 메인(1번) 슬롯 강화·각인 변경의 적용 대상(2026-09-01 사용자 지시: 메인 무기와 동일하면 업그레이드도
+    변경시마다 따라 적용) — 메인에서 바꾸면 같은 무기를 든 비교 슬롯까지, 비교 슬롯에서 바꾸면 그 슬롯만. */
+export function upgradeTargets(slots: readonly { iid?: string }[], i: number): Set<number> {
+  const main = slots[0]?.iid;
+  const follow = i === 0 && main !== undefined;
+  return new Set(slots.flatMap((v, idx) => (idx === i || (follow && idx > 0 && v.iid === main) ? [idx] : [])));
+}
+
 /** 장착 상태 — plus 0 = 노강화, 1~5 = 錬成 단계(refine 누적 보정). engrave = 각인(무기 실효치에 직접 가산). */
 export interface EquippedWeapon {
   weapon: BuilderWeaponProp;

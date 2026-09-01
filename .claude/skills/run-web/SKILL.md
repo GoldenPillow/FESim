@@ -60,3 +60,27 @@ await page.evaluate(() => document.querySelector("astro-dev-toolbar")?.remove())
 
 뤼에르 3,3 · 반드레 2,3 · 클란 2,2 · 프랑 2,4(체술+ライブ) · 적 6,3 / 8,2 · 루미엘 10,3.
 손상 만들기 = 반드레로 6,3 공격(반격 9 피해) → 프랑 2,4 선택 → 5,3(전진한 반드레) 호버 = 힐 예보.
+
+## 5. WebKit(사파리 엔진) 검증 — iOS 실기 버그 재현용 (2026-09-01 구축)
+
+Chromium만 믿으면 못 보는 결함이 있다(실사고: WebKit은 tbody `position:relative`를 무시해
+빌더 잠금 ::after가 페이지 전체를 덮었다). 모바일/사파리 의심 버그는 WebKit으로 재현하라.
+
+```bash
+cd <스크래치> && node node_modules/playwright-core/cli.js install webkit   # sudo 불필요
+# 시스템 라이브러리 결손은 sudo 없이 로컬 추출로 채운다:
+mkdir wklibs && cd wklibs && apt-get download libxslt1.1 libevent-2.1-7t64 \
+  libgstreamer-plugins-base1.0-0 libgstreamer-plugins-bad1.0-0 libgstreamer-gl1.0-0 \
+  libgstreamer1.0-0 libavif16 libharfbuzz-icu0 libwayland-server0 libmanette-0.2-0 \
+  libenchant-2-2 libhyphen0 libsecret-1-0 libgraphene-1.0-0 liborc-0.4-0t64 \
+  libgudev-1.0-0 libgav1-1 libyuv0 libabsl20220623t64
+for d in *.deb; do dpkg -x "$d" ext/; done
+# ☠래퍼(minibrowser-wpe/MiniBrowser)가 LD_LIBRARY_PATH를 덮어쓰므로 번들 sys/lib에 심링크:
+D=~/.cache/ms-playwright/webkit-*/minibrowser-wpe/sys/lib; mkdir -p $D
+for f in $PWD/ext/usr/lib/x86_64-linux-gnu/*.so*; do b=$(basename $f); [ -e $D/$b ] || ln -s $f $D/$b; done
+# 남은 결손 확인: LD_LIBRARY_PATH=$WK/lib:$WK/sys/lib ldd $WK/bin/MiniBrowser | grep "not found"
+```
+
+실행은 `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1` + `import { webkit } from "playwright-core"` —
+`webkit.launch({ headless: true })` (WPE 빌드라 headless 전용, HTTPS 원격은 TLS 미탑재로 실패 → 로컬만).
+터치 재현 = `newContext({ viewport, hasTouch: true })` + `page.touchscreen.tap(x, y)`.

@@ -13,7 +13,9 @@ const { locale, title } = Astro.props;
 <html lang={htmlLang[locale]}>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+    {/* ☠initial-scale 필수 — 없으면 iOS Safari가 가로 회전 시 레이아웃 폭을 세로폭(375px)에 고정하고
+        확대해 보여준다(2026-09-01 실기: 헤더가 세로폭·가로 풀피쳐가 비좁게 렌더). PC 무영향. */}
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
     <script is:inline>

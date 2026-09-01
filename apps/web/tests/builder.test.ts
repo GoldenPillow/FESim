@@ -5,12 +5,14 @@ import {
   builderRowGroups,
   builderRows,
   canEquip,
+  carriedEquip,
   combatOf,
   lockedDisplayRows,
   moveLock,
   nextSort,
   rankValue,
   sortRowGroups,
+  upgradeTargets,
   waitingRowGroups,
   weaponAt,
 } from "../src/features/builder/lib";
@@ -265,6 +267,31 @@ describe("장착 게이트 (canEquip·rankValue)", () => {
     expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B" })).toBe(false);
     expect(canEquip(jobOf({ 1: "C" }), { ...iron, rank: "B", ignoreRank: true })).toBe(true);
     expect(canEquip(jobOf({ 2: "A" }), iron)).toBe(false);
+  });
+
+  /**
+   * 왜 위험한가: 직업 변경 시 장비를 무조건 리셋하면 멀티클래스 비교가 매번 재장착 노동이 되고,
+   * 반대로 게이트 없이 승계하면 "불가능한 빌드"(활 못 드는 직업에 활)를 판다(2026-09-01 사용자 지시).
+   */
+  it("carriedEquip — 새 직업이 들 수 있으면 강화·각인 동반 승계, 못 들면 미장착", () => {
+    const seed = { iid: iron.iid, plus: 2, engrave: "GID_マルス" };
+    expect(carriedEquip(jobOf({ 1: "C" }), seed, [iron])).toEqual(seed);
+    expect(carriedEquip(jobOf({ 2: "A" }), seed, [iron])).toBeUndefined(); // 무기군 밖
+    expect(carriedEquip(undefined, seed, [iron])).toBeUndefined(); // 직업 미선택
+    expect(carriedEquip(jobOf({ 1: "C" }), {}, [iron])).toBeUndefined(); // 씨드 무장비
+    expect(carriedEquip(jobOf({ 1: "C" }), seed, [])).toBeUndefined(); // 목록 밖 iid
+  });
+
+  /**
+   * 왜 위험한가: 전파가 넓으면 다른 무기의 비교 슬롯을 조용히 덮고(값 오염), 좁으면 같은 무기가
+   * 메인과 다른 업그레이드로 남아 "동일 장비 비교"라는 전제가 어긋난다(2026-09-01 사용자 지시).
+   */
+  it("upgradeTargets — 메인 변경은 같은 무기 비교 슬롯까지, 비교 슬롯 변경은 그 슬롯만", () => {
+    const slots = [{ iid: "a" }, { iid: "a" }, { iid: "b" }, {}];
+    expect([...upgradeTargets(slots, 0)].sort()).toEqual([0, 1]);
+    expect([...upgradeTargets(slots, 1)]).toEqual([1]);
+    expect([...upgradeTargets(slots, 2)]).toEqual([2]);
+    expect([...upgradeTargets([{}, { iid: "a" }], 0)]).toEqual([0]); // 메인 맨손 = 전파 없음
   });
 });
 

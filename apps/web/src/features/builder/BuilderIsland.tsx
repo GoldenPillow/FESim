@@ -5,11 +5,13 @@ import {
   builderRow,
   builderRowGroups,
   canEquip,
+  carriedEquip,
   combatOf,
   COMBAT_KEYS,
   lockedDisplayRows,
   moveLock,
   nextSort,
+  upgradeTargets,
   waitingRowGroups,
   weaponAt,
   type BuilderCompare,
@@ -195,6 +197,51 @@ const SpecPanel = ({
   </span>
 );
 
+/** 각인 원래 스펙 패널(세로) — 각인 옵션 호버 오버레이. 결합 실효치가 아니라 각인 자체 보정치를
+    규격 6필드 전부(0·음수 포함) 표기한다(2026-09-01 사용자 지시). 색은 델타 규약(무게는 반전). */
+const EngraveSpecPanel = ({
+  engrave,
+  labels,
+}: {
+  engrave: BuilderEngraveProp;
+  labels: BuilderLabels;
+}): React.JSX.Element => {
+  const rows: [string, number, boolean][] = [
+    [labels.might, engrave.power, false],
+    [labels.combat.hit, engrave.hit, false],
+    [labels.combat.crit, engrave.crit, false],
+    [labels.weight, engrave.weight, true],
+    [labels.combat.avoid, engrave.avoid, false],
+    [labels.combat.ddg, engrave.dodge, false],
+  ];
+  return (
+    <span className="flex w-max flex-col gap-[3px] text-[14px] leading-tight text-muted">
+      <span className="flex items-center gap-1.5 pb-1">
+        {engrave.icon !== undefined && (
+          <img src={engrave.icon} alt="" className="h-5 w-5 object-contain" loading="lazy" />
+        )}
+        <span className="max-w-[9rem] truncate font-semibold text-ink">{engrave.name}</span>
+      </span>
+      {rows.map(([name, v, invert]) => (
+        <span key={name} className="flex items-center justify-between gap-4">
+          {name}
+          <span
+            className={`font-semibold ${v === 0 ? "text-ink" : (v > 0) !== invert ? "text-pgrow" : "text-danger"}`}
+          >
+            {v > 0 ? `+${v}` : v}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+};
+
+/** 세로폰 판별 — builder.css의 세로 블록(max-width:767) − 가로폰 PC 복원 블록(max-height:520)과 동일 경계.
+    ☠가로 모드는 PC와 같은 동작(2026-09-01 사용자 지시) — 폭 게이트만 보면 좁은 가로폰(≤767px)이
+    세로폰 취급돼 CSS(PC 레이아웃·폴딩 숨김)와 어긋난다(탭이 숨은 폴딩을 열어 무반응 — 실사고). */
+const isPortraitPhone = (): boolean =>
+  window.matchMedia("(max-width: 767px)").matches && !window.matchMedia("(max-height: 520px)").matches;
+
 /** 드롭다운 표지 화살표 — 카드·상단 슬롯 공용, "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
 const CARET = (
   <span aria-hidden="true" className="text-[12px] leading-none text-muted">
@@ -210,6 +257,8 @@ interface EquipOption {
   disabled?: boolean;
   engage?: boolean;
   spec?: { weapon: BuilderWeaponProp; plus: number; engrave?: BuilderEngraveProp | undefined };
+  /** 각인 옵션 전용 — 있으면 호버 오버레이가 결합 스펙 대신 각인 원래 스펙을 그린다(2026-09-01). */
+  engraveSpec?: BuilderEngraveProp;
 }
 
 /** 무기 후보 목록 — 각인은 현 슬롯 값 유지, 강화는 무기 소유라 0부터(선택 시 리셋과 동형). */
@@ -254,7 +303,7 @@ const engraveOptionsOf = (
     value: g.gid,
     label: g.name,
     ...(g.icon !== undefined ? { icon: g.icon } : {}),
-    spec: { weapon, plus, engrave: g },
+    engraveSpec: g,
   })),
 ];
 
@@ -328,9 +377,18 @@ function EquipDropdown({
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const listRef = useRef<HTMLSpanElement | null>(null);
-  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 2026-09-01 사용자 지시.
+  const listBoxRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후: (1) 현재 장착 옵션을 목록 중앙 인근에 즉시 배치(2026-09-01 사용자 지시 — 긴 무기
+  // 목록에서 현재값 주변을 바로 보게) (2) 화면 잘림 보정 자동 스크롤(부드럽게, 2026-09-01).
   useEffect(() => {
-    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+    if (!open) return;
+    const box = listBoxRef.current;
+    const sel = box?.querySelector('[aria-selected="true"]');
+    if (box != null && sel instanceof HTMLElement) {
+      const top = sel.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      box.scrollTop = top - box.clientHeight / 2 + sel.offsetHeight / 2;
+    }
+    if (listRef.current !== null) scrollDropdownIntoView(listRef.current);
   }, [open]);
   const setOpen = (next: boolean): void => {
     setOpenRaw(next);
@@ -351,7 +409,9 @@ function EquipDropdown({
     // onOpenChange는 렌더마다 새 함수라 의존성에 넣지 않는다(열림 동안 재구독 방지 — open만 본다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  const spec = options.find((o) => o.value === hover)?.spec;
+  const hovered = options.find((o) => o.value === hover);
+  const spec = hovered?.spec;
+  const engraveSpec = hovered?.engraveSpec;
   return (
     <span
       ref={rootRef}
@@ -381,7 +441,7 @@ function EquipDropdown({
       </button>
       {open && (
         <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
-          <span className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+          <span ref={listBoxRef} className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
             {options.map((o) => (
               // ☠disabled 속성 금지 — 비활성 버튼은 마우스 이벤트가 죽어 호버 스펙이 안 선다(aria만).
               <button
@@ -406,10 +466,14 @@ function EquipDropdown({
               </button>
             ))}
           </span>
-          {/* 옵션 호버 스펙 — 목록 우측 오버레이(2026-08-31 사용자 지시). */}
-          {spec !== undefined && (
+          {/* 옵션 호버 스펙 — 목록 우측 오버레이(2026-08-31 사용자 지시). 각인 옵션은 원래 스펙(2026-09-01). */}
+          {(spec !== undefined || engraveSpec !== undefined) && (
             <span className="ml-1 rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
-              <SpecPanel weapon={spec.weapon} plus={spec.plus} engrave={spec.engrave} labels={labels} />
+              {engraveSpec !== undefined ? (
+                <EngraveSpecPanel engrave={engraveSpec} labels={labels} />
+              ) : (
+                <SpecPanel weapon={spec!.weapon} plus={spec!.plus} engrave={spec!.engrave} labels={labels} />
+              )}
             </span>
           )}
         </span>
@@ -419,8 +483,10 @@ function EquipDropdown({
 }
 
 /**
- * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록 + 항목 호버 = 우측 상세(스킬 = 정본 설명문,
- * 무기 = 스펙 패널). bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
+ * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록, 항목마다 설명을 처음부터 인라인 표시
+ * (2026-09-01 사용자 지시: 오버레이라 폭이 길어도 괜찮다 — 호버 단계 제거, 무기 = 스펙 한 줄).
+ * 무 스크롤 전체표시(같은 지시) — 잘림 보정은 여는 쪽 자동 스크롤이 담당한다.
+ * bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
  * 인연 드롭다운 오버레이(데스크톱)와 폴딩 팝업(세로폰)이 공유한다.
  */
 function EmblemDetail({
@@ -432,69 +498,49 @@ function EmblemDetail({
   bond: number;
   labels: BuilderLabels;
 }): React.JSX.Element {
-  const [hover, setHover] = useState<{ name: string; help?: string; weapon?: BuilderWeaponProp } | null>(null);
-  const chip = (
+  const item = (
     key: string,
     name: string,
     cls: string,
-    detail: { name: string; help?: string; weapon?: BuilderWeaponProp },
+    info: { help?: string; weapon?: BuilderWeaponProp },
     icon?: string,
   ): React.JSX.Element => (
-    <span
-      key={key}
-      className={`flex cursor-default items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
-      onMouseEnter={() => setHover(detail)}
-      onMouseLeave={() => setHover((h) => (h?.name === detail.name ? null : h))}
-    >
-      {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
-      {name}
+    <span key={key} className="flex items-start gap-2">
+      <span
+        className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
+      >
+        {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
+        {name}
+      </span>
+      {info.weapon !== undefined ? (
+        <SpecLine weapon={info.weapon} plus={0} labels={labels} />
+      ) : (
+        info.help !== undefined && (
+          <span className="max-w-[30rem] whitespace-pre-line pt-[2px] text-[13px] leading-snug text-muted">
+            {info.help}
+          </span>
+        )
+      )}
     </span>
   );
   return (
-    <span className="flex items-start">
-      <span className="flex max-h-96 w-max flex-col overflow-y-auto rounded border border-rule bg-panel px-2.5 py-2 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
-        <span className="pb-1 text-[14px] font-semibold text-ink">
-          {emblem.name} — {labels.bond} {bond}
-        </span>
-        {emblem.levels.map((lv) => (
-          <span
-            key={lv.bond}
-            className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
-          >
-            <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
-            <span className="flex max-w-[24rem] flex-wrap gap-1">
-              {lv.synchro?.map((s) =>
-                chip(`s-${s.sid}`, s.name, "text-ink", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
-              )}
-              {lv.engage?.map((s) =>
-                chip(`e-${s.sid}`, s.name, "text-engage", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
-              )}
-              {lv.weapons?.map((w) =>
-                chip(
-                  `w-${w.iid}`,
-                  w.name,
-                  "text-engage",
-                  { name: w.name, ...(w.help !== undefined ? { help: w.help } : {}), ...(w.weapon !== undefined ? { weapon: w.weapon } : {}) },
-                  w.icon,
-                ),
-              )}
-            </span>
-          </span>
-        ))}
+    <span className="flex w-max flex-col rounded border border-rule bg-panel px-2.5 py-2 shadow-lg">
+      <span className="pb-1 text-[14px] font-semibold text-ink">
+        {emblem.name} — {labels.bond} {bond}
       </span>
-      {/* 항목 호버 상세 — 목록 우측 오버레이(무기 = 스펙 패널, 스킬 = 정본 설명문). */}
-      {hover !== null && (
-        <span className="ml-1 max-w-[18rem] rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
-          {hover.weapon !== undefined ? (
-            <SpecPanel weapon={hover.weapon} plus={0} labels={labels} />
-          ) : (
-            <span className="flex flex-col gap-1 text-[13px] leading-snug text-muted">
-              <span className="font-semibold text-ink">{hover.name}</span>
-              {hover.help !== undefined && <span className="whitespace-pre-line">{hover.help}</span>}
-            </span>
-          )}
+      {emblem.levels.map((lv) => (
+        <span
+          key={lv.bond}
+          className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
+        >
+          <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
+          <span className="flex flex-col gap-1">
+            {lv.synchro?.map((s) => item(`s-${s.sid}`, s.name, "text-ink", s))}
+            {lv.engage?.map((s) => item(`e-${s.sid}`, s.name, "text-engage", s))}
+            {lv.weapons?.map((w) => item(`w-${w.iid}`, w.name, "text-engage", w, w.icon))}
+          </span>
         </span>
-      )}
+      ))}
     </span>
   );
 }
@@ -521,10 +567,14 @@ function EmblemPanel({
     // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // 무 스크롤 전체표시라 상세가 길다 — 열림 직후 아래 끝까지 보이게 자동 스크롤(2026-09-01 사용자 지시).
+  useEffect(() => {
+    if (rootRef.current !== null) scrollDropdownIntoView(rootRef.current);
+  }, []);
   return (
     <span
       ref={rootRef}
-      className="absolute left-0 top-full z-50 mt-1"
+      className="absolute left-0 top-full z-50 mt-1 w-max"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -604,7 +654,9 @@ function BondDropdown({
         {CARET}
       </button>
       {open && (
-        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start">
+        // ☠w-max 필수 — absolute 폭이 shrink-to-fit이라 가용폭(86px 트리거의 containing block)에 눌려
+        //   리플로우 순간 min-content로 붕괴한다(옵션 "Lv 1"이 두 줄로 꺾임 — 2026-09-01 실사고).
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex w-max items-start">
           <span
             role="listbox"
             aria-label={labels.bond}
@@ -622,7 +674,7 @@ function BondDropdown({
                   type="button"
                   role="option"
                   aria-selected={n === bond}
-                  className={`cursor-pointer px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
+                  className={`cursor-pointer whitespace-nowrap px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
                   onMouseEnter={() => {
                     setHover(n);
                     onPreview(n);
@@ -1649,31 +1701,58 @@ export default function BuilderIsland({
 
   const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
-  /** 직업 변경 = 무기·각인 초기화(장착 게이트가 직업 소유) — 내부 레벨만 승계한다.
-      그 슬롯 라인의 카드 개인 장비도 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
+  /** 직업 변경(2026-09-01 사용자 지시) — 같은 장비를 새 직업이 들 수 있으면 디폴트로 장착, 못 들면
+      미장착. 비교 슬롯의 첫 선택(장비 없음)은 1번(메인) 슬롯 장비를 씨드로 쓴다. 내부 레벨은 승계.
+      그 슬롯 라인의 카드 개인 장비는 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
   const setSlotJob = (i: number, jid: string): void => {
     setSlots((s) =>
-      s.map((v, idx) => (idx === i ? { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}) } : v)),
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        const job = targetJobs.find((t) => t.jid === jid);
+        const equip = carriedEquip(job, v.iid !== undefined ? v : s[0]!, weapons) ?? {};
+        return { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}), ...equip };
+      }),
     );
     setOverrides((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.endsWith(`:${i}`))));
   };
+  /** 아이템 선택 — 비교 슬롯이 메인(1번)과 같은 무기를 고르면 강화·각인도 메인을 승계
+      (동일 무기 = 업그레이드 동기, 2026-09-01 사용자 지시). 그 외 무기 변경 = 강화 리셋·각인 유지. */
   const setSlotItem = (i: number, iid: string): void =>
     setSlots((s) =>
       s.map((v, idx) => {
         if (idx !== i) return v;
         const { iid: _iid, plus: _plus, ...rest } = v;
-        return iid === "" ? rest : { ...rest, iid };
+        if (iid === "") return rest;
+        const main = s[0]!;
+        if (i > 0 && iid === main.iid) {
+          const { engrave: _engrave, ...bare } = rest;
+          return {
+            ...bare,
+            iid,
+            ...(main.plus !== undefined ? { plus: main.plus } : {}),
+            ...(main.engrave !== undefined ? { engrave: main.engrave } : {}),
+          };
+        }
+        return { ...rest, iid };
       }),
     );
-  /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립. */
+  /** 강화 변경 — 메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
+  const setSlotPlus = (i: number, plus: number): void =>
+    setSlots((s) => {
+      const t = upgradeTargets(s, i);
+      return s.map((v, idx) => (t.has(idx) ? { ...v, plus } : v));
+    });
+  /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립.
+      메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
   const setSlotEngrave = (i: number, gid: string): void =>
-    setSlots((s) =>
-      s.map((v, idx) => {
-        if (idx !== i) return v;
+    setSlots((s) => {
+      const t = upgradeTargets(s, i);
+      return s.map((v, idx) => {
+        if (!t.has(idx)) return v;
         const { engrave: _engrave, ...rest } = v;
         return gid === "" ? rest : { ...rest, engrave: gid };
-      }),
-    );
+      });
+    });
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
@@ -1747,7 +1826,7 @@ export default function BuilderIsland({
             value={String(plus)}
             options={plusOptionsOf(weapon, engrave, labels)}
             disabled={weapon.refine === undefined}
-            onChange={(v) => patchSlot(i, { plus: Number(v) })}
+            onChange={(v) => setSlotPlus(i, Number(v))}
             labels={labels}
             triggerClass={`${dropTriggerClass} text-ink${weapon.refine === undefined ? " opacity-50" : ""}`}
             trigger={
@@ -1774,8 +1853,9 @@ export default function BuilderIsland({
             }
           />
         )}
+        {/* pb는 1행 전용 — items-end(레전드 행)에서 박스 중앙 보정. 2행은 items-center라 넣으면 뜬다. */}
         {weapon !== undefined && (
-          <span className="flex items-center pb-[6px]">
+          <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
             <SpecLine weapon={weapon} plus={plus} engrave={engrave} labels={labels} />
           </span>
         )}
@@ -1786,8 +1866,9 @@ export default function BuilderIsland({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 윗줄 = 미선택 안내(좌, 고정 높이) + 체커·Reset(우) — 아이템 선택기가 아랫줄 우측 공간을
-          쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다. */}
-      <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1">
+          쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다.
+          ☠-mt-4는 설명문(<p>)의 mb-5를 파먹는 값 — 가로폰은 설명문이 숨어 타이틀을 덮으므로 mt-0(2026-09-01 실기). */}
+      <div className="-mt-4 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-5 gap-y-1 [@media(max-height:520px)]:mt-0">
         <p className="h-5 text-[14px] leading-5 text-muted [@media(max-height:520px)]:hidden">
           {compares.length === 0 ? labels.joinedNote : ""}
         </p>
@@ -1859,8 +1940,10 @@ export default function BuilderIsland({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className={legendClass}>{labels.internal}</span>
-          <select className={selectClass} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
+          {/* short 라벨 + self-start — 레전드가 셀렉트보다 넓으면(flex-col 폭 기여) 2행(레전드 없음)과
+              컬럼이 어긋난다. internalShort는 전 로케일에서 셀렉트보다 좁다(2026-09-01 세로 정렬 수정). */}
+          <span className={legendClass}>{labels.internalShort}</span>
+          <select className={`${selectClass} self-start`} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
             {INTERNAL_LEVELS.map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -1883,8 +1966,9 @@ export default function BuilderIsland({
 
       {slots.length > 1 && (
         <div className="-mt-2 mb-4 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+          {/* gap-x-5 = 1행(메인 컨트롤)과 동일 간격 — 컬럼이 세로로 맞아떨어진다(2026-09-01 정렬 수정). */}
           {slots.slice(1).map((slot, i) => (
-            <span key={i} className="flex flex-wrap items-center gap-1.5">
+            <span key={i} className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {jobSelect(i + 1)}
               {/* 슬롯 내부 레벨 — 값 미지정이면 1번(메인) 추종, 고르면 그 슬롯만 고정(2026-08-31). */}
               <select
@@ -2005,7 +2089,7 @@ export default function BuilderIsland({
                     // 잠금 해제 탭은 스탯 영역이 맡는다(전파 차단으로 오발 방지).
                     onClick={(e) => {
                       const native = e.nativeEvent as PointerEvent;
-                      if (native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                      if (native.pointerType === "touch" && isPortraitPhone()) {
                         e.stopPropagation();
                         setFoldPid((p) => (p === row.pid ? null : row.pid));
                       }
@@ -2163,7 +2247,7 @@ export default function BuilderIsland({
                     // 세로폰: 포트레이트 탭 = 반지 슬롯 우측 폴딩 토글(유령 카드는 무반응, 2026-08-31).
                     onClick={(e) => {
                       const native = e.nativeEvent as PointerEvent;
-                      if (!ghost && native.pointerType === "touch" && window.matchMedia("(max-width: 767px)").matches) {
+                      if (!ghost && native.pointerType === "touch" && isPortraitPhone()) {
                         e.stopPropagation();
                         setFoldPid((p) => (p === first.pid ? null : first.pid));
                       }
