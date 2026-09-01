@@ -377,9 +377,18 @@ function EquipDropdown({
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const listRef = useRef<HTMLSpanElement | null>(null);
-  // 열림 직후 잘림 보정 자동 스크롤(부드럽게) — 2026-09-01 사용자 지시.
+  const listBoxRef = useRef<HTMLSpanElement | null>(null);
+  // 열림 직후: (1) 현재 장착 옵션을 목록 중앙 인근에 즉시 배치(2026-09-01 사용자 지시 — 긴 무기
+  // 목록에서 현재값 주변을 바로 보게) (2) 화면 잘림 보정 자동 스크롤(부드럽게, 2026-09-01).
   useEffect(() => {
-    if (open && listRef.current !== null) scrollDropdownIntoView(listRef.current);
+    if (!open) return;
+    const box = listBoxRef.current;
+    const sel = box?.querySelector('[aria-selected="true"]');
+    if (box != null && sel instanceof HTMLElement) {
+      const top = sel.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      box.scrollTop = top - box.clientHeight / 2 + sel.offsetHeight / 2;
+    }
+    if (listRef.current !== null) scrollDropdownIntoView(listRef.current);
   }, [open]);
   const setOpen = (next: boolean): void => {
     setOpenRaw(next);
@@ -432,7 +441,7 @@ function EquipDropdown({
       </button>
       {open && (
         <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
-          <span className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+          <span ref={listBoxRef} className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
             {options.map((o) => (
               // ☠disabled 속성 금지 — 비활성 버튼은 마우스 이벤트가 죽어 호버 스펙이 안 선다(aria만).
               <button
