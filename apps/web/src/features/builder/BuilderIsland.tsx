@@ -468,8 +468,10 @@ function EquipDropdown({
 }
 
 /**
- * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록 + 항목 호버 = 우측 상세(스킬 = 정본 설명문,
- * 무기 = 스펙 패널). bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
+ * 문장사 레벨 상세(내용부) — 絆 레벨별 획득 목록, 항목마다 설명을 처음부터 인라인 표시
+ * (2026-09-01 사용자 지시: 오버레이라 폭이 길어도 괜찮다 — 호버 단계 제거, 무기 = 스펙 한 줄).
+ * 무 스크롤 전체표시(같은 지시) — 잘림 보정은 여는 쪽 자동 스크롤이 담당한다.
+ * bond 초과 레벨은 비활성 비주얼(흐림+무채색) = "아직 못 쓴다" 암시.
  * 인연 드롭다운 오버레이(데스크톱)와 폴딩 팝업(세로폰)이 공유한다.
  */
 function EmblemDetail({
@@ -481,69 +483,49 @@ function EmblemDetail({
   bond: number;
   labels: BuilderLabels;
 }): React.JSX.Element {
-  const [hover, setHover] = useState<{ name: string; help?: string; weapon?: BuilderWeaponProp } | null>(null);
-  const chip = (
+  const item = (
     key: string,
     name: string,
     cls: string,
-    detail: { name: string; help?: string; weapon?: BuilderWeaponProp },
+    info: { help?: string; weapon?: BuilderWeaponProp },
     icon?: string,
   ): React.JSX.Element => (
-    <span
-      key={key}
-      className={`flex cursor-default items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
-      onMouseEnter={() => setHover(detail)}
-      onMouseLeave={() => setHover((h) => (h?.name === detail.name ? null : h))}
-    >
-      {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
-      {name}
+    <span key={key} className="flex items-start gap-2">
+      <span
+        className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 py-[1px] text-[13px] font-semibold leading-tight ${cls}`}
+      >
+        {icon !== undefined && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" loading="lazy" />}
+        {name}
+      </span>
+      {info.weapon !== undefined ? (
+        <SpecLine weapon={info.weapon} plus={0} labels={labels} />
+      ) : (
+        info.help !== undefined && (
+          <span className="max-w-[30rem] whitespace-pre-line pt-[2px] text-[13px] leading-snug text-muted">
+            {info.help}
+          </span>
+        )
+      )}
     </span>
   );
   return (
-    <span className="flex items-start">
-      <span className="flex max-h-96 w-max flex-col overflow-y-auto rounded border border-rule bg-panel px-2.5 py-2 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
-        <span className="pb-1 text-[14px] font-semibold text-ink">
-          {emblem.name} — {labels.bond} {bond}
-        </span>
-        {emblem.levels.map((lv) => (
-          <span
-            key={lv.bond}
-            className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
-          >
-            <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
-            <span className="flex max-w-[24rem] flex-wrap gap-1">
-              {lv.synchro?.map((s) =>
-                chip(`s-${s.sid}`, s.name, "text-ink", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
-              )}
-              {lv.engage?.map((s) =>
-                chip(`e-${s.sid}`, s.name, "text-engage", { name: s.name, ...(s.help !== undefined ? { help: s.help } : {}) }),
-              )}
-              {lv.weapons?.map((w) =>
-                chip(
-                  `w-${w.iid}`,
-                  w.name,
-                  "text-engage",
-                  { name: w.name, ...(w.help !== undefined ? { help: w.help } : {}), ...(w.weapon !== undefined ? { weapon: w.weapon } : {}) },
-                  w.icon,
-                ),
-              )}
-            </span>
-          </span>
-        ))}
+    <span className="flex w-max flex-col rounded border border-rule bg-panel px-2.5 py-2 shadow-lg">
+      <span className="pb-1 text-[14px] font-semibold text-ink">
+        {emblem.name} — {labels.bond} {bond}
       </span>
-      {/* 항목 호버 상세 — 목록 우측 오버레이(무기 = 스펙 패널, 스킬 = 정본 설명문). */}
-      {hover !== null && (
-        <span className="ml-1 max-w-[18rem] rounded border border-rule bg-panel px-2.5 py-1.5 shadow-lg">
-          {hover.weapon !== undefined ? (
-            <SpecPanel weapon={hover.weapon} plus={0} labels={labels} />
-          ) : (
-            <span className="flex flex-col gap-1 text-[13px] leading-snug text-muted">
-              <span className="font-semibold text-ink">{hover.name}</span>
-              {hover.help !== undefined && <span className="whitespace-pre-line">{hover.help}</span>}
-            </span>
-          )}
+      {emblem.levels.map((lv) => (
+        <span
+          key={lv.bond}
+          className={`flex items-start gap-1.5 py-[3px] ${lv.bond > bond ? "opacity-35 grayscale" : ""}`}
+        >
+          <span className="w-10 shrink-0 pt-[2px] text-right text-[13px] font-semibold text-gold">Lv{lv.bond}</span>
+          <span className="flex flex-col gap-1">
+            {lv.synchro?.map((s) => item(`s-${s.sid}`, s.name, "text-ink", s))}
+            {lv.engage?.map((s) => item(`e-${s.sid}`, s.name, "text-engage", s))}
+            {lv.weapons?.map((w) => item(`w-${w.iid}`, w.name, "text-engage", w, w.icon))}
+          </span>
         </span>
-      )}
+      ))}
     </span>
   );
 }
@@ -570,10 +552,14 @@ function EmblemPanel({
     // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EquipDropdown과 같은 이유).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // 무 스크롤 전체표시라 상세가 길다 — 열림 직후 아래 끝까지 보이게 자동 스크롤(2026-09-01 사용자 지시).
+  useEffect(() => {
+    if (rootRef.current !== null) scrollDropdownIntoView(rootRef.current);
+  }, []);
   return (
     <span
       ref={rootRef}
-      className="absolute left-0 top-full z-50 mt-1"
+      className="absolute left-0 top-full z-50 mt-1 w-max"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -653,7 +639,9 @@ function BondDropdown({
         {CARET}
       </button>
       {open && (
-        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start">
+        // ☠w-max 필수 — absolute 폭이 shrink-to-fit이라 가용폭(86px 트리거의 containing block)에 눌려
+        //   리플로우 순간 min-content로 붕괴한다(옵션 "Lv 1"이 두 줄로 꺾임 — 2026-09-01 실사고).
+        <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex w-max items-start">
           <span
             role="listbox"
             aria-label={labels.bond}
@@ -671,7 +659,7 @@ function BondDropdown({
                   type="button"
                   role="option"
                   aria-selected={n === bond}
-                  className={`cursor-pointer px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
+                  className={`cursor-pointer whitespace-nowrap px-3 py-1 text-left text-[14px] font-semibold leading-tight hover:bg-sunken ${n === bond ? "bg-sunken text-pgrow" : "text-ink"}`}
                   onMouseEnter={() => {
                     setHover(n);
                     onPreview(n);
