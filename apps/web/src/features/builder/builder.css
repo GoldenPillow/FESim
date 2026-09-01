@@ -75,12 +75,12 @@
 /* 잠금 블록 — 스탯 행 + 전투력 행을 모두 감싸는 이중 테두리(1px 본선 + 2px 바깥 연하게).
    tbody의 positioned ::after 오버레이(TablesNG) = separate 모델에서 셀 조각 없이 블록을 한 번에 두른다.
    inset 3px = 본선 1px + 바깥 링 2px 마감까지 블록 안에 딱 맞아 상하 카드를 침범하지 않는다(2026-08-31). */
+/* ☠transform 폴백 금지(2026-09-01 실기 2차) — iOS Safari에서 컨테이닝 블록은 서지 않으면서
+   스택 컨텍스트만 생겨 잠금 카드 안 드롭다운(z-50)이 다음 카드 sticky th(z-10)에 갇혀 가려졌다.
+   PC(Chromium)는 position:relative가 정상 작동하므로 ::after 방식 유지, 모바일은 아래
+   폰 미디어 블록이 ::after를 끄고 셀 조각 box-shadow 테두리로 대체한다. */
 .builder-table tbody.entry-locked-block {
   position: relative;
-  /* ☠WebKit(iOS Safari)은 tbody의 position:relative를 무시한다(computed가 static으로 떨어진다) —
-     ::after의 컨테이닝 블록이 뷰포트(ICB)가 돼 파란 테두리가 페이지 전체를 덮었다(2026-09-01 실기 스크린샷).
-     transform은 표준 폴백 컨테이닝 블록(css-transforms — row group도 transformable) — WebKit 실측 확인. */
-  transform: translate(0, 0);
 }
 .builder-table tbody.entry-locked-block::after {
   content: "";
@@ -307,6 +307,44 @@
   }
   .builder-table tbody.entry-fold-open .entry-ring {
     display: none;
+  }
+}
+
+/* ── 폰(세로·가로) 잠금 테두리 = 셀 조각 box-shadow (2026-09-01 실기) ──
+   ☠WebKit(iOS Safari)은 tbody position:relative를 무시해(computed = static) ::after의 컨테이닝
+   블록이 뷰포트가 된다 — 파란 박스가 페이지 전체·엉뚱한 곳에 그려졌다. 셀 box-shadow는 포지셔닝
+   무관이라 전 엔진 안전. th가 블록 전 높이(rowSpan)라 좌변+상하 모서리를 혼자 감당한다.
+   우변 = .stat-col-last(마지막 가시 열) · 세로폰 전투력 행은 combat-flow td가 우변. */
+@media (max-width: 767px), (max-height: 520px) {
+  .builder-table tbody.entry-locked-block::after {
+    content: none;
+  }
+  .builder-table tbody.entry-locked-block > tr:first-child > * {
+    box-shadow: inset 0 2px 0 var(--engage);
+  }
+  .builder-table tbody.entry-locked-block > tr:last-child > td {
+    box-shadow: inset 0 -2px 0 var(--engage);
+  }
+  .builder-table tbody.entry-locked-block .stat-col-last {
+    box-shadow: inset -2px 0 0 var(--engage);
+  }
+  /* th는 항상 첫 tr에 산다(rowSpan) — tr:first-child>* 상변 규칙보다 특이성이 높아야 좌·하가 안 밀린다. */
+  .builder-table tbody.entry-locked-block > tr:first-child > th {
+    box-shadow:
+      inset 2px 0 0 var(--engage),
+      inset 0 2px 0 var(--engage),
+      inset 0 -2px 0 var(--engage);
+  }
+  .builder-table tbody.entry-locked-block > tr:first-child > .stat-col-last {
+    box-shadow:
+      inset 0 2px 0 var(--engage),
+      inset -2px 0 0 var(--engage);
+  }
+  .builder-table tbody.entry-locked-block > tr:last-child > .stat-col-last,
+  .builder-table tbody.entry-locked-block > tr:last-child > td.combat-flow {
+    box-shadow:
+      inset 0 -2px 0 var(--engage),
+      inset -2px 0 0 var(--engage);
   }
 }
 
