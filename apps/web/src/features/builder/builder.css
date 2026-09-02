@@ -5,8 +5,8 @@
    잠금 테두리(entry-locked-block)는 그대로. */
 .entry-th {
   background: linear-gradient(90deg, var(--sunken), color-mix(in srgb, var(--sunken) 40%, var(--panel)));
-  /* 카드(entry-wrap)가 절대배치라 열 폭을 못 밀어 준다 — 폭 = 포트 6.6rem + 간격 0.55rem + 이름 6em + 카드 패딩 16 + th 패딩 16. */
-  min-width: calc(6.6rem + 0.55rem + 6em + 32px);
+  /* 카드(entry-wrap)가 절대배치라 열 폭을 못 밀어 준다 — 폭 = 포트 6.6rem + 간격 0.55rem + 이름 6em + 카드 패딩 16 + th 패딩 12. */
+  min-width: calc(6.6rem + 0.55rem + 6em + 28px);
 }
 .builder-table td.skill-col {
   background: linear-gradient(90deg, color-mix(in srgb, var(--sunken) 40%, var(--panel)), var(--panel));
@@ -16,11 +16,11 @@
    테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
 .entry-wrap {
   position: absolute;
-  top: 3px;
-  right: 8px;
-  /* 48 → 42: 클래스 행 bottom 10 + h-7 28 + 간격 4. */
-  bottom: 42px;
-  left: 8px;
+  /* 격자(2026-09-02): 프레임 상단 여백 10 = 스킬 열 첫 칩과 동일 · 좌우 6 = th 패딩 · 하단 56 = 클래스 행 bottom 22 + h-7 28 + 간격 6. */
+  top: 10px;
+  right: 6px;
+  bottom: 56px;
+  left: 6px;
   filter: drop-shadow(0 0 1px var(--rule));
 }
 .entry-card {

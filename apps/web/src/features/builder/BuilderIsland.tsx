@@ -376,6 +376,7 @@ function EquipDropdown({
   labels,
   trigger,
   triggerClass,
+  tall = false,
   rootClass,
 }: {
   ariaLabel: string;
@@ -388,6 +389,8 @@ function EquipDropdown({
   labels: BuilderLabels;
   trigger: React.ReactNode;
   triggerClass: string;
+  /** 긴 목록(계승 스킬 185행) — 목록 높이 1.5배(2026-09-02 사용자 지시: 고르기 쉽게). */
+  tall?: boolean;
   /** 루트(포지셔닝 스팬) 추가 클래스 — flex 컨테이너 안에서 늘어나야 할 때(flex-1) 쓴다. */
   rootClass?: string;
 }): React.JSX.Element {
@@ -460,7 +463,7 @@ function EquipDropdown({
       </button>
       {open && (
         <span ref={listRef} className="absolute left-0 top-full z-50 mt-1 flex items-start" role="listbox" aria-label={ariaLabel}>
-          <span ref={listBoxRef} className="flex max-h-72 w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]">
+          <span ref={listBoxRef} className={`flex ${tall ? "max-h-[27rem]" : "max-h-72"} w-max flex-col overflow-y-auto rounded border border-rule bg-panel py-1 shadow-lg [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin]`}>
             {options.map((o) =>
               o.header === true ? (
                 // 그룹 헤더(문장사) — 선택 불가 라벨(2026-09-02 계승 스킬 목록).
@@ -892,7 +895,7 @@ function CombatCells({
   return (
     <>
       {lead}
-      <td className="inlv-col px-1 pb-[10px] pt-[2px] text-center align-bottom">
+      <td className="inlv-col px-[3px] pb-[10px] pt-[3px] text-center align-top">
         {/* 개인 장비는 좌정렬(2026-08-31 사용자 지시). */}
         {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
       </td>
@@ -901,7 +904,7 @@ function CombatCells({
         // BLD = 실효 무기 무게(2026-08-31 배치 지시).
         if (key === "hp") {
           return (
-            <td key={key} className="combat-grid stat-col min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-bottom md:min-w-[5.5rem] md:px-2">
+            <td key={key} className="combat-grid stat-col min-w-[3.7rem] pl-[3px] pr-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:pr-2">
               {weapon !== undefined && (
                 <span className="relative flex items-center justify-start gap-1.5">
                   {plusChip()}
@@ -919,7 +922,7 @@ function CombatCells({
         if (key === "bld") {
           const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
           return (
-            <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2">
+            <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2">
               {eff !== undefined && (
                 <>
                   <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
@@ -939,7 +942,7 @@ function CombatCells({
         return (
           <td
             key={key}
-            className="combat-grid stat-col relative min-w-[3.7rem] px-1 pb-[10px] pt-[2px] text-center align-top md:min-w-[5.5rem] md:px-2"
+            className="combat-grid stat-col relative min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2"
           >
             {ck !== undefined && (
               <>
@@ -1684,9 +1687,10 @@ export default function BuilderIsland({
     onPatch: (patch: { jid?: string; internal?: number }) => void,
   ): React.JSX.Element => (
     <span
-      // bottom 10px = 전투력 행 무기 슬롯(pb-10 + 아래 정렬)과 하단 일치(2026-09-02: 블록 상·하 여백 10px 대칭).
+      // bottom 22px = 전투력 행(pt 3 + 라벨 2줄 40 + pb 10 = 53) 상단 정렬 무기 슬롯과 일치(2026-09-02: 칩 간격 6 통일,
+      // 전투력 라벨은 아래로 여유 — 사용자: "답답해 보인다"). 슬롯 아래 빈 22px는 라벨 줄의 자리다.
       // 카드(entry-wrap)는 그 위 공간을 절대배치로 채운다(builder.css) — 포트레이트 여유.
-      className="entry-classrow absolute inset-x-2 bottom-[10px] flex items-center gap-1"
+      className="entry-classrow absolute inset-x-[6px] bottom-[22px] flex items-center gap-[6px]"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -1789,7 +1793,7 @@ export default function BuilderIsland({
       장비 열 셀과 동일. 세로폰은 열째 숨김(builder.css .skill-col — 헤더·본문 함께). */
   const skillCell = (pid: string, slot: 0 | 1 | 2, extra = ""): React.JSX.Element => (
     // 스탯 행 상단 10px = 전투력 행 하단 10px과 대칭(2026-09-02 사용자 지시) — 같은 행의 스탯 셀도 같은 패딩.
-    <td className={`skill-col px-1 ${slot === 0 ? "pb-1 pt-[10px] align-middle" : slot === 1 ? "pb-[2px] pt-[2px] align-middle" : "pb-[10px] pt-[2px] align-bottom"} ${extra}`}>
+    <td className={`skill-col pl-0 pr-[3px] ${slot === 0 ? "pb-[3px] pt-[10px] align-middle" : slot === 1 ? "pb-[3px] pt-[3px] align-middle" : "pb-[10px] pt-[3px] align-top"} ${extra}`}>
       {slot === 0 ? personalSkillUi(pid) : inheritSlotUi(pid, slot === 1 ? 0 : 1)}
     </td>
   );
@@ -1810,6 +1814,7 @@ export default function BuilderIsland({
           options={inheritOptions(visibleEmblems, labels.skillNone, other === "" ? undefined : other)}
           onChange={(v) => patchInherit(pid, i, v)}
           labels={labels}
+          tall
           rootClass="entry-slotw"
           triggerClass={`flex h-7 w-full items-center justify-between gap-1 whitespace-nowrap rounded border bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold leading-tight ${chosen !== undefined ? "border-rule text-ink" : "border-dashed border-rule text-muted opacity-70"}`}
           trigger={
@@ -1872,7 +1877,7 @@ export default function BuilderIsland({
         {lead}
         {/* 반지 행은 상단 정렬(2026-09-02) — hover:none(고스트 전투력 행 없음)에서 카드 th가 행을 늘려도
             반지·인연 밴드가 카드 고유 스킬 칩과 같은 높이에 남는다(PC는 행 높이 = 셀 높이라 동일). */}
-        <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-top">
+        <td className="inlv-col px-[3px] pb-[3px] pt-[3px] text-left align-top">
           <span
             className="ring-cell flex justify-start"
             onClick={(e) => e.stopPropagation()}
@@ -1904,7 +1909,7 @@ export default function BuilderIsland({
         {STAT_KEYS.map((key) => {
           if (key === "hp") {
             return (
-              <td key={key} className="stat-col px-1 pb-[2px] pt-[2px] text-left align-top md:px-2">
+              <td key={key} className="stat-col pl-[3px] pr-1 pb-[3px] pt-[3px] text-left align-top md:pr-2">
                 {emblem !== undefined && (
                   <span
                     className="ring-cell flex justify-start"
@@ -2331,7 +2336,7 @@ export default function BuilderIsland({
               <th
                 scope="row"
                 rowSpan={3 + (showGrowth ? 1 : 0)}
-                className={`entry-th sticky left-0 px-2 py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+                className={`entry-th sticky left-0 px-[6px] py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
                   <span
@@ -2408,7 +2413,7 @@ export default function BuilderIsland({
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {!showGrowth && lockTh}
                   {skillCell(row.pid, 0, showGrowth ? "" : sep)}
-                  <td className={`inlv-col px-1 pb-1 pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{aptitudeUi(row.pid, job)}</td>
+                  <td className={`inlv-col px-[3px] pb-[3px] pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{aptitudeUi(row.pid, job)}</td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
                     const down = key === "spd" && spdPenalty(row, equipped);
@@ -2417,7 +2422,7 @@ export default function BuilderIsland({
                     return (
                       <td
                         key={key}
-                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 pb-1 pt-[10px] text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${showGrowth ? "" : sep}`}
+                        className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 pb-[3px] pt-[10px] text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${showGrowth ? "" : sep}`}
                       >
                         {cell.text}
                         {statPop(cell, key)}
@@ -2470,7 +2475,7 @@ export default function BuilderIsland({
             // 포트레이트 1장 + 스탯 라인 x직업 수). 세로·가로폰은 builder.css !important가 압축을 유지한다.
             const roomy = g.length > 1 ? "py-[15px]" : "py-1";
             // 단일 라인 첫 행 = 상단 10px(스킬 열 고유 칩·전투력 행 하단과 대칭, 2026-09-02).
-            const roomyTop = g.length > 1 ? roomy : "pb-1 pt-[10px]";
+            const roomyTop = g.length > 1 ? roomy : "pb-[3px] pt-[10px]";
             const hovered = hoverRow !== null && hoverRow.pid === first.pid;
             // 유령 카드(엔트리 잠금분의 비교용 사본)만 무반응 — 전용직 불가 행도 참전(잠금)은 제한 없음
             // (2026-08-31 사용자 지시 — 합류 상태 값으로 잠긴다).
@@ -2494,7 +2499,7 @@ export default function BuilderIsland({
                 // 카드 th = [고유성장?]+스탯0+반지+전투력0 행까지 — 하단(무기 슬롯 밴드)에 클래스 행이
                 // 절대배치로 앉아 무기·강화·각인과 하단 정렬된다(2026-09-01 정정). 이후 행은 필러 th.
                 rowSpan={(showGrowth ? 1 : 0) + 3}
-                className={`entry-th sticky left-0 px-2 py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+                className={`entry-th sticky left-0 px-[6px] py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
                   <span
@@ -2594,7 +2599,7 @@ export default function BuilderIsland({
                         <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                       )}
                       {li === 0 ? skillCell(first.pid, 0, showGrowth ? "" : sep) : <td className="skill-col" />}
-                      <td className={`inlv-col px-1 ${li === 0 ? roomyTop : roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
+                      <td className={`inlv-col px-[3px] ${li === 0 ? roomyTop : roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
                         {aptitudeUi(first.pid, cardCompareOf(first.pid, li)?.job)}
                       </td>
                       {STAT_KEYS.map((key) => {
