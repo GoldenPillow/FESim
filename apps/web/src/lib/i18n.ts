@@ -193,7 +193,7 @@ export interface BuilderLabels {
   synchro: string;
   /** 팝업 구획: 인게이지 중 스킬·무기. */
   engage: string;
-  /** SKILL 열 헤더(구 IN.LV — 계승 스킬 자리, 2026-09-02). 헤더는 영문 모노 고정. */
+  /** SKILL.EQUIP 열 헤더(구 IN.LV — 계승 스킬 2칸 + 반지 + 무기 슬롯, 2026-09-02). 헤더는 영문 모노 고정. */
   skillHeader: string;
   /** 계승 스킬 슬롯 접근성 라벨. */
   inherit: string;
@@ -412,7 +412,7 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "Bond Lv",
       synchro: "Sync",
       engage: "Engage",
-      skillHeader: "SKILL",
+      skillHeader: "SKILL.EQUIP",
       inherit: "Inherited skill",
       skillNone: "No skill",
       skillDummy: "Dummy skill",
@@ -602,7 +602,7 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "絆 Lv",
       synchro: "シンクロ",
       engage: "エンゲージ",
-      skillHeader: "SKILL",
+      skillHeader: "SKILL.EQUIP",
       inherit: "継承スキル",
       skillNone: "スキルなし",
       skillDummy: "ダミースキル",
@@ -794,7 +794,7 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "인연레벨 Lv",
       synchro: "싱크로",
       engage: "인게이지",
-      skillHeader: "SKILL",
+      skillHeader: "SKILL.EQUIP",
       inherit: "계승 스킬",
       skillNone: "스킬 없음",
       skillDummy: "더미 스킬",

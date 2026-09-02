@@ -660,8 +660,8 @@ function BondDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={labels.bond}
-        // 폭 86px = 강화 38 + 갭 6 + 각인 42 (전부 고정 폭 — 상태 무관 정합, 2026-08-31 재실측).
-        className="flex h-7 w-[86px] cursor-pointer items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0.5 text-[11px] font-semibold tracking-tight text-pgrow"
+        // 폭 102px = 강화 46 + 갭 6 + 각인 50 (전부 고정 폭 — 상태 무관 정합, 2026-09-02 양옆 4px 여유).
+        className="flex h-7 w-[102px] cursor-pointer items-center justify-between gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken pl-1 pr-[1ch] text-[11px] font-semibold tracking-tight text-pgrow"
         onClick={() => (open ? close() : setOpen(true))}
       >
         {`${labels.bondLevel} ${bond}`}
@@ -775,17 +775,18 @@ function CombatCells({
     <span className={`flex items-center ${justify}`}>
       <EquipDropdown
         ariaLabel={labels.item}
+        rootClass="entry-slotw"
         value={weapon?.iid ?? ""}
         options={weaponOptionsOf(options, job, engrave, labels, aptitude)}
         disabled={job === undefined}
         onChange={(iid) => onEquip({ iid })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        triggerClass={`flex h-7 items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}`}
+        triggerClass={`flex h-7 w-full items-center gap-1 whitespace-nowrap rounded border border-rule bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold leading-tight ${weapon?.engage === true ? "text-engage" : weapon !== undefined ? "text-ink" : "text-muted"}`}
         trigger={
           <>
             {weapon?.icon !== undefined && <img src={weapon.icon} alt="" className="h-5 w-5 shrink-0" loading="lazy" />}
-            <span className="max-w-[10rem] truncate">{weapon?.name ?? labels.itemNone}</span>
+            <span className="min-w-0 flex-1 truncate text-left">{weapon?.name ?? labels.itemNone}</span>
             {CARET}
           </>
         }
@@ -804,8 +805,8 @@ function CombatCells({
         onChange={(v) => onEquip({ plus: Number(v) })}
         onOpenChange={setOpenDrop}
         labels={labels}
-        // 고정 폭 38px — 각인 42px·갭 6px과 함께 인연 드롭다운 86px과 꼭 맞는다(2026-08-31 폭 정합).
-        triggerClass={`inline-flex h-7 w-[38px] items-center justify-center gap-0.5 rounded border border-rule bg-sunken px-0 text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
+        // 고정 폭 46px — 각인 50px·갭 6px과 함께 인연 드롭다운 102px과 꼭 맞는다(2026-09-02 양옆 4px 여유).
+        triggerClass={`inline-flex h-7 w-[46px] items-center justify-between gap-0.5 rounded border border-rule bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold ${plus > 0 ? "text-gold" : "text-muted"} ${weapon.refine === undefined ? "opacity-40" : ""}`}
         trigger={
           <>
             {`+${plus}`}
@@ -826,7 +827,7 @@ function CombatCells({
         onOpenChange={setOpenDrop}
         labels={labels}
         // 고정 폭 42px — 강화 칩과 함께 인연 드롭다운 폭 정합의 반쪽(2026-08-31).
-        triggerClass={`inline-flex h-7 w-[42px] items-center justify-center gap-0.5 rounded border bg-sunken px-0 ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
+        triggerClass={`inline-flex h-7 w-[50px] items-center justify-between gap-0.5 rounded border bg-sunken pl-1.5 pr-[1ch] ${engrave !== undefined ? "border-rule" : "border-dashed border-rule opacity-60"}`}
         trigger={
           <>
             {engrave?.icon !== undefined ? (
@@ -1589,7 +1590,6 @@ export default function BuilderIsland({
     jobName: string | undefined,
     internalDisplay: number,
     onPatch: (patch: { jid?: string; internal?: number }) => void,
-    skill: React.ReactNode,
   ): React.JSX.Element => (
     <span
       // bottom 16px = 전투력 행 무기 슬롯과 하단 일치 실측 보정(2026-09-01: 정렬 기준 = 무기).
@@ -1605,7 +1605,7 @@ export default function BuilderIsland({
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
         rootClass="min-w-0 flex-1"
-        triggerClass="flex h-7 w-full items-center justify-between gap-0.5 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight text-ink"
+        triggerClass="flex h-7 w-full items-center justify-between gap-0.5 rounded border border-rule bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold leading-tight text-ink"
         trigger={
           <>
             <span className="truncate">{jobName ?? labels.jobNone}</span>
@@ -1620,8 +1620,8 @@ export default function BuilderIsland({
         onChange={(v) => onPatch({ internal: Number(v) })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
-        // 폭 = 위 이름 칸과 동일(entry-lv, 2026-09-02) — 직업 선택기(flex-1)가 나머지를 쓴다.
-        triggerClass="entry-lv flex h-7 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
+        // 폭 = SKILL.EQUIP 열 슬롯과 동일(entry-slotw, 2026-09-02: 직업명이 길어 In.lv를 슬롯 폭으로) — 직업 선택기(flex-1)가 나머지.
+        triggerClass="entry-slotw flex h-7 shrink-0 items-center justify-between gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold text-gold"
         trigger={
           <>
             {`In.lv ${internalDisplay}`}
@@ -1629,7 +1629,6 @@ export default function BuilderIsland({
           </>
         }
       />
-      {skill}
     </span>
   );
 
@@ -1640,7 +1639,7 @@ export default function BuilderIsland({
     const c = charPropByPid.get(pid);
     const ranks = job?.weaponRanks ?? (c === undefined ? undefined : joinJobs[c.joinJid]?.weaponRanks) ?? {};
     return (
-      <span className="entry-apt flex shrink-0 items-center gap-1.5" title={labels.aptitude}>
+      <span className="entry-apt flex items-center gap-1.5" title={labels.aptitude}>
         {effectiveWeaponRanks(ranks, c?.aptitude ?? 0).map((r) =>
           kindIcons[r.kind] === undefined ? null : (
             <span
@@ -1666,7 +1665,7 @@ export default function BuilderIsland({
     const open = skillPop === pid;
     return (
       <span
-        className="entry-skill relative shrink-0"
+        className="entry-skill relative w-full"
         onMouseEnter={() => setSkillPop(pid)}
         onMouseLeave={() => setSkillPop((p) => (p === pid ? null : p))}
         onClick={(e) => {
@@ -1692,11 +1691,23 @@ export default function BuilderIsland({
     );
   };
 
+  /** 네임카드 우측 열 — 윗줄 적성, 아랫줄 고유 스킬(2026-09-02 사용자 지시: 카드 안으로 올려 가로폭 절약).
+      폭 = SKILL 열 슬롯과 동일(builder.css .entry-slotw). */
+  const sideUi = (pid: string, job: BuilderJobProp | undefined): React.JSX.Element => (
+    // 카드 th 우측 절대배치(2026-09-02 사용자 지시) — 적성 = SKILL.EQUIP 열 계승 2칸(28+4+28 = 60px)과 같은
+    // 높이에서 세로 중앙, 고유 스킬 = 그 아래 반지 행 밴드(6px 아래). 카드는 이 폭만큼 우측 패딩(builder.css)으로 자리를 비운다.
+    // ☠entry-wrap 안에 두면 filter(drop-shadow)가 컨테이닝 블록이 돼 th 기준 배치가 깨진다.
+    <span className="entry-side entry-slotw absolute right-2 top-[4px] flex flex-col">
+      <span className="flex h-[60px] items-center">{aptitudeUi(pid, job)}</span>
+      <span className="mt-[6px]">{personalSkillUi(pid)}</span>
+    </span>
+  );
+
   /** SKILL 열(구 IN.LV) — 계승 스킬 2칸(위아래), 고유 스킬 칩과 같은 규격(h-7·아이콘+이름).
       ★비계: 옵션·상태가 더미(inheritDummyOptions·inheritDummy) — 실데이터 배선 시 교체. */
   const inheritUi = (pid: string): React.JSX.Element => (
     <span
-      className="entry-inherit flex flex-col gap-1"
+      className="entry-inherit entry-slotw flex flex-col gap-1"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -1718,10 +1729,10 @@ export default function BuilderIsland({
             }
             labels={labels}
             rootClass="w-full"
-            triggerClass={`flex h-7 w-full items-center gap-1 whitespace-nowrap rounded border bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${value !== "" ? "border-rule text-ink" : "border-dashed border-rule text-muted opacity-70"}`}
+            triggerClass={`flex h-7 w-full items-center justify-between gap-1 whitespace-nowrap rounded border bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold leading-tight ${value !== "" ? "border-rule text-ink" : "border-dashed border-rule text-muted opacity-70"}`}
             trigger={
               <>
-                <span className="truncate">{text}</span>
+                <span className="min-w-0 flex-1 truncate text-left">{text}</span>
                 {CARET}
               </>
             }
@@ -1763,12 +1774,13 @@ export default function BuilderIsland({
           >
             <EquipDropdown
               ariaLabel={labels.ring}
+              rootClass="entry-slotw"
               value={emblem?.gid ?? ""}
               options={ringOptionsOf(visibleEmblems, labels)}
               onChange={(gid) => onPatch({ gid })}
               labels={labels}
               // 무기 슬롯과 같은 박스 규격(2026-08-31: 크기 일치) — 빈 슬롯은 점선("비어 있음" 어휘).
-              triggerClass={`flex h-7 items-center gap-1 whitespace-nowrap rounded border bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${emblem !== undefined ? "border-rule text-engage" : "border-dashed border-rule text-muted opacity-70"}`}
+              triggerClass={`flex h-7 w-full items-center gap-1 whitespace-nowrap rounded border bg-sunken pl-1.5 pr-[1ch] text-[14px] font-semibold leading-tight ${emblem !== undefined ? "border-rule text-engage" : "border-dashed border-rule text-muted opacity-70"}`}
               trigger={
                 <>
                   {emblem?.icon !== undefined ? (
@@ -1776,7 +1788,7 @@ export default function BuilderIsland({
                   ) : ringPlaceholder !== undefined ? (
                     <img src={ringPlaceholder} alt="" className="h-5 w-5 shrink-0 object-contain opacity-40" loading="lazy" />
                   ) : null}
-                  <span className="max-w-[7rem] truncate">{emblem?.name ?? labels.ringNone}</span>
+                  <span className="min-w-0 flex-1 truncate text-left">{emblem?.name ?? labels.ringNone}</span>
                   {CARET}
                 </>
               }
@@ -2231,11 +2243,11 @@ export default function BuilderIsland({
                     {row.face !== undefined && (
                       <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
-                    <span className="entry-name inline-block w-[7em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
-                    {aptitudeUi(row.pid, job)}
+                    <span className="entry-name inline-block w-[6em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
                   </span>
                   {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바 — 행·배경 클릭은 무반응(부주의 방지). */}
                 </span>
+                {sideUi(row.pid, job)}
                 {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
                 <span className="block h-[32px]" aria-hidden="true" />
                 {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 변경 = 즉시 저장·부적합 무기 미착용 복귀. */}
@@ -2245,7 +2257,6 @@ export default function BuilderIsland({
                   job?.name,
                   (lockEntry?.internal ?? 0) + 1,
                   (p) => patchLockClass(row.pid, p),
-                  personalSkillUi(row.pid),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
                 <RingSlot
@@ -2391,11 +2402,11 @@ export default function BuilderIsland({
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
-                    <span className="entry-name inline-block w-[7em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
-                    {aptitudeUi(first.pid, cardCompareOf(first.pid, 0)?.job)}
+                    <span className="entry-name inline-block w-[6em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
                   </span>
                   {/* 자물쇠 슬롯 폐기(2026-08-31 재설계) — 잠금 버튼은 행 호버 시 마지막 셀 우측 바로. */}
                 </span>
+                {sideUi(first.pid, cardCompareOf(first.pid, 0)?.job)}
                 {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
                 {classRowUi(
                   first.pid,
@@ -2403,7 +2414,6 @@ export default function BuilderIsland({
                   cardCompareOf(first.pid, 0)?.job.name,
                   cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
                   (p) => patchCardClass(first.pid, p),
-                  personalSkillUi(first.pid),
                 )}
                 {/* 호버 클래스명 라인(jobslot)은 폐기 — 카드 하단 밴드를 클래스 드롭다운이 차지한다
                     (2026-08-31: 클래스 개별 편집이 표시를 겸한다). 절대배치 클래스 행의 자리 확보용 여백. */}
