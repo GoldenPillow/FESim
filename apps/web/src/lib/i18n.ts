@@ -197,8 +197,11 @@ export interface BuilderLabels {
   inherit: string;
   /** 스킬 슬롯 비어 있음. */
   skillNone: string;
-  /** ★비계 — 계승 스킬 더미 옵션 접두(실데이터 배선 시 제거). */
-  skillDummy: string;
+  /** 합산 오버레이 줄 라벨(스탯·전투력 셀 호버, 2026-09-02). */
+  breakdownBase: string;
+  breakdownEmblem: string;
+  breakdownSkill: string;
+  breakdownWeapon: string;
   /** 네임카드 윗줄(무기 적성·실효 랭크) 접근성 title. */
   aptitude: string;
   /** 네임카드 아랫줄(고유 스킬 칩) 접근성 title. */
@@ -412,7 +415,10 @@ export const UI: Record<Locale, Strings> = {
       engage: "Engage",
       inherit: "Inherited skill",
       skillNone: "No skill",
-      skillDummy: "Dummy skill",
+      breakdownBase: "Base",
+      breakdownEmblem: "Emblem",
+      breakdownSkill: "Skill",
+      breakdownWeapon: "Weapon",
       aptitude: "Weapon proficiency",
       personalSkill: "Personal skill",
     },
@@ -601,7 +607,10 @@ export const UI: Record<Locale, Strings> = {
       engage: "エンゲージ",
       inherit: "継承スキル",
       skillNone: "スキルなし",
-      skillDummy: "ダミースキル",
+      breakdownBase: "基本",
+      breakdownEmblem: "紋章士",
+      breakdownSkill: "スキル",
+      breakdownWeapon: "武器",
       aptitude: "武器適性",
       personalSkill: "個人スキル",
       stats: {
@@ -792,7 +801,10 @@ export const UI: Record<Locale, Strings> = {
       engage: "인게이지",
       inherit: "계승 스킬",
       skillNone: "스킬 없음",
-      skillDummy: "더미 스킬",
+      breakdownBase: "기본",
+      breakdownEmblem: "문장사",
+      breakdownSkill: "스킬",
+      breakdownWeapon: "무기",
       aptitude: "무기 적성",
       personalSkill: "고유 스킬",
       stats: {

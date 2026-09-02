@@ -4,6 +4,7 @@ import {
   createCalculator,
   growthPath,
   mergeStatCap,
+  staticEnhances,
   type GrowthPathJob,
   type SkillRow,
   type StatBlock,
@@ -11,7 +12,15 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import { rankValue, type BuilderCharProp, type BuilderEngraveProp, type BuilderJobProp, type BuilderProps, type BuilderWeaponProp } from "../../lib/fe17";
+import {
+  rankValue,
+  type BuilderCharProp,
+  type BuilderEmblemProp,
+  type BuilderEngraveProp,
+  type BuilderJobProp,
+  type BuilderProps,
+  type BuilderWeaponProp,
+} from "../../lib/fe17";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -28,9 +37,13 @@ export interface BuilderCell {
   capped: boolean;
   /** 도달 상한(mergeStatCap 합성값) — 絆 보너스 가산이 이 위로 못 넘게 잘린다(2026-09-01 사용자 관측). */
   cap: number;
-  /** 문장사 絆 보너스로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
+  /** 문장사 絆 보너스·계승 스킬로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
   buffed?: boolean;
+  /** 합산 내역(호버 오버레이, 2026-09-02) — 기본값 위에 얹힌 층만 순서대로(캡 클램프 후 실가산치). */
+  parts?: { source: BonusSource; value: number }[];
 }
+
+export type BonusSource = "emblem" | "skill";
 
 export interface BuilderRow {
   pid: string;
@@ -170,6 +183,12 @@ export function moveLock(locked: readonly EntryLock[], from: number, to: number)
  * 셀 표시·정렬값·상승 표식(buffed)을 함께 움직인다 — 원본 불변(정렬·유령 카드가 같은 행을 공유한다).
  */
 export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey, number>>): BuilderRow {
+  return applyStatBonus(row, delta, "emblem");
+}
+
+/** 평면 스탯 가산의 공용 본체(2026-09-02: 문장사 絆 + 계승 스킬) — 층별 내역(parts)을 누적하고,
+    emblemDelta(카드 +N 행)는 문장사 층만 갱신한다. 캡 클램프 뒤 실제 오른 만큼만 내역에 적는다. */
+export function applyStatBonus(row: BuilderRow, delta: Partial<Record<StatKey, number>>, source: BonusSource): BuilderRow {
   const cells = { ...row.cells };
   for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
     if (d === 0) continue;
@@ -183,9 +202,54 @@ export function applyEmblemBonus(row: BuilderRow, delta: Partial<Record<StatKey,
       : cell.capped
         ? String(Number(cell.text) + d)
         : (parseFloat(cell.text) + d).toFixed(1);
-    cells[key] = { ...cell, text, value, capped: hit, ...(d > 0 ? { buffed: true as const } : {}) };
+    const parts = [...(cell.parts ?? []), { source, value: hit ? Math.round((value - cell.value) * 100) / 100 : d }];
+    cells[key] = { ...cell, text, value, capped: hit, parts, ...(d > 0 ? { buffed: true as const } : {}) };
   }
-  return { ...row, cells, emblemDelta: delta };
+  return source === "emblem" ? { ...row, cells, emblemDelta: delta } : { ...row, cells };
+}
+
+/** 계승 스킬의 정적 스탯 델타 — 엔진 staticEnhances(EnhanceValue.* 층)와 동축, 비영 키만.
+    이동(Move)은 표 열이 없어 여기 안 실린다. */
+export function skillStatDelta(rows: readonly SkillRow[]): Partial<Record<StatKey, number>> {
+  const zero = {} as StatBlock;
+  for (const key of STAT_KEYS) zero[key] = 0;
+  const sum = staticEnhances(zero, rows);
+  const out: Partial<Record<StatKey, number>> = {};
+  for (const key of STAT_KEYS) if (sum[key] !== 0) out[key] = sum[key];
+  return out;
+}
+
+/** 계승 슬롯 드롭다운 옵션 — 문장사 영입 순서(emblems 순)로 [문장사 헤더][스킬(들여쓰기)]…, 맨 앞 = 빈 칸.
+    다른 칸이 든 sid는 비활성(같은 스킬 2개 장착 불가). 헤더는 선택 불가 라벨(반지 아이콘). */
+export interface InheritOption {
+  value: string;
+  label: string;
+  icon?: string;
+  header?: true;
+  indent?: true;
+  disabled?: true;
+  help?: string;
+  /** 계승 SP 비용(숫자만 표기 — 2026-09-02 사용자 지시). */
+  cost?: number;
+}
+export function inheritOptions(emblems: readonly BuilderEmblemProp[], noneLabel: string, takenSid?: string): InheritOption[] {
+  const out: InheritOption[] = [{ value: "", label: noneLabel }];
+  for (const e of emblems) {
+    if (e.inherits.length === 0) continue;
+    out.push({ value: `#${e.gid}`, label: e.name, header: true, ...(e.icon !== undefined ? { icon: e.icon } : {}) });
+    for (const s of e.inherits) {
+      out.push({
+        value: s.sid,
+        label: s.name,
+        indent: true,
+        ...(s.icon !== undefined ? { icon: s.icon } : {}),
+        ...(s.help !== undefined ? { help: s.help } : {}),
+        ...(s.cost !== undefined ? { cost: s.cost } : {}),
+        ...(takenSid !== undefined && takenSid === s.sid ? { disabled: true as const } : {}),
+      });
+    }
+  }
+  return out;
 }
 
 /** 대기 목록 한 묶음 — ghost = 엔트리에 잠긴 캐릭터의 비교용 임시 카드(반투명·무반응, 정렬·비교표에는 참가). */
@@ -366,7 +430,11 @@ const COMBAT_FORMULAS: Record<Exclude<CombatKey, "matk">, string> = {
 /** 평균 스탯의 전투력 — 소수를 유지한 채 정본 식을 평가한다(표시 반올림은 표시층 소관).
     장착 시: Enhance는 스탯에 합산 후 평가, 무기 항은 env 변수로 채운다(공속 게이트가 회피에 산다).
     공격은 무기 속성 쪽에만 위력이 합산되고 반대쪽은 순수 스탯이다(물공·마공 분리 표기). */
-export function combatOf(row: BuilderRow, equipped?: EquippedWeapon): Record<CombatKey, number> {
+export function combatOf(
+  row: BuilderRow,
+  equipped?: EquippedWeapon,
+  skills: readonly SkillRow[] = [],
+): Record<CombatKey, number> {
   const enhance = equipped?.weapon.enhance;
   const v = (key: StatKey): number => row.cells[key].value + (enhance?.[key] ?? 0);
   const weapon = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
@@ -384,6 +452,9 @@ export function combatOf(row: BuilderRow, equipped?: EquippedWeapon): Record<Com
       bld: v("bld"),
     },
     ...(weapon !== undefined ? { weapon } : {}),
+    // 계승 스킬의 전투 보정(命中値 + 10 등)은 엔진 makeSkillModifier가 식 평가 안에서 건다(2026-09-02).
+    // 정적 EnhanceValue 층은 row.cells에 이미 합산돼 있다(applyStatBonus) — 여기서 다시 더하지 않는다.
+    ...(skills.length > 0 ? { skills } : {}),
   });
   const out = {} as Record<CombatKey, number>;
   for (const key of Object.keys(COMBAT_FORMULAS) as (keyof typeof COMBAT_FORMULAS)[]) {

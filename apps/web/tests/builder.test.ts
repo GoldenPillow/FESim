@@ -2,22 +2,25 @@ import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type SkillRow, type StatBlock, type StatKey } from "@fesim/engine";
 import {
   applyEmblemBonus,
+  applyStatBonus,
   builderRowGroups,
   builderRows,
   canEquip,
   carriedEquip,
   combatOf,
   effectiveWeaponRanks,
+  inheritOptions,
   lockedDisplayRows,
   moveLock,
   nextSort,
   rankValue,
+  skillStatDelta,
   sortRowGroups,
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
 } from "../src/features/builder/lib";
-import type { BuilderCharProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
+import type { BuilderCharProp, BuilderEmblemProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
 
 /**
  * 엔트리 빌더 표시층 — 정본 계산은 엔진 growthPath가 소유하고, 여기 테스트는 **표시 규약**을 박제한다:
@@ -566,5 +569,64 @@ describe("고유 적성 실효 랭크 (effectiveWeaponRanks·canEquip aptitude)"
     expect(canEquip(jobOf({ 1: "B" }), braveA, SWORD)).toBe(false);
     expect(carriedEquip(jobOf({ 1: "B+" }), { iid: braveA.iid }, [braveA], SWORD)).toEqual({ iid: braveA.iid });
     expect(carriedEquip(jobOf({ 1: "B+" }), { iid: braveA.iid }, [braveA])).toBeUndefined();
+  });
+});
+
+describe("계승 스킬 (applyStatBonus·skillStatDelta·combatOf skills·inheritOptions)", () => {
+  const rowOf = () => builderRows(propsOf([char("A")]), undefined, 20, undefined)[0]!;
+  const strPlus1: SkillRow = { Sid: "SID_力＋１", Timing: 1, "EnhanceValue.Str": 1 } as SkillRow;
+  const hitPlus10: SkillRow = {
+    Sid: "SID_命中＋１０", Timing: 3, ActNames: ["命中値"], ActOperations: ["+"], ActValues: ["10"],
+  } as SkillRow;
+
+  /**
+   * 왜 위험한가: 문장사 絆와 계승 스킬이 같은 셀에 겹치면 "+N"의 출처가 사라진다 — 오버레이가 층별 내역(parts)을
+   * 못 보면 사용자는 어느 값이 스킬 때문인지 알 수 없고, emblemDelta가 스킬 호출에 덮이면 반지 행 +N이 틀린다.
+   */
+  it("정적 스탯 = staticEnhances 축, 두 층이 parts에 누적되고 emblemDelta는 문장사만", () => {
+    const base = rowOf();
+    const withEmblem = applyEmblemBonus(base, { str: 2 });
+    const both = applyStatBonus(withEmblem, skillStatDelta([strPlus1]), "skill");
+    expect(skillStatDelta([strPlus1])).toEqual({ str: 1 });
+    expect(both.cells.str.value).toBeCloseTo(base.cells.str.value + 3, 6);
+    expect(both.cells.str.buffed).toBe(true);
+    expect(both.cells.str.parts).toEqual([
+      { source: "emblem", value: 2 },
+      { source: "skill", value: 1 },
+    ]);
+    expect(both.emblemDelta).toEqual({ str: 2 });
+    expect(base.cells.str.parts).toBeUndefined();
+  });
+
+  /**
+   * 왜 위험한가: 명중+10 같은 식 보정은 EnhanceValue가 아니라 Act* 층이다 — 스탯 합산만 하면 조용히 0이 된다.
+   * 맨손(무기 없음)에서도 명중값 식은 평가되므로 스킬 항이 그대로 실려야 한다.
+   */
+  it("전투력 = combatEnv(skills)로 식 보정 적용 — 맨손·무장 모두 명중 +10", () => {
+    const row = rowOf();
+    expect(combatOf(row, undefined, [hitPlus10]).hit).toBeCloseTo(combatOf(row).hit + 10, 6);
+    const iron: BuilderWeaponProp = {
+      iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+      weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+    };
+    const eq = { weapon: iron, plus: 0 };
+    expect(combatOf(row, eq, [hitPlus10]).hit).toBeCloseTo(combatOf(row, eq).hit + 10, 6);
+  });
+
+  /**
+   * 왜 위험한가: 목록 순서 = 문장사 영입 순서(2026-09-02 사용자 지시)이고 헤더는 선택 불가여야 한다 —
+   * 헤더가 옵션으로 새면 "마르스"를 스킬로 장착하는 유령 상태가 생긴다. 같은 sid 2칸 장착도 막는다.
+   */
+  it("드롭다운 옵션 = 빈 칸 → [문장사 헤더][스킬 들여쓰기]… 순, 다른 칸 sid는 비활성", () => {
+    const emblem = (gid: string, name: string, sids: string[]): BuilderEmblemProp => ({
+      gid, name, bonuses: [], levels: [],
+      inherits: sids.map((sid, i) => ({ sid, name: sid.slice(4), bond: i + 1, row: { Sid: sid } as SkillRow })),
+    });
+    const opts = inheritOptions([emblem("GID_A", "마르스", ["SID_회피10", "SID_간파"]), emblem("GID_B", "시구르드", ["SID_명중10"])], "없음", "SID_간파");
+    expect(opts.map((o) => o.value)).toEqual(["", "#GID_A", "SID_회피10", "SID_간파", "#GID_B", "SID_명중10"]);
+    expect(opts[1]).toMatchObject({ header: true, label: "마르스" });
+    expect(opts[2]).toMatchObject({ indent: true });
+    expect(opts[3]!.disabled).toBe(true);
+    expect(opts[5]!.disabled).toBeUndefined();
   });
 });

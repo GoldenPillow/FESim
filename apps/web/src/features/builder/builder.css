@@ -185,6 +185,17 @@
   -webkit-mask-position: center;
 }
 
+/* 합산 오버레이(2026-09-02) — 스탯·전투력 셀에 층(문장사·스킬·무기)이 있을 때만 그려지고 호버에만 보인다.
+   터치(hover:none)는 없음(8차 반지 상세와 같은 처우). */
+.builder-table .cell-pop {
+  display: none;
+}
+@media (hover: hover) {
+  .builder-table td:hover > .cell-pop {
+    display: flex;
+  }
+}
+
 /* 전투력 행 이중 렌더 — PC·가로 = 스탯 열 그리드(combat-grid), 세로 모바일 = 흐름(combat-flow).
    두 벌을 같이 그리고 미디어가 표시를 가른다(display:none 셀은 표 레이아웃에서 빠진다). */
 .combat-flow {

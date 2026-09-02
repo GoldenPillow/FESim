@@ -235,6 +235,8 @@ export interface EntryLock {
   gid?: string;
   /** 인연(絆) 레벨 1~20 — 반지 선택 시 기본 20. gid 없이 단독으로는 무의미. */
   bond?: number;
+  /** 계승 스킬 2칸(sid, "" = 빈 칸) — 카드 스킬 열의 계승 1·2(2026-09-02). */
+  skills?: [string, string];
 }
 
 const ENTRY_LOCKS_KEY = "fesim:ui:entrylocks";
@@ -273,6 +275,9 @@ export function loadEntryLocks(): EntryLock[] {
           ...(typeof raw.engrave === "string" ? { engrave: raw.engrave } : {}),
           ...(typeof raw.gid === "string" ? { gid: raw.gid } : {}),
           ...(typeof raw.bond === "number" ? { bond: raw.bond } : {}),
+          ...(Array.isArray(raw.skills) && raw.skills.length === 2 && raw.skills.every((s) => typeof s === "string")
+            ? { skills: [raw.skills[0], raw.skills[1]] as [string, string] }
+            : {}),
         },
       ];
     });
