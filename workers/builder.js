@@ -13,6 +13,8 @@ const ALLOW = [
   /^\/fe17\/assets\/efficacy\//,
   // 문장사 반지 피쳐 에셋(2026-08-31) — 등재 규약은 items와 동일(빠뜨리면 조용히 404).
   /^\/fe17\/assets\/rings\//,
+  // 스킬 아이콘(고유·계승 스킬 칩, 2026-09-02) — 정식판 첫 게시에서 빠뜨려 아이콘만 404가 났던 실사고 재발.
+  /^\/fe17\/assets\/skills\//,
 ];
 
 export default {
