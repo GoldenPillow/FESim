@@ -1448,12 +1448,14 @@ export default function BuilderIsland({
     () => new Map(emblems.flatMap((e) => e.inherits.map((s) => [s.sid, s] as const))),
     [emblems],
   );
-  /** 카드의 계승 슬롯 값 — 잠금이면 스냅샷(EntryLock.skills), 아니면 세션(inherits). */
-  const inheritSidsOf = (pid: string): [string, string] =>
-    locked.find((e) => e.pid === pid)?.skills ?? inherits[pid] ?? ["", ""];
+  /** 카드의 계승 슬롯 값 — 잠금 블록("lock") = 스냅샷 EntryLock.skills, 대기 카드("wait") = 세션 inherits.
+      ☠유령 카드는 "wait"로 읽어야 한다 — 잠금 시 세션이 비워져 유령 = 스킬 없음(비교용 기본값, 2026-09-02). */
+  type InheritScope = "lock" | "wait";
+  const inheritSidsOf = (pid: string, scope: InheritScope): [string, string] =>
+    (scope === "lock" ? locked.find((e) => e.pid === pid)?.skills : inherits[pid]) ?? ["", ""];
   /** 선택 sid → 엔진 평가용 행(목록 밖 sid는 미적용 — 선택 UI가 만들 수 없는 값). */
-  const inheritRowsOf = (pid: string): SkillRow[] =>
-    inheritSidsOf(pid).flatMap((sid) => {
+  const inheritRowsOf = (pid: string, scope: InheritScope): SkillRow[] =>
+    inheritSidsOf(pid, scope).flatMap((sid) => {
       const s = inheritBySid.get(sid);
       return s === undefined ? [] : [s.row];
     });
@@ -1461,10 +1463,13 @@ export default function BuilderIsland({
   const groups = useMemo(() => {
     const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
     // 카드 개별 클래스·In.Lv(2026-08-31) — 라인 0을 카드 값으로 재계산(글로벌 슬롯 대체).
+    // ☠유령 카드(잠긴 캐릭터의 대기 사본)는 비교가 목적 — 카드 개별 값(클래스·반지·스킬·장비)을 전부 무시하고
+    //   다른 캐릭터와 같은 기본값 + 글로벌 세팅만 받는다(2026-09-02 사용자 지시).
+    const lockByPid = new Map(locked.map((e) => [e.pid, e]));
     const personalized = base.map((g) => {
       const pid = g[0]!.pid;
       const ov = cardClass[pid];
-      if (ov === undefined) return g;
+      if (ov === undefined || lockByPid.has(pid)) return g;
       const char = charByPid.get(pid);
       const joinJob = char === undefined ? undefined : joinJobs[char.joinJid];
       if (char === undefined || joinJob === undefined) return g;
@@ -1472,11 +1477,10 @@ export default function BuilderIsland({
       const target = job === undefined ? 0 : (ov.internal ?? internal) - 1;
       return [builderRow(char, joinJob, job, target, extraSkills), ...g.slice(1)];
     });
-    const lockByPid = new Map(locked.map((e) => [e.pid, e]));
     const boosted = personalized.map((g) => {
       const pid = g[0]!.pid;
-      const entry = lockByPid.get(pid);
-      const src = entry?.gid !== undefined ? { gid: entry.gid, bond: entry.bond ?? 20 } : rings[pid];
+      // 세션 반지만(잠금 스냅샷의 반지는 유령 카드에 안 실린다 — 잠금 시 세션이 비워지므로 유령 = 반지 없음).
+      const src = rings[pid];
       if (src === undefined) return g;
       // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
       const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
@@ -1485,7 +1489,7 @@ export default function BuilderIsland({
     });
     // 계승 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
     const skilled = boosted.map((g) => {
-      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid));
+      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid, "wait"));
       return Object.keys(sd).length === 0 ? g : g.map((r) => applyStatBonus(r, sd, "skill"));
     });
     return waitingRowGroups(skilled, locked, sort);
@@ -1504,7 +1508,7 @@ export default function BuilderIsland({
         const delta = emblemByGid.get(entry.gid)?.bonuses[bond - 1];
         if (delta !== undefined && Object.keys(delta).length > 0) row = applyEmblemBonus(row, delta);
       }
-      const sd = skillStatDelta(inheritRowsOf(d.row.pid));
+      const sd = skillStatDelta(inheritRowsOf(d.row.pid, "lock"));
       if (Object.keys(sd).length > 0) row = applyStatBonus(row, sd, "skill");
       return row === d.row ? d : { ...d, row };
     });
@@ -1519,10 +1523,11 @@ export default function BuilderIsland({
   };
 
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
-  const cardEquip = (pid: string, li: number): EquippedWeapon | undefined => {
-    const o = overrides[`${pid}:${li}`];
+  const cardEquip = (pid: string, li: number, ghost = false): EquippedWeapon | undefined => {
+    // 유령 카드 = 개인 오버라이드·카드 클래스 무시(글로벌 슬롯 + 합류 기본 무기만, 2026-09-02).
+    const o = ghost ? undefined : overrides[`${pid}:${li}`];
     // 게이트는 실효 직업 기준 — 카드 클래스 변경 후 부적합해진 장비는 미착용으로 강하(2026-08-31 되돌림).
-    const job = cardCompareOf(pid, li)?.job;
+    const job = (ghost ? compares[li] : cardCompareOf(pid, li))?.job;
     const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
       eq === undefined || job === undefined || !canEquip(job, eq.weapon, aptitudeOf(pid)) ? undefined : eq;
     // 기본값 = 캐릭터별 합류 초기 무기 — 글로벌 아이템을 고르면 전원 교체(2026-09-01 사용자 확정).
@@ -1596,13 +1601,13 @@ export default function BuilderIsland({
     });
 
   /** 계승 슬롯 변경(2026-09-02) — 잠금이면 스냅샷 즉시 저장(patchRing 규약), 대기면 세션. 두 칸 다 비면 필드째 걷는다. */
-  const patchInherit = (pid: string, i: 0 | 1, sid: string): void => {
+  const patchInherit = (pid: string, i: 0 | 1, sid: string, scope: InheritScope): void => {
     const setSlot = (cur: [string, string] | undefined): [string, string] => {
       const out: [string, string] = [cur?.[0] ?? "", cur?.[1] ?? ""];
       out[i] = sid;
       return out;
     };
-    if (locked.some((e) => e.pid === pid)) {
+    if (scope === "lock") {
       const next = locked.map((e) => {
         if (e.pid !== pid) return e;
         const { skills: _s, ...rest } = e;
@@ -1791,17 +1796,17 @@ export default function BuilderIsland({
   /** 스킬 열(skill-col, 2026-09-02 사용자 지시) — 카드 th 바로 옆 실제 표 셀 3칸: 스탯 행 = 고유, 반지 행 = 계승 1,
       전투력 행 = 계승 2. 표 행이라 우측 장비 열(적성·반지·무기)과 세로 줄이 구조적으로 맞는다. 셀 패딩은 같은 행의
       장비 열 셀과 동일. 세로폰은 열째 숨김(builder.css .skill-col — 헤더·본문 함께). */
-  const skillCell = (pid: string, slot: 0 | 1 | 2, extra = ""): React.JSX.Element => (
+  const skillCell = (pid: string, slot: 0 | 1 | 2, scope: InheritScope, extra = ""): React.JSX.Element => (
     // 스탯 행 상단 10px = 전투력 행 하단 10px과 대칭(2026-09-02 사용자 지시) — 같은 행의 스탯 셀도 같은 패딩.
     <td className={`skill-col pl-0 pr-[3px] ${slot === 0 ? "pb-[3px] pt-[10px] align-middle" : slot === 1 ? "pb-[3px] pt-[3px] align-middle" : "pb-[10px] pt-[3px] align-top"} ${extra}`}>
-      {slot === 0 ? personalSkillUi(pid) : inheritSlotUi(pid, slot === 1 ? 0 : 1)}
+      {slot === 0 ? personalSkillUi(pid) : inheritSlotUi(pid, slot === 1 ? 0 : 1, scope)}
     </td>
   );
 
   /** 계승 스킬 2칸(위아래) — 고유 스킬 칩과 같은 규격(h-7·아이콘+이름), 카드 스킬 스택의 2·3번째.
       옵션 = 문장사 영입 순 그룹 목록(inheritOptions), 상태 = 잠금 스냅샷/세션(2026-09-02 실데이터 배선). */
-  const inheritSlotUi = (pid: string, i: 0 | 1): React.JSX.Element => {
-    const sids = inheritSidsOf(pid);
+  const inheritSlotUi = (pid: string, i: 0 | 1, scope: InheritScope): React.JSX.Element => {
+    const sids = inheritSidsOf(pid, scope);
     const value = sids[i];
     const chosen = value === "" ? undefined : inheritBySid.get(value);
     const other = sids[i === 0 ? 1 : 0];
@@ -1812,7 +1817,7 @@ export default function BuilderIsland({
           value={value}
           // 목록 = 문장사 영입 순(visibleEmblems — 스포일러·DLC 체커 준수), 다른 칸의 sid는 비활성.
           options={inheritOptions(visibleEmblems, labels.skillNone, other === "" ? undefined : other)}
-          onChange={(v) => patchInherit(pid, i, v)}
+          onChange={(v) => patchInherit(pid, i, v, scope)}
           labels={labels}
           tall
           rootClass="entry-slotw"
@@ -2412,7 +2417,7 @@ export default function BuilderIsland({
                 )}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {!showGrowth && lockTh}
-                  {skillCell(row.pid, 0, showGrowth ? "" : sep)}
+                  {skillCell(row.pid, 0, "lock", showGrowth ? "" : sep)}
                   <td className={`inlv-col px-[3px] pb-[3px] pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{aptitudeUi(row.pid, job)}</td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
@@ -2447,7 +2452,7 @@ export default function BuilderIsland({
                   })}
                 </tr>
                 {/* 반지 행 — 무기 슬롯 바로 위(2026-08-31 배치 확정). 스냅샷 반지 소스, 즉시 저장. */}
-                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1))}
+                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1, "lock"))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
                   <CombatCells
@@ -2459,8 +2464,8 @@ export default function BuilderIsland({
                     engraves={visibleEngraves}
                     labels={labels}
                     aptitude={aptitudeOf(row.pid)}
-                    lead={skillCell(row.pid, 2)}
-                    skills={inheritRowsOf(row.pid)}
+                    lead={skillCell(row.pid, 2, "lock")}
+                    skills={inheritRowsOf(row.pid, "lock")}
                     onEquip={(p) => patchLock(row.pid, p)}
                   />
                 </tr>
@@ -2489,7 +2494,10 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
-            const ringSrc = ghost ? lockRingOf(first.pid) : rings[first.pid];
+            // 유령 카드 = 반지 없음(비교용 기본값 — 잠금 스냅샷의 반지는 엔트리 블록만, 2026-09-02).
+            const ringSrc = ghost ? undefined : rings[first.pid];
+            /** 라인 li의 실효 비교 — 유령 카드는 카드 개별 클래스를 무시하고 글로벌 슬롯만. */
+            const cmpOf = (li: number): BuilderCompare | undefined => (ghost ? compares[li] : cardCompareOf(first.pid, li));
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
             const thRaised =
               !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid || skillPop === first.pid);
@@ -2523,9 +2531,9 @@ export default function BuilderIsland({
                 {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
                 {classRowUi(
                   first.pid,
-                  cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
-                  cardCompareOf(first.pid, 0)?.job.name,
-                  cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
+                  !ghost && cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
+                  cmpOf(0)?.job.name,
+                  (ghost ? undefined : cardClass[first.pid]?.internal) ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
                   (p) => patchCardClass(first.pid, p),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
@@ -2583,7 +2591,7 @@ export default function BuilderIsland({
                   </tr>
                 )}
                 {g.flatMap((row, li) => {
-                  const eq = cardEquip(first.pid, li);
+                  const eq = cardEquip(first.pid, li, ghost);
                   // 참전 제한 없음(2026-08-31) — 전용직 불가 행도 호버·잠금 가능(표시는 계속 흐림).
                   const inert = ghost;
                   const line = (
@@ -2598,9 +2606,9 @@ export default function BuilderIsland({
                       {li === 1 && (
                         <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                       )}
-                      {li === 0 ? skillCell(first.pid, 0, showGrowth ? "" : sep) : <td className="skill-col" />}
+                      {li === 0 ? skillCell(first.pid, 0, "wait", showGrowth ? "" : sep) : <td className="skill-col" />}
                       <td className={`inlv-col px-[3px] ${li === 0 ? roomyTop : roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
-                        {aptitudeUi(first.pid, cardCompareOf(first.pid, li)?.job)}
+                        {aptitudeUi(first.pid, cmpOf(li)?.job)}
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
@@ -2640,7 +2648,7 @@ export default function BuilderIsland({
                   return [
                     line,
                     // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
-                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1))] : []),
+                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1, "wait"))] : []),
                     <tr
                       key={`combat-${li}`}
                       className={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
@@ -2649,15 +2657,15 @@ export default function BuilderIsland({
                     >
                       <CombatCells
                         row={row}
-                        job={cardCompareOf(first.pid, li)?.job}
+                        job={cmpOf(li)?.job}
                         equipped={eq}
                         specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
                         weapons={weapons}
                         engraves={visibleEngraves}
                         labels={labels}
                         aptitude={aptitudeOf(first.pid)}
-                        lead={li === 0 ? skillCell(first.pid, 2) : <td className="skill-col" />}
-                        skills={inheritRowsOf(first.pid)}
+                        lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
+                        skills={inheritRowsOf(first.pid, "wait")}
                         onEquip={(p) => applyCard(first.pid, li, p)}
                       />
                     </tr>,
