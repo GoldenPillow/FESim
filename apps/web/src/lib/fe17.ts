@@ -105,6 +105,8 @@ export interface AssetManifest {
   weapontypes?: Record<string, string>;
   /** 문장사 반지 아이콘 — GID 키, ui_icon/godring 베이크 산출(대표 신장 20종). */
   godRings?: Record<string, string>;
+  /** 스킬 아이콘 — 키 = Sid에서 SID_ 제거(스프라이트명), ui_icon/skill 전수 베이크(2026-09-02). */
+  skills?: Record<string, string>;
   /** 絆지환 레어도 링(Bronze·Silver·Gold·Platinum) — 미장착 플레이스홀더·후속 絆지환용. */
   ringCommons?: Record<string, string>;
 }
@@ -1854,6 +1856,16 @@ export interface BuilderCharProp {
   /** 합류 초기 무기(chart.xml 加入 로드아웃의 첫 공격 무기) — 글로벌 아이템 미선택 시 카드 기본값
       (2026-09-01 사용자 지시). chart에 없는 DLC 5인 등은 없음 = 미착용. */
   joinIid?: string;
+  /** 고유 무기 적성 = person.Aptitude 비트마스크(1<<Kind — Sword 2 … Fist 256). 실효 랭크·블루 표식의
+      입력(effectiveWeaponRanks). SubAptitude는 랭크 보정이 없어 사영하지 않는다(2026-09-02 판독). */
+  aptitude: number;
+  /** 고유 스킬 = CommonSids 중 이름 라벨이 있는 것(SID_主人公 같은 무명 플래그 제외) — 네임카드 칩. */
+  personalSkills: EmblemSkillProp[];
+}
+
+/** 합류 직업 단면 — 경로 입력 + 무기군 랭크(직업 미선택 카드의 적성 표시용, 2026-09-02). */
+export interface JoinJobProp extends GrowthPathJob {
+  weaponRanks: Record<number, string>;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -1930,6 +1942,8 @@ export interface EmblemSkillProp {
   sid: string;
   name: string;
   help?: string;
+  /** 스킬 아이콘 href(manifest.skills) — 베이크 전·아이콘 없는 Sid는 undefined(이름만). */
+  icon?: string;
 }
 
 /** 문장사 레벨 상세의 엔게이지 아이템 — 공격 무기면 스펙 단면(weapon) 동봉(지팡이류는 이름·설명만). */
@@ -1961,6 +1975,15 @@ export interface BuilderEmblemProp {
   /** 絆 1..20 누적 시너지 스탯 델타(동계열 대체 = emblemSyncSids 정본) — 인덱스 = 絆-1, 비영 키만. */
   bonuses: Partial<Record<StatKey, number>>[];
   levels: EmblemLevelProp[];
+  /** 계승 가능 스킬(성장표 InheritanceSkills, 첫 등장 순) — 카드 계승 슬롯 드롭다운의 그룹 항목(2026-09-02). */
+  inherits: InheritSkillProp[];
+}
+
+/** 계승 스킬 후보 — 표기 단면 + 해금 絆 + SP 비용 + 엔진 평가용 슬림 행. */
+export interface InheritSkillProp extends EmblemSkillProp {
+  bond: number;
+  cost?: number;
+  row: SkillRow;
 }
 
 export interface BuilderProps {
@@ -1969,8 +1992,8 @@ export interface BuilderProps {
   starsphere?: SkillRow;
   /** 합류순(본편 사슬 + 외전은 개방 시점(unlock) 뒤 삽입) — 초기 정렬의 정본. */
   chars: BuilderCharProp[];
-  /** 합류 직업 단면(jid → 경로 입력) — chars.joinJid가 참조. limit는 job.Limit 원값. */
-  joinJobs: Record<string, GrowthPathJob>;
+  /** 합류 직업 단면(jid → 경로 입력 + 무기군 랭크) — chars.joinJid가 참조. limit는 job.Limit 원값. */
+  joinJobs: Record<string, JoinJobProp>;
   /** 드롭다운 목록(Sort 순): 범용 + 전용. limit는 job.Limit 원값(개인 보정은 섬이 합성). */
   targetJobs: BuilderJobProp[];
   /** 장비 후보 무기 전량 — 상점 전열(등장순) → 유니크 후열(kind → 랭크 → 가격). */
@@ -2151,6 +2174,13 @@ function builderEngraves(locale: Locale): BuilderEngraveProp[] {
   return out;
 }
 
+/** 스킬 아이콘 href — 키 = IconLabel(있으면) 아니면 Sid에서 SID_ 제거. ☠힘+1류는 아이콘이 `力＋１_継承用`에만
+    있어 Sid만 보면 결손(2026-09-02 조사) — 고유 스킬·계승 스킬이 같은 경로를 쓴다. */
+const skillIconHref = (sid: string, row: Record<string, unknown> | undefined): string | undefined => {
+  const iconLabel = String(row?.["IconLabel"] ?? "");
+  return assetHref(manifest.skills?.[iconLabel !== "" ? iconLabel : sid.replace(/^SID_/, "")]);
+};
+
 /** skills 행 → 팝업 표기 단면 — 이름 MSID가 없는 내부 행(무효과 슬롯)은 표시하지 않는다. */
 const emblemSkillBrief = (sid: string, locale: Locale): EmblemSkillProp | undefined => {
   const row = skills[sid] as Record<string, unknown> | undefined;
@@ -2158,7 +2188,28 @@ const emblemSkillBrief = (sid: string, locale: Locale): EmblemSkillProp | undefi
   const name = label(locale, String(row["Name"] ?? ""));
   if (name === undefined || name === "") return undefined;
   const help = label(locale, String(row["Help"] ?? ""));
-  return { sid, name, ...(help !== undefined && help !== "" ? { help } : {}) };
+  const icon = skillIconHref(sid, row);
+  return { sid, name, ...(help !== undefined && help !== "" ? { help } : {}), ...(icon !== undefined ? { icon } : {}) };
+};
+
+/** 문장사 계승 가능 스킬 목록 — 성장표 1..20의 InheritanceSkills를 첫 등장 순으로(같은 sid 중복 제거).
+    행(SkillRow 슬림)을 동봉해 표시층이 정적 스탯(EnhanceValue)·전투 보정(Act*)을 엔진으로 평가한다.
+    ☠InheritanceSkills는 카탈로그일 뿐(fidelity §InheritanceSkills) — 실소유는 세이브라 사용자 선택 입력으로 다룬다. */
+const emblemInherits = (table: Record<string, { InheritanceSkills?: string[] }>, locale: Locale): InheritSkillProp[] => {
+  const out: InheritSkillProp[] = [];
+  const seen = new Set<string>();
+  for (let bond = 1; bond <= 20; bond++) {
+    for (const sid of table[String(bond)]?.InheritanceSkills ?? []) {
+      if (seen.has(sid)) continue;
+      seen.add(sid);
+      const brief = emblemSkillBrief(sid, locale);
+      const row = slimSkill(sid);
+      if (brief === undefined || row === undefined) continue;
+      const cost = (skills[sid] as Record<string, unknown> | undefined)?.["InheritanceCost"];
+      out.push({ ...brief, bond, ...(typeof cost === "number" ? { cost } : {}), row });
+    }
+  }
+  return out;
 };
 
 /** 엔게이지 아이템 단면 — 공격 무기면 빌더 무기 스펙(BuilderWeaponProp)을 동봉해 SpecPanel이 선다. */
@@ -2224,6 +2275,7 @@ function builderEmblems(locale: Locale): BuilderEmblemProp[] {
     const bonuses: Partial<Record<StatKey, number>>[] = [];
     for (let bond = 1; bond <= 20; bond++) bonuses.push(emblemBonusAt(gid, bond));
     const table = godsTable.growth[String(row["GrowTable"] ?? "")] ?? {};
+    const inherits = emblemInherits(table, locale);
     const levels: EmblemLevelProp[] = [];
     for (let bond = 1; bond <= 20; bond++) {
       const lv = table[String(bond)];
@@ -2247,6 +2299,7 @@ function builderEmblems(locale: Locale): BuilderEmblemProp[] {
       ...((Number(row["Flag"] ?? 0) & GOD_FLAG_DLC) !== 0 ? { dlc: true as const } : {}),
       bonuses,
       levels,
+      inherits,
     });
   }
   return out;
@@ -2342,13 +2395,23 @@ export function builderPropsFor(locale: Locale): BuilderProps {
         const iid = (joinItems[pid] ?? []).find((i) => weaponIids.has(i));
         return iid !== undefined ? { joinIid: iid } : {};
       })(),
+      aptitude: Number(person["Aptitude"] ?? 0),
+      personalSkills: ((person["CommonSids"] as string[] | undefined) ?? []).flatMap((sid) => {
+        const row = skills[sid] as Record<string, unknown> | undefined;
+        const name = row === undefined ? undefined : label(locale, String(row["Name"] ?? ""));
+        if (name === undefined) return [];
+        const help = label(locale, String(row?.["Help"] ?? ""));
+        const icon = skillIconHref(sid, row);
+        return [{ sid, name, ...(help !== undefined ? { help } : {}), ...(icon !== undefined ? { icon } : {}) }];
+      }),
     });
   }
-  const joinJobs: Record<string, GrowthPathJob> = {};
+  const joinJobs: Record<string, JoinJobProp> = {};
   for (const c of chars) {
     if (joinJobs[c.joinJid] === undefined) {
       const job = pathJobOf(c.joinJid);
-      if (job !== undefined) joinJobs[c.joinJid] = job;
+      const row = jobs[c.joinJid] as unknown as Record<string, unknown> | undefined;
+      if (job !== undefined && row !== undefined) joinJobs[c.joinJid] = { ...job, weaponRanks: jobWeaponRanks(row) };
     }
   }
   // 승급망 도달 = 기본직(Rank 0)의 HighJob1/2 합집합. ☠LowJob 필드는 Jid가 아니라 MSBT 라벨이다.

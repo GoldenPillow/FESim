@@ -238,5 +238,5 @@ PYEOF
             pnpm -C apps/web build || exit 1
             "$WRANGLER" deploy -c "$ROOT/wrangler.builder.jsonc" \
               && echo "== builder:publish: https://builder-engage.gpdev.workers.dev/ko/fe17/builder ==" ;;
-  *)        echo "usage: ./dev done [--dry-run]|gate|builder:publish|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004|--items|--weapontypes|--engraves|--efficacy|--rings]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
+  *)        echo "usage: ./dev done [--dry-run]|gate|builder:publish|clear-check|test|check|doccheck|gc|fuzz [runs]|extract|transform [--all|--chapter M004]|notes|verify-m002|verify-all [--partial]|bake [--all|--chapter M004|--items|--weapontypes|--engraves|--efficacy|--rings|--skills]|replay <cid>|replay:verify [--deep]|opening check <cid>|saves [show <n>]|promote [버전ID]|link:put <id> <eph.json> [--local]|perf <URL>|size"; exit 2 ;;
 esac

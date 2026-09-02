@@ -663,7 +663,7 @@ export const FIDELITY: readonly FidelityEntry[] = [
     id: "units.weapon-proficiency",
     label: { en: "Weapon aptitude and rank", ja: "武器適性・武器レベル(Aptitude)", ko: "무기 적성·랭크(Aptitude)" },
     status: "absent",
-    evidence: "Aptitude 비트 = 무기 컬럼 순서(교차 일치 2건) — equippedWeapon은 Kind·RangeO만 검사(gaps/H)",
+    evidence: "판독 2026-09-02: JobData.GetMaxWeaponLevel(index, originalAptitude) 0x2056C30 = job.WeaponLevels[kind] + (job.WeaponLevelPlusMask & person.Aptitude 일치 시 +1, S 상한) · Unit.Create 0x1A086E0: OriginalAptitude = person.Aptitude(SubAptitude는 전직 자격만) — 엔진 미배선(빌더 표시층 effectiveWeaponRanks만 소비), equippedWeapon은 Kind·RangeO만 검사",
   },
   {
     id: "units.promotion",
