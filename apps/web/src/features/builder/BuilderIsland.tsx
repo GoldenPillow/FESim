@@ -2262,7 +2262,9 @@ export default function BuilderIsland({
         </div>
       )}
 
-      <div className="builder-scroll min-h-0 flex-1 w-fit max-w-full overflow-auto rounded border border-rule bg-panel [scrollbar-color:var(--rule)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-rule [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted">
+      {/* 펼침 모드 = 전 뷰포트 기본(2026-09-02 사용자 지시): 안쪽 스크롤박스 없이 페이지 스크롤 하나,
+          표 헤더(1행 + 성장률 행)만 최상단 고정. ☠overflow-auto를 되살리면 엔트리가 안쪽 상자로 들어간다. */}
+      <div className="builder-scroll w-fit max-w-full rounded border border-rule bg-panel">
         {/* ☠border-collapse 금지 — collapse 모델에서는 sticky 헤더 셀의 배경 페인트가 스크롤에 뒤처져
             본문 글자가 헤더를 뚫고 비친다(가로폰 실측, Chromium). 구분선은 셀이 소유한다. */}
         <table className="builder-table border-separate [border-spacing:0] text-[14px] md:text-[17px]">
