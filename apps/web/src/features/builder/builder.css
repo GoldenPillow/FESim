@@ -1,27 +1,41 @@
-/* 엔트리 빌더 — 엔트리 카드(인게임 유닛 선택 리스트 형) + 모바일 세로 레이어.
+/* 엔트리 빌더 — 엔트리 카드 + 모바일 세로 레이어.
+   카드 박스(배경·테두리)는 폐지(2026-09-02 사용자 지시) — 대신 카드 th + 스킬 열(skill-col)이 이어서
+   왼쪽 sunken → 오른쪽 panel의 미세한 가로 그라데이션 하나를 이룬다(끝색 = 장비 열 배경 panel이라 경계가 없다).
+   이음 색 = th 폭 비율(포트 6.6rem + 이름 6em + 패딩 ≈ 228px : 스킬 열 152px ≈ 60%) 지점의 혼합.
+   잠금 테두리(entry-locked-block)는 그대로. */
+.entry-th {
+  background: linear-gradient(90deg, var(--sunken), color-mix(in srgb, var(--sunken) 40%, var(--panel)));
+  /* 카드(entry-wrap)가 절대배치라 열 폭을 못 밀어 준다 — 폭 = 포트 6.6rem + 간격 0.55rem + 이름 6em + 카드 패딩 16 + th 패딩 16. */
+  min-width: calc(6.6rem + 0.55rem + 6em + 32px);
+}
+.builder-table td.skill-col {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sunken) 40%, var(--panel)), var(--panel));
+}
+/* 카드 = [포트레이트][이름] 박스(배경·테두리 복구, 2026-09-02) — 카드 th 안에서 클래스 행 밴드(bottom 10 + h-7 + 4)
+   위 공간을 절대배치로 전부 채운다(포트레이트 여유 — th 높이는 우측 행들이 정한다). 아래 = [클래스][In.lv].
    테두리는 drop-shadow로 — clip-path 뒤에 걸려 사선 모서리를 따라간다(box-shadow는 잘린다). */
 .entry-wrap {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  /* 48 → 42: 클래스 행 bottom 10 + h-7 28 + 간격 4. */
+  bottom: 42px;
+  left: 8px;
   filter: drop-shadow(0 0 1px var(--rule));
 }
-/* 카드 호버 골드 글로우 폐기(2026-09-01 사용자 지시) — 데스크톱에서 카드는 클릭 대상이 아니라
-   테두리 반응이 오해를 부른다(작동 요소는 드롭다운·잠금 바·행이 각자 반응한다). */
 .entry-card {
   display: flex;
+  flex: 1;
+  /* 래퍼의 items-center(JSX)를 이겨 세로로 꽉 채운다 — 포트레이트·이름은 카드 안 세로 중앙. */
+  align-self: stretch;
   align-items: center;
   gap: 0.55rem;
   border-radius: 3px;
   background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
-  /* 우측 = 절대배치 사이드 열(entry-side, 9rem)의 자리 + 4px 간격(2026-09-02). */
-  padding: 3px calc(9rem + 4px) 3px 4px;
-  /* 배경 높이 = 사이드 열(적성 60 + 6 + 고유 스킬 28) — 사이드 열 top 4px과 맞추는 1px(카드 th 패딩 3px).
-     포트레이트는 세로 중앙(2026-09-02 사용자: "배경만 확장, 포트는 그대로"). */
-  height: 94px;
-  margin-top: 1px;
+  padding: 3px 12px 3px 4px;
 }
-/* 카드 아래 여백 = 클래스 행 밴드(절대배치 bottom 16px + h-7) 자리. 카드 th는 상단 정렬이라
-   hover:none 기기(고스트 전투력 행 없음)에서도 th가 이만큼은 늘어나 클래스 행이 고유 스킬 칩과 안 겹친다. */
-.entry-spacer {
-  height: 50px;
+.entry-lv {
+  width: 5.5rem;
 }
 
 /* ── 잠금(2026-08-31) — 색은 인게이지 대표 블루(global.css --engage, 로고 실측). ── */
@@ -225,14 +239,15 @@
   .builder-table th[scope="row"] {
     padding: 2px 2px !important;
   }
+  .entry-wrap {
+    position: static;
+  }
+  .entry-th {
+    min-width: 0;
+  }
   .entry-card {
     gap: 0;
     padding: 2px 3px;
-    height: auto;
-    margin-top: 0;
-  }
-  .entry-spacer {
-    height: 32px;
   }
   .entry-face {
     width: 4.65rem;
@@ -241,9 +256,9 @@
   .entry-name {
     display: none;
   }
-  /* 네임카드 우측 2줄도 세로폰은 걷는다(밀도 우선 — 이름과 같은 축). */
-  .entry-side {
-    display: none;
+  /* 스킬 열도 세로폰은 걷는다(밀도 우선 — 이름과 같은 축). ☠헤더·본문 셀을 같이(열 어긋남 방지). */
+  .builder-table .skill-col {
+    display: none !important;
   }
   /* 반지 슬롯(2026-08-31) — 세로폰은 반지 행 셀·문장사 이름을 걷고(밀도 우선),
      포트레이트 탭 = 우측 폴딩 전개(tbody 상태 클래스). 컨테이닝 블록 = 카드 th(sticky). */
@@ -310,6 +325,9 @@
     display: table-cell !important;
     padding: 4px 8px !important;
   }
+  .builder-table .skill-col {
+    display: table-cell !important;
+  }
   .builder-table th[scope="row"] {
     padding: 3px 8px !important;
   }
@@ -318,7 +336,7 @@
   }
   .entry-card {
     gap: 0.55rem;
-    padding: 3px calc(9rem + 4px) 3px 4px;
+    padding: 3px 12px 3px 4px;
   }
   .entry-face {
     width: 6.6rem;
