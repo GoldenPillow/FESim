@@ -1766,7 +1766,9 @@ export default function BuilderIsland({
     const delta = emblem?.bonuses[effBond - 1];
     return (
       <tr key="ring">
-        <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-middle">
+        {/* 반지 행은 상단 정렬(2026-09-02) — hover:none(고스트 전투력 행 없음)에서 카드 th가 행을 늘려도
+            반지·인연 밴드가 카드 고유 스킬 칩과 같은 높이에 남는다(PC는 행 높이 = 셀 높이라 동일). */}
+        <td className="inlv-col px-1 pb-[2px] pt-[2px] text-left align-top">
           <span
             className="ring-cell flex justify-start"
             onClick={(e) => e.stopPropagation()}
@@ -1798,7 +1800,7 @@ export default function BuilderIsland({
         {STAT_KEYS.map((key) => {
           if (key === "hp") {
             return (
-              <td key={key} className="stat-col px-1 pb-[2px] pt-[2px] text-left align-middle md:px-2">
+              <td key={key} className="stat-col px-1 pb-[2px] pt-[2px] text-left align-top md:px-2">
                 {emblem !== undefined && (
                   <span
                     className="ring-cell flex justify-start"
@@ -2225,7 +2227,7 @@ export default function BuilderIsland({
               <th
                 scope="row"
                 rowSpan={3 + (showGrowth ? 1 : 0)}
-                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
                   <span
@@ -2249,7 +2251,7 @@ export default function BuilderIsland({
                 </span>
                 {sideUi(row.pid, job)}
                 {/* 절대배치 클래스 행의 자리 확보용 여백(카드 아래 밴드). */}
-                <span className="block h-[32px]" aria-hidden="true" />
+                <span className="entry-spacer block" aria-hidden="true" />
                 {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 변경 = 즉시 저장·부적합 무기 미착용 복귀. */}
                 {classRowUi(
                   row.pid,
@@ -2385,7 +2387,7 @@ export default function BuilderIsland({
                 // 카드 th = [고유성장?]+스탯0+반지+전투력0 행까지 — 하단(무기 슬롯 밴드)에 클래스 행이
                 // 절대배치로 앉아 무기·강화·각인과 하단 정렬된다(2026-09-01 정정). 이후 행은 필러 th.
                 rowSpan={(showGrowth ? 1 : 0) + 3}
-                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-middle font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
+                className={`sticky left-0 bg-panel px-2 py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
                   <span
@@ -2417,7 +2419,7 @@ export default function BuilderIsland({
                 )}
                 {/* 호버 클래스명 라인(jobslot)은 폐기 — 카드 하단 밴드를 클래스 드롭다운이 차지한다
                     (2026-08-31: 클래스 개별 편집이 표시를 겸한다). 절대배치 클래스 행의 자리 확보용 여백. */}
-                <span className="block h-[32px]" aria-hidden="true" />
+                <span className="entry-spacer block" aria-hidden="true" />
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                     카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
                 <RingSlot

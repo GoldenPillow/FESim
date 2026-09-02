@@ -13,6 +13,15 @@
   background: linear-gradient(100deg, var(--sunken), var(--panel) 60%, var(--sunken));
   /* 우측 = 절대배치 사이드 열(entry-side, 9rem)의 자리 + 4px 간격(2026-09-02). */
   padding: 3px calc(9rem + 4px) 3px 4px;
+  /* 배경 높이 = 사이드 열(적성 60 + 6 + 고유 스킬 28) — 사이드 열 top 4px과 맞추는 1px(카드 th 패딩 3px).
+     포트레이트는 세로 중앙(2026-09-02 사용자: "배경만 확장, 포트는 그대로"). */
+  height: 94px;
+  margin-top: 1px;
+}
+/* 카드 아래 여백 = 클래스 행 밴드(절대배치 bottom 16px + h-7) 자리. 카드 th는 상단 정렬이라
+   hover:none 기기(고스트 전투력 행 없음)에서도 th가 이만큼은 늘어나 클래스 행이 고유 스킬 칩과 안 겹친다. */
+.entry-spacer {
+  height: 50px;
 }
 
 /* ── 잠금(2026-08-31) — 색은 인게이지 대표 블루(global.css --engage, 로고 실측). ── */
@@ -219,6 +228,11 @@
   .entry-card {
     gap: 0;
     padding: 2px 3px;
+    height: auto;
+    margin-top: 0;
+  }
+  .entry-spacer {
+    height: 32px;
   }
   .entry-face {
     width: 4.65rem;
@@ -376,10 +390,18 @@
    호버가 없는 기기(터치)는 공란을 채울 수단이 없어 행·클래스명 슬롯을 통째로 걷는다.
    잠금 블록의 전투력 행은 combat-ghost가 아니라 그대로 남는다(상시 표시 + 카드 장비 변경). */
 @media (hover: none) {
+  /* 2026-09-02: 걷지 않고 자리만 남긴다(visibility) — 카드 사이드 열(적성·고유 스킬)이 반지 밴드까지 내려와
+     클래스 행이 이 밴드를 써야 한다. 행 높이가 PC와 같아져 사이드 열·계승·반지 정렬도 동일하게 유지된다. */
   .builder-table tr.combat-ghost {
-    display: none;
+    visibility: hidden;
   }
   .builder-table .entry-jobslot {
+    display: none;
+  }
+}
+/* 세로폰은 밀도 우선 — 고스트 행을 통째로 걷는다(카드 사이드 열도 숨김이라 밴드가 필요 없다). */
+@media (hover: none) and (max-width: 767px) {
+  .builder-table tr.combat-ghost {
     display: none;
   }
 }
