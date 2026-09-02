@@ -26,6 +26,7 @@ import namesEnRaw from "../../../../data/fe17/names/en.json?raw";
 import namesJaRaw from "../../../../data/fe17/names/ja.json?raw";
 import namesKoRaw from "../../../../data/fe17/names/ko.json?raw";
 import { UI, type Locale, type Strings } from "./i18n";
+import { rankValue } from "./weaponRank";
 
 export { FLIP_X, FLIP_Y, forceStyle, type ForceStyle } from "./grid";
 import { forceStyle } from "./grid";
@@ -2046,10 +2047,8 @@ const ITEM_FLAG_IGNORE_RANK = 256;
 const ITEM_FLAG_UNPUBLIC = 512;
 const ITEM_FLAG_DOWNLOAD = 4096;
 
-/** 무기 랭크 서열(N = 착용 불가, '+' = 반 단계) — 장착 게이트(canEquip)와 목록 정렬이 공용. */
-const RANK_ORDER: Record<string, number> = { N: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
-export const rankValue = (rank: string): number =>
-  (RANK_ORDER[rank.replace("+", "")] ?? 0) + (rank.endsWith("+") ? 0.5 : 0);
+// 랭크 서열은 weaponRank.ts(클라이언트 안전)가 소유한다 — 여기서 재정의하면 서열이 갈라진다.
+export { rankValue };
 
 /** 무기 특효 단면(EquipSids → Efficacy 비영 스킬) — 빌더 무기 목록·문장사 엔게이지 무기가 공용.
     아이콘 키 = IconLabel(efficacy 스프라이트 동명). */

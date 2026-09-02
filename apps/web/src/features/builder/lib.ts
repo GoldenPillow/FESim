@@ -12,15 +12,15 @@ import {
 } from "@fesim/engine";
 import type { CalculatorData } from "@fesim/shared";
 import calculatorRaw from "../../../../../data/fe17/tables/calculator.json?raw";
-import {
-  rankValue,
-  type BuilderCharProp,
-  type BuilderEmblemProp,
-  type BuilderEngraveProp,
-  type BuilderJobProp,
-  type BuilderProps,
-  type BuilderWeaponProp,
+import type {
+  BuilderCharProp,
+  BuilderEmblemProp,
+  BuilderEngraveProp,
+  BuilderJobProp,
+  BuilderProps,
+  BuilderWeaponProp,
 } from "../../lib/fe17";
+import { rankValue } from "../../lib/weaponRank";
 import type { EntryLock } from "../../lib/guestSave";
 
 /**
@@ -317,7 +317,7 @@ export function lockedDisplayRows(
 
 /* ── 장착 게이트 — 무기군(Kind) + 랭크(WeaponLevel ≤ MaxWeaponLevel). ── */
 
-// 랭크 서열은 fe17(목록 정렬과 공용 정본)이 소유한다 — 여기서 재정의하면 서열이 갈라진다.
+// 랭크 서열은 weaponRank(목록 정렬과 공용 정본)가 소유한다 — 여기서 재정의하면 서열이 갈라진다.
 export { rankValue };
 
 /** 무기군 하나의 실효 랭크 단면 — innate = 캐릭터 고유 적성(person.Aptitude)이 이 무기군을 포함. */
