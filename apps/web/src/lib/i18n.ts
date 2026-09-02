@@ -193,6 +193,18 @@ export interface BuilderLabels {
   synchro: string;
   /** 팝업 구획: 인게이지 중 스킬·무기. */
   engage: string;
+  /** SKILL 열 헤더(구 IN.LV — 계승 스킬 자리, 2026-09-02). 헤더는 영문 모노 고정. */
+  skillHeader: string;
+  /** 계승 스킬 슬롯 접근성 라벨. */
+  inherit: string;
+  /** 스킬 슬롯 비어 있음. */
+  skillNone: string;
+  /** ★비계 — 계승 스킬 더미 옵션 접두(실데이터 배선 시 제거). */
+  skillDummy: string;
+  /** 네임카드 윗줄(무기 적성·실효 랭크) 접근성 title. */
+  aptitude: string;
+  /** 네임카드 아랫줄(고유 스킬 칩) 접근성 title. */
+  personalSkill: string;
 }
 
 /** 메인 랜딩(허브) 라벨 — 섹션·링크는 정적 페이지가 그대로 편다. */
@@ -400,6 +412,12 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "Bond Lv",
       synchro: "Sync",
       engage: "Engage",
+      skillHeader: "SKILL",
+      inherit: "Inherited skill",
+      skillNone: "No skill",
+      skillDummy: "Dummy skill",
+      aptitude: "Weapon proficiency",
+      personalSkill: "Personal skill",
     },
     home: {
       intro:
@@ -584,6 +602,12 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "絆 Lv",
       synchro: "シンクロ",
       engage: "エンゲージ",
+      skillHeader: "SKILL",
+      inherit: "継承スキル",
+      skillNone: "スキルなし",
+      skillDummy: "ダミースキル",
+      aptitude: "武器適性",
+      personalSkill: "個人スキル",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -770,6 +794,12 @@ export const UI: Record<Locale, Strings> = {
       bondLevel: "인연레벨 Lv",
       synchro: "싱크로",
       engage: "인게이지",
+      skillHeader: "SKILL",
+      inherit: "계승 스킬",
+      skillNone: "스킬 없음",
+      skillDummy: "더미 스킬",
+      aptitude: "무기 적성",
+      personalSkill: "고유 스킬",
       stats: {
         hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",

@@ -8,6 +8,7 @@ import {
   carriedEquip,
   combatOf,
   COMBAT_KEYS,
+  effectiveWeaponRanks,
   lockedDisplayRows,
   moveLock,
   nextSort,
@@ -267,13 +268,14 @@ const weaponOptionsOf = (
   job: BuilderJobProp | undefined,
   engrave: BuilderEngraveProp | undefined,
   labels: BuilderLabels,
+  aptitude = 0,
 ): EquipOption[] => [
   { value: "", label: labels.itemNone },
   ...options.map((w) => ({
     value: w.iid,
     label: w.name,
     ...(w.icon !== undefined ? { icon: w.icon } : {}),
-    ...(job !== undefined && !canEquip(job, w) ? { disabled: true as const } : {}),
+    ...(job !== undefined && !canEquip(job, w, aptitude) ? { disabled: true as const } : {}),
     ...(w.engage === true ? { engage: true as const } : {}),
     spec: { weapon: w, plus: 0, engrave },
   })),
@@ -319,8 +321,20 @@ const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
   label: String(i + 1),
 }));
 
-/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계, "Lv." 접두(2026-09-01 사용자 지시). */
-const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `Lv. ${n}` }));
+/** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계, "In.lv" 접두(2026-09-02 사용자 지시 —
+    IN.LV 열을 SKILL 열로 넘기면서 카드가 내부 레벨 표기를 단독으로 맡는다). */
+const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `In.lv ${n}` }));
+
+/** ★비계(2026-09-02) — 계승 스킬 슬롯 더미 옵션. 제거 조건 = 문장사 계승 스킬(god 성장표 InheritanceSkill)
+    실데이터 사영 시 이 목록과 inheritDummy 상태를 실옵션·저장 상태로 교체한다. */
+const inheritDummyOptions = (labels: BuilderLabels): EquipOption[] => [
+  { value: "", label: labels.skillNone },
+  ...[1, 2, 3].map((n) => ({ value: String(n), label: `${labels.skillDummy} ${n}` })),
+];
+
+/** 모든 무기군 적성 비트(Sword 2 … Special 512) — 글로벌 슬롯 장비는 캐릭터 미정이라 최대 허용으로 두고,
+    카드 단계(cardEquip)에서 캐릭터 고유 적성으로 재게이트한다. */
+const APTITUDE_ALL = 0x3fe;
 
 /**
  * 드롭다운 자동 스크롤(2026-09-01 사용자 지시) — 목록이 화면·스크롤박스 아래로 잘리면
@@ -711,6 +725,8 @@ interface CombatCellsProps {
   engraves: readonly BuilderEngraveProp[];
   kindIcons: Record<number, string>;
   labels: BuilderLabels;
+  /** 캐릭터 고유 적성 비트마스크 — 무기 목록의 랭크 게이트(effectiveWeaponRanks) 입력. */
+  aptitude: number;
   /** 카드 장비 변경 — iid/plus/engrave 부분 갱신("" = 해제). undefined 필드는 불변. */
   onEquip: (patch: { iid?: string; plus?: number; engrave?: string }) => void;
 }
@@ -732,6 +748,7 @@ function CombatCells({
   engraves,
   kindIcons,
   labels,
+  aptitude,
   onEquip,
 }: CombatCellsProps): React.JSX.Element {
   const bare = combatOf(row);
@@ -759,7 +776,7 @@ function CombatCells({
       <EquipDropdown
         ariaLabel={labels.item}
         value={weapon?.iid ?? ""}
-        options={weaponOptionsOf(options, job, engrave, labels)}
+        options={weaponOptionsOf(options, job, engrave, labels, aptitude)}
         disabled={job === undefined}
         onChange={(iid) => onEquip({ iid })}
         onOpenChange={setOpenDrop}
@@ -1065,6 +1082,19 @@ export default function BuilderIsland({
   /** 클래스·In.Lv 드롭다운이 열린 카드 pid — 열린 동안 그 카드 th의 z를 올린다
       (☠안 올리면 목록이 다음 카드의 sticky th(z-10, DOM 후순위)에 덮여 클릭 불능 — 실사고 2026-09-01). */
   const [classDrop, setClassDrop] = useState<string | null>(null);
+  /** 고유 스킬 설명 팝업이 열린 카드(호버·탭) — 열리면 카드 th z를 올린다(thRaised). */
+  const [skillPop, setSkillPop] = useState<string | null>(null);
+  /* ★비계(2026-09-02): 계승 스킬 2칸의 더미 선택 — 저장하지 않는다(inheritDummyOptions 참조). */
+  const [inheritDummy, setInheritDummy] = useState<Record<string, [string, string]>>({});
+  useEffect(() => {
+    if (skillPop === null) return;
+    // 바깥 탭 = 닫기(터치 토글의 짝) — 캡처 단계여야 드롭다운 루트의 전파 차단에 안 막힌다.
+    const onDoc = (e: PointerEvent): void => {
+      if (!(e.target instanceof Element) || e.target.closest(".entry-skill") === null) setSkillPop(null);
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+  }, [skillPop]);
   useEffect(() => {
     setStar(loadStarsphere());
     setShowGrowth(loadShowGrowth());
@@ -1298,6 +1328,9 @@ export default function BuilderIsland({
   );
   const emblemByGid = useMemo(() => new Map(visibleEmblems.map((e) => [e.gid, e])), [visibleEmblems]);
   const jobByJid = useMemo(() => new Map(targetJobs.map((j) => [j.jid, j])), [targetJobs]);
+  /** 전 캐릭터(체커 무관) 단면 — 고유 적성·고유 스킬은 표시 여부와 무관하게 pid로 찾는다. */
+  const charPropByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c])), [chars]);
+  const aptitudeOf = (pid: string): number => charPropByPid.get(pid)?.aptitude ?? 0;
 
   /** 라인 li의 실효 (직업, 내부 레벨) — 라인 0은 카드 개별 편집(cardClass)이 글로벌 슬롯을 대체한다. */
   const cardCompareOf = (pid: string, li: number): BuilderCompare | undefined => {
@@ -1321,7 +1354,7 @@ export default function BuilderIsland({
         // 각인 — 체커에 숨은 gid는 무각인 강하(visibleEngraves가 게이트).
         const engrave = visibleEngraves.find((g) => g.gid === s.engrave);
         const equipped =
-          weapon !== undefined && canEquip(job, weapon)
+          weapon !== undefined && canEquip(job, weapon, APTITUDE_ALL)
             ? { equipped: { weapon, plus: s.plus ?? 0, ...(engrave !== undefined ? { engrave } : {}) } }
             : {};
         // slot = 원본 슬롯 인덱스 — 카드 개인 장비의 분기 기준(빈 jid 슬롯은 라인을 안 만들어 li와 어긋난다).
@@ -1423,7 +1456,7 @@ export default function BuilderIsland({
     // 게이트는 실효 직업 기준 — 카드 클래스 변경 후 부적합해진 장비는 미착용으로 강하(2026-08-31 되돌림).
     const job = cardCompareOf(pid, li)?.job;
     const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
-      eq === undefined || job === undefined || !canEquip(job, eq.weapon) ? undefined : eq;
+      eq === undefined || job === undefined || !canEquip(job, eq.weapon, aptitudeOf(pid)) ? undefined : eq;
     // 기본값 = 캐릭터별 합류 초기 무기 — 글로벌 아이템을 고르면 전원 교체(2026-09-01 사용자 확정).
     if (o === undefined) return gate(compares[li]?.equipped ?? joinEquipOf(pid));
     const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
@@ -1523,7 +1556,7 @@ export default function BuilderIsland({
       if (patch.internal !== undefined) out = { ...out, internal: patch.internal - 1 };
       const job = out.jid === undefined ? undefined : jobByJid.get(out.jid);
       const weapon = out.iid === undefined ? undefined : weapons.find((w) => w.iid === out.iid);
-      if (weapon !== undefined && (job === undefined || !canEquip(job, weapon))) {
+      if (weapon !== undefined && (job === undefined || !canEquip(job, weapon, aptitudeOf(pid)))) {
         const { iid: _i, plus: _p, engrave: _g, ...bare } = out;
         out = bare;
       }
@@ -1556,6 +1589,7 @@ export default function BuilderIsland({
     jobName: string | undefined,
     internalDisplay: number,
     onPatch: (patch: { jid?: string; internal?: number }) => void,
+    skill: React.ReactNode,
   ): React.JSX.Element => (
     <span
       // bottom 16px = 전투력 행 무기 슬롯과 하단 일치 실측 보정(2026-09-01: 정렬 기준 = 무기).
@@ -1586,15 +1620,114 @@ export default function BuilderIsland({
         onChange={(v) => onPatch({ internal: Number(v) })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
-        // "Lv." 접두만큼 넓히고(60px) 직업 선택기(flex-1)가 그만큼 줄어든다(2026-09-01 사용자 지시).
-        triggerClass="flex h-7 w-[60px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
+        // 폭 = 위 이름 칸과 동일(entry-lv, 2026-09-02) — 직업 선택기(flex-1)가 나머지를 쓴다.
+        triggerClass="entry-lv flex h-7 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-rule bg-sunken px-0 text-[14px] font-semibold text-gold"
         trigger={
           <>
-            {`Lv. ${internalDisplay}`}
+            {`In.lv ${internalDisplay}`}
             {CARET}
           </>
         }
       />
+      {skill}
+    </span>
+  );
+
+  /** 네임카드 윗줄 — 클래스 무기군 아이콘 + 실효 랭크(고유 적성 일치 = 블루, 2026-09-02 사용자 지시).
+      직업 미선택이면 합류 직업의 무기군(표의 스탯도 합류 시점 값). 클래스에 없는 적성은 표시하지 않는다.
+      아이콘은 흰 실루엣을 마스크로 써서 글자색(currentColor)을 입힌다(builder.css .entry-kind). */
+  const aptitudeUi = (pid: string, job: BuilderJobProp | undefined): React.JSX.Element => {
+    const c = charPropByPid.get(pid);
+    const ranks = job?.weaponRanks ?? (c === undefined ? undefined : joinJobs[c.joinJid]?.weaponRanks) ?? {};
+    return (
+      <span className="entry-apt flex shrink-0 items-center gap-1.5" title={labels.aptitude}>
+        {effectiveWeaponRanks(ranks, c?.aptitude ?? 0).map((r) =>
+          kindIcons[r.kind] === undefined ? null : (
+            <span
+              key={r.kind}
+              className={`flex items-center gap-[2px] text-[13px] font-bold leading-none ${r.innate ? "text-engage" : "text-ink"}`}
+            >
+              <span
+                className="entry-kind"
+                style={{ maskImage: `url(${kindIcons[r.kind]})`, WebkitMaskImage: `url(${kindIcons[r.kind]})` }}
+              />
+              {r.rank}
+            </span>
+          ),
+        )}
+      </span>
+    );
+  };
+
+  /** 네임카드 아랫줄 — 고유 스킬 칩(아이콘 + 이름). 호버 = 설명 오버레이, 탭 = 토글(터치 — 호버가 없다).
+      로스터 전원 고유 스킬은 1개(2026-09-02 데이터 확인)라 첫 항목만 그린다. */
+  const personalSkillUi = (pid: string): React.JSX.Element => {
+    const s = charPropByPid.get(pid)?.personalSkills[0];
+    const open = skillPop === pid;
+    return (
+      <span
+        className="entry-skill relative shrink-0"
+        onMouseEnter={() => setSkillPop(pid)}
+        onMouseLeave={() => setSkillPop((p) => (p === pid ? null : p))}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSkillPop((p) => (p === pid ? null : pid));
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <span
+          className={`flex h-7 w-full items-center gap-1 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${s === undefined ? "text-muted opacity-40" : "text-ink"}`}
+          title={labels.personalSkill}
+        >
+          {s?.icon !== undefined && <img src={s.icon} alt="" className="h-5 w-5 shrink-0 object-contain" loading="lazy" />}
+          <span className="truncate">{s?.name ?? labels.skillNone}</span>
+        </span>
+        {open && s?.help !== undefined && (
+          <span className="absolute left-0 top-full z-40 mt-1 block w-max max-w-[26rem] whitespace-pre-line rounded border border-rule bg-panel px-2.5 py-1.5 text-[13px] font-normal leading-snug text-muted shadow-md">
+            <span className="mb-[2px] block text-[14px] font-semibold text-ink">{s.name}</span>
+            {s.help}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  /** SKILL 열(구 IN.LV) — 계승 스킬 2칸(위아래), 고유 스킬 칩과 같은 규격(h-7·아이콘+이름).
+      ★비계: 옵션·상태가 더미(inheritDummyOptions·inheritDummy) — 실데이터 배선 시 교체. */
+  const inheritUi = (pid: string): React.JSX.Element => (
+    <span
+      className="entry-inherit flex flex-col gap-1"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {([0, 1] as const).map((i) => {
+        const value = inheritDummy[pid]?.[i] ?? "";
+        const text = value === "" ? labels.skillNone : `${labels.skillDummy} ${value}`;
+        return (
+          <EquipDropdown
+            key={i}
+            ariaLabel={`${labels.inherit} ${i + 1}`}
+            value={value}
+            options={inheritDummyOptions(labels)}
+            onChange={(v) =>
+              setInheritDummy((prev) => {
+                const cur: [string, string] = [prev[pid]?.[0] ?? "", prev[pid]?.[1] ?? ""];
+                cur[i] = v;
+                return { ...prev, [pid]: cur };
+              })
+            }
+            labels={labels}
+            rootClass="w-full"
+            triggerClass={`flex h-7 w-full items-center gap-1 whitespace-nowrap rounded border bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${value !== "" ? "border-rule text-ink" : "border-dashed border-rule text-muted opacity-70"}`}
+            trigger={
+              <>
+                <span className="truncate">{text}</span>
+                {CARET}
+              </>
+            }
+          />
+        );
+      })}
     </span>
   );
 
@@ -2012,8 +2145,8 @@ export default function BuilderIsland({
                 <span className="corner-label block px-1 text-muted md:px-2">Character</span>
               </th>
               <th className="inlv-col sticky top-0 z-20 bg-panel p-0 text-center align-middle font-normal shadow-[inset_0_-1px_0_var(--rule)]" scope="col">
-                <span className="flex items-center justify-center px-1 py-2 text-gold md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1" title={labels.internalShort}>
-                  IN.LV
+                <span className="flex items-center justify-center px-1 py-2 text-gold md:px-2 md:py-[18px] [@media(max-height:520px)]:py-1" title={labels.inherit}>
+                  {labels.skillHeader}
                 </span>
               </th>
               {STAT_KEYS.map((key) => (
@@ -2066,7 +2199,7 @@ export default function BuilderIsland({
             const lockRing = lockRingOf(row.pid);
             const lockEntry = locked.find((e) => e.pid === row.pid);
             const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
-            const thRaised = emblemOpen === row.pid || foldPid === row.pid || classDrop === row.pid;
+            const thRaised = emblemOpen === row.pid || foldPid === row.pid || classDrop === row.pid || skillPop === row.pid;
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
             // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
             const touchUnlock = (e: React.MouseEvent): void => {
@@ -2098,7 +2231,8 @@ export default function BuilderIsland({
                     {row.face !== undefined && (
                       <img src={row.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
-                    <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                    <span className="entry-name inline-block w-[7em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{row.name}</span>
+                    {aptitudeUi(row.pid, job)}
                   </span>
                   {/* 해제 버튼은 호버 시 스탯 행 마지막 셀 우측 바 — 행·배경 클릭은 무반응(부주의 방지). */}
                 </span>
@@ -2111,6 +2245,7 @@ export default function BuilderIsland({
                   job?.name,
                   (lockEntry?.internal ?? 0) + 1,
                   (p) => patchLockClass(row.pid, p),
+                  personalSkillUi(row.pid),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
                 <RingSlot
@@ -2157,9 +2292,7 @@ export default function BuilderIsland({
                 )}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {!showGrowth && lockTh}
-                  <td className={`inlv-col px-2 py-1 text-center text-gold ${row.projected ? "" : "opacity-55"} ${showGrowth ? "" : sep}`}>
-                    {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
-                  </td>
+                  <td className={`inlv-col px-1 py-1 text-left align-middle ${showGrowth ? "" : sep}`}>{inheritUi(row.pid)}</td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
                     const down = key === "spd" && spdPenalty(row, equipped);
@@ -2204,6 +2337,7 @@ export default function BuilderIsland({
                     engraves={visibleEngraves}
                     kindIcons={kindIcons}
                     labels={labels}
+                    aptitude={aptitudeOf(row.pid)}
                     onEquip={(p) => patchLock(row.pid, p)}
                   />
                 </tr>
@@ -2232,7 +2366,8 @@ export default function BuilderIsland({
                   };
             const ringSrc = ghost ? lockRingOf(first.pid) : rings[first.pid];
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
-            const thRaised = !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid);
+            const thRaised =
+              !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid || skillPop === first.pid);
             const nameTh = (
               <th
                 scope="row"
@@ -2256,7 +2391,8 @@ export default function BuilderIsland({
                     {first.face !== undefined && (
                       <img src={first.face} alt="" width={106} height={44} loading="lazy" className="entry-face shrink-0" />
                     )}
-                    <span className="entry-name inline-block w-[5em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
+                    <span className="entry-name inline-block w-[7em] truncate text-[15px] md:text-[17px] font-semibold text-ink">{first.name}</span>
+                    {aptitudeUi(first.pid, cardCompareOf(first.pid, 0)?.job)}
                   </span>
                   {/* 자물쇠 슬롯 폐기(2026-08-31 재설계) — 잠금 버튼은 행 호버 시 마지막 셀 우측 바로. */}
                 </span>
@@ -2267,6 +2403,7 @@ export default function BuilderIsland({
                   cardCompareOf(first.pid, 0)?.job.name,
                   cardClass[first.pid]?.internal ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
                   (p) => patchCardClass(first.pid, p),
+                  personalSkillUi(first.pid),
                 )}
                 {/* 호버 클래스명 라인(jobslot)은 폐기 — 카드 하단 밴드를 클래스 드롭다운이 차지한다
                     (2026-08-31: 클래스 개별 편집이 표시를 겸한다). 절대배치 클래스 행의 자리 확보용 여백. */}
@@ -2340,8 +2477,8 @@ export default function BuilderIsland({
                       {li === 1 && (
                         <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                       )}
-                      <td className={`inlv-col px-2 ${roomy} text-center text-gold ${row.projected ? "" : "opacity-55"} ${li === 0 && !showGrowth ? sep : ""}`}>
-                        {row.projected ? row.internal + 1 : `(${row.internal + 1})`}
+                      <td className={`inlv-col px-1 ${roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
+                        {li === 0 && inheritUi(first.pid)}
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
@@ -2396,6 +2533,7 @@ export default function BuilderIsland({
                         engraves={visibleEngraves}
                         kindIcons={kindIcons}
                         labels={labels}
+                        aptitude={aptitudeOf(first.pid)}
                         onEquip={(p) => applyCard(first.pid, li, p)}
                       />
                     </tr>,

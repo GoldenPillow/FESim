@@ -336,6 +336,27 @@ def bake_efficacy(romfs: Path, data: Path) -> int:
     return 0
 
 
+def bake_skills(romfs: Path, data: Path) -> int:
+    """스킬 아이콘 — ui_icon/skill 번들 전수(516종, 52x52). 키 = 스프라이트명 = Sid에서 `SID_`를 뗀 것
+    (SID_神竜の結束 → 神竜の結束, 510/1255 일치 — 나머지는 아이콘 없는 플래그·변종 Sid).
+    빌더 네임카드의 고유 스킬 칩·계승 스킬 슬롯이 소비한다(2026-09-02 사용자 지시)."""
+    sprites = load_sprites(romfs / "ui_icon" / "skill" / "skill.bundle")
+    dest_dir = data / "assets" / "skills"
+    manifest_path = data / "assets" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    resolved, baked = {}, 0
+    for name, obj in sorted(sprites.items()):
+        dest = dest_dir / f"{name}.webp"
+        if not dest.is_file():
+            write_webp(obj.read().image.convert("RGBA"), dest)
+            baked += 1
+        resolved[name] = f"assets/skills/{name}.webp"
+    manifest["skills"] = resolved
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"skills: {len(resolved)} icons ({baked} new)")
+    return 0
+
+
 def bake_god_engraves(romfs: Path, data: Path) -> int:
     """각인(刻印) 심볼 — ui_icon/godsymbolengrave 번들(20종). 빌더 각인 슬롯이 초상(godFaces) 대신
     이 심볼을 쓴다(2026-08-31 사용자 지시).
@@ -449,6 +470,7 @@ def main() -> int:
     parser.add_argument("--engraves", action="store_true", help="각인 심볼 베이크(godsymbolengrave — 챕터·얼굴 스킵)")
     parser.add_argument("--efficacy", action="store_true", help="특효 아이콘 베이크(efficacy — 챕터·얼굴 스킵)")
     parser.add_argument("--rings", action="store_true", help="문장사 반지 아이콘 베이크(godring — 챕터·얼굴 스킵)")
+    parser.add_argument("--skills", action="store_true", help="스킬 아이콘 베이크(ui_icon/skill 전수 — 챕터·얼굴 스킵)")
     parser.add_argument("--romfs", type=Path, default=DEFAULT_ROMFS)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--dump-png", type=Path, nargs="?", const=DEFAULT_DUMP, default=None)
@@ -464,6 +486,8 @@ def main() -> int:
         return bake_efficacy(args.romfs, args.data)
     if args.rings:
         return bake_god_rings(args.romfs, args.data)
+    if args.skills:
+        return bake_skills(args.romfs, args.data)
 
     chapters = [args.chapter]
     if args.all:

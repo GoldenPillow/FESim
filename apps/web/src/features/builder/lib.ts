@@ -256,11 +256,39 @@ export function lockedDisplayRows(
 // 랭크 서열은 fe17(목록 정렬과 공용 정본)이 소유한다 — 여기서 재정의하면 서열이 갈라진다.
 export { rankValue };
 
-/** 클래스가 이 무기를 들 수 있나 — 무기군 적성 + 랭크 게이트(Flag 256 = 랭크 무시). */
-export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp): boolean => {
+/** 무기군 하나의 실효 랭크 단면 — innate = 캐릭터 고유 적성(person.Aptitude)이 이 무기군을 포함. */
+export interface WeaponRankView {
+  kind: number;
+  rank: string;
+  innate: boolean;
+}
+
+const RANK_STEPS = ["N", "E", "D", "C", "B", "A", "S"] as const;
+
+/** 실효 무기 랭크 — 인게임 JobData.GetMaxWeaponLevel(index, originalAptitude)(RVA 0x2056C30):
+    직업 랭크의 '+'(WeaponLevelPlusMask)와 캐릭터 고유 적성(비트 = 1<<kind)이 둘 다 맞을 때만 한 단계
+    승격(S 상한), 아니면 '+'를 뗀 값. originalAptitude = person.Aptitude만(Unit.Create 0x1A086E0 —
+    SubAptitude는 전직 자격 마스크에만 OR). 클래스에 없는 무기군은 적성이 있어도 목록에 없다. */
+export const effectiveWeaponRanks = (weaponRanks: Record<number, string>, aptitude = 0): WeaponRankView[] =>
+  Object.entries(weaponRanks)
+    .map(([k, raw]) => {
+      const kind = Number(k);
+      const innate = (aptitude & (1 << kind)) !== 0;
+      const base = raw.replace("+", "");
+      const idx = RANK_STEPS.indexOf(base as (typeof RANK_STEPS)[number]);
+      const up = raw.endsWith("+") && innate && idx >= 0;
+      return { kind, rank: up ? RANK_STEPS[Math.min(idx + 1, RANK_STEPS.length - 1)] as string : base, innate };
+    })
+    .sort((a, b) => a.kind - b.kind);
+
+/** 클래스가 이 무기를 들 수 있나 — 무기군 적성 + 실효 랭크 게이트(Flag 256 = 랭크 무시).
+    aptitude = 캐릭터 고유 적성 비트마스크(캐릭터가 특정되지 않는 글로벌 목록은 0 = 보정 없음). */
+export const canEquip = (job: BuilderJobProp, weapon: BuilderWeaponProp, aptitude = 0): boolean => {
   const max = job.weaponRanks[weapon.kind];
   if (max === undefined) return false;
-  return weapon.ignoreRank === true || rankValue(weapon.rank) <= rankValue(max);
+  if (weapon.ignoreRank === true) return true;
+  const eff = effectiveWeaponRanks({ [weapon.kind]: max }, aptitude)[0]?.rank ?? max;
+  return rankValue(weapon.rank) <= rankValue(eff);
 };
 
 /** 직업 변경 시 장비 승계 판정(2026-09-01 사용자 지시) — 씨드 장비(그 슬롯 현재분, 없으면 메인 슬롯)를
@@ -269,10 +297,11 @@ export function carriedEquip(
   job: BuilderJobProp | undefined,
   seed: { iid?: string; plus?: number; engrave?: string },
   weapons: readonly BuilderWeaponProp[],
+  aptitude = 0,
 ): { iid: string; plus?: number; engrave?: string } | undefined {
   if (job === undefined || seed.iid === undefined) return undefined;
   const weapon = weapons.find((w) => w.iid === seed.iid);
-  if (weapon === undefined || !canEquip(job, weapon)) return undefined;
+  if (weapon === undefined || !canEquip(job, weapon, aptitude)) return undefined;
   return {
     iid: weapon.iid,
     ...(seed.plus !== undefined ? { plus: seed.plus } : {}),

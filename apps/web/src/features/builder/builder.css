@@ -142,6 +142,33 @@
   mask-image: linear-gradient(100deg, #000 80%, transparent 99%);
 }
 
+/* 네임카드 우측(2026-09-02) — 이름 7em(17px = 119px)과 In.lv(14px 폰트) 폭 정합 = 8.5em.
+   윗줄 적성 행·아랫줄 고유 스킬 칩은 같은 고정 폭. 무기군 아이콘은 흰 실루엣 webp를 마스크로 쓰고
+   배경 = currentColor(고유 적성 = text-engage 블루, 그 외 = ink)라 색이 팔레트 변수 그대로 맞는다. */
+.entry-lv {
+  width: 8.5em;
+}
+.entry-apt,
+.entry-skill {
+  width: 8.75rem;
+}
+.entry-kind {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+/* SKILL 열 계승 슬롯 2칸 — 열 폭 고정(드롭다운 w-full의 기준). */
+.entry-inherit {
+  width: 8rem;
+}
+
 /* 전투력 행 이중 렌더 — PC·가로 = 스탯 열 그리드(combat-grid), 세로 모바일 = 흐름(combat-flow).
    두 벌을 같이 그리고 미디어가 표시를 가른다(display:none 셀은 표 레이아웃에서 빠진다). */
 .combat-flow {
@@ -205,6 +232,11 @@
     height: 1.95rem;
   }
   .entry-name {
+    display: none;
+  }
+  /* 네임카드 우측 2줄도 세로폰은 걷는다(밀도 우선 — 이름과 같은 축). */
+  .entry-apt,
+  .entry-skill {
     display: none;
   }
   /* 반지 슬롯(2026-08-31) — 세로폰은 반지 행 셀·문장사 이름을 걷고(밀도 우선),
@@ -288,8 +320,8 @@
   }
   .entry-name {
     display: inline-block;
-    /* PC와 동일 5em — 캐릭터명 최대 5자(2026-08-31 카드 1칸 축소). */
-    width: 5em !important;
+    /* PC와 동일 7em(2026-09-02 — In.lv 표기 폭 정합, 종전 5em). */
+    width: 7em !important;
     font-size: 17px !important;
   }
   /* 가로폰은 PC 풀피쳐 — 전투력도 그리드 정렬로 복원(세로 블록이 좁은 가로폰에 새는 것 방지). */
