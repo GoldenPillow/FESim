@@ -229,22 +229,23 @@ describe("문장사 보너스 (applyEmblemBonus)", () => {
     expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
   });
 
-  it("캡 초과분은 캡에서 잘리고 소수점 버림(정수 캡 표기) — 이미 캡이면 상승 없음(2026-09-01 사용자 관측)", () => {
-    // str 본값 13.4 · cap 40 — 큰 델타는 40에서 잘린다(정수 = 소수점 버림 · capped · 상승분 있어 블루).
+  /** 왜 위험한가: 정본 `Unit.GetCapability` 0x1A2DD80 = Clamp(Clamp(base,0,Limit)+Enhance, min, 255) — 강화치는 캡 뒤 가산.
+      캡에서 자르면 캡 근처 캐릭터가 문장사·스킬 보너스를 조용히 잃는다(2026-09-05 사용자 관측 — 2026-09-01 클램프 대체). */
+  it("보너스는 상한을 넘는다 — 캡 도달 셀에도 정수로 가산, 255만 상한", () => {
     const [row] = builderRows(propsOf([char("a")]), HIGH, 11);
     expect(row!.cells.str.text).toBe("13.4");
     const out = applyEmblemBonus(row!, { str: 30 });
-    expect(out.cells.str.text).toBe("40");
-    expect(out.cells.str.value).toBe(40);
-    expect(out.cells.str.capped).toBe(true);
+    expect(out.cells.str.text).toBe("43.4");
+    expect(out.cells.str.value).toBeCloseTo(43.4, 5);
     expect(out.cells.str.buffed).toBe(true);
-    // 이미 캡 도달(hp cap 20) — 델타를 얹어도 캡 그대로, 상승이 없으니 블루도 없다.
+    // 이미 캡 도달(hp cap 20, 정수 표기) — 델타가 그대로 얹힌다.
     const capped = char("b", { personLimit: block({ hp: -60 }) });
     const [row2] = builderRows(propsOf([capped]), HIGH, 40);
     expect(row2!.cells.hp.capped).toBe(true);
     const out2 = applyEmblemBonus(row2!, { hp: 3 });
-    expect(out2.cells.hp.text).toBe(row2!.cells.hp.text);
-    expect(out2.cells.hp.buffed).toBeUndefined();
+    expect(out2.cells.hp.text).toBe(String(Number(row2!.cells.hp.text) + 3));
+    expect(out2.cells.hp.buffed).toBe(true);
+    expect(out2.cells.hp.parts).toEqual([{ source: "emblem", value: 3 }]);
   });
 });
 

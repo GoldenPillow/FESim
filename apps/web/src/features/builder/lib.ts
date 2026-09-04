@@ -35,7 +35,7 @@ export interface BuilderCell {
   /** 정렬 비교값 — 캡 정수도 같은 축에서 비교한다. */
   value: number;
   capped: boolean;
-  /** 도달 상한(mergeStatCap 합성값) — 絆 보너스 가산이 이 위로 못 넘게 잘린다(2026-09-01 사용자 관측). */
+  /** 도달 상한(mergeStatCap 합성값) — 기본치의 캡 표기(정수) 판정용. ☠강화치는 이 위를 넘는다(GetCapability 0x1A2DD80). */
   cap: number;
   /** 문장사 絆 보너스·계승 스킬로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
   buffed?: boolean;
@@ -242,17 +242,13 @@ export function applyStatBonus(row: BuilderRow, delta: Partial<Record<StatKey, n
   for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
     if (d === 0) continue;
     const cell = cells[key];
-    // 캡 클램프(2026-09-01 사용자 관측: 캡 초과 값이 표에 섰다) — 넘치면 캡 정수(소수점 버림)로.
-    const value = Math.min(cell.value + d, cell.cap);
-    if (Math.abs(value - cell.value) < 1e-9) continue; // 이미 캡 = 상승 없음(블루도 없음)
-    const hit = value >= cell.cap - 1e-9;
-    const text = hit
-      ? String(cell.cap)
-      : cell.capped
-        ? String(Number(cell.text) + d)
-        : (parseFloat(cell.text) + d).toFixed(1);
-    const parts = [...(cell.parts ?? []), { source, value: hit ? Math.round((value - cell.value) * 100) / 100 : d }];
-    cells[key] = { ...cell, text, value, capped: hit, parts, ...(d > 0 ? { buffed: true as const } : {}) };
+    // ★정본 `Unit.GetCapability` 0x1A2DD80 = Clamp(Clamp(base, 0, Limit) + Enhance, min, 255) — 강화치(문장사·스킬
+    //   EnhanceValue)는 **상한 클램프 뒤에** 더해져 캡을 넘는다(il2cpp/STATS_GROWTH §2-1). 2026-09-01의 캡 클램프는
+    //   이를 잘라 캡 근처에서 문장사만 남거나 둘 다 사라졌다(2026-09-05 사용자 관측) → 정본대로 255만 상한.
+    const value = Math.min(cell.value + d, 255);
+    const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
+    const parts = [...(cell.parts ?? []), { source, value: d }];
+    cells[key] = { ...cell, text, value, parts, ...(d > 0 ? { buffed: true as const } : {}) };
   }
   return source === "emblem" ? { ...row, cells, emblemDelta: delta } : { ...row, cells };
 }
