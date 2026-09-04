@@ -16,11 +16,13 @@ import {
   moveLock,
   nextSort,
   patchCardClass,
+  penalizedText,
   resetEntryLock,
   skillStatDelta,
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
+  weightPenalty,
   type BuilderCell,
   type BuilderCompare,
   type BuilderRow,
@@ -94,11 +96,8 @@ const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
 /** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
 const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
 
-/** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자까지 레드(2026-08-31 지시). 공속은 미표시라 여기서 경고. */
-const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean =>
-  equipped !== undefined &&
-  weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight >
-    row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0);
+/** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자를 감산해 레드(2026-08-31 레드 지시 + 2026-09-05 감산 관측). */
+const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean => weightPenalty(row, equipped) > 0;
 
 /** 스펙 델타색 — 무강화·무각인 원본 대비, 상승 블루·하락 레드(무게는 반대: 증가가 악화다, 2026-08-31). */
 const specCls = (v: number, b: number, invert = false): string =>
@@ -1863,20 +1862,29 @@ export default function BuilderIsland({
 
   /** 스탯 셀 합산 오버레이(2026-09-02) — 층(parts)이 있을 때만: 기본 → 문장사 ±N → 스킬 ±N. 호버 전용(CSS .cell-pop).
       마지막 두 열(RES·BLD)은 표 밖으로 새지 않게 우측 앵커. */
-  const fmtStat = (n: number): string => (Number.isInteger(Math.round(n * 100) / 100) ? String(Math.round(n)) : n.toFixed(1));
-  const statPop = (cell: BuilderCell, key: StatKey): React.JSX.Element | null => {
-    if (cell.parts === undefined || cell.parts.length === 0) return null;
-    const base = cell.value - cell.parts.reduce((a, p) => a + p.value, 0);
+  // ☠toFixed 단독 금지(13.35 → "13.3") — 소수 2자리 정수화 후 1자리로 half-up(셀 텍스트의 누적기 반올림과 일치).
+  const fmtStat = (n: number): string => {
+    const c = Math.round(n * 100);
+    return c % 100 === 0 ? String(c / 100) : (Math.round(c / 10) / 10).toFixed(1);
+  };
+  /** 스탯 합산 오버레이 — 기본 → 문장사 ±N → 스킬 ±N → 무게 −N → 합계, 층이 하나라도 있을 때만(2026-09-05 사용자 지시: 여러 줄 정확히). */
+  const statPop = (cell: BuilderCell, key: StatKey, penalty = 0): React.JSX.Element | null => {
+    const parts = cell.parts ?? [];
+    if (parts.length === 0 && penalty <= 0) return null;
+    const base = cell.value - parts.reduce((a, p) => a + p.value, 0);
     return (
       <span
         className={`cell-pop absolute top-full z-40 mt-0.5 w-max flex-col gap-[1px] rounded border border-rule bg-panel px-2 py-1 text-left text-[13px] font-semibold leading-tight shadow-md ${key === "res" || key === "bld" ? "right-0" : "left-0"}`}
       >
         <span className="text-ink">{`${labels.breakdownBase} ${fmtStat(base)}`}</span>
-        {cell.parts.map((p, idx) => (
+        {parts.map((p, idx) => (
           <span key={idx} className={p.value > 0 ? "text-pgrow" : "text-danger"}>
             {`${p.source === "emblem" ? labels.breakdownEmblem : labels.breakdownSkill} ${p.value > 0 ? "+" : ""}${fmtStat(p.value)}`}
           </span>
         ))}
+        {/* 무게 감산 = 정본 攻撃速度計算의 max(무게 − 체격, 0) 항(SPD만). */}
+        {penalty > 0 && <span className="text-danger">{`${labels.weight} -${fmtStat(penalty)}`}</span>}
+        <span className="border-t border-rule pt-[2px] text-ink">{`${labels.breakdownTotal} ${penalizedText(cell, penalty)}`}</span>
       </span>
     );
   };
@@ -2478,7 +2486,8 @@ export default function BuilderIsland({
                   <td className={`inlv-col px-[3px] pb-[3px] pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{aptitudeUi(row.pid, job)}</td>
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
-                    const down = key === "spd" && spdPenalty(row, equipped);
+                    const penalty = key === "spd" ? weightPenalty(row, equipped) : 0;
+                    const down = penalty > 0;
                     // 絆 보너스 상승 = 블루 — SPD 무게 레드와 겹치면 상승 우선(2026-08-31 사용자 지시).
                     const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                     return (
@@ -2486,8 +2495,8 @@ export default function BuilderIsland({
                         key={key}
                         className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 pb-[3px] pt-[10px] text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${showGrowth ? "" : sep}`}
                       >
-                        {cell.text}
-                        {statPop(cell, key)}
+                        {penalizedText(cell, penalty)}
+                        {statPop(cell, key, penalty)}
                         {/* 해제 바(2026-08-31 재설계) — 블록 호버 시 스탯 행 우측(레드), 클릭 = 대기 복귀. */}
                         {key === "bld" && lockHover === row.pid && (
                           <button
@@ -2670,7 +2679,8 @@ export default function BuilderIsland({
                       </td>
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
-                        const down = key === "spd" && spdPenalty(row, eq);
+                        const penalty = key === "spd" ? weightPenalty(row, eq) : 0;
+                        const down = penalty > 0;
                         // 絆 보너스 상승 = 블루 — 무게로 깎인 SPD 레드와 겹치면 상승이 우선(2026-08-31 사용자 지시).
                         const tone = cell.buffed === true ? "text-pgrow" : down ? "text-danger" : cell.capped ? "text-cap" : "text-ink";
                         return (
@@ -2678,8 +2688,8 @@ export default function BuilderIsland({
                             key={key}
                             className={`stat-col${key === "bld" ? " stat-col-last" : ""} relative min-w-[3.7rem] px-1 ${li === 0 ? roomyTop : roomy} text-center font-bold md:min-w-[5.5rem] md:px-2 ${tone} ${row.ineligible ? "opacity-45" : ""} ${li === 0 && !showGrowth ? sep : ""}`}
                           >
-                            {cell.text}
-                            {statPop(cell, key)}
+                            {penalizedText(cell, penalty)}
+                            {statPop(cell, key, penalty)}
                             {/* 잠금 바(2026-08-31 재설계) — 호버 라인 마지막 셀 우측, 셀 크기·위치 불변. */}
                             {key === "bld" && !inert && hovered && hoverRow.li === li && (
                               <button

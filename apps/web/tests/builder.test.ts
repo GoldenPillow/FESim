@@ -15,6 +15,7 @@ import {
   moveLock,
   nextSort,
   patchCardClass,
+  penalizedText,
   rankValue,
   resetEntryLock,
   skillStatDelta,
@@ -22,6 +23,7 @@ import {
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
+  weightPenalty,
 } from "../src/features/builder/lib";
 import type { BuilderCharProp, BuilderEmblemProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
 
@@ -352,6 +354,19 @@ describe("전투력 사영 (combatOf) — 무기 합산", () => {
    * 정본 식에 무기 변수를 채우는 것만이 합산이다(명중 = 기x2+int(행/2)+무기명중,
    * 회피 = (속도-max(무게-체격,0))x2+int(행/2), 물공 = 힘+위력).
    */
+  /** 왜 위험한가: 페널티를 색으로만 알리면 표의 SPD가 인게임 상태 화면보다 높게 읽힌다(2026-09-05 사용자 관측 — 붉게만 되고 안 빠짐). */
+  it("weightPenalty·penalizedText — 무게 > 체격만큼 SPD 표시가 빠진다(정본 攻撃速度計算 감산항)", () => {
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const heavy = { ...iron, weight: row!.cells.bld.value + 3 };
+    expect(weightPenalty(row!, undefined)).toBe(0);
+    expect(weightPenalty(row!, { weapon: iron, plus: 0 })).toBe(Math.max(0, 5 - row!.cells.bld.value));
+    expect(weightPenalty(row!, { weapon: heavy, plus: 0 })).toBeCloseTo(3);
+    expect(penalizedText({ text: "22.4", value: 22.4, capped: false, cap: 40 }, 3)).toBe("19.4");
+    expect(penalizedText({ text: "40", value: 40, capped: true, cap: 40 }, 2)).toBe("38");
+    expect(penalizedText({ text: "40", value: 40, capped: true, cap: 40 }, 1.5)).toBe("38.5");
+    expect(penalizedText({ text: "22.4", value: 22.4, capped: false, cap: 40 }, 0)).toBe("22.4");
+  });
+
   it("철의 검 장착 — 명중·회피(공속 하락)·물공이 정본 식대로 움직인다", () => {
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const c = combatOf(row!, { weapon: iron, plus: 0 });

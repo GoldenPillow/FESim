@@ -203,6 +203,22 @@ export function dropCardKeys<T>(map: Record<string, T>, pid: string): Record<str
   return Object.fromEntries(Object.entries(map).filter(([k]) => !k.startsWith(`${pid}:`)));
 }
 
+/** 무게 페널티 — 정본 `攻撃速度計算 = 速さ − max(武器の重さ − 体格, 0)`의 감산항. 인게임 상태 화면은
+    이 값을 뺀 속도를 붉게 보인다(2026-09-05 사용자 관측: "붉게만 되고 스탯이 안 빠진다"). 체격은 무기 Enhance 포함. */
+export function weightPenalty(row: BuilderRow, equipped: EquippedWeapon | undefined): number {
+  if (equipped === undefined) return 0;
+  const w = weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight;
+  return Math.max(0, w - (row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0)));
+}
+
+/** 페널티를 뺀 표시 문자열 — cell.text의 소수 자리를 지킨다(평균 체격이 소수면 페널티도 소수 → 1자리). */
+export function penalizedText(cell: BuilderCell, penalty: number): string {
+  if (penalty <= 0) return cell.text;
+  const dot = cell.text.indexOf(".");
+  const dec = Math.max(dot < 0 ? 0 : cell.text.length - dot - 1, Number.isInteger(penalty) ? 0 : 1);
+  return (Number(cell.text) - penalty).toFixed(dec);
+}
+
 /** 잠금 순서 이동(드래그 커밋) — 순수 이동: 원본 불변이어야 상태·저장분이 안 어긋난다. */
 export function moveLock(locked: readonly EntryLock[], from: number, to: number): EntryLock[] {
   const next = [...locked];

@@ -205,6 +205,8 @@ export interface BuilderLabels {
   breakdownBase: string;
   breakdownEmblem: string;
   breakdownSkill: string;
+  /** 합산 오버레이 마지막 줄 — 표시값(무게 감산 후). */
+  breakdownTotal: string;
   breakdownWeapon: string;
   /** 네임카드 윗줄(무기 적성·실효 랭크) 접근성 title. */
   aptitude: string;
@@ -424,6 +426,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "Base",
       breakdownEmblem: "Emblem",
       breakdownSkill: "Skill",
+      breakdownTotal: "Total",
       breakdownWeapon: "Weapon",
       aptitude: "Weapon proficiency",
       personalSkill: "Personal skill",
@@ -618,6 +621,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "基本",
       breakdownEmblem: "紋章士",
       breakdownSkill: "スキル",
+      breakdownTotal: "合計",
       breakdownWeapon: "武器",
       aptitude: "武器適性",
       personalSkill: "個人スキル",
@@ -814,6 +818,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "기본",
       breakdownEmblem: "문장사",
       breakdownSkill: "스킬",
+      breakdownTotal: "합계",
       breakdownWeapon: "무기",
       aptitude: "무기 적성",
       personalSkill: "고유 스킬",
