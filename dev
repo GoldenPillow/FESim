@@ -37,7 +37,35 @@ clear_report() {
   return 1
 }
 
-# 마감 = 게이트 → main 병합(= 베타 게시) → 작업 브랜치 동기 → /clear 판정.
+# 마감 뒤 잔류 프로세스 정리(2026-09-04 사용자 지시) — 로컬 dev 서버 종료 + 이 프로젝트의 좀비 에이전트 제거.
+# 좀비 = cwd가 이 저장소(또는 그 스크래치)인 claude 세션·헤드리스 브라우저·기보 생성기 중 **현재 세션 트리 밖**인 것.
+# ☠cwd가 다른 프로젝트인 세션(예: aegis)은 건드리지 않는다 — 같은 사용자의 살아 있는 작업이다.
+cleanup_session() {
+  echo "-- 잔류 프로세스 정리 --"
+  if pnpm -C apps/web exec astro dev stop >/dev/null 2>&1; then echo "  · 로컬 dev 서버 종료"; else echo "  · 로컬 dev 서버 없음"; fi
+  # 현재 세션 = 이 셸의 조상(첫 claude까지)과 그 터미널 세션(sid)들. ☠조상을 끝까지 올리면 VSCode ptyHost·/init에서
+  #   다른 터미널과 겹치고, sid만 보면 Claude의 Bash 도구가 setsid라 자기 세션을 못 알아본다 — 둘을 합친다.
+  local mine=" " sids=" " p=$$ c pid cwd args killed=0
+  while [ "$p" -gt 1 ]; do
+    c="$(ps -o comm= -p "$p" 2>/dev/null)"
+    case "$c" in zsh|bash|sh|dash|dev|claude|node|pnpm|npm) ;; *) break ;; esac
+    mine="$mine$p "; sids="$sids$(ps -o sid= -p "$p" | tr -d ' ') "
+    [ "$c" != "claude" ] || break
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"; [ -n "$p" ] || break
+  done
+  local scratch="/tmp/claude-$(id -u)/$(printf '%s' "$ROOT" | tr '/' '-')"
+  for pid in $(pgrep -u "$(id -u)" -x claude; pgrep -u "$(id -u)" -f 'chrome-headless-shell|MiniBrowser|tools/replay/make.mjs|astro/bin/astro|workerd|wrangler dev'); do
+    case "$mine" in *" $pid "*) continue ;; esac
+    case "$sids" in *" $(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ') "*) continue ;; esac
+    cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null)" || continue
+    case "$cwd" in "$ROOT"|"$ROOT"/*|"$scratch"|"$scratch"/*) ;; *) continue ;; esac
+    args="$(ps -o args= -p "$pid" 2>/dev/null | cut -c1-80)"
+    kill "$pid" 2>/dev/null && { echo "  · kill $pid $args"; killed=$((killed+1)); }
+  done
+  [ "$killed" -gt 0 ] || echo "  · 좀비 에이전트 없음"
+}
+
+# 마감 = 게이트 → main 병합(= 베타 게시) → 작업 브랜치 동기 → 잔류 프로세스 정리 → /clear 판정.
 # ☠훅은 이 경로를 타지 않는다(훅 = ./dev gate) — 타면 게시가 자기를 다시 부른다.
 publish_done() {
   local dry=0 branch head_msg
@@ -61,7 +89,7 @@ publish_done() {
 
   if [ "$dry" = 1 ]; then
     echo "== --dry-run: 베타 게시 생략 =="
-    clear_report "$branch"; return $?
+    cleanup_session; clear_report "$branch"; return $?
   fi
 
   head_msg="$(git log -1 --format=%s "$branch")"
@@ -79,6 +107,7 @@ publish_done() {
   echo "== 베타 게시: main 푸시 완료 (CF가 beta 채널을 갱신한다) =="
   git checkout "$branch" && git merge --ff-only main
   unset FESIM_PUBLISHING
+  cleanup_session
   clear_report "$branch"
 }
 
