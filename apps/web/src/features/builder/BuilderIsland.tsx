@@ -1515,23 +1515,16 @@ export default function BuilderIsland({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid, bondPreview, inherits, inheritBySid]);
 
-  /** 합류 초기 무기 단면 — 글로벌 아이템 미선택 시 카드 기본값(2026-09-01 사용자 지시). */
-  const joinEquipOf = (pid: string): EquippedWeapon | undefined => {
-    const iid = charByPid.get(pid)?.joinIid;
-    const weapon = iid === undefined ? undefined : weapons.find((w) => w.iid === iid);
-    return weapon === undefined ? undefined : { weapon, plus: 0 };
-  };
-
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number, ghost = false): EquippedWeapon | undefined => {
-    // 유령 카드 = 개인 오버라이드·카드 클래스 무시(글로벌 슬롯 + 합류 기본 무기만, 2026-09-02).
+    // 유령 카드 = 개인 오버라이드·카드 클래스 무시(글로벌 슬롯만, 2026-09-02).
     const o = ghost ? undefined : overrides[`${pid}:${li}`];
     // 게이트는 실효 직업 기준 — 카드 클래스 변경 후 부적합해진 장비는 미착용으로 강하(2026-08-31 되돌림).
     const job = (ghost ? compares[li] : cardCompareOf(pid, li))?.job;
     const gate = (eq: EquippedWeapon | undefined): EquippedWeapon | undefined =>
       eq === undefined || job === undefined || !canEquip(job, eq.weapon, aptitudeOf(pid)) ? undefined : eq;
-    // 기본값 = 캐릭터별 합류 초기 무기 — 글로벌 아이템을 고르면 전원 교체(2026-09-01 사용자 확정).
-    if (o === undefined) return gate(compares[li]?.equipped ?? joinEquipOf(pid));
+    // 기본값 = 미장착 — 글로벌 아이템을 골라야 장착된다(2026-09-04 사용자 지시, 09-01의 합류 무기 기본값 철회).
+    if (o === undefined) return gate(compares[li]?.equipped);
     const weapon = o.iid === undefined ? undefined : weapons.find((w) => w.iid === o.iid);
     if (weapon === undefined) return undefined;
     const engrave = o.engrave === undefined ? undefined : visibleEngraves.find((g) => g.gid === o.engrave);
