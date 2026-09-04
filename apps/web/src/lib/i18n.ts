@@ -157,8 +157,10 @@ export interface BuilderLabels {
   lock: string;
   /** 잠금 해제(대기 목록 복귀) 접근성 라벨. */
   unlock: string;
-  /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
+  /** Reset All = 잠금 전체 해제 + 직업 미선택 디폴트 + 대기 카드 개인값 폐기 — 체커는 유지(2026-08-31·09-05 사용자 지시). */
   reset: string;
+  /** 카드 리셋 바(전투력 행 호버) — 대기 = 글로벌 추종 복귀 · 잠금 = 영입 상태(2026-09-05). */
+  cardReset: string;
   /** 전투력 행(호버·잠금) — 물공·마공 + 파생치 4종(인게임 전투 능력 목록 — 공속은 인게임에 없어 제외). */
   combat: Record<"patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
   /** 아이템(무기) 선택기 라벨 — 클래스·내부 레벨 우측(2026-08-31). */
@@ -391,7 +393,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "Cannot reach this class",
       lock: "Pin entry",
       unlock: "Unpin entry",
-      reset: "Reset",
+      reset: "Reset All",
+      cardReset: "Reset",
       combat: { patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
       item: "Weapon",
       itemNone: "Unequipped",
@@ -587,7 +590,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "このクラスにはなれない",
       lock: "エントリーを固定",
       unlock: "固定を解除",
-      reset: "リセット",
+      reset: "全リセット",
+      cardReset: "リセット",
       combat: { patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
       item: "武器",
       itemNone: "未装備",
@@ -781,7 +785,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "이 직업으로 갈 수 없음",
       lock: "엔트리 잠금",
       unlock: "잠금 해제",
-      reset: "Reset",
+      reset: "Reset All",
+      cardReset: "Reset",
       combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
       item: "아이템",
       itemNone: "미착용",

@@ -192,6 +192,17 @@ export function patchCardClass(
   return { ...(jid !== undefined ? { jid } : {}), ...(internal !== undefined ? { internal } : {}) };
 }
 
+/** 잠금 카드 리셋(2026-09-05 사용자 지시) — 영입 시점(직업 미선택·내부 0)으로, 장비·반지·계승 스킬 전부 제거.
+    성옥 체커 스냅샷만 남긴다(카드 편집값이 아니라 글로벌 체커의 박제). */
+export function resetEntryLock(e: EntryLock): EntryLock {
+  return { pid: e.pid, internal: 0, ...(e.star === true ? { star: true } : {}) };
+}
+
+/** `${pid}:${li}` 키 맵(카드 개인 장비 오버라이드)에서 그 카드 것만 걷는다 — 잠금·리셋·글로벌 추종 복귀 공용. */
+export function dropCardKeys<T>(map: Record<string, T>, pid: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(map).filter(([k]) => !k.startsWith(`${pid}:`)));
+}
+
 /** 잠금 순서 이동(드래그 커밋) — 순수 이동: 원본 불변이어야 상태·저장분이 안 어긋난다. */
 export function moveLock(locked: readonly EntryLock[], from: number, to: number): EntryLock[] {
   const next = [...locked];

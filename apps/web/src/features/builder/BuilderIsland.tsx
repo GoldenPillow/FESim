@@ -9,12 +9,14 @@ import {
   carriedEquip,
   combatOf,
   COMBAT_KEYS,
+  dropCardKeys,
   effectiveWeaponRanks,
   inheritOptions,
   lockedDisplayRows,
   moveLock,
   nextSort,
   patchCardClass,
+  resetEntryLock,
   skillStatDelta,
   upgradeTargets,
   waitingRowGroups,
@@ -763,6 +765,8 @@ interface CombatCellsProps {
   skills: readonly SkillRow[];
   /** 카드 장비 변경 — iid/plus/engrave 부분 갱신("" = 해제). undefined 필드는 불변. */
   onEquip: (patch: { iid?: string; plus?: number; engrave?: string }) => void;
+  /** 마지막 셀(BLD) 우측 호버 바 — 카드 리셋(2026-09-05). 스탯 행의 잠금 바와 같은 자리. */
+  bar?: React.ReactNode;
 }
 
 /**
@@ -785,6 +789,7 @@ function CombatCells({
   lead,
   skills,
   onEquip,
+  bar,
 }: CombatCellsProps): React.JSX.Element {
   const bare = combatOf(row);
   const armed = equipped !== undefined ? combatOf(row, equipped) : bare;
@@ -924,7 +929,8 @@ function CombatCells({
         if (key === "bld") {
           const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
           return (
-            <td key={key} className="combat-grid stat-col stat-col-last min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2">
+            <td key={key} className="combat-grid stat-col stat-col-last relative min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2">
+              {bar}
               {eff !== undefined && (
                 <>
                   <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
@@ -1176,6 +1182,9 @@ export default function BuilderIsland({
       ];
       if (ring !== undefined) setRings(({ [pid]: _moved, ...rest }) => rest);
       if (inherits[pid] !== undefined) setInherits(({ [pid]: _moved, ...rest }) => rest);
+      // 클래스·개인 장비는 스냅샷이 가져갔다 — 세션에 남기면 해제 뒤 대기 카드가 글로벌을 못 따른다(2026-09-05 사용자 지시).
+      setCardClass(({ [pid]: _moved, ...rest }) => rest);
+      setOverrides((prev) => dropCardKeys(prev, pid));
     } else {
       // 해제 = 스냅샷의 반지·계승 스킬을 세션 쪽으로 되돌린다(대기 카드에서 이어서 편집).
       const entry = locked.find((e) => e.pid === pid);
@@ -1348,16 +1357,49 @@ export default function BuilderIsland({
     return { transform: "translateY(0)" };
   };
 
-  /** Reset = 잠금 전체 해제 + 직업 미선택 디폴트(2026-08-31 사용자 확정) — 체커 저장값은 유지. */
+  /** Reset All = 잠금 전체 해제 + 직업 미선택 디폴트(2026-08-31 사용자 확정) + 대기 카드 개인값(클래스·장비·반지·계승) 전부 폐기 —
+      체커 저장값은 유지. */
   const reset = (): void => {
     saveEntryLocks([]);
     setLocked([]);
     setPulsePid(null);
     setSlots([{ jid: "" }]);
     setOverrides({});
+    setCardClass({});
+    setRings({});
+    setInherits({});
     setInternal(40);
     setSort(undefined);
   };
+  /** 대기 카드 리셋(2026-09-05 사용자 지시: 전투력 행 호버 바) — 개인값 전부 폐기 = 글로벌 직업·레벨·장비 추종, 반지·계승 없음. */
+  const resetCard = (pid: string): void => {
+    setCardClass(({ [pid]: _c, ...rest }) => rest);
+    setOverrides((prev) => dropCardKeys(prev, pid));
+    setRings(({ [pid]: _r, ...rest }) => rest);
+    setInherits(({ [pid]: _i, ...rest }) => rest);
+  };
+  /** 잠금 카드 리셋 — 영입 시점(직업 미선택)으로, 장비·반지·계승 스킬 제거. 즉시 저장(잠금 편집 규약). */
+  const resetLock = (pid: string): void => {
+    const next = locked.map((e) => (e.pid === pid ? resetEntryLock(e) : e));
+    saveEntryLocks(next);
+    setLocked(next);
+  };
+  /** 전투력 행 리셋 바 — 잠금 바와 같은 자리(마지막 셀 우측)·회색(방향 없음, 잠금 블루·해제 레드와 구분). */
+  const resetBar = (onReset: () => void): React.JSX.Element => (
+    <button
+      type="button"
+      aria-label={labels.cardReset}
+      title={labels.cardReset}
+      className="entry-lockbar entry-lockbar-reset"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onReset();
+      }}
+    >
+      <span className="text-[11px] font-bold tracking-tight text-white">{labels.cardReset}</span>
+    </button>
+  );
 
   // 각인 후보도 체커를 지난다(2026-08-31: 스포일러 = 불꽃의 문장 · DLC 체커 = DLC 각인 연동).
   const visibleEngraves = useMemo(
@@ -1945,8 +1987,18 @@ export default function BuilderIsland({
     },
   });
 
-  const patchSlot = (i: number, patch: Partial<BuilderSlot>): void =>
+  const patchSlot = (i: number, patch: Partial<BuilderSlot>): void => {
     setSlots((s) => s.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
+    followGlobal();
+  };
+  /** 글로벌 변경 = 대기 카드 전부 추종(2026-09-05 사용자 지시: 엔트리(잠금) 카드만 불변) — 카드 개별 클래스·In.Lv는
+      전부 걷고, 개인 장비는 바뀐 슬롯 인덱스 것만(미지정 = 전 슬롯) 걷는다. 반지·계승 스킬은 글로벌 짝이 없어 남긴다. */
+  const followGlobal = (slotIdx?: readonly number[]): void => {
+    setCardClass({});
+    setOverrides((prev) =>
+      slotIdx === undefined ? {} : Object.fromEntries(Object.entries(prev).filter(([k]) => !slotIdx.some((i) => k.endsWith(`:${i}`)))),
+    );
+  };
   /** 직업 변경(2026-09-01 사용자 지시) — 같은 장비를 새 직업이 들 수 있으면 디폴트로 장착, 못 들면
       미장착. 비교 슬롯의 첫 선택(장비 없음)은 1번(메인) 슬롯 장비를 씨드로 쓴다. 내부 레벨은 승계.
       그 슬롯 라인의 카드 개인 장비는 폐기(옛 직업 기준의 분기가 새 직업에 남으면 안 된다). */
@@ -1959,11 +2011,12 @@ export default function BuilderIsland({
         return { jid, ...(v.internal !== undefined ? { internal: v.internal } : {}), ...equip };
       }),
     );
-    setOverrides((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.endsWith(`:${i}`))));
+    followGlobal([i]);
   };
   /** 아이템 선택 — 비교 슬롯이 메인(1번)과 같은 무기를 고르면 강화·각인도 메인을 승계
       (동일 무기 = 업그레이드 동기, 2026-09-01 사용자 지시). 그 외 무기 변경 = 강화 리셋·각인 유지. */
-  const setSlotItem = (i: number, iid: string): void =>
+  const setSlotItem = (i: number, iid: string): void => {
+    followGlobal([i]);
     setSlots((s) =>
       s.map((v, idx) => {
         if (idx !== i) return v;
@@ -1982,15 +2035,19 @@ export default function BuilderIsland({
         return { ...rest, iid };
       }),
     );
+  };
   /** 강화 변경 — 메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
-  const setSlotPlus = (i: number, plus: number): void =>
+  const setSlotPlus = (i: number, plus: number): void => {
+    followGlobal([...upgradeTargets(slots, i)]);
     setSlots((s) => {
       const t = upgradeTargets(s, i);
       return s.map((v, idx) => (t.has(idx) ? { ...v, plus } : v));
     });
+  };
   /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립.
       메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
-  const setSlotEngrave = (i: number, gid: string): void =>
+  const setSlotEngrave = (i: number, gid: string): void => {
+    followGlobal([...upgradeTargets(slots, i)]);
     setSlots((s) => {
       const t = upgradeTargets(s, i);
       return s.map((v, idx) => {
@@ -1999,6 +2056,7 @@ export default function BuilderIsland({
         return gid === "" ? rest : { ...rest, engrave: gid };
       });
     });
+  };
 
   const selectClass =
     "rounded border border-rule bg-sunken px-2 py-1 text-[14px] text-ink focus:outline-none focus-visible:outline-2";
@@ -2173,7 +2231,8 @@ export default function BuilderIsland({
           <button
             type="button"
             onClick={reset}
-            className="mb-0.5 rounded border border-rule px-2.5 py-[3px] text-[14px] text-muted hover:bg-sunken hover:text-ink"
+            // 중요 조작 — 호버 = 레드 배경·화이트 볼드(2026-09-05 사용자 지시).
+            className="mb-0.5 rounded border border-rule px-2.5 py-[3px] text-[14px] text-muted hover:border-danger hover:bg-danger hover:font-bold hover:text-white"
           >
             {labels.reset}
           </button>
@@ -2189,7 +2248,14 @@ export default function BuilderIsland({
           {/* short 라벨 + self-start — 레전드가 셀렉트보다 넓으면(flex-col 폭 기여) 2행(레전드 없음)과
               컬럼이 어긋난다. internalShort는 전 로케일에서 셀렉트보다 좁다(2026-09-01 세로 정렬 수정). */}
           <span className={legendClass}>{labels.internalShort}</span>
-          <select className={`${selectClass} self-start`} value={internal} onChange={(e) => setInternal(Number(e.target.value))}>
+          <select
+            className={`${selectClass} self-start`}
+            value={internal}
+            onChange={(e) => {
+              setInternal(Number(e.target.value));
+              followGlobal();
+            }}
+          >
             {INTERNAL_LEVELS.map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -2236,7 +2302,7 @@ export default function BuilderIsland({
                 onClick={() => {
                   // 슬롯 제거 = 인덱스가 밀린다 — 카드 개인 장비(키에 슬롯 인덱스)는 전부 폐기.
                   setSlots((s) => s.filter((_v, idx) => idx !== i + 1));
-                  setOverrides({});
+                  followGlobal();
                 }}
                 className="rounded px-1.5 py-0.5 text-[15px] text-muted hover:bg-sunken hover:text-ink"
               >
@@ -2454,6 +2520,7 @@ export default function BuilderIsland({
                     lead={skillCell(row.pid, 2, "lock")}
                     skills={inheritRowsOf(row.pid, "lock")}
                     onEquip={(p) => patchLock(row.pid, p)}
+                    bar={lockHover === row.pid ? resetBar(() => resetLock(row.pid)) : undefined}
                   />
                 </tr>
               </tbody>
@@ -2654,6 +2721,7 @@ export default function BuilderIsland({
                         lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
                         skills={inheritRowsOf(first.pid, "wait")}
                         onEquip={(p) => applyCard(first.pid, li, p)}
+                        bar={!inert && hovered && hoverRow.li === li ? resetBar(() => resetCard(first.pid)) : undefined}
                       />
                     </tr>,
                   ];

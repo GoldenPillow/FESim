@@ -8,6 +8,7 @@ import {
   canEquip,
   carriedEquip,
   combatOf,
+  dropCardKeys,
   effectiveWeaponRanks,
   inheritOptions,
   lockedDisplayRows,
@@ -15,6 +16,7 @@ import {
   nextSort,
   patchCardClass,
   rankValue,
+  resetEntryLock,
   skillStatDelta,
   sortRowGroups,
   upgradeTargets,
@@ -272,6 +274,18 @@ describe("카드 개별 클래스·In.Lv 패치 (patchCardClass)", () => {
   it("직접 고른 In.Lv는 직업을 바꿔도 유지, 미선택('')은 jid 제거", () => {
     expect(patchCardClass({ jid: "g", internal: 20 }, "g", { jid: "x" })).toEqual({ jid: "x", internal: 20 });
     expect(patchCardClass({ jid: "x", internal: 20 }, "g", { jid: "" })).toEqual({ internal: 20 });
+  });
+});
+
+describe("카드 리셋 (resetEntryLock·dropCardKeys)", () => {
+  /** 왜 위험한가: 리셋이 필드 하나라도 남기면 "완전 초기화"가 조용히 거짓이 된다(장비만 빠지고 반지가 남는 식). */
+  it("잠금 리셋 = 영입 상태(내부 0·직업 없음) + 성옥 체커만 보존", () => {
+    const e = { pid: "a", internal: 19, jid: "j", star: true, iid: "w", plus: 3, engrave: "g", gid: "r", bond: 12, skills: ["s1", ""] as [string, string] };
+    expect(resetEntryLock(e)).toEqual({ pid: "a", internal: 0, star: true });
+    expect(resetEntryLock({ pid: "b", internal: 5, jid: "j" })).toEqual({ pid: "b", internal: 0 });
+  });
+  it("dropCardKeys는 그 pid 키만 걷고 다른 카드는 그대로", () => {
+    expect(dropCardKeys({ "a:0": 1, "a:1": 2, "ab:0": 3, "b:0": 4 }, "a")).toEqual({ "ab:0": 3, "b:0": 4 });
   });
 });
 
