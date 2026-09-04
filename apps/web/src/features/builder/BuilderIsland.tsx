@@ -2274,6 +2274,10 @@ export default function BuilderIsland({
         >
           {`+ ${labels.addCompare}`}
         </button>
+        {/* 엔트리 수 — 글로벌 직업 라인 우측 정렬(2026-09-05 사용자 지시). */}
+        <span className="ml-auto self-end text-[14px] font-semibold text-muted">
+          {labels.entryCount.replace("{n}", String(locked.length))}
+        </span>
       </div>
 
       {slots.length > 1 && (

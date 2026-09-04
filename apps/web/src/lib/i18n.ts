@@ -134,6 +134,8 @@ export interface BuilderLabels {
   internal: string;
   /** 표 헤더용 짧은 표기. */
   internalShort: string;
+  /** 엔트리(잠금) 수 표시 — 글로벌 직업 라인 우측(2026-09-05). {n} = 수. */
+  entryCount: string;
   /** 성옥의 가호 체커 라벨(+15% 총 성장). */
   starsphere: string;
   /** 스포일러 체커 라벨 — 켜면 후반 캐릭터(모브·베일)·불꽃의 문장 각인 표시(기본 숨김, localStorage 저장). */
@@ -381,6 +383,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "No class",
       internal: "Internal level",
       internalShort: "Int. Lv",
+      entryCount: "Entry {n}",
       starsphere: "Starsphere (+15% growths)",
       showSpoilers: "Show spoilers",
       showDlc: "Show DLC & Fell Xenologue",
@@ -578,6 +581,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "クラス未選択",
       internal: "内部レベル",
       internalShort: "内部Lv",
+      entryCount: "エントリー {n}",
       starsphere: "星玉の加護 (+15% 成長)",
       showSpoilers: "ネタバレを表示",
       showDlc: "DLC・邪竜の章を表示",
@@ -773,6 +777,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "직업 미선택",
       internal: "내부 레벨",
       internalShort: "내부레벨",
+      entryCount: "엔트리 {n}",
       starsphere: "성옥의 가호 (+15% 성장)",
       showSpoilers: "스포일러 표시",
       showDlc: "DLC·사룡의 장 표시",
