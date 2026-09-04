@@ -14,6 +14,7 @@ import {
   lockedDisplayRows,
   moveLock,
   nextSort,
+  patchCardClass,
   skillStatDelta,
   upgradeTargets,
   waitingRowGroups,
@@ -22,6 +23,7 @@ import {
   type BuilderCompare,
   type BuilderRow,
   type BuilderSort,
+  type CardClass,
   type EquippedWeapon,
 } from "./lib";
 import type {
@@ -1108,7 +1110,7 @@ export default function BuilderIsland({
   const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
   /** 카드 개별 클래스·내부 레벨(2026-08-31: 포트레이트 아래 드롭다운) — 라인 0(메인 슬롯)을 대체.
       세션 상태. jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 추종. */
-  const [cardClass, setCardClass] = useState<Record<string, { jid?: string; internal?: number }>>({});
+  const [cardClass, setCardClass] = useState<Record<string, CardClass>>({});
   /** 문장사 레벨 상세 팝업이 열린 카드 pid(세로폰 폴딩 전용 — 데스크톱은 인연 드롭다운이 상세를 겸한다). */
   const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
   /** 인연 옵션 호버 미리보기 — 본스탯 합산·+N이 이 레벨로 라이브 연동(2026-08-31 사용자 지시). */
@@ -1621,20 +1623,10 @@ export default function BuilderIsland({
     });
   };
 
-  /** 카드 클래스·In.Lv 변경(대기) — 첫 터치에 글로벌 슬롯 0을 스냅샷으로 분기(개인 장비와 같은 규약).
+  /** 카드 클래스·In.Lv 변경(대기) — 첫 터치에 글로벌 직업만 분기(개인 장비와 같은 규약), In.Lv는 직접 고른 값만 박힌다.
       부적합해진 장비는 cardEquip 게이트가 미착용으로 강하한다(표시 = 미착용). */
-  const patchCardClass = (pid: string, patch: { jid?: string; internal?: number }): void =>
-    setCardClass((prev) => {
-      const cur =
-        prev[pid] ??
-        (compares[0] !== undefined ? { jid: compares[0].job.jid, internal: compares[0].internal + 1 } : {});
-      const jid = patch.jid !== undefined ? (patch.jid === "" ? undefined : patch.jid) : cur.jid;
-      const nextInternal = patch.internal ?? cur.internal;
-      return {
-        ...prev,
-        [pid]: { ...(jid !== undefined ? { jid } : {}), ...(nextInternal !== undefined ? { internal: nextInternal } : {}) },
-      };
-    });
+  const patchCard = (pid: string, patch: { jid?: string; internal?: number }): void =>
+    setCardClass((prev) => ({ ...prev, [pid]: patchCardClass(prev[pid], compares[0]?.job.jid, patch) }));
 
   /** 잠금 카드 클래스·In.Lv 변경 — 스냅샷 직접 갱신·즉시 저장. 새 직업이 못 드는 무기는
       명시적으로 미착용 복귀(강화·각인 동반 제거 — 2026-08-31 "되돌린다"). */
@@ -2529,7 +2521,7 @@ export default function BuilderIsland({
                   !ghost && cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
                   cmpOf(0)?.job.name,
                   (ghost ? undefined : cardClass[first.pid]?.internal) ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
-                  (p) => patchCardClass(first.pid, p),
+                  (p) => patchCard(first.pid, p),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                     카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}

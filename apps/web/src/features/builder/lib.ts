@@ -170,6 +170,28 @@ export function builderRowGroups(
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
  * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
+/** 카드 개별 클래스·In.Lv(세션) — jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 In.Lv 추종. */
+export interface CardClass {
+  jid?: string;
+  internal?: number;
+}
+
+/**
+ * 카드 클래스·In.Lv 패치 — 첫 터치에 글로벌 직업만 분기(카피 온 라이트)한다.
+ * ☠internal은 사용자가 직접 고른 값만 박는다 — 직업 변경 때 글로벌 In.Lv를 숫자로 스냅샷하면
+ * 그 카드는 이후 글로벌 In.Lv 변경을 못 따라간다(2026-09-05 실사고: 직업만 바꿨는데 40에 고정).
+ */
+export function patchCardClass(
+  cur: CardClass | undefined,
+  globalJid: string | undefined,
+  patch: { jid?: string; internal?: number },
+): CardClass {
+  const base = cur ?? (globalJid !== undefined ? { jid: globalJid } : {});
+  const jid = patch.jid !== undefined ? (patch.jid === "" ? undefined : patch.jid) : base.jid;
+  const internal = patch.internal ?? base.internal;
+  return { ...(jid !== undefined ? { jid } : {}), ...(internal !== undefined ? { internal } : {}) };
+}
+
 /** 잠금 순서 이동(드래그 커밋) — 순수 이동: 원본 불변이어야 상태·저장분이 안 어긋난다. */
 export function moveLock(locked: readonly EntryLock[], from: number, to: number): EntryLock[] {
   const next = [...locked];
