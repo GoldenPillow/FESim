@@ -1854,8 +1854,8 @@ export interface BuilderCharProp {
   spoiler?: true;
   /** DLC 사룡의 장 5인 — DLC 체커 소관(스포일러와 분리, 2026-08-31 사용자 지시). */
   dlc?: true;
-  /** 합류 초기 무기(chart.xml 加入 로드아웃의 첫 공격 무기) — 글로벌 아이템 미선택 시 카드 기본값
-      (2026-09-01 사용자 지시). chart에 없는 DLC 5인 등은 없음 = 미착용. */
+  /** 합류 초기 무기(chart.xml 加入 로드아웃의 첫 공격 무기). 카드 기본값 소비는 2026-09-04 철회
+      (기본 = 미장착) — 사영만 유지, 현재 빌더 미소비. chart에 없는 DLC 5인 등은 없음. */
   joinIid?: string;
   /** 고유 무기 적성 = person.Aptitude 비트마스크(1<<Kind — Sword 2 … Fist 256). 실효 랭크·블루 표식의
       입력(effectiveWeaponRanks). SubAptitude는 랭크 보정이 없어 사영하지 않는다(2026-09-02 판독). */
