@@ -13,6 +13,7 @@ import {
   lockedDisplayRows,
   moveLock,
   nextSort,
+  patchCardClass,
   rankValue,
   skillStatDelta,
   sortRowGroups,
@@ -254,6 +255,23 @@ describe("잠금 재정렬 (moveLock)", () => {
     expect(moveLock(locked, 0, 2).map((e) => e.pid)).toEqual(["b", "c", "a"]);
     expect(moveLock(locked, 2, 0).map((e) => e.pid)).toEqual(["c", "a", "b"]);
     expect(locked.map((e) => e.pid)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("카드 개별 클래스·In.Lv 패치 (patchCardClass)", () => {
+  /** 왜 위험한가: 직업 변경 때 글로벌 In.Lv를 숫자로 박으면 그 카드는 이후 글로벌 In.Lv를 영원히 못 따라간다
+      (미지정 = 글로벌 추종이 설계인데 조용히 고정 — 2026-09-05 실사고). */
+  it("직업만 바꾸면 internal은 미지정으로 남는다(글로벌 추종 유지)", () => {
+    expect(patchCardClass(undefined, "g", { jid: "x" })).toEqual({ jid: "x" });
+    expect(patchCardClass(undefined, undefined, { jid: "x" })).toEqual({ jid: "x" });
+  });
+  it("In.Lv만 바꾸면 글로벌 직업을 분기하고 그 값만 박는다", () => {
+    expect(patchCardClass(undefined, "g", { internal: 20 })).toEqual({ jid: "g", internal: 20 });
+    expect(patchCardClass(undefined, undefined, { internal: 20 })).toEqual({ internal: 20 });
+  });
+  it("직접 고른 In.Lv는 직업을 바꿔도 유지, 미선택('')은 jid 제거", () => {
+    expect(patchCardClass({ jid: "g", internal: 20 }, "g", { jid: "x" })).toEqual({ jid: "x", internal: 20 });
+    expect(patchCardClass({ jid: "x", internal: 20 }, "g", { jid: "" })).toEqual({ internal: 20 });
   });
 });
 
