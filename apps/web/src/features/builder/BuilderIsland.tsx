@@ -244,6 +244,14 @@ const EngraveSpecPanel = ({
 const isPortraitPhone = (): boolean =>
   window.matchMedia("(max-width: 767px)").matches && !window.matchMedia("(max-height: 520px)").matches;
 
+/** 이름 편집 어포던스 — ☠연필 글리프(U+270E)는 폰트에 따라 뭉개지므로 인라인 SVG로 그린다(전역 규약). */
+const PENCIL = (
+  <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11.2 2.3a1.4 1.4 0 0 1 2 2L5.6 11.9l-2.7.8.8-2.7 7.5-7.7Z" />
+    <path d="M10.1 3.4 12.1 5.4" />
+  </svg>
+);
+
 /** 드롭다운 표지 화살표 — 카드·상단 슬롯 공용, "여기는 드롭다운"이 보이게(2026-08-31 사용자 지시). */
 const CARET = (
   <span aria-hidden="true" className="text-[12px] leading-none text-muted">
@@ -1112,7 +1120,8 @@ function PresetBar({
   onCloseNotice: () => void;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
+  /** 이름 편집 중인 프리셋 — row = 목록 행에서 여는가(트리거와 행이 동시에 input이 되면 포커스가 싸운다). */
+  const [editing, setEditing] = useState<{ n: number; row: boolean } | null>(null);
   const [more, setMore] = useState(false);
   /** 전환에 실패한 번호 — 목록에서 "불러오지 못한 프리셋"으로 남긴다(슬롯은 지우지 않는다). */
   const [unreadable, setUnreadable] = useState<readonly number[]>([]);
@@ -1154,6 +1163,47 @@ function PresetBar({
   const alert = saveFailed || broken;
   const rowBtn = "rounded px-1.5 py-1 text-[13px] leading-none text-muted";
 
+  /** 이름 입력 — 트리거와 목록 행이 공유한다(커밋·취소 규약의 답변자는 하나). */
+  const nameInput = (n: number, initial: string, cls: string): React.JSX.Element => (
+    <input
+      autoFocus
+      defaultValue={initial}
+      maxLength={40}
+      aria-label={t.rename}
+      className={cls}
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        // ☠IME 가드 — 없으면 한/일 조합 확정의 Enter가 커밋으로 먹혀 이름이 반쪽에서 끊긴다.
+        if (e.nativeEvent.isComposing) return;
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={(e) => {
+        const cancel = cancelled.current;
+        cancelled.current = false;
+        setEditing(null);
+        if (!cancel) onRename(n, e.currentTarget.value);
+      }}
+    />
+  );
+
+  /** 이름 편집 어포던스 — 트리거·행 공용. 앞자리에 둔다(잦은 조작인 교체에 큰 과녁을 준다). */
+  const pencil = (n: number, row: boolean): React.JSX.Element => (
+    <button
+      type="button"
+      title={t.rename}
+      aria-label={t.rename}
+      className="shrink-0 px-1.5 text-muted hover:text-gold"
+      onClick={() => setEditing({ n, row })}
+    >
+      {PENCIL}
+    </button>
+  );
+
   return (
     <span
       className="preset-bar relative flex min-w-0 items-center"
@@ -1164,53 +1214,31 @@ function PresetBar({
         setOpen(false);
       }}
     >
-      {editing ? (
-        <input
-          autoFocus
-          defaultValue={active.name}
-          maxLength={40}
-          aria-label={t.rename}
-          className="h-7 w-[9rem] max-w-[40vw] rounded border border-gold bg-sunken px-2 text-[13px] text-ink outline-none"
-          onFocus={(e) => e.currentTarget.select()}
-          onKeyDown={(e) => {
-            // ☠IME 가드 — 없으면 한/일 조합 확정의 Enter가 커밋으로 먹혀 이름이 반쪽에서 끊긴다.
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              cancelled.current = true;
-              e.currentTarget.blur();
-            }
-          }}
-          onBlur={(e) => {
-            const cancel = cancelled.current;
-            cancelled.current = false;
-            setEditing(false);
-            if (!cancel) onRename(active.n, e.currentTarget.value);
-          }}
-        />
+      {editing !== null && !editing.row ? (
+        nameInput(
+          editing.n,
+          active.name,
+          "h-7 w-[9rem] max-w-[40vw] rounded border border-gold bg-sunken px-2 text-[13px] text-ink outline-none",
+        )
       ) : (
         <span className={`${DROP_TRIGGER} h-7 gap-0 px-0 py-0`}>
-          <button
-            type="button"
-            title={t.rename}
-            className="max-w-[9rem] truncate px-2 text-[13px] leading-none text-ink hover:text-gold"
-            onClick={() => setEditing(true)}
-          >
-            {presetName(active)}
-          </button>
-          {alert && (
-            <span role="status" title={saveFailed ? t.failed : t.broken} className="px-0.5 text-[13px] font-bold text-danger">
-              !
-            </span>
-          )}
+          {/* ☠연필이 앞, 이름 클릭은 목록 열기 — 이름 수정보다 **교체가 훨씬 잦다**(2026-09-06 사용자 지시).
+              큰 과녁을 잦은 조작에 준다. */}
+          {pencil(active.n, false)}
           <button
             type="button"
             aria-haspopup="menu"
             aria-expanded={open}
             aria-label={t.label}
-            className="px-1.5"
+            className="flex items-center gap-1 pr-1.5 text-[13px] leading-none text-ink hover:text-gold"
             onClick={() => setOpen(!open)}
           >
+            <span className="max-w-[9rem] truncate">{presetName(active)}</span>
+            {alert && (
+              <span role="status" title={saveFailed ? t.failed : t.broken} className="font-bold text-danger">
+                !
+              </span>
+            )}
             {CARET}
           </button>
         </span>
@@ -1237,33 +1265,48 @@ function PresetBar({
             const bad = unreadable.includes(p.n) || (isActive && broken);
             return (
               <span key={p.n} className={`flex items-center gap-0.5 px-1${isActive ? " bg-sunken" : ""}`}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-current={isActive ? "true" : undefined}
-                  className={`flex min-w-0 flex-1 items-center gap-3 px-1.5 py-1 text-left text-[13px] ${isActive ? "text-gold" : "text-ink hover:text-gold"}`}
-                  onClick={() => {
-                    if (isActive) return;
-                    if (onSelect(p.n)) setOpen(false);
-                    else setUnreadable((prev) => (prev.includes(p.n) ? prev : [...prev, p.n]));
-                  }}
-                >
-                  <span className="truncate">{bad ? t.broken : presetName(p)}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-muted" aria-label={t.entries}>
-                    {bad ? "!" : p.entries}
-                  </span>
-                </button>
+                {/* 행마다 연필 — 활성이 아닌 프리셋도 전환 없이 이름을 고친다(2026-09-06 사용자 지시). */}
+                {pencil(p.n, true)}
+                {editing !== null && editing.row && editing.n === p.n ? (
+                  nameInput(
+                    p.n,
+                    p.name,
+                    "h-6 min-w-0 flex-1 rounded border border-gold bg-sunken px-1.5 text-[13px] text-ink outline-none",
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-current={isActive ? "true" : undefined}
+                    className={`flex min-w-0 flex-1 items-center gap-3 px-1.5 py-1 text-left text-[13px] ${isActive ? "text-gold" : "text-ink hover:text-gold"}`}
+                    onClick={() => {
+                      if (isActive) return;
+                      if (onSelect(p.n)) setOpen(false);
+                      else setUnreadable((prev) => (prev.includes(p.n) ? prev : [...prev, p.n]));
+                    }}
+                  >
+                    <span className="truncate">{bad ? t.broken : presetName(p)}</span>
+                    {/* ☠맨 숫자는 이름의 넘버링처럼 읽힌다("Preset 001" + "3") — 라벨을 붙이고 잠금과 같은
+                        인게이지 블루로 칠해 다른 축임을 보인다(2026-09-06 사용자 지시). */}
+                    {bad ? (
+                      <span className="ml-auto shrink-0 font-bold text-danger">!</span>
+                    ) : (
+                      <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-engage">
+                        {t.entries} {p.entries}
+                      </span>
+                    )}
+                  </button>
+                )}
+                {/* 맨 +는 무슨 +인지 안 보인다 — 복사임을 라벨로 명시한다(2026-09-06 사용자 지시).
+                    ☠누른 뒤 목록을 닫지 않는다 — 새 프리셋이 활성으로 서는 것을 그 자리에서 보게 한다. */}
                 <button
                   type="button"
                   title={t.copy}
                   aria-label={t.copy}
-                  className={`${rowBtn} hover:text-gold`}
-                  onClick={() => {
-                    onCopy(p.n);
-                    setOpen(false);
-                  }}
+                  className={`${rowBtn} shrink-0 whitespace-nowrap hover:text-gold`}
+                  onClick={() => onCopy(p.n)}
                 >
-                  +
+                  {t.copy} +
                 </button>
                 {/* 마지막 1개는 렌더하지 않는다 — 프리셋 0개면 활성 포인터가 미아가 된다. */}
                 {index.list.length > 1 && (
@@ -1286,10 +1329,8 @@ function PresetBar({
               type="button"
               role="menuitem"
               className="px-2.5 py-1 text-left text-[13px] text-ink hover:text-gold"
-              onClick={() => {
-                onAdd();
-                setOpen(false);
-              }}
+              // 추가도 복사와 같다 — 목록을 열어 둔 채 새 프리셋이 활성으로 서는 것을 보인다.
+              onClick={onAdd}
             >
               + {t.add}
             </button>
@@ -1386,6 +1427,10 @@ export default function BuilderIsland({
   /** 첫 저장 1회 안내(브라우저 저장의 한계 고지) — 닫으면 다시 뜨지 않는다. */
   const [notice, setNotice] = useState(false);
   const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
+  /** presets의 거울 — ☠자동 저장 effect가 `presets`를 의존성으로 들면 엔트리 수 갱신(setPresets)이
+      그 effect를 다시 돌려 활성 슬롯을 두 번 쓴다. 거울을 읽어 의존성에서 뺀다.
+      ★아래 동기 effect는 자동 저장 effect보다 **먼저 선언**해야 같은 커밋에서 최신값이 보인다. */
+  const presetsRef = useRef<PresetIndex | null>(null);
   /** 방금 저장소에서 읽어 온 상태는 되쓰지 않는다 — 안 막으면 페이지를 열기만 해도 updated가 오염되고
       (M4 last-write-wins 축) 기기 B에서 열기만 해도 기기 A의 실편집을 이긴다. */
   const justApplied = useRef(true);
@@ -1673,7 +1718,10 @@ export default function BuilderIsland({
       2026-08-31의 "체커 저장값은 유지"를 대체). 이 항등 덕에 "새 프리셋 = 올리셋"이 정의가 된다. */
   const reset = (): void => applySnapshot(emptySnapshot());
 
-  const activeSummary = presets?.list.find((p) => p.n === presets.active);
+  useEffect(() => {
+    presetsRef.current = presets;
+  }, [presets]);
+
 
   const putIndex = (next: PresetIndex): void => {
     setPresets(next);
@@ -1754,35 +1802,32 @@ export default function BuilderIsland({
    * ☠(1) presets === null = 하이드레이션 전이라 첫 렌더의 빈 상태가 저장분을 덮는다(조용한 전손).
    *    (2) presetBroken = 활성 슬롯이 안 읽혔다 — 여기서 쓰면 원본 회수 기회가 영구히 사라진다.
    *    (3) justApplied = 방금 적용분은 이미 저장소에 있다. 되쓰면 열기만 해도 updated가 갱신된다.
-   * 잠금 토글은 아래 엔트리 수 갱신이 presets를 바꿔 이 effect를 한 번 더 돌린다(슬롯 쓰기 2회) —
-   * 무해하고 단순한 쪽을 택했다. 디바운스는 INP 실측 뒤에만 넣는다(no-fiction).
+   * 1회 = 활성 슬롯 전체 직렬화. 디바운스는 INP 실측 뒤에만 넣는다(no-fiction).
    */
   useEffect(() => {
-    if (presets === null || presetBroken) return;
+    const idx = presetsRef.current;
+    if (idx === null || presetBroken) return;
     if (justApplied.current) {
       justApplied.current = false;
       return;
     }
-    if (writePreset(presets.active, snapshot(), activeSummary?.name ?? "")) {
+    const cur = idx.list.find((p) => p.n === idx.active);
+    if (writePreset(idx.active, snapshot(), cur?.name ?? "")) {
       if (!loadPresetNoticeSeen()) setNotice(true);
     } else {
       setSaveFailed(true);
     }
+    // 엔트리 수는 인덱스가 든다(목록이 슬롯을 열지 않고 그린다) — 잠금 수가 바뀔 때만 같이 쓴다.
+    if (cur !== undefined && cur.entries !== locked.length) {
+      const next = { ...idx, list: idx.list.map((p) => (p.n === idx.active ? { ...p, entries: locked.length } : p)) };
+      presetsRef.current = next;
+      setPresets(next);
+      if (!writePresetIndex(next)) setSaveFailed(true);
+    }
     // 상태 12종이 곧 스냅샷이다 — 하나라도 빠지면 그 값만 저장되지 않는다(조용한 실패).
-  }, [presets, presetBroken, slots, internal, sort, locked, overrides, cardClass, rings, inherits, star, showGrowth, showSpoilers, showDlc]);
+  }, [presetBroken, slots, internal, sort, locked, overrides, cardClass, rings, inherits, star, showGrowth, showSpoilers, showDlc]);
 
-  /** 목록의 엔트리 수 — 미명명 프리셋을 알아보는 단서라 잠금 수가 바뀔 때만 인덱스를 다시 쓴다. */
-  useEffect(() => {
-    if (presets === null) return;
-    const sum = presets.list.find((p) => p.n === presets.active);
-    if (sum === undefined || sum.entries === locked.length) return;
-    const next = {
-      ...presets,
-      list: presets.list.map((p) => (p.n === presets.active ? { ...p, entries: locked.length } : p)),
-    };
-    setPresets(next);
-    writePresetIndex(next);
-  }, [presets, locked]);
+
   /** 대기 카드 리셋(2026-09-05 사용자 지시: 전투력 행 호버 바) — 개인값 전부 폐기 = 글로벌 직업·레벨·장비 추종, 반지·계승 없음. */
   const resetCard = (pid: string): void => {
     setCardClass(({ [pid]: _c, ...rest }) => rest);

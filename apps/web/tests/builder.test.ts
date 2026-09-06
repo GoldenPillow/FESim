@@ -740,12 +740,26 @@ describe("엔트리 프리셋 이음매", () => {
    * 없어서(exhaustive-deps 미집행) 의존성 배열을 **소스 텍스트로** 박는 것이 유일한 방벽이다.
    */
   it("☠자동 저장 effect가 스냅샷 12종을 전부 구독하고, 하이드레이션 전에는 쓰지 않는다", () => {
-    const effect = /if \(presets === null \|\| presetBroken\) return;[\s\S]*?\}, \[([^\]]*)\]\);/.exec(BODY);
+    const effect = /const idx = presetsRef\.current;\s*if \(idx === null \|\| presetBroken\) return;[\s\S]*?\}, \[([^\]]*)\]\);/.exec(BODY);
     expect(effect).not.toBeNull();
     const deps = (effect![1] ?? "").split(",").map((d) => d.trim());
     for (const name of Object.values(SNAP_FIELDS)) expect(deps).toContain(name);
     // 방금 적용분 되쓰기 금지 가드 — 없으면 열기만 해도 updated가 갱신된다(M4 병합에서 기기 B가 A를 이긴다).
     expect(BODY).toContain("justApplied.current");
+    // ★활성 번호는 거울 ref로 읽는다(의존성에 presets를 넣으면 엔트리 수 갱신이 슬롯을 두 번 쓴다).
+    expect(deps).not.toContain("presets");
+  });
+
+  /**
+   * ☠왜 위험한가: 거울 ref 동기 effect가 자동 저장 effect **뒤**로 밀리면, 프리셋을 전환한 커밋에서
+   * 자동 저장이 낡은 활성 번호를 읽어 **직전 프리셋 슬롯에 새 화면을 덮어쓴다**. 값은 전부 저장되고
+   * 오류도 없어서, 사용자가 옛 프리셋으로 돌아가 보기 전까지 아무도 모른다. 선언 순서가 곧 계약이다.
+   */
+  it("☠presetsRef 동기 effect가 자동 저장 effect보다 먼저 선언된다", () => {
+    const mirror = BODY.indexOf("presetsRef.current = presets;");
+    const autosave = BODY.indexOf("const idx = presetsRef.current;");
+    expect(mirror).toBeGreaterThan(0);
+    expect(autosave).toBeGreaterThan(mirror);
   });
 
   /**

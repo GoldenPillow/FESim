@@ -547,7 +547,7 @@ describe("엔트리 프리셋", () => {
   it("활성 슬롯 손상 — broken을 세워 자동 저장을 막을 수 있게 하고, 슬롯은 지우지 않는다", () => {
     const storage = memoryStorage();
     use(storage);
-    storage.setItem("fesim:preset:fe17:index", JSON.stringify({ v: 1, active: 1, seq: 2, list: [{ n: 1, name: "A", entries: 12 }] }));
+    storage.setItem("fesim:preset:fe17:index", JSON.stringify({ v: 1, active: 1, seq: 2, list: [{ n: 1, name: "A" }] }));
     storage.setItem("fesim:preset:fe17:001", "{ not json");
     const { broken, snapshot } = openPresets();
     expect(broken).toBe(true);

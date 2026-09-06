@@ -226,7 +226,7 @@ export interface BuilderLabels {
     drop: string;
     /** 삭제 되돌리기 줄 — {n}에 지운 프리셋 이름을 수동 replace. */
     undo: string;
-    /** 목록 우측 엔트리 수의 접근성 라벨. */
+    /** 목록 우측 엔트리 수 앞 라벨 — "엔트리 3"(인게이지 블루). */
     entries: string;
     /** 읽지 못한 슬롯 행의 표시 이름. */
     broken: string;
@@ -465,10 +465,10 @@ export const UI: Record<Locale, Strings> = {
         label: "Preset",
         rename: "Rename",
         add: "New preset",
-        copy: "Duplicate",
+        copy: "Copy",
         drop: "Delete",
         undo: "Undo delete — {n}",
-        entries: "entries",
+        entries: "Entries",
         broken: "Preset could not be loaded",
         local: "Presets are saved in this browser only — clearing site data removes them.",
         localMore: "Details",

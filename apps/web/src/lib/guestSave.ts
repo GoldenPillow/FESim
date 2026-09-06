@@ -358,7 +358,7 @@ export interface PresetSummary {
   n: number;
   /** 사용자 이름. "" = 미명명 → 표시는 presetName()이 답한다(기본 이름을 저장물에 굽지 않는다). */
   name: string;
-  /** 엔트리 수 — 미명명 프리셋을 목록에서 알아보는 단서. */
+  /** 엔트리(잠금) 수 — 목록이 "엔트리 N"으로 읽는다. ☠슬롯을 열지 않고 그리려고 인덱스가 든다. */
   entries: number;
 }
 
@@ -630,7 +630,7 @@ function readPresetIndex(): PresetIndex | undefined {
     if (!isObj(raw) || raw.v !== 1 || !Array.isArray(raw.list)) throw new Error("프리셋 인덱스 형식이 아니다");
     const list = raw.list.flatMap((e): PresetSummary[] =>
       isObj(e) && typeof e.n === "number"
-        ? [{ n: e.n, name: str(e.name) ?? "", entries: num(e.entries) ?? 0 }]
+        ? [{ n: e.n, name: str(e.name) ?? "", entries: clamp(e.entries, 0, 999) ?? 0 }]
         : [],
     );
     if (list.length === 0) throw new Error("살아남은 프리셋이 없다");
@@ -671,8 +671,8 @@ function recoverOrphans(index: PresetIndex): PresetIndex {
       if (k === null || !k.startsWith(PRESET_PREFIX)) continue;
       const n = Number(k.slice(PRESET_PREFIX.length)); // "index"는 NaN → 걸러진다
       if (!Number.isInteger(n) || n < 1 || known.has(n)) continue;
-      const doc = readDoc(n);
-      found.push({ n, name: doc?.name ?? "", entries: doc?.snap.locked.length ?? 0 });
+      const got = readDoc(n);
+      found.push({ n, name: got?.name ?? "", entries: got?.snap.locked.length ?? 0 });
     }
   } catch {
     return index;
