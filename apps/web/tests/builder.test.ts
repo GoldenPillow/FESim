@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type SkillRow, type StatBlock, type StatKey } from "@fesim/engine";
 import {
@@ -25,6 +27,8 @@ import {
   weaponAt,
   weightPenalty,
 } from "../src/features/builder/lib";
+import { emptySnapshot, readPreset, writePreset, type BuilderSnapshot } from "../src/lib/guestSave";
+import { memoryStorage, use } from "./fixtures";
 import type { BuilderCharProp, BuilderEmblemProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
 
 /**
@@ -676,5 +680,111 @@ describe("계승 스킬 (applyStatBonus·skillStatDelta·combatOf skills·inheri
     expect(opts[2]).toMatchObject({ indent: true });
     expect(opts[3]!.disabled).toBe(true);
     expect(opts[5]!.disabled).toBeUndefined();
+  });
+});
+
+/**
+ * 엔트리 프리셋 ↔ 빌더 상태 이음매 (2026-09-05, 정본 = design/entry_preset.md).
+ *
+ * ☠왜 위험한가: 빌더 상태가 하나 늘었는데 BuilderSnapshot에 안 담기면, 프리셋을 전환해도 그 값만
+ * 앞 프리셋 것이 그대로 남는다. 오류도 경고도 없고 타입도 통과하며, 사용자가 프리셋을 갈아탄
+ * 순간에만 "값이 안 따라온다"로 드러난다 — 그때는 원인이 UI로 보이므로 저장층을 아무도 안 본다.
+ * 2026-09-05 설계 시점의 상태 12종이 전부 이 성질이었다.
+ *
+ * ★배치 규약: 자식 컴포넌트(PresetBar 포함)는 반드시 `export default function BuilderIsland` **앞**에
+ *   정의한다. 뒤에 두면 그 로컬 상태가 여기 걸려 오탐이 난다.
+ * 이 검사가 못 보는 것: useReducer · useRef로 든 상태 · 아일랜드 앞 자식의 로컬 상태 ·
+ *   정규식을 피해 쓴 구조분해. ☠못 보는 것을 안 적으면 다음에도 모른다.
+ * ☠아일랜드를 렌더하는 수단이 이 저장소에 없다(jsdom·testing-library 부재) — 하이드레이션 게이트와
+ *   자동 저장 의존성은 **소스 텍스트**로만 박제하고, 실동작은 헤드리스 실측이 본다.
+ */
+describe("엔트리 프리셋 이음매", () => {
+  const ISLAND = readFileSync(join(__dirname, "..", "src", "features", "builder", "BuilderIsland.tsx"), "utf8");
+  const BODY = ISLAND.slice(ISLAND.indexOf("export default function BuilderIsland"));
+
+  /** 스냅샷 필드 → 아일랜드 상태 이름. ★Record<keyof BuilderSnapshot, string>이라 스냅샷에 필드를
+      넣으면 이 테이블이 컴파일 에러가 된다 = 저장·수집 양방향이 다 막힌다. */
+  const SNAP_FIELDS: Record<keyof Required<BuilderSnapshot>, string> = {
+    slots: "slots", internal: "internal", sort: "sort", locked: "locked",
+    overrides: "overrides", cardClass: "cardClass", rings: "rings", inherits: "inherits",
+    star: "star", showGrowth: "showGrowth", showSpoilers: "showSpoilers", showDlc: "showDlc",
+  };
+
+  /** 담지 않는 상태와 그 이유. ☠빈 이유 금지 — 이유 없는 제외는 다음 사람이 되돌릴 수 없다. */
+  const EXCLUDED: Record<string, string> = {
+    hoverRow: "포인터 흔적", focusRow: "포인터 흔적", lockHover: "포인터 흔적",
+    pulsePid: "1회 충격파", emblemOpen: "팝업", bondPreview: "호버 미리보기",
+    foldPid: "폴딩", classDrop: "열린 드롭다운", skillPop: "팝업", drag: "드래그 중",
+    row1H: "sticky top 실측 높이", jobRowH: "sticky top 실측 높이",
+    presets: "프리셋 목록 봉투 자체", presetBroken: "활성 슬롯 복원 실패(파생)",
+    saveFailed: "저장 실패 표식(파생)", undo: "삭제 되돌리기(세션 한정)",
+    notice: "첫 저장 안내 1회(표시 취향 — fesim:ui:presetnotice가 소유)",
+    slotEl: "포털 대상 DOM 참조",
+  };
+
+  it("☠빌더의 모든 useState는 프리셋에 담기거나 제외 사유가 적히거나 — 둘 중 하나다", () => {
+    const names = [...BODY.matchAll(/const \[(\w+), set\w+\] = useState/g)].map((m) => m[1]!);
+    expect(names.length).toBeGreaterThan(12);
+    const covered = new Set([...Object.values(SNAP_FIELDS), ...Object.keys(EXCLUDED)]);
+    expect(names.filter((n) => !covered.has(n))).toEqual([]);
+  });
+
+  it("스냅샷 키 목록과 팩토리가 어긋나지 않는다", () => {
+    // sort는 선택 필드라 emptySnapshot()에 없다 — 그래서 따로 더한다.
+    expect(Object.keys(SNAP_FIELDS).sort()).toEqual([...Object.keys(emptySnapshot()), "sort"].sort());
+  });
+
+  /**
+   * ☠왜 위험한가: 자동 저장 effect의 의존성 배열에서 상태 하나가 빠지면 그 값만 저장되지 않는다.
+   * 저장소에는 옛 값이 남고 화면은 새 값이라, 새로고침해야 소실이 드러난다. 이 저장소엔 ESLint가
+   * 없어서(exhaustive-deps 미집행) 의존성 배열을 **소스 텍스트로** 박는 것이 유일한 방벽이다.
+   */
+  it("☠자동 저장 effect가 스냅샷 12종을 전부 구독하고, 하이드레이션 전에는 쓰지 않는다", () => {
+    const effect = /if \(presets === null \|\| presetBroken\) return;[\s\S]*?\}, \[([^\]]*)\]\);/.exec(BODY);
+    expect(effect).not.toBeNull();
+    const deps = (effect![1] ?? "").split(",").map((d) => d.trim());
+    for (const name of Object.values(SNAP_FIELDS)) expect(deps).toContain(name);
+    // 방금 적용분 되쓰기 금지 가드 — 없으면 열기만 해도 updated가 갱신된다(M4 병합에서 기기 B가 A를 이긴다).
+    expect(BODY).toContain("justApplied.current");
+  });
+
+  /**
+   * ☠왜 위험한가: 캐릭터 순번은 별도 상태가 아니라 locked **배열 순서**다(2026-09-05 사용자 지시로
+   * 프리셋에 포함). 드래그로 맞춘 순서가 왕복에서 흐트러져도 값은 전부 맞아서 아무 테스트도 안 깨진다.
+   */
+  it("★순번 관통 — 드래그 재정렬(moveLock) 결과가 저장·복원을 통과해도 그대로다", () => {
+    use(memoryStorage());
+    const locked = [
+      { pid: "PID_a", internal: 1 },
+      { pid: "PID_b", internal: 2 },
+      { pid: "PID_c", internal: 3 },
+    ];
+    // 마지막 블록을 맨 위로 끌어올린 상태 = 사용자가 만든 순번.
+    const moved = moveLock(locked, 2, 0);
+    expect(moved.map((e) => e.pid)).toEqual(["PID_c", "PID_a", "PID_b"]);
+    expect(writePreset(3, { ...emptySnapshot(), locked: moved }, "")).toBe(true);
+    expect(readPreset(3)?.locked).toEqual(moved);
+  });
+
+  /**
+   * ☠왜 위험한가: 잠긴 pid는 세션 맵에서 걷힌 상태가 정본이다(잠금 스냅샷이 소유). 둘 다 살아 있으면
+   * 카드가 정본을 둘 갖고, 어느 쪽이 이기는지가 렌더 순서에 달린다. 방어(normalizeSnapshot)만 있고
+   * 불변식 테스트가 없으면 위반이 정상으로 굳는다.
+   */
+  it("잠금 불변식 — 저장·복원을 지나면 잠긴 pid가 세션 맵 4종에 없다", () => {
+    use(memoryStorage());
+    writePreset(4, {
+      ...emptySnapshot(),
+      locked: [{ pid: "PID_a", internal: 5 }],
+      overrides: { "PID_a:0": { plus: 1 } },
+      cardClass: { PID_a: { jid: "JID_x" } },
+      rings: { PID_a: { gid: "GID_x", bond: 5 } },
+      inherits: { PID_a: ["SID_x", ""] },
+    }, "");
+    const back = readPreset(4)!;
+    expect(Object.keys(back.overrides)).toEqual([]);
+    expect(Object.keys(back.cardClass)).toEqual([]);
+    expect(Object.keys(back.rings)).toEqual([]);
+    expect(Object.keys(back.inherits)).toEqual([]);
   });
 });

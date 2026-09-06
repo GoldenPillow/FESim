@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { STAT_KEYS, type SkillRow, type StatKey } from "@fesim/engine";
 import {
   applyEmblemBonus,
@@ -38,17 +39,21 @@ import type {
   BuilderWeaponProp,
 } from "../../lib/fe17";
 import {
-  loadEntryLocks,
-  loadShowDlc,
-  loadShowGrowth,
-  loadShowSpoilers,
-  loadStarsphere,
-  saveEntryLocks,
-  saveShowDlc,
-  saveShowGrowth,
-  saveShowSpoilers,
-  saveStarsphere,
+  dropPreset,
+  emptySnapshot,
+  loadPresetNoticeSeen,
+  nextPresetNo,
+  openPresets,
+  presetName,
+  readPreset,
+  savePresetNoticeSeen,
+  writePreset,
+  writePresetIndex,
+  type BuilderSlot,
+  type BuilderSnapshot,
   type EntryLock,
+  type PresetIndex,
+  type PresetSummary,
 } from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
 
@@ -68,17 +73,6 @@ import type { BuilderLabels } from "../../lib/i18n";
 const INTERNAL_LEVELS = Array.from({ length: 41 }, (_, i) => 10 + i);
 /** 비교 상한(기본 1 + 추가 3) — 캐릭터당 라인이 이 배수로 늘므로 가독 한계에서 자른다. */
 const MAX_JOBS = 4;
-
-/** 비교 슬롯 상태 — [0] = 기본 선택기. internal 미지정 = 1번(메인 내부 레벨) 추종(2026-08-31 사용자 지시).
-    iid = 장착 무기(빈 문자열 = 맨손), plus = 강화 단계(0 = 노강화), engrave = 각인(GID).
-    직업이 바뀌면 무기·각인은 초기화된다(슬롯 재구성). */
-interface BuilderSlot {
-  jid: string;
-  internal?: number;
-  iid?: string;
-  plus?: number;
-  engrave?: string;
-}
 
 export interface BuilderIslandProps extends BuilderProps {
   labels: BuilderLabels;
@@ -256,6 +250,9 @@ const CARET = (
     ▾
   </span>
 );
+
+/** 셀렉트풍 드롭다운 트리거 — 상단 장비 슬롯과 프리셋 위젯이 공유한다(외형 정본은 하나). */
+const DROP_TRIGGER = "flex items-center gap-1 rounded border border-rule bg-sunken px-2 py-1 text-[14px]";
 
 /** 드롭다운 옵션 — spec이 있으면 호버 즉시 우측에 스펙 오버레이가 선다(2026-08-31 사용자 지시). */
 interface EquipOption {
@@ -1078,6 +1075,254 @@ function RingSlot({
   );
 }
 
+/**
+ * 엔트리 프리셋 위젯 — 상단바 언어 선택 **왼쪽**(2026-09-05 사용자 지시). 빌더 화면 한 벌의 저장 슬롯.
+ * 아일랜드가 createPortal로 상단바의 #preset-slot에 그린다(별도 아일랜드면 상태가 안 통한다).
+ * ★아일랜드 선언 **앞**에 둔다 — 심 가드 테스트가 아일랜드 이후만 스캔하므로 뒤에 두면 여기 로컬 상태가 오탐된다.
+ * 트리거는 이름부/캐럿부 2분할 = 사용자 스펙 "칸 클릭시 이름편집가능"을 축자적으로 만족시킨다.
+ */
+function PresetBar({
+  index,
+  labels,
+  saveFailed,
+  broken,
+  undoName,
+  notice,
+  onSelect,
+  onAdd,
+  onCopy,
+  onDrop,
+  onRename,
+  onUndo,
+  onCloseNotice,
+}: {
+  index: PresetIndex;
+  labels: BuilderLabels;
+  saveFailed: boolean;
+  broken: boolean;
+  undoName: string | null;
+  notice: boolean;
+  /** false = 그 슬롯을 못 읽었다(전환하지 않는다). */
+  onSelect: (n: number) => boolean;
+  onAdd: () => void;
+  onCopy: (n: number) => void;
+  onDrop: (n: number) => void;
+  onRename: (n: number, name: string) => void;
+  onUndo: () => void;
+  onCloseNotice: () => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [more, setMore] = useState(false);
+  /** 전환에 실패한 번호 — 목록에서 "불러오지 못한 프리셋"으로 남긴다(슬롯은 지우지 않는다). */
+  const [unreadable, setUnreadable] = useState<readonly number[]>([]);
+  /** Escape 취소 — ☠없으면 언마운트 직전 blur가 발화해 취소가 저장이 된다. */
+  const cancelled = useRef(false);
+  const panelRef = useRef<HTMLSpanElement | null>(null);
+  /** 화면 왼쪽으로 넘친 만큼 목록을 오른쪽으로 민다(0 = 트리거 우측 정렬 그대로). */
+  const [shift, setShift] = useState(0);
+  const t = labels.preset;
+  const active = index.list.find((p) => p.n === index.active) ?? index.list[0]!;
+
+  /**
+   * ☠좁은 폰 보정 — 위젯이 언어 nav **왼쪽**이라(사용자 스펙 위치) 트리거 우측이 화면 우측단이 아니다.
+   * right-0 정렬이면 목록 320px이 화면 왼쪽으로 넘쳐 잘린다(WebKit 390x844 실측: left = -101px).
+   * 넘친 만큼만, 오른쪽에 남은 공간까지만 민다 — 데스크톱에서는 넘치지 않아 0이다.
+   */
+  useLayoutEffect(() => {
+    if (!open) {
+      setShift(0);
+      return;
+    }
+    const el = panelRef.current;
+    if (el === null) return;
+    const r = el.getBoundingClientRect();
+    const over = 12 - r.left;
+    if (over > 0) setShift((prev) => prev + Math.max(0, Math.min(over, window.innerWidth - 12 - r.right)));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    // ☠캡처 단계 필수 — 드롭다운 루트가 pointerdown 전파를 끊어 버블 리스너는 바깥 클릭을 못 본다.
+    const onDoc = (e: PointerEvent): void => {
+      if (!(e.target instanceof Element) || e.target.closest(".preset-bar") === null) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+  }, [open]);
+
+  const alert = saveFailed || broken;
+  const rowBtn = "rounded px-1.5 py-1 text-[13px] leading-none text-muted";
+
+  return (
+    <span
+      className="preset-bar relative flex min-w-0 items-center"
+      onKeyDown={(e) => {
+        // 키보드는 Escape뿐 — 저장소 전체에 화살표 내비가 없다(관례 유지).
+        if (e.key !== "Escape") return;
+        e.stopPropagation();
+        setOpen(false);
+      }}
+    >
+      {editing ? (
+        <input
+          autoFocus
+          defaultValue={active.name}
+          maxLength={40}
+          aria-label={t.rename}
+          className="h-7 w-[9rem] max-w-[40vw] rounded border border-gold bg-sunken px-2 text-[13px] text-ink outline-none"
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => {
+            // ☠IME 가드 — 없으면 한/일 조합 확정의 Enter가 커밋으로 먹혀 이름이 반쪽에서 끊긴다.
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              cancelled.current = true;
+              e.currentTarget.blur();
+            }
+          }}
+          onBlur={(e) => {
+            const cancel = cancelled.current;
+            cancelled.current = false;
+            setEditing(false);
+            if (!cancel) onRename(active.n, e.currentTarget.value);
+          }}
+        />
+      ) : (
+        <span className={`${DROP_TRIGGER} h-7 gap-0 px-0 py-0`}>
+          <button
+            type="button"
+            title={t.rename}
+            className="max-w-[9rem] truncate px-2 text-[13px] leading-none text-ink hover:text-gold"
+            onClick={() => setEditing(true)}
+          >
+            {presetName(active)}
+          </button>
+          {alert && (
+            <span role="status" title={saveFailed ? t.failed : t.broken} className="px-0.5 text-[13px] font-bold text-danger">
+              !
+            </span>
+          )}
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={t.label}
+            className="px-1.5"
+            onClick={() => setOpen(!open)}
+          >
+            {CARET}
+          </button>
+        </span>
+      )}
+      {open && (
+        // ☠트리거 우측 정렬(left-0이면 좁은 폰에서 오른쪽으로 넘친다) + 화면 왼쪽 넘침은 shift가 되민다.
+        <span
+          ref={panelRef}
+          role="menu"
+          aria-label={t.label}
+          style={{ right: -shift }}
+          className="absolute top-[calc(100%+4px)] z-50 flex w-max min-w-[13rem] max-w-[min(20rem,calc(100vw-1.5rem))] flex-col rounded border border-rule bg-panel py-1 shadow-lg"
+        >
+          {notice && (
+            <span className="mb-1 flex items-start gap-2 border-b border-rule px-2.5 pb-1.5 text-[11px] leading-snug text-muted">
+              <span className="min-w-0">{t.firstSave}</span>
+              <button type="button" aria-label={t.label} className="shrink-0 text-[13px] leading-none hover:text-gold" onClick={onCloseNotice}>
+                ×
+              </button>
+            </span>
+          )}
+          {index.list.map((p) => {
+            const isActive = p.n === index.active;
+            const bad = unreadable.includes(p.n) || (isActive && broken);
+            return (
+              <span key={p.n} className={`flex items-center gap-0.5 px-1${isActive ? " bg-sunken" : ""}`}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-current={isActive ? "true" : undefined}
+                  className={`flex min-w-0 flex-1 items-center gap-3 px-1.5 py-1 text-left text-[13px] ${isActive ? "text-gold" : "text-ink hover:text-gold"}`}
+                  onClick={() => {
+                    if (isActive) return;
+                    if (onSelect(p.n)) setOpen(false);
+                    else setUnreadable((prev) => (prev.includes(p.n) ? prev : [...prev, p.n]));
+                  }}
+                >
+                  <span className="truncate">{bad ? t.broken : presetName(p)}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-muted" aria-label={t.entries}>
+                    {bad ? "!" : p.entries}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  title={t.copy}
+                  aria-label={t.copy}
+                  className={`${rowBtn} hover:text-gold`}
+                  onClick={() => {
+                    onCopy(p.n);
+                    setOpen(false);
+                  }}
+                >
+                  +
+                </button>
+                {/* 마지막 1개는 렌더하지 않는다 — 프리셋 0개면 활성 포인터가 미아가 된다. */}
+                {index.list.length > 1 && (
+                  <button
+                    type="button"
+                    title={t.drop}
+                    aria-label={t.drop}
+                    // 중요 조작 — Reset All과 같은 호버 레드 규약(2026-09-05).
+                    className={`${rowBtn} hover:bg-danger hover:font-bold hover:text-white`}
+                    onClick={() => onDrop(p.n)}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            );
+          })}
+          <span className="mt-1 flex flex-col border-t border-rule pt-1">
+            <button
+              type="button"
+              role="menuitem"
+              className="px-2.5 py-1 text-left text-[13px] text-ink hover:text-gold"
+              onClick={() => {
+                onAdd();
+                setOpen(false);
+              }}
+            >
+              + {t.add}
+            </button>
+            {undoName !== null && (
+              <button type="button" className="px-2.5 py-1 text-left text-[12px] text-muted hover:text-gold" onClick={onUndo}>
+                {t.undo.replace("{n}", undoName)}
+              </button>
+            )}
+          </span>
+          <span className="mt-1 flex flex-col border-t border-rule px-2.5 pt-1.5 text-[11px] leading-snug">
+            <span>
+              <span className={alert ? "font-medium text-danger" : "text-muted"}>
+                {saveFailed ? t.failed : broken ? t.broken : t.local}
+              </span>{" "}
+              <button type="button" className="text-muted underline hover:text-gold" onClick={() => setMore(!more)}>
+                {t.localMore}
+              </button>
+            </span>
+            {more && (
+              <span className="mt-1.5 flex flex-col gap-0.5 text-muted">
+                <span className="font-semibold text-ink">{t.localTitle}</span>
+                {t.localLines.map((line) => (
+                  <span key={line}>· {line}</span>
+                ))}
+              </span>
+            )}
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function BuilderIsland({
   chars,
   joinJobs,
@@ -1129,6 +1374,21 @@ export default function BuilderIsland({
   const [skillPop, setSkillPop] = useState<string | null>(null);
   /** 대기 카드 계승 스킬 2칸(2026-09-02) — 세션 상태(rings와 동형: 잠금 시 스냅샷 EntryLock.skills로 이관, 해제 시 복귀). */
   const [inherits, setInherits] = useState<Record<string, [string, string]>>({});
+  /** 프리셋 목록·활성·발급기(2026-09-05). ★null = 하이드레이션 전 — 이 게이트가 없으면 마운트 첫 렌더의
+      빈 상태가 저장분을 덮어 프리셋이 통째로 날아간다. ☠active를 별개 state로 들지 말 것(삭제 후
+      인덱스에 없는 키에 계속 쓰게 된다 — 오류 없음·전손). */
+  const [presets, setPresets] = useState<PresetIndex | null>(null);
+  /** 활성 슬롯이 읽히지 않았다 — ☠자동 저장을 막는다. 표시만 하면 첫 조작이 원본을 덮는다. */
+  const [presetBroken, setPresetBroken] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  /** 삭제 되돌리기 1단(세션) — 삭제는 사용자 실데이터의 유일한 영구 소실 경로다. */
+  const [undo, setUndo] = useState<{ at: number; sum: PresetSummary; snap: BuilderSnapshot } | null>(null);
+  /** 첫 저장 1회 안내(브라우저 저장의 한계 고지) — 닫으면 다시 뜨지 않는다. */
+  const [notice, setNotice] = useState(false);
+  const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
+  /** 방금 저장소에서 읽어 온 상태는 되쓰지 않는다 — 안 막으면 페이지를 열기만 해도 updated가 오염되고
+      (M4 last-write-wins 축) 기기 B에서 열기만 해도 기기 A의 실편집을 이긴다. */
+  const justApplied = useRef(true);
   useEffect(() => {
     if (skillPop === null) return;
     // 바깥 탭 = 닫기(터치 토글의 짝) — 캡처 단계여야 드롭다운 루트의 전파 차단에 안 막힌다.
@@ -1138,12 +1398,15 @@ export default function BuilderIsland({
     document.addEventListener("pointerdown", onDoc, true);
     return () => document.removeEventListener("pointerdown", onDoc, true);
   }, [skillPop]);
+  // SSG HTML은 기본값으로 굽고 저장값은 하이드레이션 뒤에 읽는다(SSR 불일치 방지).
   useEffect(() => {
-    setStar(loadStarsphere());
-    setShowGrowth(loadShowGrowth());
-    setShowSpoilers(loadShowSpoilers());
-    setShowDlc(loadShowDlc());
-    setLocked(loadEntryLocks());
+    const { index, snapshot: snap, failed, broken } = openPresets();
+    applySnapshot(snap);
+    justApplied.current = true;
+    setPresets(index);
+    setSaveFailed(failed);
+    setPresetBroken(broken);
+    setSlotEl(document.getElementById("preset-slot"));
   }, []);
 
   /** 잠금 = 클릭한 라인의 (직업, 레벨, 무기·강화·각인 = 카드 표시 그대로) + 현재 성옥 체커를 스냅샷으로 박제.
@@ -1195,7 +1458,6 @@ export default function BuilderIsland({
       if (backSkills !== undefined) setInherits((prev) => ({ ...prev, [pid]: backSkills }));
       next = locked.filter((e) => e.pid !== pid);
     }
-    saveEntryLocks(next);
     setLocked(next);
     // 충격파는 즉시가 아니라 **도착 후** — FLIP 완료 콜백이 pendingPulse를 회수해 터뜨린다(2026-08-31 지시).
     pendingPulse.current = on ? pid : null;
@@ -1221,7 +1483,6 @@ export default function BuilderIsland({
       }
       return out;
     });
-    saveEntryLocks(next);
     setLocked(next);
   };
 
@@ -1338,7 +1599,6 @@ export default function BuilderIsland({
       setDrag(null);
       if (cur !== null && cur.active && cur.to !== cur.from) {
         const next = moveLock(locked, cur.from, cur.to);
-        saveEntryLocks(next);
         setLocked(next);
       }
     };
@@ -1356,20 +1616,173 @@ export default function BuilderIsland({
     return { transform: "translateY(0)" };
   };
 
-  /** Reset All = 잠금 전체 해제 + 직업 미선택 디폴트(2026-08-31 사용자 확정) + 대기 카드 개인값(클래스·장비·반지·계승) 전부 폐기 —
-      체커 저장값은 유지. */
-  const reset = (): void => {
-    saveEntryLocks([]);
-    setLocked([]);
+  /* ── 엔트리 프리셋(2026-09-05 사용자 지시, 정본 = design/entry_preset.md) — 이 두 함수가 설계의 전부다.
+     프리셋 = 저장 버튼 없이 자동 저장되는 빌더 화면 한 벌. 담는 것은 Reset All의 정의역과 정확히 같다. */
+
+  /** 지금 화면 = 프리셋 한 벌. ★BuilderSnapshot에 필드가 늘면 여기가 컴파일 에러로 먼저 깨진다. */
+  const snapshot = (): BuilderSnapshot => ({
+    slots,
+    internal,
+    locked,
+    overrides,
+    cardClass,
+    rings,
+    inherits,
+    star,
+    showGrowth,
+    showSpoilers,
+    showDlc,
+    ...(sort !== undefined ? { sort } : {}),
+  });
+
+  /** 프리셋 적용 = Reset All의 일반형(emptySnapshot()을 넣으면 올리셋).
+      ☠임시 UI를 함께 청소한다 — 안 하면 사라진 pid를 가리키는 팝오버·드래그·충격파가 새 표에 유령으로 남는다. */
+  const applySnapshot = (s: BuilderSnapshot): void => {
+    // 상한은 표시층이 자른다 — 저장층에 MAX_JOBS를 복제하면 정본이 두 벌이 된다.
+    setSlots(s.slots.slice(0, MAX_JOBS));
+    setInternal(s.internal);
+    setSort(
+      s.sort !== undefined && (STAT_KEYS as readonly string[]).includes(s.sort.key)
+        ? { key: s.sort.key as StatKey, dir: s.sort.dir }
+        : undefined,
+    );
+    setLocked(s.locked);
+    setOverrides(s.overrides);
+    setCardClass(s.cardClass);
+    setRings(s.rings);
+    setInherits(s.inherits);
+    setStar(s.star);
+    setShowGrowth(s.showGrowth);
+    setShowSpoilers(s.showSpoilers);
+    setShowDlc(s.showDlc);
+    setHoverRow(null);
+    setFocusRow(null);
     setPulsePid(null);
-    setSlots([{ jid: "" }]);
-    setOverrides({});
-    setCardClass({});
-    setRings({});
-    setInherits({});
-    setInternal(40);
-    setSort(undefined);
+    setEmblemOpen(null);
+    setBondPreview(null);
+    setFoldPid(null);
+    setClassDrop(null);
+    setSkillPop(null);
+    setLockHover(null);
+    setDrag(null);
+    flipRects.current = null;
+    pendingPulse.current = null;
   };
+
+  /** Reset All = 빈 프리셋 적용. ★체커까지 완전 초기다(2026-09-05 사용자 확정 —
+      2026-08-31의 "체커 저장값은 유지"를 대체). 이 항등 덕에 "새 프리셋 = 올리셋"이 정의가 된다. */
+  const reset = (): void => applySnapshot(emptySnapshot());
+
+  const activeSummary = presets?.list.find((p) => p.n === presets.active);
+
+  const putIndex = (next: PresetIndex): void => {
+    setPresets(next);
+    // ☠실패 표식은 성공한 슬롯 쓰기에서만 걷는다 — 인덱스 쓰기(작다)가 성공했다고 지우면
+    //   쿼터로 슬롯이 안 써진 사실이 전환 한 번에 사라진다.
+    if (!writePresetIndex(next)) setSaveFailed(true);
+  };
+
+  /** 전환 — 나가는 프리셋은 자동 저장이 이미 굳혀 뒀다(미저장 변경이 존재하지 않는다).
+      ☠손상 슬롯으로는 전환하지 않는다(false 반환) — 현재 빌드를 지키는 쪽이 우선이다. */
+  const selectPreset = (n: number): boolean => {
+    if (presets === null || n === presets.active) return true;
+    const snap = readPreset(n);
+    if (snap === undefined) return false;
+    applySnapshot(snap);
+    justApplied.current = true;
+    setPresetBroken(false);
+    putIndex({ ...presets, active: n });
+    return true;
+  };
+
+  /** 새 슬롯 — 스펙의 2모드가 인자 하나로 갈린다: emptySnapshot() = 올리셋 추가 · 임의 snap = 복사.
+      ☠슬롯 먼저·인덱스 나중 — 반대면 슬롯 없는 유령 행이 남는다(고아 슬롯은 openPresets가 회수한다).
+      ☠번호는 nextPresetNo가 디스크를 다시 읽어 낸다(다른 탭이 쓴 번호를 재사용하면 남의 빌드를 덮는다). */
+  const addPreset = (snap: BuilderSnapshot, after?: number): void => {
+    if (presets === null) return;
+    const n = nextPresetNo(presets);
+    const at = after === undefined ? presets.list.length : presets.list.findIndex((p) => p.n === after) + 1;
+    const list = [...presets.list];
+    list.splice(at, 0, { n, name: "", entries: snap.locked.length });
+    if (!writePreset(n, snap, "")) setSaveFailed(true);
+    applySnapshot(snap);
+    justApplied.current = true;
+    setPresetBroken(false);
+    putIndex({ ...presets, active: n, seq: n + 1, list });
+  };
+
+  /** 삭제 — 마지막 1개는 지우지 않는다(프리셋 0개 = active 미아). 활성을 지우면 같은 자리 이웃으로 이동. */
+  const removePreset = (n: number): void => {
+    if (presets === null || presets.list.length <= 1) return;
+    const at = presets.list.findIndex((p) => p.n === n);
+    const sum = presets.list[at];
+    if (sum === undefined) return;
+    setUndo({ at, sum, snap: readPreset(n) ?? emptySnapshot() });
+    dropPreset(n);
+    const list = presets.list.filter((p) => p.n !== n);
+    const active = n === presets.active ? (list[Math.min(at, list.length - 1)] ?? list[0]!).n : presets.active;
+    putIndex({ ...presets, active, list });
+    if (n === presets.active) {
+      const snap = readPreset(active);
+      applySnapshot(snap ?? emptySnapshot());
+      justApplied.current = true;
+      setPresetBroken(snap === undefined);
+    }
+  };
+
+  /** 되돌리기 — 원래 번호·원래 자리로. seq는 앞으로만 가므로 그 번호가 남에게 넘어간 적이 없다(재사용이 아니다). */
+  const undoRemove = (): void => {
+    if (presets === null || undo === null) return;
+    const list = [...presets.list];
+    list.splice(Math.min(undo.at, list.length), 0, undo.sum);
+    if (!writePreset(undo.sum.n, undo.snap, undo.sum.name)) setSaveFailed(true);
+    setUndo(null);
+    putIndex({ ...presets, list });
+  };
+
+  /** 이름 변경 — 공백만 입력은 ""로 저장하고 표시를 presetName()에 맡긴다(기본 이름을 굽지 않는다).
+      ★이름은 인덱스와 슬롯 양쪽에 굳는다 — 인덱스 1회 손상이 전 프리셋 이름을 지우면 안 된다. */
+  const renamePreset = (n: number, raw: string): void => {
+    if (presets === null) return;
+    const name = raw.trim().slice(0, 40);
+    if (n === presets.active && !presetBroken && !writePreset(n, snapshot(), name)) setSaveFailed(true);
+    putIndex({ ...presets, list: presets.list.map((p) => (p.n === n ? { ...p, name } : p)) });
+  };
+
+  /**
+   * 자동 저장 — 저장 버튼이 없는 이유. 구성 12종 중 하나라도 바뀌면 활성 슬롯을 쓴다.
+   * ☠(1) presets === null = 하이드레이션 전이라 첫 렌더의 빈 상태가 저장분을 덮는다(조용한 전손).
+   *    (2) presetBroken = 활성 슬롯이 안 읽혔다 — 여기서 쓰면 원본 회수 기회가 영구히 사라진다.
+   *    (3) justApplied = 방금 적용분은 이미 저장소에 있다. 되쓰면 열기만 해도 updated가 갱신된다.
+   * 잠금 토글은 아래 엔트리 수 갱신이 presets를 바꿔 이 effect를 한 번 더 돌린다(슬롯 쓰기 2회) —
+   * 무해하고 단순한 쪽을 택했다. 디바운스는 INP 실측 뒤에만 넣는다(no-fiction).
+   */
+  useEffect(() => {
+    if (presets === null || presetBroken) return;
+    if (justApplied.current) {
+      justApplied.current = false;
+      return;
+    }
+    if (writePreset(presets.active, snapshot(), activeSummary?.name ?? "")) {
+      if (!loadPresetNoticeSeen()) setNotice(true);
+    } else {
+      setSaveFailed(true);
+    }
+    // 상태 12종이 곧 스냅샷이다 — 하나라도 빠지면 그 값만 저장되지 않는다(조용한 실패).
+  }, [presets, presetBroken, slots, internal, sort, locked, overrides, cardClass, rings, inherits, star, showGrowth, showSpoilers, showDlc]);
+
+  /** 목록의 엔트리 수 — 미명명 프리셋을 알아보는 단서라 잠금 수가 바뀔 때만 인덱스를 다시 쓴다. */
+  useEffect(() => {
+    if (presets === null) return;
+    const sum = presets.list.find((p) => p.n === presets.active);
+    if (sum === undefined || sum.entries === locked.length) return;
+    const next = {
+      ...presets,
+      list: presets.list.map((p) => (p.n === presets.active ? { ...p, entries: locked.length } : p)),
+    };
+    setPresets(next);
+    writePresetIndex(next);
+  }, [presets, locked]);
   /** 대기 카드 리셋(2026-09-05 사용자 지시: 전투력 행 호버 바) — 개인값 전부 폐기 = 글로벌 직업·레벨·장비 추종, 반지·계승 없음. */
   const resetCard = (pid: string): void => {
     setCardClass(({ [pid]: _c, ...rest }) => rest);
@@ -1380,7 +1793,6 @@ export default function BuilderIsland({
   /** 잠금 카드 리셋 — 영입 시점(직업 미선택)으로, 장비·반지·계승 스킬 제거. 즉시 저장(잠금 편집 규약). */
   const resetLock = (pid: string): void => {
     const next = locked.map((e) => (e.pid === pid ? resetEntryLock(e) : e));
-    saveEntryLocks(next);
     setLocked(next);
   };
   /** 전투력 행 리셋 바 — 잠금 바와 같은 자리(마지막 셀 우측)·회색(방향 없음, 잠금 블루·해제 레드와 구분). */
@@ -1617,7 +2029,6 @@ export default function BuilderIsland({
       if (patch.bond !== undefined) out = { ...out, bond: patch.bond };
       return out;
     });
-    saveEntryLocks(next);
     setLocked(next);
   };
 
@@ -1650,7 +2061,6 @@ export default function BuilderIsland({
         const cur = setSlot(e.skills);
         return cur[0] === "" && cur[1] === "" ? rest : { ...rest, skills: cur };
       });
-      saveEntryLocks(next);
       setLocked(next);
       return;
     }
@@ -1689,7 +2099,6 @@ export default function BuilderIsland({
       }
       return out;
     });
-    saveEntryLocks(next);
     setLocked(next);
   };
 
@@ -2097,7 +2506,7 @@ export default function BuilderIsland({
   /** 아이템 + 강화 + 각인 선택기(슬롯별 = 글로벌 장비, 2026-08-31 사용자 설계) —
       강화·각인·스펙은 아이템이 정해진 뒤에만 선다(2026-08-31). 카드와 같은 커스텀 드롭다운
       (옵션 호버 = 우측 스펙 오버레이) — 셀렉트풍 트리거로 기존 외형을 유지한다. */
-  const dropTriggerClass = "flex items-center gap-1 rounded border border-rule bg-sunken px-2 py-1 text-[14px]";
+  const dropTriggerClass = DROP_TRIGGER;
   const itemControls = (i: number): React.JSX.Element => {
     const slot = slots[i];
     const job = targetJobs.find((t) => t.jid === slot?.jid);
@@ -2177,6 +2586,36 @@ export default function BuilderIsland({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* 프리셋 위젯은 상단바(#preset-slot)에 포털로 그린다 — 슬롯에 별도 아일랜드를 띄우면
+          이 컴포넌트의 상태와 안 통한다(배선 0). 하이드레이션 전에는 슬롯이 빈 채로 남는다. */}
+      {presets !== null &&
+        slotEl !== null &&
+        createPortal(
+          <PresetBar
+            index={presets}
+            labels={labels}
+            saveFailed={saveFailed}
+            broken={presetBroken}
+            undoName={undo === null ? null : presetName(undo.sum)}
+            notice={notice}
+            onSelect={selectPreset}
+            onAdd={() => addPreset(emptySnapshot())}
+            onCopy={(n) => {
+              // 활성 프리셋 복사 = 지금 화면 그대로(자동 저장분과 동일) · 다른 프리셋 = 그 슬롯의 스냅샷.
+              // ☠못 읽은 슬롯은 복제하지 않는다 — 빈 프리셋의 사본이 원본 행세를 하게 된다.
+              const snap = n === presets.active ? snapshot() : readPreset(n);
+              if (snap !== undefined) addPreset(snap, n);
+            }}
+            onDrop={removePreset}
+            onRename={renamePreset}
+            onUndo={undoRemove}
+            onCloseNotice={() => {
+              savePresetNoticeSeen();
+              setNotice(false);
+            }}
+          />,
+          slotEl,
+        )}
       {/* 윗줄 = 미선택 안내(좌, 고정 높이) + 체커·Reset(우) — 아이템 선택기가 아랫줄 우측 공간을
           쓰도록 체커를 올렸다(2026-08-31). 항상 렌더 = 선택·Reset에도 표가 안 움직인다.
           ☠-mt-4는 설명문(<p>)의 mb-5를 파먹는 값 — 가로폰은 설명문이 숨어 타이틀을 덮으므로 mt-0(2026-09-01 실기). */}
@@ -2192,7 +2631,6 @@ export default function BuilderIsland({
                 checked={star}
                 onChange={(e) => {
                   setStar(e.target.checked);
-                  saveStarsphere(e.target.checked);
                 }}
                 className="h-3.5 w-3.5 accent-[var(--gold)]"
               />
@@ -2205,7 +2643,6 @@ export default function BuilderIsland({
               checked={showGrowth}
               onChange={(e) => {
                 setShowGrowth(e.target.checked);
-                saveShowGrowth(e.target.checked);
               }}
               className="h-3.5 w-3.5 accent-[var(--pgrow)]"
             />
@@ -2217,7 +2654,6 @@ export default function BuilderIsland({
               checked={showSpoilers}
               onChange={(e) => {
                 setShowSpoilers(e.target.checked);
-                saveShowSpoilers(e.target.checked);
               }}
               className="h-3.5 w-3.5 accent-[var(--gold)]"
             />
@@ -2230,7 +2666,6 @@ export default function BuilderIsland({
               checked={showDlc}
               onChange={(e) => {
                 setShowDlc(e.target.checked);
-                saveShowDlc(e.target.checked);
               }}
               className="h-3.5 w-3.5 accent-[var(--gold)]"
             />

@@ -28,6 +28,11 @@ export function memoryStorage(throwOn?: "setItem" | "getItem" | "removeItem"): S
   } as Storage;
 }
 
+/** 테스트 동안 globalThis.localStorage를 갈아끼운다 — 저장층을 만지는 파일이 둘 이상이라 여기가 답변자다. */
+export const use = (storage: Storage): void => {
+  Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true });
+};
+
 const stats = (over: Partial<StatBlock> = {}): StatBlock => ({
   hp: 25, str: 10, mag: 0, dex: 10, spd: 10, lck: 5, def: 6, res: 3, bld: 6, ...over,
 });

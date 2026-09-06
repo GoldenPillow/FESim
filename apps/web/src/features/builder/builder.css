@@ -203,8 +203,12 @@
 /* 펼침 모드 = 전 뷰포트 기본(2026-09-02 사용자 지시 — 원래 PC도 펼침+헤더 추종이었다).
    안쪽 스크롤박스 없이 페이지 스크롤 하나. 상단바는 밀려나가고 표 헤더(1행 top 0 + 성장률 행)만 최상단 고정.
    ☠성장률 행(job-row)은 인라인 top(1행 실측 높이)이 정본 — CSS로 덮으면 포개진다. 빌더 페이지 한정. */
+/* ☠static이면 헤더의 backdrop-blur가 만드는 스택 컨텍스트가 z-auto 층에 갇혀 헤더 안 드롭다운이
+   표 헤더 셀(sticky th, z-30)에 뒤덮인다 — relative + z-40으로 스택을 표 위로 끌어올린다.
+   relative는 sticky가 아니므로 펼침 모드(상단바가 스크롤로 밀려나감)는 그대로 유지된다. */
 body:has(.builder-main) header {
-  position: static;
+  position: relative;
+  z-index: 40;
 }
 
 /* 전투력 행 이중 렌더 — PC·가로 = 스탯 열 그리드(combat-grid), 세로 모바일 = 흐름(combat-flow).
