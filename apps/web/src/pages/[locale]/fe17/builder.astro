@@ -20,7 +20,10 @@ const b = UI[locale].builder;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" />
   </Fragment>
-  <TopBar locale={locale} context={b.title} home={false} />
+  <TopBar locale={locale} home={false}>
+    {/* h-7 선고정 = 프리셋 위젯(하이드레이션 후 등장)이 뜨기 전 상단바 높이가 튀는 CLS 방지 */}
+    <div id="preset-slot" slot="actions" class="h-7 min-w-0"></div>
+  </TopBar>
 
   <main class="builder-main mx-auto flex w-fit max-w-full flex-col px-1 py-4 sm:px-6 md:py-6 [@media(max-height:520px)]:py-2">
     <h1 class="text-[18px] font-semibold tracking-[0.06em] text-ink">{b.title}</h1>

@@ -35,7 +35,7 @@ export interface BuilderCell {
   /** 정렬 비교값 — 캡 정수도 같은 축에서 비교한다. */
   value: number;
   capped: boolean;
-  /** 도달 상한(mergeStatCap 합성값) — 絆 보너스 가산이 이 위로 못 넘게 잘린다(2026-09-01 사용자 관측). */
+  /** 도달 상한(mergeStatCap 합성값) — 기본치의 캡 표기(정수) 판정용. ☠강화치는 이 위를 넘는다(GetCapability 0x1A2DD80). */
   cap: number;
   /** 문장사 絆 보너스·계승 스킬로 오른 셀 — 블루 표기 신호(SPD 무게 감소 레드보다 우선, 2026-08-31 사용자 지시). */
   buffed?: boolean;
@@ -192,6 +192,33 @@ export function patchCardClass(
   return { ...(jid !== undefined ? { jid } : {}), ...(internal !== undefined ? { internal } : {}) };
 }
 
+/** 잠금 카드 리셋(2026-09-05 사용자 지시) — 영입 시점(직업 미선택·내부 0)으로, 장비·반지·계승 스킬 전부 제거.
+    성옥 체커 스냅샷만 남긴다(카드 편집값이 아니라 글로벌 체커의 박제). */
+export function resetEntryLock(e: EntryLock): EntryLock {
+  return { pid: e.pid, internal: 0, ...(e.star === true ? { star: true } : {}) };
+}
+
+/** `${pid}:${li}` 키 맵(카드 개인 장비 오버라이드)에서 그 카드 것만 걷는다 — 잠금·리셋·글로벌 추종 복귀 공용. */
+export function dropCardKeys<T>(map: Record<string, T>, pid: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(map).filter(([k]) => !k.startsWith(`${pid}:`)));
+}
+
+/** 무게 페널티 — 정본 `攻撃速度計算 = 速さ − max(武器の重さ − 体格, 0)`의 감산항. 인게임 상태 화면은
+    이 값을 뺀 속도를 붉게 보인다(2026-09-05 사용자 관측: "붉게만 되고 스탯이 안 빠진다"). 체격은 무기 Enhance 포함. */
+export function weightPenalty(row: BuilderRow, equipped: EquippedWeapon | undefined): number {
+  if (equipped === undefined) return 0;
+  const w = weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight;
+  return Math.max(0, w - (row.cells.bld.value + (equipped.weapon.enhance?.bld ?? 0)));
+}
+
+/** 페널티를 뺀 표시 문자열 — cell.text의 소수 자리를 지킨다(평균 체격이 소수면 페널티도 소수 → 1자리). */
+export function penalizedText(cell: BuilderCell, penalty: number): string {
+  if (penalty <= 0) return cell.text;
+  const dot = cell.text.indexOf(".");
+  const dec = Math.max(dot < 0 ? 0 : cell.text.length - dot - 1, Number.isInteger(penalty) ? 0 : 1);
+  return (Number(cell.text) - penalty).toFixed(dec);
+}
+
 /** 잠금 순서 이동(드래그 커밋) — 순수 이동: 원본 불변이어야 상태·저장분이 안 어긋난다. */
 export function moveLock(locked: readonly EntryLock[], from: number, to: number): EntryLock[] {
   const next = [...locked];
@@ -215,17 +242,13 @@ export function applyStatBonus(row: BuilderRow, delta: Partial<Record<StatKey, n
   for (const [key, d] of Object.entries(delta) as [StatKey, number][]) {
     if (d === 0) continue;
     const cell = cells[key];
-    // 캡 클램프(2026-09-01 사용자 관측: 캡 초과 값이 표에 섰다) — 넘치면 캡 정수(소수점 버림)로.
-    const value = Math.min(cell.value + d, cell.cap);
-    if (Math.abs(value - cell.value) < 1e-9) continue; // 이미 캡 = 상승 없음(블루도 없음)
-    const hit = value >= cell.cap - 1e-9;
-    const text = hit
-      ? String(cell.cap)
-      : cell.capped
-        ? String(Number(cell.text) + d)
-        : (parseFloat(cell.text) + d).toFixed(1);
-    const parts = [...(cell.parts ?? []), { source, value: hit ? Math.round((value - cell.value) * 100) / 100 : d }];
-    cells[key] = { ...cell, text, value, capped: hit, parts, ...(d > 0 ? { buffed: true as const } : {}) };
+    // ★정본 `Unit.GetCapability` 0x1A2DD80 = Clamp(Clamp(base, 0, Limit) + Enhance, min, 255) — 강화치(문장사·스킬
+    //   EnhanceValue)는 **상한 클램프 뒤에** 더해져 캡을 넘는다(il2cpp/STATS_GROWTH §2-1). 2026-09-01의 캡 클램프는
+    //   이를 잘라 캡 근처에서 문장사만 남거나 둘 다 사라졌다(2026-09-05 사용자 관측) → 정본대로 255만 상한.
+    const value = Math.min(cell.value + d, 255);
+    const text = cell.capped ? String(Number(cell.text) + d) : (parseFloat(cell.text) + d).toFixed(1);
+    const parts = [...(cell.parts ?? []), { source, value: d }];
+    cells[key] = { ...cell, text, value, parts, ...(d > 0 ? { buffed: true as const } : {}) };
   }
   return source === "emblem" ? { ...row, cells, emblemDelta: delta } : { ...row, cells };
 }

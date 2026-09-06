@@ -134,6 +134,8 @@ export interface BuilderLabels {
   internal: string;
   /** 표 헤더용 짧은 표기. */
   internalShort: string;
+  /** 엔트리(잠금) 수 표시 — 글로벌 직업 라인 우측(2026-09-05). {n} = 수. */
+  entryCount: string;
   /** 성옥의 가호 체커 라벨(+15% 총 성장). */
   starsphere: string;
   /** 스포일러 체커 라벨 — 켜면 후반 캐릭터(모브·베일)·불꽃의 문장 각인 표시(기본 숨김, localStorage 저장). */
@@ -157,8 +159,10 @@ export interface BuilderLabels {
   lock: string;
   /** 잠금 해제(대기 목록 복귀) 접근성 라벨. */
   unlock: string;
-  /** 잠금 전체 해제 + 직업 미선택 디폴트 복귀 — 체커는 유지(2026-08-31 사용자 지시). */
+  /** Reset All = 잠금 전체 해제 + 직업 미선택 디폴트 + 대기 카드 개인값 폐기 — 체커는 유지(2026-08-31·09-05 사용자 지시). */
   reset: string;
+  /** 카드 리셋 바(전투력 행 호버) — 대기 = 글로벌 추종 복귀 · 잠금 = 영입 상태(2026-09-05). */
+  cardReset: string;
   /** 전투력 행(호버·잠금) — 물공·마공 + 파생치 4종(인게임 전투 능력 목록 — 공속은 인게임에 없어 제외). */
   combat: Record<"patk" | "matk" | "hit" | "avoid" | "crit" | "ddg", string>;
   /** 아이템(무기) 선택기 라벨 — 클래스·내부 레벨 우측(2026-08-31). */
@@ -201,11 +205,44 @@ export interface BuilderLabels {
   breakdownBase: string;
   breakdownEmblem: string;
   breakdownSkill: string;
+  /** 합산 오버레이 마지막 줄 — 표시값(무게 감산 후). */
+  breakdownTotal: string;
   breakdownWeapon: string;
   /** 네임카드 윗줄(무기 적성·실효 랭크) 접근성 title. */
   aptitude: string;
   /** 네임카드 아랫줄(고유 스킬 칩) 접근성 title. */
   personalSkill: string;
+  /** 엔트리 프리셋(2026-09-05 사용자 지시) — 상단바 언어 선택 왼쪽 드롭다운. 빌더 화면 한 벌의 저장 슬롯. */
+  preset: {
+    /** 캐럿 버튼·목록 접근성 라벨. */
+    label: string;
+    /** 이름부 클릭 title(인라인 이름 편집 진입). */
+    rename: string;
+    /** 목록 하단 = 올리셋 상태의 새 슬롯. */
+    add: string;
+    /** 행 우측 = 그 프리셋의 스냅샷 복사(원본 바로 아래에 새 슬롯). */
+    copy: string;
+    /** 행 우측 = 삭제(마지막 1개는 렌더하지 않는다). */
+    drop: string;
+    /** 삭제 되돌리기 줄 — {n}에 지운 프리셋 이름을 수동 replace. */
+    undo: string;
+    /** 목록 우측 엔트리 수 앞 라벨 — "엔트리 3"(인게이지 블루). */
+    entries: string;
+    /** 읽지 못한 슬롯 행의 표시 이름. */
+    broken: string;
+    /** 목록 하단 상시 각주 1줄 — 브라우저 저장의 휘발. */
+    local: string;
+    /** 접이식 상세 여는 링크. */
+    localMore: string;
+    /** 접이식 상세 제목. */
+    localTitle: string;
+    /** 접이식 상세 본문 — 줄 단위 배열(각 줄이 하나의 항목). */
+    localLines: readonly string[];
+    /** 첫 저장 직후 1회 인라인 알림. */
+    firstSave: string;
+    /** 저장 실패 = 트리거 ! title + 각주 레드 승격 문구. */
+    failed: string;
+  };
 }
 
 /** 메인 랜딩(허브) 라벨 — 섹션·링크는 정적 페이지가 그대로 편다. */
@@ -379,6 +416,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "No class",
       internal: "Internal level",
       internalShort: "Int. Lv",
+      entryCount: "Entry {n}",
       starsphere: "Starsphere (+15% growths)",
       showSpoilers: "Show spoilers",
       showDlc: "Show DLC & Fell Xenologue",
@@ -391,7 +429,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "Cannot reach this class",
       lock: "Pin entry",
       unlock: "Unpin entry",
-      reset: "Reset",
+      reset: "Reset All",
+      cardReset: "Reset",
       combat: { patk: "P.Atk", matk: "M.Atk", hit: "Hit", avoid: "Avoid", crit: "Crit", ddg: "Ddg" },
       item: "Weapon",
       itemNone: "Unequipped",
@@ -418,9 +457,34 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "Base",
       breakdownEmblem: "Emblem",
       breakdownSkill: "Skill",
+      breakdownTotal: "Total",
       breakdownWeapon: "Weapon",
       aptitude: "Weapon proficiency",
       personalSkill: "Personal skill",
+      preset: {
+        label: "Preset",
+        rename: "Rename",
+        add: "New preset",
+        copy: "Copy",
+        drop: "Delete",
+        undo: "Undo delete — {n}",
+        entries: "Entries",
+        broken: "Preset could not be loaded",
+        local: "Presets are saved in this browser only — clearing site data removes them.",
+        localMore: "Details",
+        localTitle: "Where presets are stored",
+        localLines: [
+          "Saved in this browser only. Nothing is sent to a server.",
+          "Not visible on another device, another browser, or a private window.",
+          "Removed by clearing site data, delete-on-close settings, or cleanup tools.",
+          "iOS and macOS Safari erase stored data after about 7 days without a visit.",
+          "A different address means different storage (beta presets are not on the release build).",
+          "Once sign-in ships, presets will live in your account and follow you across devices.",
+        ],
+        firstSave:
+          "Saved — to this browser only. Clear your browser data or open FESim on another device and this list will be empty.",
+        failed: "Could not save — storage is full or this is a private window.",
+      },
     },
     home: {
       intro:
@@ -575,6 +639,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "クラス未選択",
       internal: "内部レベル",
       internalShort: "内部Lv",
+      entryCount: "エントリー {n}",
       starsphere: "星玉の加護 (+15% 成長)",
       showSpoilers: "ネタバレを表示",
       showDlc: "DLC・邪竜の章を表示",
@@ -587,7 +652,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "このクラスにはなれない",
       lock: "エントリーを固定",
       unlock: "固定を解除",
-      reset: "リセット",
+      reset: "全リセット",
+      cardReset: "リセット",
       combat: { patk: "物攻", matk: "魔攻", hit: "命中", avoid: "回避", crit: "必殺", ddg: "必殺回避" },
       item: "武器",
       itemNone: "未装備",
@@ -610,12 +676,37 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "基本",
       breakdownEmblem: "紋章士",
       breakdownSkill: "スキル",
+      breakdownTotal: "合計",
       breakdownWeapon: "武器",
       aptitude: "武器適性",
       personalSkill: "個人スキル",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
+      },
+      preset: {
+        label: "プリセット",
+        rename: "名前を変更",
+        add: "新規プリセット",
+        copy: "複製",
+        drop: "削除",
+        undo: "{n} の削除を取り消す",
+        entries: "エントリー",
+        broken: "読み込めなかったプリセット",
+        local: "プリセットはこのブラウザにのみ保存されます — サイトデータを削除すると一緒に消えます。",
+        localMore: "詳細",
+        localTitle: "プリセットの保存先",
+        localLines: [
+          "このブラウザにのみ保存されます。サーバーには送信しません。",
+          "別の端末・別のブラウザ・プライベートウィンドウでは表示されません。",
+          "サイトデータの削除、終了時の自動削除設定、クリーナーツールで消えます。",
+          "iOS・macOS の Safari は約7日間アクセスがないと保存データを削除します。",
+          "アドレスが違えば保存先も別です（ベータ版アドレスのプリセットは正式版にはありません）。",
+          "ログイン機能が追加されるとアカウントに保存され、端末間で引き継がれます。",
+        ],
+        firstSave:
+          "保存しました — このブラウザにのみ残ります。ブラウザのデータを消すか、別の端末で開くとこの一覧は空です。",
+        failed: "保存できませんでした — 保存容量がいっぱいか、プライベートウィンドウです。",
       },
     },
     home: {
@@ -769,6 +860,7 @@ export const UI: Record<Locale, Strings> = {
       jobNone: "직업 미선택",
       internal: "내부 레벨",
       internalShort: "내부레벨",
+      entryCount: "엔트리 {n}",
       starsphere: "성옥의 가호 (+15% 성장)",
       showSpoilers: "스포일러 표시",
       showDlc: "DLC·사룡의 장 표시",
@@ -781,7 +873,8 @@ export const UI: Record<Locale, Strings> = {
       unavailable: "이 직업으로 갈 수 없음",
       lock: "엔트리 잠금",
       unlock: "잠금 해제",
-      reset: "Reset",
+      reset: "Reset All",
+      cardReset: "Reset",
       combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
       item: "아이템",
       itemNone: "미착용",
@@ -804,12 +897,37 @@ export const UI: Record<Locale, Strings> = {
       breakdownBase: "기본",
       breakdownEmblem: "문장사",
       breakdownSkill: "스킬",
+      breakdownTotal: "합계",
       breakdownWeapon: "무기",
       aptitude: "무기 적성",
       personalSkill: "고유 스킬",
       stats: {
         hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",
+      },
+      preset: {
+        label: "프리셋",
+        rename: "이름 변경",
+        add: "새 프리셋",
+        copy: "복사",
+        drop: "삭제",
+        undo: "{n} 삭제 취소",
+        entries: "엔트리",
+        broken: "불러오지 못한 프리셋",
+        local: "프리셋은 이 브라우저에만 저장됩니다 — 사이트 데이터를 지우면 함께 사라집니다.",
+        localMore: "자세히",
+        localTitle: "프리셋은 어디에 저장되나",
+        localLines: [
+          "이 브라우저에만 저장됩니다. 서버로 보내지 않습니다.",
+          "다른 기기·다른 브라우저·시크릿 창에서는 보이지 않습니다.",
+          "사이트 데이터 삭제, 종료 시 자동 삭제 설정, 정리 도구로 지워집니다.",
+          "iOS·macOS Safari는 약 7일 이상 방문이 없으면 저장분을 지웁니다.",
+          "주소가 다르면 저장소도 다릅니다(베타 주소의 프리셋은 정식판에 없습니다).",
+          "로그인 기능이 추가되면 계정에 보관되어 기기 간에 이어집니다.",
+        ],
+        firstSave:
+          "저장했습니다 — 이 브라우저에만 남습니다. 브라우저 데이터를 지우거나 다른 기기에서 열면 이 목록은 비어 있습니다.",
+        failed: "저장하지 못했습니다 — 저장소가 가득 찼거나 시크릿 창입니다.",
       },
     },
     home: {

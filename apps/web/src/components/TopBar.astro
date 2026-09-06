@@ -33,22 +33,25 @@ const path = Astro.url.pathname.replace(new RegExp(`^/(${LOCALES.join("|")})(?=/
       )
     }
 
-    <nav aria-label={t.language} class="ml-auto flex items-center gap-1">
-      {
-        LOCALES.map((l) => (
-          <a
-            href={`/${l}${path}`}
-            aria-current={l === locale ? "true" : undefined}
-            class:list={[
-              "rounded px-2 py-1 text-[11px] font-medium tracking-widest transition-colors",
-              l === locale ? "text-gold" : "text-muted hover:text-ink",
-            ]}
-          >
-            {UI[l].localeName}
-          </a>
-        ))
-      }
-      <ThemeToggle label={t.themeToggle} />
-    </nav>
+    <div class="ml-auto flex min-w-0 items-center gap-2">
+      <slot name="actions" />
+      <nav aria-label={t.language} class="flex shrink-0 items-center gap-1">
+        {
+          LOCALES.map((l) => (
+            <a
+              href={`/${l}${path}`}
+              aria-current={l === locale ? "true" : undefined}
+              class:list={[
+                "rounded px-2 py-1 text-[11px] font-medium tracking-widest transition-colors",
+                l === locale ? "text-gold" : "text-muted hover:text-ink",
+              ]}
+            >
+              {UI[l].localeName}
+            </a>
+          ))
+        }
+        <ThemeToggle label={t.themeToggle} />
+      </nav>
+    </div>
   </div>
 </header>

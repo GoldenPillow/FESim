@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { STAT_KEYS, type SkillRow, type StatBlock, type StatKey } from "@fesim/engine";
 import {
@@ -8,19 +10,25 @@ import {
   canEquip,
   carriedEquip,
   combatOf,
+  dropCardKeys,
   effectiveWeaponRanks,
   inheritOptions,
   lockedDisplayRows,
   moveLock,
   nextSort,
   patchCardClass,
+  penalizedText,
   rankValue,
+  resetEntryLock,
   skillStatDelta,
   sortRowGroups,
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
+  weightPenalty,
 } from "../src/features/builder/lib";
+import { emptySnapshot, readPreset, writePreset, type BuilderSnapshot } from "../src/lib/guestSave";
+import { memoryStorage, use } from "./fixtures";
 import type { BuilderCharProp, BuilderEmblemProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
 
 /**
@@ -225,22 +233,23 @@ describe("문장사 보너스 (applyEmblemBonus)", () => {
     expect(row!.cells.str.buffed).toBeUndefined(); // 원본 불변
   });
 
-  it("캡 초과분은 캡에서 잘리고 소수점 버림(정수 캡 표기) — 이미 캡이면 상승 없음(2026-09-01 사용자 관측)", () => {
-    // str 본값 13.4 · cap 40 — 큰 델타는 40에서 잘린다(정수 = 소수점 버림 · capped · 상승분 있어 블루).
+  /** 왜 위험한가: 정본 `Unit.GetCapability` 0x1A2DD80 = Clamp(Clamp(base,0,Limit)+Enhance, min, 255) — 강화치는 캡 뒤 가산.
+      캡에서 자르면 캡 근처 캐릭터가 문장사·스킬 보너스를 조용히 잃는다(2026-09-05 사용자 관측 — 2026-09-01 클램프 대체). */
+  it("보너스는 상한을 넘는다 — 캡 도달 셀에도 정수로 가산, 255만 상한", () => {
     const [row] = builderRows(propsOf([char("a")]), HIGH, 11);
     expect(row!.cells.str.text).toBe("13.4");
     const out = applyEmblemBonus(row!, { str: 30 });
-    expect(out.cells.str.text).toBe("40");
-    expect(out.cells.str.value).toBe(40);
-    expect(out.cells.str.capped).toBe(true);
+    expect(out.cells.str.text).toBe("43.4");
+    expect(out.cells.str.value).toBeCloseTo(43.4, 5);
     expect(out.cells.str.buffed).toBe(true);
-    // 이미 캡 도달(hp cap 20) — 델타를 얹어도 캡 그대로, 상승이 없으니 블루도 없다.
+    // 이미 캡 도달(hp cap 20, 정수 표기) — 델타가 그대로 얹힌다.
     const capped = char("b", { personLimit: block({ hp: -60 }) });
     const [row2] = builderRows(propsOf([capped]), HIGH, 40);
     expect(row2!.cells.hp.capped).toBe(true);
     const out2 = applyEmblemBonus(row2!, { hp: 3 });
-    expect(out2.cells.hp.text).toBe(row2!.cells.hp.text);
-    expect(out2.cells.hp.buffed).toBeUndefined();
+    expect(out2.cells.hp.text).toBe(String(Number(row2!.cells.hp.text) + 3));
+    expect(out2.cells.hp.buffed).toBe(true);
+    expect(out2.cells.hp.parts).toEqual([{ source: "emblem", value: 3 }]);
   });
 });
 
@@ -272,6 +281,18 @@ describe("카드 개별 클래스·In.Lv 패치 (patchCardClass)", () => {
   it("직접 고른 In.Lv는 직업을 바꿔도 유지, 미선택('')은 jid 제거", () => {
     expect(patchCardClass({ jid: "g", internal: 20 }, "g", { jid: "x" })).toEqual({ jid: "x", internal: 20 });
     expect(patchCardClass({ jid: "x", internal: 20 }, "g", { jid: "" })).toEqual({ internal: 20 });
+  });
+});
+
+describe("카드 리셋 (resetEntryLock·dropCardKeys)", () => {
+  /** 왜 위험한가: 리셋이 필드 하나라도 남기면 "완전 초기화"가 조용히 거짓이 된다(장비만 빠지고 반지가 남는 식). */
+  it("잠금 리셋 = 영입 상태(내부 0·직업 없음) + 성옥 체커만 보존", () => {
+    const e = { pid: "a", internal: 19, jid: "j", star: true, iid: "w", plus: 3, engrave: "g", gid: "r", bond: 12, skills: ["s1", ""] as [string, string] };
+    expect(resetEntryLock(e)).toEqual({ pid: "a", internal: 0, star: true });
+    expect(resetEntryLock({ pid: "b", internal: 5, jid: "j" })).toEqual({ pid: "b", internal: 0 });
+  });
+  it("dropCardKeys는 그 pid 키만 걷고 다른 카드는 그대로", () => {
+    expect(dropCardKeys({ "a:0": 1, "a:1": 2, "ab:0": 3, "b:0": 4 }, "a")).toEqual({ "ab:0": 3, "b:0": 4 });
   });
 });
 
@@ -338,6 +359,19 @@ describe("전투력 사영 (combatOf) — 무기 합산", () => {
    * 정본 식에 무기 변수를 채우는 것만이 합산이다(명중 = 기x2+int(행/2)+무기명중,
    * 회피 = (속도-max(무게-체격,0))x2+int(행/2), 물공 = 힘+위력).
    */
+  /** 왜 위험한가: 페널티를 색으로만 알리면 표의 SPD가 인게임 상태 화면보다 높게 읽힌다(2026-09-05 사용자 관측 — 붉게만 되고 안 빠짐). */
+  it("weightPenalty·penalizedText — 무게 > 체격만큼 SPD 표시가 빠진다(정본 攻撃速度計算 감산항)", () => {
+    const [row] = builderRows(propsOf(roster), undefined, 0);
+    const heavy = { ...iron, weight: row!.cells.bld.value + 3 };
+    expect(weightPenalty(row!, undefined)).toBe(0);
+    expect(weightPenalty(row!, { weapon: iron, plus: 0 })).toBe(Math.max(0, 5 - row!.cells.bld.value));
+    expect(weightPenalty(row!, { weapon: heavy, plus: 0 })).toBeCloseTo(3);
+    expect(penalizedText({ text: "22.4", value: 22.4, capped: false, cap: 40 }, 3)).toBe("19.4");
+    expect(penalizedText({ text: "40", value: 40, capped: true, cap: 40 }, 2)).toBe("38");
+    expect(penalizedText({ text: "40", value: 40, capped: true, cap: 40 }, 1.5)).toBe("38.5");
+    expect(penalizedText({ text: "22.4", value: 22.4, capped: false, cap: 40 }, 0)).toBe("22.4");
+  });
+
   it("철의 검 장착 — 명중·회피(공속 하락)·물공이 정본 식대로 움직인다", () => {
     const [row] = builderRows(propsOf(roster), undefined, 0);
     const c = combatOf(row!, { weapon: iron, plus: 0 });
@@ -646,5 +680,125 @@ describe("계승 스킬 (applyStatBonus·skillStatDelta·combatOf skills·inheri
     expect(opts[2]).toMatchObject({ indent: true });
     expect(opts[3]!.disabled).toBe(true);
     expect(opts[5]!.disabled).toBeUndefined();
+  });
+});
+
+/**
+ * 엔트리 프리셋 ↔ 빌더 상태 이음매 (2026-09-05, 정본 = design/entry_preset.md).
+ *
+ * ☠왜 위험한가: 빌더 상태가 하나 늘었는데 BuilderSnapshot에 안 담기면, 프리셋을 전환해도 그 값만
+ * 앞 프리셋 것이 그대로 남는다. 오류도 경고도 없고 타입도 통과하며, 사용자가 프리셋을 갈아탄
+ * 순간에만 "값이 안 따라온다"로 드러난다 — 그때는 원인이 UI로 보이므로 저장층을 아무도 안 본다.
+ * 2026-09-05 설계 시점의 상태 12종이 전부 이 성질이었다.
+ *
+ * ★배치 규약: 자식 컴포넌트(PresetBar 포함)는 반드시 `export default function BuilderIsland` **앞**에
+ *   정의한다. 뒤에 두면 그 로컬 상태가 여기 걸려 오탐이 난다.
+ * 이 검사가 못 보는 것: useReducer · useRef로 든 상태 · 아일랜드 앞 자식의 로컬 상태 ·
+ *   정규식을 피해 쓴 구조분해. ☠못 보는 것을 안 적으면 다음에도 모른다.
+ * ☠아일랜드를 렌더하는 수단이 이 저장소에 없다(jsdom·testing-library 부재) — 하이드레이션 게이트와
+ *   자동 저장 의존성은 **소스 텍스트**로만 박제하고, 실동작은 헤드리스 실측이 본다.
+ */
+describe("엔트리 프리셋 이음매", () => {
+  const ISLAND = readFileSync(join(__dirname, "..", "src", "features", "builder", "BuilderIsland.tsx"), "utf8");
+  const BODY = ISLAND.slice(ISLAND.indexOf("export default function BuilderIsland"));
+
+  /** 스냅샷 필드 → 아일랜드 상태 이름. ★Record<keyof BuilderSnapshot, string>이라 스냅샷에 필드를
+      넣으면 이 테이블이 컴파일 에러가 된다 = 저장·수집 양방향이 다 막힌다. */
+  const SNAP_FIELDS: Record<keyof Required<BuilderSnapshot>, string> = {
+    slots: "slots", internal: "internal", sort: "sort", locked: "locked",
+    overrides: "overrides", cardClass: "cardClass", rings: "rings", inherits: "inherits",
+    star: "star", showGrowth: "showGrowth", showSpoilers: "showSpoilers", showDlc: "showDlc",
+  };
+
+  /** 담지 않는 상태와 그 이유. ☠빈 이유 금지 — 이유 없는 제외는 다음 사람이 되돌릴 수 없다. */
+  const EXCLUDED: Record<string, string> = {
+    hoverRow: "포인터 흔적", focusRow: "포인터 흔적", lockHover: "포인터 흔적",
+    pulsePid: "1회 충격파", emblemOpen: "팝업", bondPreview: "호버 미리보기",
+    foldPid: "폴딩", classDrop: "열린 드롭다운", skillPop: "팝업", drag: "드래그 중",
+    row1H: "sticky top 실측 높이", jobRowH: "sticky top 실측 높이",
+    presets: "프리셋 목록 봉투 자체", presetBroken: "활성 슬롯 복원 실패(파생)",
+    saveFailed: "저장 실패 표식(파생)", undo: "삭제 되돌리기(세션 한정)",
+    notice: "첫 저장 안내 1회(표시 취향 — fesim:ui:presetnotice가 소유)",
+    slotEl: "포털 대상 DOM 참조",
+  };
+
+  it("☠빌더의 모든 useState는 프리셋에 담기거나 제외 사유가 적히거나 — 둘 중 하나다", () => {
+    const names = [...BODY.matchAll(/const \[(\w+), set\w+\] = useState/g)].map((m) => m[1]!);
+    expect(names.length).toBeGreaterThan(12);
+    const covered = new Set([...Object.values(SNAP_FIELDS), ...Object.keys(EXCLUDED)]);
+    expect(names.filter((n) => !covered.has(n))).toEqual([]);
+  });
+
+  it("스냅샷 키 목록과 팩토리가 어긋나지 않는다", () => {
+    // sort는 선택 필드라 emptySnapshot()에 없다 — 그래서 따로 더한다.
+    expect(Object.keys(SNAP_FIELDS).sort()).toEqual([...Object.keys(emptySnapshot()), "sort"].sort());
+  });
+
+  /**
+   * ☠왜 위험한가: 자동 저장 effect의 의존성 배열에서 상태 하나가 빠지면 그 값만 저장되지 않는다.
+   * 저장소에는 옛 값이 남고 화면은 새 값이라, 새로고침해야 소실이 드러난다. 이 저장소엔 ESLint가
+   * 없어서(exhaustive-deps 미집행) 의존성 배열을 **소스 텍스트로** 박는 것이 유일한 방벽이다.
+   */
+  it("☠자동 저장 effect가 스냅샷 12종을 전부 구독하고, 하이드레이션 전에는 쓰지 않는다", () => {
+    const effect = /const idx = presetsRef\.current;\s*if \(idx === null \|\| presetBroken\) return;[\s\S]*?\}, \[([^\]]*)\]\);/.exec(BODY);
+    expect(effect).not.toBeNull();
+    const deps = (effect![1] ?? "").split(",").map((d) => d.trim());
+    for (const name of Object.values(SNAP_FIELDS)) expect(deps).toContain(name);
+    // 방금 적용분 되쓰기 금지 가드 — 없으면 열기만 해도 updated가 갱신된다(M4 병합에서 기기 B가 A를 이긴다).
+    expect(BODY).toContain("justApplied.current");
+    // ★활성 번호는 거울 ref로 읽는다(의존성에 presets를 넣으면 엔트리 수 갱신이 슬롯을 두 번 쓴다).
+    expect(deps).not.toContain("presets");
+  });
+
+  /**
+   * ☠왜 위험한가: 거울 ref 동기 effect가 자동 저장 effect **뒤**로 밀리면, 프리셋을 전환한 커밋에서
+   * 자동 저장이 낡은 활성 번호를 읽어 **직전 프리셋 슬롯에 새 화면을 덮어쓴다**. 값은 전부 저장되고
+   * 오류도 없어서, 사용자가 옛 프리셋으로 돌아가 보기 전까지 아무도 모른다. 선언 순서가 곧 계약이다.
+   */
+  it("☠presetsRef 동기 effect가 자동 저장 effect보다 먼저 선언된다", () => {
+    const mirror = BODY.indexOf("presetsRef.current = presets;");
+    const autosave = BODY.indexOf("const idx = presetsRef.current;");
+    expect(mirror).toBeGreaterThan(0);
+    expect(autosave).toBeGreaterThan(mirror);
+  });
+
+  /**
+   * ☠왜 위험한가: 캐릭터 순번은 별도 상태가 아니라 locked **배열 순서**다(2026-09-05 사용자 지시로
+   * 프리셋에 포함). 드래그로 맞춘 순서가 왕복에서 흐트러져도 값은 전부 맞아서 아무 테스트도 안 깨진다.
+   */
+  it("★순번 관통 — 드래그 재정렬(moveLock) 결과가 저장·복원을 통과해도 그대로다", () => {
+    use(memoryStorage());
+    const locked = [
+      { pid: "PID_a", internal: 1 },
+      { pid: "PID_b", internal: 2 },
+      { pid: "PID_c", internal: 3 },
+    ];
+    // 마지막 블록을 맨 위로 끌어올린 상태 = 사용자가 만든 순번.
+    const moved = moveLock(locked, 2, 0);
+    expect(moved.map((e) => e.pid)).toEqual(["PID_c", "PID_a", "PID_b"]);
+    expect(writePreset(3, { ...emptySnapshot(), locked: moved }, "")).toBe(true);
+    expect(readPreset(3)?.locked).toEqual(moved);
+  });
+
+  /**
+   * ☠왜 위험한가: 잠긴 pid는 세션 맵에서 걷힌 상태가 정본이다(잠금 스냅샷이 소유). 둘 다 살아 있으면
+   * 카드가 정본을 둘 갖고, 어느 쪽이 이기는지가 렌더 순서에 달린다. 방어(normalizeSnapshot)만 있고
+   * 불변식 테스트가 없으면 위반이 정상으로 굳는다.
+   */
+  it("잠금 불변식 — 저장·복원을 지나면 잠긴 pid가 세션 맵 4종에 없다", () => {
+    use(memoryStorage());
+    writePreset(4, {
+      ...emptySnapshot(),
+      locked: [{ pid: "PID_a", internal: 5 }],
+      overrides: { "PID_a:0": { plus: 1 } },
+      cardClass: { PID_a: { jid: "JID_x" } },
+      rings: { PID_a: { gid: "GID_x", bond: 5 } },
+      inherits: { PID_a: ["SID_x", ""] },
+    }, "");
+    const back = readPreset(4)!;
+    expect(Object.keys(back.overrides)).toEqual([]);
+    expect(Object.keys(back.cardClass)).toEqual([]);
+    expect(Object.keys(back.rings)).toEqual([]);
+    expect(Object.keys(back.inherits)).toEqual([]);
   });
 });
