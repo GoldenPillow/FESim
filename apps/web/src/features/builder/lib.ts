@@ -515,6 +515,241 @@ export function combatOf(
   return out;
 }
 
+/* ── 표시 규약 상수 — ☠BuilderIsland에서 이사왔다(2026-09-07). 공유 산출물(HTML·카드 이미지)이 표와
+   **같은 라벨·같은 포맷터**를 쓰게 하려면 컴포넌트 밖에 있어야 한다. 컴포넌트 안에 두면 생성기가
+   자기 것을 새로 만들고, 표와 공유물이 다른 숫자를 말하면서 오류도 경고도 안 난다. ── */
+
+/** 스탯 열 헤더 영문 라벨 — 표 헤더와 산출물이 공유(표기는 영문 고정, 툴팁만 로케일). */
+export const STAT_EN: Record<StatKey, string> = {
+  hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
+};
+
+/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). HP 열은 비움, RES·BLD 열 = 무기군 아이콘. */
+export const COMBAT_COL: Partial<Record<StatKey, CombatKey>> = {
+  str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
+};
+
+/** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
+export const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
+
+/** 스탯 합산 표시 — ☠toFixed 단독 금지(13.35 → "13.3"). 소수 2자리 정수화 후 1자리로 half-up
+    (셀 텍스트의 누적기 반올림과 일치). 정수면 소수점을 안 붙인다. */
+export const fmtStat = (n: number): string => {
+  const c = Math.round(n * 100);
+  return c % 100 === 0 ? String(c / 100) : (Math.round(c / 10) / 10).toFixed(1);
+};
+
+/* ── 공유 산출물 팔레트 — ☠**두 산출물(HTML·카드)이 같은 값을 읽어야** 한 쪽만 낡지 않는다.
+   값의 정본은 `styles/global.css`(`:root` = 다크 · `[data-theme="light"]` = 라이트)이고 여기는 그 사본이다.
+   ☠런타임 `getComputedStyle`로 읽지 않는 이유 = (1) HTML 산출물은 **남의 페이지에서 자기완결**로 살아야 하고
+   (2) 카드는 같은 입력이 같은 픽셀이어야 회귀 테스트가 선다. 사본이므로 global.css를 고치면 여기도 고친다. ── */
+
+export type ShareTheme = "dark" | "light";
+
+export interface SharePalette {
+  ground: string; panel: string; sunken: string; rule: string;
+  ink: string; muted: string; gold: string;
+  cap: string; pgrow: string; danger: string; engage: string;
+}
+
+/** ★빌더 기본 테마는 다크다(라이트가 `[data-theme="light"]` 옵트인) — 그래서 dark가 앞이고 기본값이다. */
+export const PALETTES: Record<ShareTheme, SharePalette> = {
+  dark: {
+    ground: "#12161b", panel: "#1a2028", sunken: "#151a21", rule: "#2b333d",
+    ink: "#e3e9ef", muted: "#909dab", gold: "#d9b878",
+    cap: "#3fd873", pgrow: "#5b9dff", danger: "#f2555c", engage: "#3b96ee",
+  },
+  light: {
+    ground: "#e9ecf0", panel: "#ffffff", sunken: "#f2f5f8", rule: "#d3dae2",
+    ink: "#171d24", muted: "#5b6773", gold: "#96712c",
+    cap: "#1e9e50", pgrow: "#1f5fd0", danger: "#c62f35", engage: "#0060c8",
+  },
+};
+
+/** 색조 → 색. 표의 판정(絆 상승=블루 · 무게 하락=레드 · 캡 도달=그린)을 그대로 옮긴다. */
+export const toneColor = (p: SharePalette, tone: ExportTone): string =>
+  tone === "cap" ? p.cap : tone === "buffed" ? p.pgrow : tone === "down" ? p.danger : p.ink;
+
+/* ── 공유 산출물 사영 — HTML 생성기와 카드 렌더러가 **둘 다 이것만** 읽는다.
+   ★이 층이 존재하는 이유 = 표와 산출물이 갈리는 조용한 실패를 구조로 막는 것(rules/seams.md).
+   ☠여기에 계산을 새로 쓰지 마라 — 값은 전부 표가 쓰는 함수(builderRow·combatOf·weaponAt·
+   penalizedText·effectiveWeaponRanks)를 그대로 통과시킨다. ── */
+
+/** 셀 색조 — 표의 판정과 **같은 우선순위**(絆·스킬 상승 > 무게 하락 > 캡 도달 > 기본, 2026-08-31 사용자 지시). */
+export type ExportTone = "buffed" | "down" | "cap" | "ink";
+
+export interface ExportStat {
+  key: StatKey;
+  /** 표에 그려지는 문자 그대로 — SPD는 무게 페널티가 이미 빠진 값이다. */
+  text: string;
+  tone: ExportTone;
+  /** 고유 성장률 %(showGrowth일 때만). */
+  growth?: number;
+}
+
+export interface ExportChip {
+  name: string;
+  icon?: string;
+}
+
+/** 무기 적성 1종 — innate = 캐릭터 고유 적성(승격 반영된 실효 랭크). */
+export interface ExportRank {
+  kind: number;
+  rank: string;
+  innate: boolean;
+  icon?: string;
+}
+
+export interface ExportRow {
+  pid: string;
+  name: string;
+  face?: string;
+  /** 스냅샷 직업명 — 없음 = 직업 미선택(합류 상태). */
+  job?: string;
+  /** 표시 내부 레벨(1기점). ☠**잠금 스냅샷의 목표값**이다 — 표의 클래스 행(`(lockEntry.internal ?? 0) + 1`)과
+      같은 소스여야 한다. `BuilderRow.internal`(도달값)을 쓰면 합류 상태 행에서 표는 40, 산출물은 16을 말한다. */
+  internal: number;
+  /** 전용직 대상 밖 — 합류 상태 값이라는 표식. */
+  ineligible: boolean;
+  stats: ExportStat[];
+  /** 전투력 6종 — 표시 문자열 + 색조. ★색조는 표의 `deltaCls`와 같은 판정이다:
+      맨손 대비 오르면 블루(buffed) · 내리면 레드(down) · 같으면 기본. 장비·스킬 효과가 눈에 보이는 자리다. */
+  combat: Record<CombatKey, { text: string; tone: ExportTone }>;
+  /** 장착 무기의 실효 위력·무게(강화·각인 반영). 맨손이면 없음. */
+  might?: string;
+  weight?: string;
+  weapon?: { name: string; plus: number; icon?: string };
+  engrave?: ExportChip;
+  ring?: { name: string; bond: number; icon?: string };
+  /** 계승 스킬 — 빈 칸은 뺀다(2칸 중 채운 것만). */
+  inherits: ExportChip[];
+  ownSkill?: ExportChip;
+  ranks: ExportRank[];
+  efficacies: ExportChip[];
+}
+
+/** 산출물 생성에 필요한 사영 테이블 — ☠맵이 아니라 원본 배열을 받는다(호출부가 자기 맵을 만들어
+    넘기면 그 맵의 필터가 표와 갈릴 수 있다. 여기서 만들면 규칙이 한 곳이다). */
+export interface ExportContext {
+  chars: readonly BuilderCharProp[];
+  emblems: readonly BuilderEmblemProp[];
+  /** 무기군 아이콘(kind → URL). */
+  kindIcons?: Readonly<Record<number, string>>;
+  /** 특효 명칭 사전(labels.efficacyNames) — ☠표와 같은 폴백 규칙(`?? kind`)을 여기서도 쓴다. */
+  efficacyNames?: Readonly<Record<string, string>>;
+  /** 고유 성장률 행을 담을지 — 표의 체커와 같은 값을 넘긴다. */
+  showGrowth?: boolean;
+}
+
+/**
+ * 잠긴 엔트리 → 산출물 행. **표에 그려지는 것과 같은 배열**(`lockedDisplayRows` 결과 + 絆·스킬 보너스가
+ * 얹힌 것)을 입력으로 받는다.
+ * ☠`locked`(원시 EntryLock)를 직접 소비하지 마라 — 그 배열에는 표시층이 얹는 보너스가 없다.
+ * ☠대기 목록은 절대 섞이지 않는다(사용자 지시 2026-09-07: "쉐어의 기준은 현재 엔트리에 포함된 부분").
+ */
+export function entryExportRows(
+  display: readonly LockedDisplay[],
+  locked: readonly EntryLock[],
+  ctx: ExportContext,
+): ExportRow[] {
+  const charByPid = new Map(ctx.chars.map((c) => [c.pid, c]));
+  const emblemByGid = new Map(ctx.emblems.map((e) => [e.gid, e]));
+  const inheritBySid = new Map(ctx.emblems.flatMap((e) => e.inherits.map((s) => [s.sid, s] as const)));
+  const out: ExportRow[] = [];
+  for (const { row, job, equipped } of display) {
+    const entry = locked.find((e) => e.pid === row.pid);
+    const sids = entry?.skills ?? ["", ""];
+    // 전투력은 표(CombatCells)와 같은 인자로 같은 함수를 부른다 — 여기가 관통 지점이다.
+    const skillRows = sids.flatMap((sid) => {
+      const s = inheritBySid.get(sid);
+      return s === undefined ? [] : [s.row];
+    });
+    // 색조 판정은 표(CombatCells.deltaCls)와 같은 대조다 — 맨손값 대비 올랐나 내렸나.
+    const bare = combatOf(row);
+    const combatRaw = combatOf(row, equipped, skillRows);
+    const combat = {} as Record<CombatKey, { text: string; tone: ExportTone }>;
+    for (const key of COMBAT_KEYS) {
+      const v = combatRaw[key];
+      const tone: ExportTone = v > bare[key] + 1e-9 ? "buffed" : v < bare[key] - 1e-9 ? "down" : "ink";
+      combat[key] = { text: fmtCombat(v), tone };
+    }
+
+    const penalty = weightPenalty(row, equipped);
+    const growth = ctx.showGrowth === true ? charByPid.get(row.pid)?.personGrowth : undefined;
+    const stats = STAT_KEYS.map((key): ExportStat => {
+      const cell = row.cells[key];
+      const down = key === "spd" && penalty > 0;
+      const tone: ExportTone = cell.buffed === true ? "buffed" : down ? "down" : cell.capped ? "cap" : "ink";
+      return {
+        key,
+        text: penalizedText(cell, down ? penalty : 0),
+        tone,
+        ...(growth !== undefined ? { growth: growth[key] } : {}),
+      };
+    });
+
+    const spec = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
+    const ring = entry?.gid === undefined ? undefined : emblemByGid.get(entry.gid);
+    const char = charByPid.get(row.pid);
+    const kinds = ctx.kindIcons ?? {};
+    out.push({
+      pid: row.pid,
+      name: row.name,
+      ...(row.face !== undefined ? { face: row.face } : {}),
+      ...(job !== undefined ? { job: job.name } : {}),
+      internal: (entry?.internal ?? row.internal) + 1,
+      ineligible: row.ineligible,
+      stats,
+      combat,
+      ...(spec !== undefined ? { might: fmtStat(spec.might), weight: fmtStat(spec.weight) } : {}),
+      ...(equipped !== undefined
+        ? {
+            weapon: {
+              name: equipped.weapon.name,
+              plus: equipped.plus,
+              ...(equipped.weapon.icon !== undefined ? { icon: equipped.weapon.icon } : {}),
+            },
+          }
+        : {}),
+      ...(equipped?.engrave !== undefined
+        ? {
+            engrave: {
+              name: equipped.engrave.name,
+              ...(equipped.engrave.icon !== undefined ? { icon: equipped.engrave.icon } : {}),
+            },
+          }
+        : {}),
+      ...(ring !== undefined
+        ? { ring: { name: ring.name, bond: entry?.bond ?? 20, ...(ring.icon !== undefined ? { icon: ring.icon } : {}) } }
+        : {}),
+      inherits: sids.flatMap((sid) => {
+        const s = inheritBySid.get(sid);
+        return s === undefined ? [] : [{ name: s.name, ...(s.icon !== undefined ? { icon: s.icon } : {}) }];
+      }),
+      ...(char?.personalSkills[0] !== undefined
+        ? {
+            ownSkill: {
+              name: char.personalSkills[0].name,
+              ...(char.personalSkills[0].icon !== undefined ? { icon: char.personalSkills[0].icon } : {}),
+            },
+          }
+        : {}),
+      ranks:
+        job === undefined
+          ? []
+          : effectiveWeaponRanks(job.weaponRanks, char?.aptitude ?? 0).map((r) => ({
+              ...r,
+              ...(kinds[r.kind] !== undefined ? { icon: kinds[r.kind] as string } : {}),
+            })),
+      efficacies: (equipped?.weapon.efficacies ?? []).map((e) => ({
+        name: ctx.efficacyNames?.[e.kind] ?? e.kind,
+        ...(e.icon !== undefined ? { icon: e.icon } : {}),
+      })),
+    });
+  }
+  return out;
+}
+
 export function sortRowGroups(groups: readonly BuilderRow[][], sort: BuilderSort | undefined): BuilderRow[][] {
   const out = [...groups];
   out.sort((a, b) => {
