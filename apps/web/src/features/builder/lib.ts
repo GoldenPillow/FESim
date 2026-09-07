@@ -679,10 +679,13 @@ export function entryExportRows(
     const entry = locked.find((e) => e.pid === row.pid);
     const sids = entry?.skills ?? ["", ""];
     // 전투력은 표(CombatCells)와 같은 인자로 같은 함수를 부른다 — 여기가 관통 지점이다.
+    // ★표(combatSkillsOf)와 **같은 묶음**이어야 한다 — 커스텀 2칸 + 직업 고유(2026-09-08).
+    //   여기서 직업 고유를 빠뜨리면 공유물만 조용히 다른 전투력을 말한다.
     const skillRows = sids.flatMap((sid) => {
       const s = inheritBySid.get(sid);
       return s === undefined ? [] : [s.row];
     });
+    if (job?.jobSkill !== undefined) skillRows.push(job.jobSkill.row);
     // 색조 판정은 표(CombatCells.deltaCls)와 같은 대조다 — 맨손값 대비 올랐나 내렸나.
     const bare = combatOf(row);
     const combatRaw = combatOf(row, equipped, skillRows);

@@ -1870,7 +1870,7 @@ export interface BuilderCharProp {
 export interface JoinJobProp extends GrowthPathJob {
   weaponRanks: Record<number, string>;
   /** 직업 고유(兵種) 스킬 — 카드 스킬 슬롯 2번째. 기본직은 없음(빈 슬롯). */
-  jobSkill?: EmblemSkillProp;
+  jobSkill?: JobSkillProp;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -1883,8 +1883,9 @@ export interface BuilderJobProp extends GrowthPathJob {
   female?: true;
   /** 착용 가능 무기군 → 최대 랭크(job Weapon*=1 && MaxWeaponLevel* != N). 키 = Kind(지팡이 7 포함). */
   weaponRanks: Record<number, string>;
-  /** 직업 고유(兵種) 스킬 = job.LearningSkill — 상급직·특수직 40종만. 기본직(Rank 0 / MaxLevel 20)은 없다. */
-  jobSkill?: EmblemSkillProp;
+  /** 직업 고유(兵種) 스킬 = job.LearningSkill — 상급직·특수직만. 기본직(Rank 0 / MaxLevel 20)은 없다.
+      ★레벨 게이트 없음(2026-09-08 사용자 지시: "레벨이 부족해도 있다고 가정한다"). */
+  jobSkill?: JobSkillProp;
 }
 
 /** 강화 단계 하나의 누적 보정(refine.json — 錬成 시트 정본). */
@@ -1986,6 +1987,12 @@ export interface BuilderEmblemProp {
   levels: EmblemLevelProp[];
   /** 계승 가능 스킬(성장표 InheritanceSkills, 첫 등장 순) — 카드 계승 슬롯 드롭다운의 그룹 항목(2026-09-02). */
   inherits: InheritSkillProp[];
+}
+
+/** 직업 고유(兵種) 스킬 — 표기 단면 + **엔진 평가용 슬림 행**(계승 슬롯과 같은 처우, 2026-09-08).
+    ☠row 없이 이름만 실으면 슬롯이 표시만 되고 전투력에는 안 걸린다(조용한 결손). */
+export interface JobSkillProp extends EmblemSkillProp {
+  row: SkillRow;
 }
 
 /** 계승 스킬 후보 — 표기 단면 + 해금 絆 + SP 비용 + 엔진 평가용 슬림 행. */
@@ -2421,10 +2428,14 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       }),
     });
   }
-  /** 직업 행 → 직업 고유 스킬(兵種스킬). 기본직은 LearningSkill이 비어 있어 undefined가 정상이다. */
-  const jobSkillOf = (row: Record<string, unknown>): EmblemSkillProp | undefined => {
+  /** 직업 행 → 직업 고유 스킬(兵種스킬) + 엔진 평가용 슬림 행. 기본직은 LearningSkill이 비어 있어
+      undefined가 정상이다. ★레벨 게이트 없음 — 그 직업이면 있다고 본다(2026-09-08 사용자 지시). */
+  const jobSkillOf = (row: Record<string, unknown>): JobSkillProp | undefined => {
     const sid = row["LearningSkill"];
-    return typeof sid === "string" && sid !== "" ? skillProp(sid) : undefined;
+    if (typeof sid !== "string" || sid === "") return undefined;
+    const brief = skillProp(sid);
+    const slim = slimSkill(sid);
+    return brief === undefined || slim === undefined ? undefined : { ...brief, row: slim };
   };
   const joinJobs: Record<string, JoinJobProp> = {};
   for (const c of chars) {

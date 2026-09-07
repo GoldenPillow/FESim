@@ -907,8 +907,10 @@ interface CombatCellsProps {
   labels: BuilderLabels;
   /** 캐릭터 고유 적성 비트마스크 — 무기 목록의 랭크 게이트(effectiveWeaponRanks) 입력. */
   aptitude: number;
-  /** 스킬 열(skill-col) 셀 — 카드 옆 스킬 3칸의 3번째(계승 2)가 전투력 행에 산다(2026-09-02). */
+  /** 밴드3 스킬 열 셀 = 커스텀 1(호출부가 만든다 — 비교 라인은 빈 칸). */
   lead: React.ReactNode;
+  /** 밴드4 스킬 열 셀 = 커스텀 2(2026-09-08 4슬롯 세로 일렬). */
+  lead2: React.ReactNode;
   /** 계승 스킬 행(엔진 평가용) — 전투 보정(命中値 + 10 등)은 combatOf가 combatEnv(skills)로 건다. */
   skills: readonly SkillRow[];
   /** 카드 장비 변경 — iid/plus/engrave 부분 갱신("" = 해제). undefined 필드는 불변. */
@@ -940,6 +942,7 @@ function CombatCells({
   labels,
   aptitude,
   lead,
+  lead2,
   skills,
   onEquip,
   bar,
@@ -1101,7 +1104,7 @@ function CombatCells({
         })}
       </tr>
       <tr className={`combat-values ${rowClass}`} {...rowProps}>
-        <td className="skill-col" />
+        {lead2}
         <td className="inlv-col px-[3px] pb-[10px] pt-0 text-left align-top">{apt}</td>
         {STAT_KEYS.map((key) => {
           if (key === "hp" || key === "res") {
@@ -2139,6 +2142,14 @@ export default function BuilderIsland({
       return s === undefined ? [] : [s.row];
     });
 
+  /** 전투력·스탯 평가에 들어가는 스킬 행 = 커스텀(계승) 2칸 + **직업 고유**(2026-09-08 사용자 지시
+      "직업스킬도 이제 정확히 넣어"). 레벨 게이트는 없다 — 그 직업이면 있다고 본다.
+      ☠개인 고유는 아직 표시 전용이다(미배선 — design/builder_skill_slots.md §5). */
+  const combatSkillsOf = (pid: string, scope: InheritScope, job: BuilderJobProp | undefined): SkillRow[] => {
+    const rows = inheritRowsOf(pid, scope);
+    return job?.jobSkill === undefined ? rows : [...rows, job.jobSkill.row];
+  };
+
   const groups = useMemo(() => {
     const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
     // 카드 개별 클래스·In.Lv(2026-08-31) — 라인 0을 카드 값으로 재계산(글로벌 슬롯 대체).
@@ -2164,10 +2175,18 @@ export default function BuilderIsland({
       const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
       return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
     });
-    // 계승 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
+    // 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
+    // ☠직업 고유는 **라인마다 직업이 다르다** — 그룹 단위로 한 번 걸면 라인 2 이상이 라인 0의 스킬을 받는다.
     const skilled = boosted.map((g) => {
-      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid, "wait"));
-      return Object.keys(sd).length === 0 ? g : g.map((r) => applyStatBonus(r, sd, "skill"));
+      const pid = g[0]!.pid;
+      // 유령 카드(잠긴 pid의 사본)는 카드 개별값을 무시한다 — personalized 단계와 같은 판정.
+      const plain = lockByPid.has(pid);
+      const inh = inheritRowsOf(pid, "wait");
+      return g.map((r, li) => {
+        const js = cardCompareOf(pid, li, plain)?.job.jobSkill?.row;
+        const sd = skillStatDelta(js === undefined ? inh : [...inh, js]);
+        return Object.keys(sd).length === 0 ? r : applyStatBonus(r, sd, "skill");
+      });
     });
     return waitingRowGroups(skilled, locked, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2185,7 +2204,7 @@ export default function BuilderIsland({
         const delta = emblemByGid.get(entry.gid)?.bonuses[bond - 1];
         if (delta !== undefined && Object.keys(delta).length > 0) row = applyEmblemBonus(row, delta);
       }
-      const sd = skillStatDelta(inheritRowsOf(d.row.pid, "lock"));
+      const sd = skillStatDelta(combatSkillsOf(d.row.pid, "lock", d.job));
       if (Object.keys(sd).length > 0) row = applyStatBonus(row, sd, "skill");
       return row === d.row ? d : { ...d, row };
     });
@@ -2499,14 +2518,29 @@ export default function BuilderIsland({
     return fixedSkillUi(`${pid}:job:${li}`, s, labels.jobSkill);
   };
 
-  /** 스킬 열(skill-col) 셀 — 4밴드 격자의 왼쪽 슬롯 열(2026-09-08 개편):
-      밴드1(스탯 행) = 개인 고유 · 밴드2(반지 행) = 커스텀 1 · 밴드3(슬롯·라벨 행) = 커스텀 2.
-      밴드4(값 행)는 빈 칸이다. 오른쪽 장비 열(직업 고유·반지·무기)과 세로 줄이 구조적으로 맞는다.
+  /** 스킬 열(skill-col) 셀 — 4밴드에 스킬 4슬롯이 **세로 일렬**로 선다(2026-09-08 사용자 지시):
+      밴드1 개인 고유 · 밴드2 직업 고유 · 밴드3 커스텀 1 · 밴드4 커스텀 2.
+      위 둘 = 읽기 전용(캐럿 없음·배경 한 단계 낮음) / 아래 둘 = 드롭다운.
+      오른쪽 장비 열은 밴드2 반지 · 밴드3 무기만 쓴다(밴드1·4는 비교 라인용 여백).
       세로폰은 열째 숨김(builder.css .skill-col — 헤더·본문 함께). */
-  const skillCell = (pid: string, slot: 0 | 1 | 2, scope: InheritScope, extra = ""): React.JSX.Element => (
+  const skillCell = (
+    pid: string,
+    slot: 0 | 1 | 2 | 3,
+    scope: InheritScope,
+    job?: BuilderJobProp | undefined,
+    li = -1,
+    extra = "",
+  ): React.JSX.Element => (
     // 밴드1 상단 10px = 블록 상단 여백(카드 프레임 top 10과 대칭) — 같은 행의 스탯 셀도 같은 패딩.
-    <td className={`skill-col pl-0 pr-[3px] ${slot === 0 ? "pb-[3px] pt-[10px]" : "pb-[3px] pt-[3px]"} align-middle ${extra}`}>
-      {slot === 0 ? personalSkillUi(pid) : inheritSlotUi(pid, slot === 1 ? 0 : 1, scope)}
+    // 밴드4는 값 행이라 하단 패딩이 3px다(값 20 + pb 10 = 30 vs 칩 28 + pb 3 = 31 — 밑선이 맞는다).
+    <td
+      className={`skill-col pl-0 pr-[3px] align-middle ${slot === 0 ? "pb-[3px] pt-[10px]" : slot === 3 ? "pb-[3px] pt-0" : "pb-[3px] pt-[3px]"} ${extra}`}
+    >
+      {slot === 0
+        ? personalSkillUi(pid)
+        : slot === 1
+          ? jobSkillUi(pid, job, li)
+          : inheritSlotUi(pid, slot === 2 ? 0 : 1, scope)}
     </td>
   );
 
@@ -3221,8 +3255,9 @@ export default function BuilderIsland({
                 )}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {!showGrowth && lockTh}
-                  {skillCell(row.pid, 0, "lock", showGrowth ? "" : sep)}
-                  <td className={`inlv-col px-[3px] pb-[3px] pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{jobSkillUi(row.pid, job, -1)}</td>
+                  {skillCell(row.pid, 0, "lock", job, -1, showGrowth ? "" : sep)}
+                  {/* 밴드1 장비 열 = 빈 칸(스킬 4칸이 왼쪽 열에 세로로 서면서 비었다, 2026-09-08). */}
+                  <td className={`inlv-col ${showGrowth ? "" : sep}`} />
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
                     const penalty = key === "spd" ? weightPenalty(row, equipped) : 0;
@@ -3257,7 +3292,7 @@ export default function BuilderIsland({
                   })}
                 </tr>
                 {/* 반지 행 — 무기 슬롯 바로 위(2026-08-31 배치 확정). 스냅샷 반지 소스, 즉시 저장. */}
-                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1, "lock"))}
+                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1, "lock", job, -1))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
                 <CombatCells
                   row={row}
@@ -3269,7 +3304,8 @@ export default function BuilderIsland({
                   labels={labels}
                   aptitude={aptitudeOf(row.pid)}
                   lead={skillCell(row.pid, 2, "lock")}
-                  skills={inheritRowsOf(row.pid, "lock")}
+                  lead2={skillCell(row.pid, 3, "lock")}
+                  skills={combatSkillsOf(row.pid, "lock", job)}
                   onEquip={(p) => patchLock(row.pid, p)}
                   bar={lockHover === row.pid ? resetBar(() => resetLock(row.pid)) : undefined}
                   rowClass="cursor-grab hover:bg-sunken"
@@ -3416,10 +3452,12 @@ export default function BuilderIsland({
                       {li === 1 && (
                         <th scope="row" rowSpan={g.length * 3 - 3} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                       )}
-                      {li === 0 ? skillCell(first.pid, 0, "wait", showGrowth ? "" : sep) : <td className="skill-col" />}
-                      <td className={`inlv-col px-[3px] ${li === 0 ? roomyTop : roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
-                        {jobSkillUi(first.pid, cmpOf(li)?.job, li)}
-                      </td>
+                      {/* 밴드1 스킬 열 — 라인 0 = 개인 고유(카드 소유). 비교 라인은 그 라인의 **직업 고유**가
+                          여기 선다(그 라인엔 반지 행이 없어 밴드2가 없다 — 안 그러면 조용히 사라진다). */}
+                      {li === 0
+                        ? skillCell(first.pid, 0, "wait", undefined, li, showGrowth ? "" : sep)
+                        : skillCell(first.pid, 1, "wait", cmpOf(li)?.job, li)}
+                      <td className={`inlv-col ${li === 0 && !showGrowth ? sep : ""}`} />
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
                         const penalty = key === "spd" ? weightPenalty(row, eq) : 0;
@@ -3459,7 +3497,7 @@ export default function BuilderIsland({
                   return [
                     line,
                     // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
-                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1, "wait"))] : []),
+                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1, "wait", cmpOf(0)?.job, 0))] : []),
                     <CombatCells
                       key={`combat-${li}`}
                       row={row}
@@ -3471,7 +3509,8 @@ export default function BuilderIsland({
                       labels={labels}
                       aptitude={aptitudeOf(first.pid)}
                       lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
-                      skills={inheritRowsOf(first.pid, "wait")}
+                      lead2={li === 0 ? skillCell(first.pid, 3, "wait") : <td className="skill-col" />}
+                      skills={combatSkillsOf(first.pid, "wait", cmpOf(li)?.job)}
                       onEquip={(p) => applyCard(first.pid, li, p)}
                       bar={!inert && hovered && hoverRow.li === li ? resetBar(() => resetCard(first.pid)) : undefined}
                       rowClass={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
