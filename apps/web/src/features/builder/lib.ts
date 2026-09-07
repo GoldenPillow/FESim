@@ -641,6 +641,8 @@ export interface ExportRow {
   /** 계승 스킬 — 빈 칸은 뺀다(2칸 중 채운 것만). */
   inherits: ExportChip[];
   ownSkill?: ExportChip;
+  /** 직업 고유(兵種) 스킬 — 기본직은 없다(빈 슬롯이라 칩 자체를 안 그린다). */
+  jobSkill?: ExportChip;
   ranks: ExportRank[];
   efficacies: ExportChip[];
 }
@@ -748,6 +750,14 @@ export function entryExportRows(
             ownSkill: {
               name: char.personalSkills[0].name,
               ...(char.personalSkills[0].icon !== undefined ? { icon: char.personalSkills[0].icon } : {}),
+            },
+          }
+        : {}),
+      ...(job?.jobSkill !== undefined
+        ? {
+            jobSkill: {
+              name: job.jobSkill.name,
+              ...(job.jobSkill.icon !== undefined ? { icon: job.jobSkill.icon } : {}),
             },
           }
         : {}),

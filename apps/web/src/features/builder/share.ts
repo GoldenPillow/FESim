@@ -82,6 +82,7 @@ export interface ShareLabels {
   ring: string;
   inherit: string;
   personalSkill: string;
+  jobSkill: string;
 }
 
 export interface ShareHtmlOptions {
@@ -189,6 +190,7 @@ const equipItems = (row: ExportRow, ctx: Ctx): EquipItem[] => {
   // 계승·고유 스킬은 아이콘을 안 붙인다(skills 자산은 파일명이 일본어 — 위 iconUrl 주석).
   for (const s of row.inherits) out.push({ caption: L.inherit, value: s.name });
   if (row.ownSkill !== undefined) out.push({ caption: L.personalSkill, value: row.ownSkill.name });
+  if (row.jobSkill !== undefined) out.push({ caption: L.jobSkill, value: row.jobSkill.name });
   return out;
 };
 

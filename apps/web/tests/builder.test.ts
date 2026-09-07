@@ -1073,6 +1073,19 @@ describe("엔트리 공유(내보내기) — entryExportRows", () => {
     const named = entryExportRows(display, locked, { ...ctx, efficacyNames: { Dragon: "용 특효" } });
     expect(named[0]!.efficacies[0]!.name).toBe("용 특효");
   });
+
+  /** 왜 위험한가: 스킬 4슬롯 중 직업 고유만 **직업 종속**이다(개인은 pid, 커스텀은 저장값).
+      산출물이 잠금 스냅샷의 직업이 아니라 다른 직업을 읽으면 공유물에만 틀린 스킬이 실리는데
+      기본직은 원래 빈 칸이라 결손이 정상으로 위장된다 — 있음/없음 양끝을 박는다(2026-09-08). */
+  it("산출물 직업 고유 스킬 = 잠금 스냅샷의 직업 것(기본직은 없음)", () => {
+    const high = { ...HIGH, jobSkill: { sid: "SID_x", name: "베어넘기기" } };
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high" }];
+    const display = lockedDisplayRows(propsOf(roster), [high, LOW_JOB], locked);
+    expect(entryExportRows(display, locked, ctx)[0]!.jobSkill?.name).toBe("베어넘기기");
+    const lowLock = [{ pid: "a", internal: 3, jid: "JID_low" }];
+    const lowDisplay = lockedDisplayRows(propsOf(roster), [high, LOW_JOB], lowLock);
+    expect(entryExportRows(lowDisplay, lowLock, ctx)[0]!.jobSkill).toBeUndefined();
+  });
 });
 
 /* ── 게시판 붙여넣기 HTML (share.ts) — 제약의 근거는 design/builder_export.md §2-1(디시 실측)이고,
@@ -1089,6 +1102,7 @@ const SHARE_LABELS: ShareLabels = {
   ring: "반지",
   inherit: "계승",
   personalSkill: "고유",
+  jobSkill: "직업",
 };
 
 const shareRow = (over: Partial<ExportRow> = {}): ExportRow => ({

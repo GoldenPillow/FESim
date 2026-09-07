@@ -1869,6 +1869,8 @@ export interface BuilderCharProp {
 /** 합류 직업 단면 — 경로 입력 + 무기군 랭크(직업 미선택 카드의 적성 표시용, 2026-09-02). */
 export interface JoinJobProp extends GrowthPathJob {
   weaponRanks: Record<number, string>;
+  /** 직업 고유(兵種) 스킬 — 카드 스킬 슬롯 2번째. 기본직은 없음(빈 슬롯). */
+  jobSkill?: EmblemSkillProp;
 }
 
 export interface BuilderJobProp extends GrowthPathJob {
@@ -1881,6 +1883,8 @@ export interface BuilderJobProp extends GrowthPathJob {
   female?: true;
   /** 착용 가능 무기군 → 최대 랭크(job Weapon*=1 && MaxWeaponLevel* != N). 키 = Kind(지팡이 7 포함). */
   weaponRanks: Record<number, string>;
+  /** 직업 고유(兵種) 스킬 = job.LearningSkill — 상급직·특수직 40종만. 기본직(Rank 0 / MaxLevel 20)은 없다. */
+  jobSkill?: EmblemSkillProp;
 }
 
 /** 강화 단계 하나의 누적 보정(refine.json — 錬成 시트 정본). */
@@ -2358,6 +2362,17 @@ export function builderPropsFor(locale: Locale): BuilderProps {
   const weaponList = builderWeapons(locale);
   const weaponIids = new Set(weaponList.map((w) => w.iid));
   const joinItems = parse<Record<string, string[]>>(joinitemsRaw);
+  /** sid → 표시용 스킬 단면(이름 라벨이 있는 것만 — SID_主人公 같은 무명 플래그는 버린다).
+      개인 고유(CommonSids)와 직업 고유(job.LearningSkill)가 같은 규칙을 쓴다. */
+  const skillProp = (sid: string): EmblemSkillProp | undefined => {
+    const row = skills[sid] as Record<string, unknown> | undefined;
+    if (row === undefined) return undefined;
+    const name = label(locale, String(row["Name"] ?? ""));
+    if (name === undefined) return undefined;
+    const help = label(locale, String(row["Help"] ?? ""));
+    const icon = skillIconHref(sid, row);
+    return { sid, name, ...(help !== undefined ? { help } : {}), ...(icon !== undefined ? { icon } : {}) };
+  };
   const chars: BuilderCharProp[] = [];
   for (const pid of order) {
     const person = persons[pid] as unknown as Record<string, unknown> | undefined;
@@ -2401,21 +2416,25 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       })(),
       aptitude: Number(person["Aptitude"] ?? 0),
       personalSkills: ((person["CommonSids"] as string[] | undefined) ?? []).flatMap((sid) => {
-        const row = skills[sid] as Record<string, unknown> | undefined;
-        const name = row === undefined ? undefined : label(locale, String(row["Name"] ?? ""));
-        if (name === undefined) return [];
-        const help = label(locale, String(row?.["Help"] ?? ""));
-        const icon = skillIconHref(sid, row);
-        return [{ sid, name, ...(help !== undefined ? { help } : {}), ...(icon !== undefined ? { icon } : {}) }];
+        const s = skillProp(sid);
+        return s === undefined ? [] : [s];
       }),
     });
   }
+  /** 직업 행 → 직업 고유 스킬(兵種스킬). 기본직은 LearningSkill이 비어 있어 undefined가 정상이다. */
+  const jobSkillOf = (row: Record<string, unknown>): EmblemSkillProp | undefined => {
+    const sid = row["LearningSkill"];
+    return typeof sid === "string" && sid !== "" ? skillProp(sid) : undefined;
+  };
   const joinJobs: Record<string, JoinJobProp> = {};
   for (const c of chars) {
     if (joinJobs[c.joinJid] === undefined) {
       const job = pathJobOf(c.joinJid);
       const row = jobs[c.joinJid] as unknown as Record<string, unknown> | undefined;
-      if (job !== undefined && row !== undefined) joinJobs[c.joinJid] = { ...job, weaponRanks: jobWeaponRanks(row) };
+      if (job !== undefined && row !== undefined) {
+        const js = jobSkillOf(row);
+        joinJobs[c.joinJid] = { ...job, weaponRanks: jobWeaponRanks(row), ...(js !== undefined ? { jobSkill: js } : {}) };
+      }
     }
   }
   // 승급망 도달 = 기본직(Rank 0)의 HighJob1/2 합집합. ☠LowJob 필드는 Jid가 아니라 MSBT 라벨이다.
@@ -2453,6 +2472,10 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       ...(uniquePid !== undefined ? { uniquePid } : {}),
       ...((flag & 4) !== 0 ? { female: true as const } : {}),
       weaponRanks: jobWeaponRanks(r),
+      ...(() => {
+        const js = jobSkillOf(r);
+        return js !== undefined ? { jobSkill: js } : {};
+      })(),
       sort: Number(r["Sort"] ?? 0),
     });
   }
