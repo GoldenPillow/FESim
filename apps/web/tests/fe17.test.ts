@@ -1012,6 +1012,9 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     for (const c of props.chars) {
       expect(c.name).not.toMatch(/^PID_/);
       expect(props.joinJobs[c.joinJid]).toBeDefined();
+      // 영입 시점 직업은 카드 목록의 실재 옵션이어야 한다(2026-09-07: 리셋 = 합류 직업 @ 시작 레벨) — 빠지면 그 카드는
+      // "직업 없음"으로 조용히 강하한다.
+      expect(props.targetJobs.some((j) => j.jid === c.joinJid), `${c.pid} ${c.joinJid}`).toBe(true);
     }
     // 얼굴 전원 보유 — 라팔 결손은 베이크 필터(챕터 출현 유닛 한정)가 원인이었고
     // bake_roster_faces 보강으로 해소됐다(스프라이트 Rafale는 번들에 실재). 재발 = 파이프라인 회귀.
@@ -1024,17 +1027,22 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
   });
 
-  it("직업 드롭다운 = 범용 21 + 전용 14 (인챈트·메이지캐넌·특수직 시프 + 전용 특수직 5 포함, 2026-08-31)", () => {
-    expect(props.targetJobs).toHaveLength(35);
+  it("직업 드롭다운 = 범용 36 + 전용 23 (상급 21+14 · 기본직 12+페가수스 3+왕족 하급 9, 2026-09-07 기본직 포함)", () => {
+    expect(props.targetJobs).toHaveLength(59);
     const jids = props.targetJobs.map((j) => j.jid);
     expect(jids).toContain("JID_セイジ");
     expect(jids).toContain("JID_エンチャント");
     expect(jids).toContain("JID_マージカノン");
+    expect(jids).toContain("JID_ソードファイター");
+    expect(jids).not.toContain("JID_不明"); // Flag 0 = 적·더미는 계속 밖
     const dragonKing = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
     expect(dragonKing.uniquePid).toBe("PID_リュール");
     expect(dragonKing.name).toBe("신룡의 왕");
     const uniques = props.targetJobs.filter((j) => j.uniquePid !== undefined);
-    expect(uniques).toHaveLength(14);
+    expect(uniques).toHaveLength(23);
+    // 왕족 하급 = 그 직업으로 합류하는 왕족이 가능자.
+    expect(props.targetJobs.find((j) => j.jid === "JID_アヴニール下級")?.uniquePid).toBe("PID_アルフレッド");
+    expect(props.targetJobs.find((j) => j.jid === "JID_神竜ノ子")?.uniquePid).toBe("PID_リュール");
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지"); // 헤더 성장률 행 직업명의 데이터 정본(로케일명)
@@ -1244,5 +1252,108 @@ describe("builderPropsFor.targetJobs — 특수직(2026-08-31)", () => {
     // 사룡 계열 전용(베일·DLC)도 가능자 판정으로 선다 — 적 변형(Flag 0)은 계속 밖.
     expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘")).toBe(true);
     expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘_敵")).toBe(false);
+  });
+
+  /**
+   * 왜 위험한가: 페가수스 기본직 3종은 Flag 15(11 + 비트 4)라 "Flag 11 = 범용" 필터가 떨어뜨린다 — 클로에의 합류
+   * 직업이 목록에서 사라진다. 비트 4는 여성 전용(실데이터 귀납: 그 직업 유닛 전원 Gender 2)으로 사영해 남성 카드를 막는다.
+   */
+  it("페가수스 기본직 = 범용 + 여성 전용 표식, 상급 비행직은 표식 없음 · 캐릭터 female = Gender 2", () => {
+    const { targetJobs, chars } = builderPropsFor("ko");
+    const peg = targetJobs.find((j) => j.jid === "JID_ランスペガサス");
+    expect(peg?.uniquePid).toBeUndefined();
+    expect(peg?.female).toBe(true);
+    expect(targetJobs.find((j) => j.jid === "JID_グリフォンナイト")?.female).toBeUndefined();
+    expect(chars.find((c) => c.pid === "PID_クロエ")?.female).toBe(true);
+    expect(chars.find((c) => c.pid === "PID_アルフレッド")?.female).toBeUndefined();
+  });
+});
+
+/**
+ * 기본직 디폴트 재검증(2026-09-07 사용자 지시 "기본직이 디폴트가 되면서 내부 1레벨부터 기본직까지 성장률이 정상인지").
+ * 사용자가 말한 모델 = In.lv 1→기본직 레벨(10)은 **기본직 성장률**(person.Grow + 기본직 DiffGrow) · 글로벌 목표가 그 이상이면
+ * **전직 보정(클래스 Base 교체)+개인 보정**을 적용하고 그 뒤 레벨은 **새 클래스 성장률**. 외부 대조 = fe17.triangleattack.com
+ * classes/dragon_child(성장률 10/10/0/10/15/5/10/10/5 · 전직 보정 +2/+2/+1/+2/+1/+1/+1/+2/+3)가 jobs.json과 일치.
+ * 왜 위험한가: 기본직이 리셋 상태가 되면서 "기본직에 머무는 레벨업"이 처음으로 표의 기본값이 됐다 — 전직 뒤 소자(상급직
+ * DiffGrow)를 잘못 쓰면 LCK·RES가 레벨당 0.05씩 조용히 부풀고, 어느 층도 오류를 내지 않는다.
+ */
+describe("기본직 디폴트 — 내부 1부터 기본직 성장률, 전직 뒤 새 클래스 성장률 (2026-09-07 재검증)", () => {
+  const props = builderPropsFor("ko");
+  const alear = props.chars[0]!;
+  const alfred = props.chars.find((c) => c.pid === "PID_アルフレッド")!;
+  const run = (c: (typeof props.chars)[number], target: GrowthPathJob, targetInternal: number): GrowthPathResult =>
+    growthPath({
+      joinJob: { ...props.joinJobs[c.joinJid]!, limit: mergeStatCap(props.joinJobs[c.joinJid]!.limit, c.personLimit) },
+      targetJob: { ...target, limit: mergeStatCap(target.limit, c.personLimit) },
+      joinLevel: c.joinLevel,
+      internalOffset: c.internalOffset,
+      personGrowth: c.personGrowth,
+      personOffset: c.personOffset,
+      targetInternal,
+    });
+  const display = (r: GrowthPathResult): Record<string, number> =>
+    Object.fromEntries(STAT_KEYS.map((k) => [k, r.stats[k] + r.acc[k] / 100]));
+  const rate = (c: (typeof props.chars)[number], job: GrowthPathJob): Record<string, number> =>
+    Object.fromEntries(STAT_KEYS.map((k) => [k, (c.personGrowth[k] + job.diffGrow[k]) / 100]));
+  const dragonChild = props.targetJobs.find((j) => j.jid === "JID_神竜ノ子")!;
+  const divineDragon = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
+  const swordFighter = props.targetJobs.find((j) => j.jid === "JID_ソードファイター")!;
+
+  it("신룡의 아이 In.lv 20(기본직 유지) = Lv1 앵커 + 19 x (Grow + 기본직 DiffGrow) — 35.9/14.9/4/15.9/19.85/10.95/14.9/9.9/5.95", () => {
+    const r = run(alear, dragonChild, 19);
+    expect(r.promoted).toBe(true); // 합류 직업이 목표 — 10에서 같은 직업으로 "전직"(Base 차이 0)
+    expect(r.capped).toEqual([]);
+    const d = display(r);
+    const lv1 = display(run(alear, dragonChild, 0));
+    const g = rate(alear, dragonChild);
+    for (const k of STAT_KEYS) expect(d[k]).toBeCloseTo(lv1[k]! + 19 * g[k]!, 5);
+    // 손계산(독립 유도): Grow 60/35/20/45/50/25/40/25/5 + DiffGrow 10/10/0/10/15/5/10/10/5.
+    // 외부 앵커(2026-09-07 헤드리스 판독): fe17.triangleattack.com/average_stats Alear · Fixed · decimals · 20(19) 행 = 동일값.
+    expect([d["hp"], d["str"], d["mag"], d["dex"], d["spd"], d["lck"], d["def"], d["res"], d["bld"]].map((v) => Math.round(v! * 100) / 100))
+      .toEqual([35.9, 14.9, 4, 15.9, 19.85, 10.95, 14.9, 9.9, 5.95]);
+  });
+
+  it("신룡의 왕 Lv11^(9) = 전직 앵커(내부 9) + 10 x (Grow + 신룡의 왕 DiffGrow) — 37.9/16.9/5/17.9/20.85/12.45/16.4/12.4/8.95", () => {
+    const at9 = display(run(alear, divineDragon, 9)); // B5 앵커 30.9/12.4/3/12.4/14.35/8.95/10.9/8.4/7.95
+    const r = run(alear, divineDragon, 19);
+    expect(r.capped).toEqual([]);
+    const d = display(r);
+    const g = rate(alear, divineDragon);
+    for (const k of STAT_KEYS) expect(d[k]).toBeCloseTo(at9[k]! + 10 * g[k]!, 5);
+    // 기본직 소자(LCK 5·DEF 10·RES 10)가 아니라 상급직 소자(LCK 10·DEF 15·RES 15)로 오른다.
+    expect([d["hp"], d["str"], d["mag"], d["dex"], d["spd"], d["lck"], d["def"], d["res"], d["bld"]].map((v) => Math.round(v! * 100) / 100))
+      .toEqual([37.9, 16.9, 5, 17.9, 20.85, 12.45, 16.4, 12.4, 8.95]);
+  });
+
+  it("기본직 → 기본직(소드 파이터, 내부 19) = 기본직 9렙 + 클래스 Base 교체(전직 보정) + 새 기본직 성장률 10렙", () => {
+    const r = run(alear, swordFighter, 19);
+    expect(r.promoted).toBe(true);
+    const before = run(alear, dragonChild, 9); // 전직 직전(신룡의 아이 Lv10)
+    const gate = display(run(alear, swordFighter, 8)); // 내부 8 = Lv9 — 게이트 미달, 신룡의 아이 그대로
+    expect(run(alear, swordFighter, 8).promoted).toBe(false);
+    expect(gate["lck"]).toBeCloseTo(display(run(alear, dragonChild, 8))["lck"]!, 5);
+    const d = display(r);
+    const g = rate(alear, swordFighter);
+    for (const k of STAT_KEYS) {
+      if (r.capped.includes(k)) continue;
+      const bonus = swordFighter.base[k] - dragonChild.base[k]; // 전직 보정치 = Base 차이(BaseCapability 불변)
+      expect(d[k]).toBeCloseTo(display(before)[k]! + bonus + 10 * g[k]!, 5);
+    }
+  });
+
+  it("알프레드 노블 Lv5 → In.lv 20(기본직 유지) — 15렙 전부 노블 소자로 선형, In.lv 9 목표 세이지는 게이트 미달로 노블 그대로", () => {
+    const noble = props.targetJobs.find((j) => j.jid === "JID_アヴニール下級")!;
+    const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
+    expect(alfred.joinJid).toBe("JID_アヴニール下級");
+    const join = alfred.internalOffset + alfred.joinLevel - 1; // 4
+    const r = run(alfred, noble, 19);
+    expect(r.capped).toEqual([]);
+    const d0 = display(run(alfred, noble, join));
+    const d = display(r);
+    const g = rate(alfred, noble);
+    for (const k of STAT_KEYS) expect(d[k]).toBeCloseTo(d0[k]! + 15 * g[k]!, 5);
+    const early = run(alfred, sage, 8); // Lv9 — 세이지를 골라도 노블 성장
+    expect(early.promoted).toBe(false);
+    for (const k of STAT_KEYS) expect(display(early)[k]).toBeCloseTo(d0[k]! + 4 * g[k]!, 5);
   });
 });
