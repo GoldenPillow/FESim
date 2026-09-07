@@ -925,9 +925,17 @@ describe("엔트리 공유(내보내기) — entryExportRows", () => {
     const display = lockedDisplayRows(propsOf(roster), [HIGH], locked, undefined, [iron]);
     const out = entryExportRows(display, locked, ctx)[0]!;
     const expected = combatOf(display[0]!.row, display[0]!.equipped, []);
-    for (const key of COMBAT_KEYS) expect(out.combat[key]).toBe(fmtCombat(expected[key]));
+    for (const key of COMBAT_KEYS) expect(out.combat[key].text).toBe(fmtCombat(expected[key]));
     // 소수 1자리 표기가 실제로 걸렸는지(포맷터를 안 지나면 "10.5"가 아니라 "10.5000001"류가 샌다)
-    expect(out.combat.patk).toMatch(/^\d+\.\d$/);
+    expect(out.combat.patk.text).toMatch(/^\d+\.\d$/);
+    // ★색조도 관통 대상이다 — 표(CombatCells.deltaCls)와 같은 판정: 맨손 대비 상승 블루·하락 레드.
+    const bare = combatOf(display[0]!.row);
+    for (const key of COMBAT_KEYS) {
+      const v = expected[key];
+      const want = v > bare[key] + 1e-9 ? "buffed" : v < bare[key] - 1e-9 ? "down" : "ink";
+      expect(out.combat[key].tone).toBe(want);
+    }
+    expect(out.combat.patk.tone).toBe("buffed"); // 전제: 철의 검 +1이 물공을 올린다
   });
 
   /** 왜 위험한가: 계승 스킬의 전투 보정은 식 평가 안에서 걸린다 — 산출물이 skills를 안 넘기면
@@ -949,7 +957,8 @@ describe("엔트리 공유(내보내기) — entryExportRows", () => {
     const withSkill = combatOf(display[0]!.row, undefined, [skill]);
     const without = combatOf(display[0]!.row, undefined, []);
     expect(withSkill.hit).not.toBe(without.hit); // 전제: 이 스킬이 실제로 명중을 움직인다
-    expect(out.combat.hit).toBe(fmtCombat(withSkill.hit));
+    expect(out.combat.hit.text).toBe(fmtCombat(withSkill.hit));
+    expect(out.combat.hit.tone).toBe("buffed"); // 스킬이 올렸으니 블루여야 한다
     expect(out.inherits.map((s) => s.name)).toEqual(["명중+10"]);
   });
 
@@ -1017,7 +1026,11 @@ const shareRow = (over: Partial<ExportRow> = {}): ExportRow => ({
   internal: 21,
   ineligible: false,
   stats: STAT_KEYS.map((key) => ({ key, text: "41.7", tone: "ink" as const })),
-  combat: { patk: "41.3", matk: "6.0", hit: "135.6", avoid: "51.6", crit: "21.4", ddg: "22.6" },
+  combat: {
+    patk: { text: "41.3", tone: "buffed" }, matk: { text: "6.0", tone: "ink" },
+    hit: { text: "135.6", tone: "buffed" }, avoid: { text: "51.6", tone: "down" },
+    crit: { text: "21.4", tone: "buffed" }, ddg: { text: "22.6", tone: "ink" },
+  },
   might: "17",
   weight: "11",
   weapon: { name: "은의 창", plus: 3, icon: "/fe17/assets/items/SilverLance.webp" },
@@ -1216,6 +1229,10 @@ describe("게시판 공유 HTML (renderShareHtml·shareHtmlBudget)", () => {
  * jsdom·canvas가 없어 실렌더를 못 돈다. 그래서 규격(폭 840·정수 좌표·열 순서)과 **넘침 보고**를
  * 좌표 층에서 박제한다 — 여기가 무너지면 흐릿하거나 글자가 잘린 그림이 조용히 나간다
  * (설계 = design/builder_export.md §2-1b·§6-a(5)).
+ *
+ * ★2026-09-07 개정 — 배치 정본이 **웹 표의 잠금 블록**이 됐다(사용자 지시: "최대한 웹버전과 동일하게").
+ * 그래서 여기 테스트는 좌표 규격만이 아니라 **표와 같은 배치**를 박제한다: 신분 칸의 가로 배열,
+ * 성장률 행이 스탯 행 위, 슬롯 열의 세로 정렬, 표에 없는 붉은 줄이 안 생기는 것.
  */
 describe("카드 이미지 레이아웃 (layoutCard)", () => {
   /** 고정 measure — 결정성 판정의 전제(실폰트를 쓰면 CI 폰트에 따라 값이 흔들린다).
@@ -1226,27 +1243,46 @@ describe("카드 이미지 레이아웃 (layoutCard)", () => {
     combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
     might: "위력",
     weight: "무게",
-    internalShort: "In.lv",
     jobNone: "미선택",
-    unavailable: "전용직 불가",
   };
   const opts = { labels: LABELS };
+
+  /* 규격 — ☠layout.ts의 상수와 같은 값이다. 여기서 다시 적는 이유 = 규격이 조용히 바뀌면
+     그림이 "그럴듯하게" 어긋난 채 나가므로, 바꿀 때 테스트도 함께 손대게 만드는 것이 목적이다. */
+  const PADDING = 12;
+  const ID_W = 190;
+  const SLOT_W = 122;
+  const STAT_W = 56;
+  const SLOT_X = PADDING + ID_W;
+  const STAT_X = SLOT_X + SLOT_W;
 
   const IRON: BuilderWeaponProp = {
     iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
     weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
   };
+  const MARS: BuilderEmblemProp = { gid: "GID_M", name: "마르스", bonuses: [], levels: [], inherits: [] };
 
   /** n엔트리 산출물 — 표가 쓰는 경로(lockedDisplayRows → entryExportRows)를 그대로 지난다. */
-  const cardRows = (n: number, jobName = "상급직"): ExportRow[] => {
+  const cardRows = (n: number, o: { jobName?: string; growth?: boolean; ring?: boolean } = {}): ExportRow[] => {
     const roster = Array.from({ length: n }, (_, i) => char(`p${i}`, { name: `캐릭${i}`, face: `/f${i}.webp` }));
-    const job = { ...HIGH, name: jobName };
-    const locked = roster.map((c) => ({ pid: c.pid, internal: 11, jid: "JID_high", iid: "IID_鉄の剣" }));
+    const job = { ...HIGH, name: o.jobName ?? "상급직" };
+    const locked = roster.map((c) => ({
+      pid: c.pid, internal: 11, jid: "JID_high", iid: "IID_鉄の剣",
+      ...(o.ring === true ? { gid: "GID_M", bond: 20 } : {}),
+    }));
     const display = lockedDisplayRows(propsOf(roster), [job], locked, undefined, [IRON]);
-    return entryExportRows(display, locked, { chars: roster, emblems: [] });
+    return entryExportRows(display, locked, {
+      chars: roster,
+      emblems: o.ring === true ? [MARS] : [],
+      ...(o.growth === true ? { showGrowth: true } : {}),
+    });
   };
 
   const nums = (op: PaintOp): number[] => (op.op === "text" ? [op.x, op.y] : [op.x, op.y, op.w, op.h]);
+  const texts = (l: { ops: PaintOp[] }, font: string): Extract<PaintOp, { op: "text" }>[] =>
+    l.ops.flatMap((op) => (op.op === "text" && op.font === font ? [op] : []));
+  const said = (l: { ops: PaintOp[] }, s: string): Extract<PaintOp, { op: "text" }> | undefined =>
+    l.ops.flatMap((op) => (op.op === "text" && op.text === s ? [op] : []))[0];
 
   /**
    * ☠왜 위험한가: 840은 디시 기본 리사이즈 폭 850의 **경계 아래**라 리샘플 분기를 아예 안 탄다
@@ -1255,12 +1291,15 @@ describe("카드 이미지 레이아웃 (layoutCard)", () => {
    * 좌표가 정수여야 하는 것도 같은 축이다 — 반픽셀에 걸린 1px 괘선은 2px 회색이 된다.
    */
   it("폭은 항상 840이고 모든 op 좌표·크기가 정수다", () => {
+    const global = { job: "상급직", internal: 12, growth: { hp: 10, str: 20 } };
     for (const n of [0, 1, 12]) {
-      const layout = layoutCard(cardRows(n), opts, measure);
-      expect(layout.width).toBe(840);
-      expect(layout.ops.length).toBeGreaterThan(0);
-      for (const op of layout.ops) for (const v of nums(op)) expect(Number.isInteger(v)).toBe(true);
-      expect(Number.isInteger(layout.height)).toBe(true);
+      for (const extra of [{}, { globalRow: global }]) {
+        const layout = layoutCard(cardRows(n, { growth: true, ring: true }), { ...opts, ...extra }, measure);
+        expect(layout.width).toBe(840);
+        expect(layout.ops.length).toBeGreaterThan(0);
+        for (const op of layout.ops) for (const v of nums(op)) expect(Number.isInteger(v)).toBe(true);
+        expect(Number.isInteger(layout.height)).toBe(true);
+      }
     }
   });
 
@@ -1273,46 +1312,147 @@ describe("카드 이미지 레이아웃 (layoutCard)", () => {
     expect(many.height).toBeGreaterThan(one.height * 6);
   });
 
+  /** ☠왜 위험한가: 열 순서가 표(STAT_KEYS)와 갈리면 숫자는 전부 맞는데 **다른 스탯 밑에** 선다.
+      값 검증만 하는 테스트는 이 어긋남을 영원히 못 본다. */
+  it("스탯 열 x좌표가 STAT_KEYS 순서와 같다", () => {
+    const layout = layoutCard(cardRows(1), opts, measure);
+    const heads = texts(layout, "colHead");
+    expect(heads.map((h) => h.text)).toEqual(STAT_KEYS.map((k) => STAT_EN[k]));
+    // 신분 190 + 슬롯 122 + 스탯 56 x 9 = 콘텐츠 816(패딩 12) — 어긋나면 layoutCard가 스스로 보고한다.
+    expect(layout.overflow.filter((o) => o.field === "columns")).toEqual([]);
+    heads.forEach((h, i) => {
+      expect(h.x).toBe(STAT_X + i * STAT_W + Math.round((STAT_W - measure(h.text, "colHead")) / 2));
+    });
+  });
+
   /**
-   * ★☠왜 위험한가: 신분 열 150px은 en 클래스명 최악값(125.7px)이 정한 폭이다. 그보다 긴 이름이
-   * 들어오면 **말없이 `…`로 자르는 것이 가장 나쁜 실패**다 — 공유받은 사람은 잘렸다는 사실 자체를
-   * 모르고, 결손 목록에도 안 잡힌다. 그래서 자르되 반드시 overflow로 보고한다("못 찾으면 드러내라").
+   * ★☠왜 위험한가(2026-09-07 사용자 지시 1): 표의 신분 칸은 **[초상][이름]이 가로**로 나란하고
+   * 클래스·In.lv가 그 칸 맨 아래 줄이다. 카드가 초상 위·이름 아래로 쌓으면 같은 데이터가
+   * 전혀 다른 물건으로 보인다 — 값 테스트는 이 어긋남을 못 본다.
    */
-  it("★긴 클래스명은 잘리되 overflow에 보고된다 — 조용히 사라지지 않는다", () => {
+  it("★신분 칸 — 이름은 초상 오른쪽 같은 줄, 클래스·In.lv는 맨 아래 줄", () => {
+    const layout = layoutCard(cardRows(1), opts, measure);
+    const face = layout.ops.flatMap((op) => (op.op === "icon" && op.src === "/f0.webp" ? [op] : []))[0]!;
+    const name = said(layout, "캐릭0")!;
+    const job = said(layout, "상급직")!;
+    const inlv = said(layout, "In.lv 12")!;
+    expect(face.w).toBe(106); // 표의 .entry-face와 같은 규격
+    expect(name.x).toBeGreaterThanOrEqual(face.x + face.w); // 초상 **오른쪽**
+    expect(name.y).toBeGreaterThan(face.y); // 초상과 같은 세로 띠 안(가로 배열)
+    expect(name.y).toBeLessThan(face.y + face.h);
+    expect(job.y).toBeGreaterThan(face.y + face.h); // 클래스 행은 카드 상자 **아래**
+    expect(inlv.y).toBe(job.y); // 클래스와 In.lv는 같은 줄
+    expect(inlv.x).toBeGreaterThan(job.x);
+    expect(inlv.x).toBeLessThan(SLOT_X); // 둘 다 신분 열 안
+  });
+
+  /**
+   * ★☠왜 위험한가(사용자 지시 3): 표는 고유 성장률이 스탯 **위 줄**이다. 카드가 값 아래에 붙이면
+   * 성장률이 "그 값의 주석"으로 읽혀 의미가 뒤집힌다(표에서는 다음 레벨의 예고다).
+   */
+  it("★고유 성장률은 스탯 값 **위** 줄에 선다", () => {
+    const layout = layoutCard(cardRows(1, { growth: true }), opts, measure);
+    const grow = texts(layout, "growth");
+    const stat = texts(layout, "stat");
+    expect(grow.length).toBe(STAT_KEYS.length);
+    expect(stat.length).toBe(STAT_KEYS.length);
+    expect(Math.max(...grow.map((g) => g.y))).toBeLessThan(Math.min(...stat.map((s) => s.y)));
+    // 같은 열에 선다 — 성장률이 다른 스탯 위에 서면 숫자는 맞고 뜻만 틀린다.
+    grow.forEach((g, i) => expect(Math.abs(g.x - (STAT_X + i * STAT_W)) < STAT_W).toBe(true));
+  });
+
+  /**
+   * ★☠왜 위험한가(사용자 지시 4): 표의 **잠금 블록에는** "이 직업으로 갈 수 없음" 줄이 없다
+   * (합류 상태 값으로 잠긴 것이라 제한이 아니다 — 표는 title 툴팁으로만 쓴다).
+   * 카드가 붉은 줄을 그리면 공유받은 사람이 없는 경고를 읽는다.
+   */
+  it("★ineligible은 그림을 바꾸지 않는다 — 표에 없는 붉은 줄을 만들지 않는다", () => {
+    const [row] = cardRows(1);
+    const plain = layoutCard([{ ...row!, ineligible: false }], opts, measure);
+    const flagged = layoutCard([{ ...row!, ineligible: true }], opts, measure);
+    expect(JSON.stringify(flagged.ops)).toBe(JSON.stringify(plain.ops));
+  });
+
+  /**
+   * ★☠왜 위험한가(사용자 지시 5): 표는 스킬·반지·무기가 **열**에 세로로 정렬돼 세 엔트리를
+   * 위아래로 대조할 수 있다. 카드가 하단에 칩을 한 줄로 뭉치면 그 대조가 불가능해진다.
+   */
+  it("★스킬·반지·무기는 슬롯 열에 세로로 정렬된다 — 하단 칩 뭉치가 아니다", () => {
+    const layout = layoutCard(cardRows(2, { growth: true, ring: true }), opts, measure);
+    const chips = texts(layout, "chip");
+    expect(chips.length).toBeGreaterThan(0);
+    for (const c of chips) {
+      expect(c.x).toBeGreaterThanOrEqual(SLOT_X);
+      expect(c.x).toBeLessThan(STAT_X);
+    }
+    // 무기·반지가 실제로 그 열에 있다(칩 뭉치가 아니라 열이라는 증거).
+    expect(said(layout, "철의 검")!.x).toBeGreaterThanOrEqual(SLOT_X);
+    expect(said(layout, "마르스")!.x).toBeGreaterThanOrEqual(SLOT_X);
+    // 인연 레벨은 표와 같이 반지 행의 HP 열에 선다.
+    const bond = said(layout, "Lv 20")!;
+    expect(bond.x).toBeGreaterThanOrEqual(STAT_X);
+    expect(bond.x).toBeLessThan(STAT_X + STAT_W);
+  });
+
+  /**
+   * ★☠왜 위험한가(사용자 지시 2): 표는 헤더 바로 아래에 **선택 직업의 클래스 성장률** 줄이 있다.
+   * 이 값은 ExportRow에 없어(엔트리마다 자기 직업을 든다) 호출부가 넘겨야 산다 — 넘겼는데
+   * 안 그려지면 그 줄은 오류 없이 사라진다(조용한 결손). 그래서 여기서 박제한다.
+   */
+  it("★글로벌 성장률 행 — globalRow를 넘기면 헤더 아래에 직업·In.lv·클래스 성장률이 선다", () => {
+    const rows = cardRows(1, { growth: true });
+    const bare = layoutCard(rows, opts, measure);
+    const withGlobal = layoutCard(rows, { ...opts, globalRow: { job: "글로벌직", internal: 40, growth: { hp: 15, str: 25 } } }, measure);
+    expect(withGlobal.height).toBe(bare.height + 27); // 줄 26 + 괘선 1
+    const job = said(withGlobal, "글로벌직")!;
+    const inlv = said(withGlobal, "In.lv 40")!;
+    const hp = said(withGlobal, "15%")!;
+    expect(job.x).toBeLessThan(SLOT_X);
+    expect(inlv.x).toBeGreaterThanOrEqual(SLOT_X);
+    expect(inlv.x).toBeLessThan(STAT_X);
+    expect(hp.x).toBeGreaterThanOrEqual(STAT_X); // HP 열
+    expect(hp.x).toBeLessThan(STAT_X + STAT_W);
+    expect(hp.y).toBe(job.y); // 한 줄이다
+    // 헤더 아래·첫 엔트리 위 — 표와 같은 자리.
+    expect(job.y).toBeLessThan(said(withGlobal, "캐릭0")!.y);
+    expect(said(bare, "글로벌직")).toBeUndefined();
+  });
+
+  /**
+   * ★☠왜 위험한가: 신분 열은 en 클래스명 최악값이 정한 폭이라 긴 이름이 들어온다.
+   * **말없이 `…`로 자르는 것이 가장 나쁜 실패**다 — 공유받은 사람은 잘렸다는 사실 자체를 모르고,
+   * 결손 목록에도 안 잡힌다. 그래서 (1) 먼저 **줄을 늘리고**(세로는 공짜다) (2) 그래도 안 들어가면
+   * 자르되 반드시 overflow로 보고한다("못 찾으면 드러내라").
+   */
+  it("★긴 직업명은 두 줄로 늘어나고, 두 줄로도 안 되면 잘리되 overflow에 보고된다", () => {
     const plain = layoutCard(cardRows(1), opts, measure);
     expect(plain.overflow.filter((o) => o.field === "job")).toEqual([]);
 
-    const longName = "Wolf Knight of the Eastern Kingdom";
-    const over = layoutCard(cardRows(1, longName), opts, measure);
+    // 한 줄 칸(98)은 넘지만 두 줄이면 들어간다 — 잘리지 않고 늘어나야 한다.
+    const twoLine = "Wolf Knight Rider";
+    const wrapped = layoutCard(cardRows(1, { jobName: twoLine }), opts, measure);
+    expect(wrapped.overflow.filter((o) => o.field === "job")).toEqual([]);
+    expect(wrapped.ops.some((op) => op.op === "text" && op.text.includes("…"))).toBe(false);
+    expect(wrapped.height).toBeGreaterThan(plain.height); // 세로로 늘었다
+
+    const longName = "Wolf Knight of the Eastern Kingdom of Great Plains";
+    const over = layoutCard(cardRows(1, { jobName: longName }), opts, measure);
     const note = over.overflow.find((o) => o.field === "job");
     expect(note).toBeDefined();
     expect(note!.pid).toBe("p0");
     expect(note!.text).toBe(longName);
     expect(note!.width).toBeGreaterThan(note!.max);
-    // 자른 결과가 실제로 칸 안에 들어갔는지 — 보고만 하고 넘치게 그리면 스탯 열을 침범한다.
-    const drawn = over.ops.find((op) => op.op === "text" && op.text.startsWith("Wolf"));
-    expect(drawn).toBeDefined();
-    expect((drawn as { text: string }).text.endsWith("…")).toBe(true);
-    expect(measure((drawn as { text: string }).text, "meta")).toBeLessThanOrEqual(note!.max);
-  });
-
-  /** ☠왜 위험한가: 열 순서가 표(STAT_KEYS)와 갈리면 숫자는 전부 맞는데 **다른 스탯 밑에** 선다.
-      값 검증만 하는 테스트는 이 어긋남을 영원히 못 본다. */
-  it("스탯 열 x좌표가 STAT_KEYS 순서와 같다", () => {
-    const layout = layoutCard(cardRows(1), opts, measure);
-    const heads = layout.ops.flatMap((op) => (op.op === "text" && op.font === "colHead" ? [op] : []));
-    expect(heads.map((h) => h.text)).toEqual(STAT_KEYS.map((k) => STAT_EN[k]));
-    // 신분 열 150 + 스탯 열 74 x 9 = 콘텐츠 816(패딩 12) — 규격이 어긋나면 layoutCard가 스스로 보고한다.
-    expect(layout.overflow.filter((o) => o.field === "columns")).toEqual([]);
-    heads.forEach((h, i) => {
-      expect(h.x).toBe(12 + 150 + i * 74 + Math.round((74 - measure(h.text, "colHead")) / 2));
-    });
+    // 자른 결과가 실제로 칸 안에 들어갔는지 — 보고만 하고 넘치게 그리면 슬롯 열을 침범한다.
+    const cut = over.ops.flatMap((op) => (op.op === "text" && op.font === "meta" && op.text.endsWith("…") ? [op] : []))[0];
+    expect(cut).toBeDefined();
+    expect(measure(cut!.text, "meta")).toBeLessThanOrEqual(note!.max);
   });
 
   /** 왜 위험한가: 결정적이지 않으면 회귀 테스트가 성립하지 않는다 — 카드가 언제 어떻게 달라졌는지
       아무도 증명 못 한다. 그래서 layoutCard는 시각·난수·getComputedStyle을 안 만진다. */
   it("결정성 — 같은 입력·같은 measure면 같은 ops", () => {
-    const rows = cardRows(3);
-    expect(JSON.stringify(layoutCard(rows, opts, measure))).toBe(JSON.stringify(layoutCard(rows, opts, measure)));
+    const rows = cardRows(3, { growth: true, ring: true });
+    const o = { ...opts, globalRow: { job: "글로벌직", internal: 40, growth: { hp: 15 } } };
+    expect(JSON.stringify(layoutCard(rows, o, measure))).toBe(JSON.stringify(layoutCard(rows, o, measure)));
   });
 });

@@ -40,6 +40,7 @@ import {
 } from "./lib";
 import { renderShareHtml } from "./share";
 import { renderCard, type RenderCardOptions } from "./card/render";
+import type { CardGlobalRow } from "./card/layout";
 import type {
   BuilderEmblemProp,
   BuilderEngraveProp,
@@ -654,11 +655,13 @@ function SharePanel({
   rows,
   labels,
   title,
+  globalRow,
   onClose,
 }: {
   rows: readonly ExportRow[];
   labels: BuilderLabels;
   title: string;
+  globalRow?: CardGlobalRow;
   onClose: () => void;
 }): React.JSX.Element {
   const rootRef = useRef<HTMLSpanElement | null>(null);
@@ -681,7 +684,15 @@ function SharePanel({
   /** ★내보내기 시점의 테마를 산출물에 반영한다(2026-09-07 사용자 지시) — 토글 정본은
       `documentElement.dataset.theme`(ThemeToggle.astro가 쓰고 `fesim-theme`에 저장). 미지정 = 다크(기본 테마). */
   const themeNow = (): ShareTheme => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
-  const cardOpts = (): RenderCardOptions => ({ labels, title, identityLabel: "Character", theme: themeNow(), onOverflow });
+  const cardOpts = (): RenderCardOptions => ({
+    labels,
+    title,
+    identityLabel: "Character",
+    theme: themeNow(),
+    // 표 헤더 아래의 글로벌 직업·성장률 행 — 웹 표에 있는 줄이라 카드에도 넣는다(비교의 기준선).
+    ...(globalRow !== undefined ? { globalRow } : {}),
+    onOverflow,
+  });
 
   const run = (fn: () => Promise<void>, done = labels.share.done): void => {
     setBusy(true);
@@ -2149,6 +2160,11 @@ export default function BuilderIsland({
       }),
     [lockedRows, locked, visibleChars, visibleEmblems, kindIcons, labels, showGrowth],
   );
+  /** 카드 상단 글로벌 행 — 표 헤더 아래의 "선택 직업 + In.Lv + 클래스 성장률" 줄과 같은 소스(첫 비교 슬롯). */
+  const shareGlobalRow: CardGlobalRow | undefined =
+    compares[0] === undefined
+      ? undefined
+      : { job: compares[0].job.name, internal: compares[0].internal + 1, growth: compares[0].job.diffGrow };
   /** 카드·파일 제목 = 활성 프리셋 이름(없으면 기본 이름을 presetName이 답한다). */
   const shareTitle =
     presets === null ? "" : presetName(presets.list.find((p) => p.n === presets.active) ?? presets.list[0]!);
@@ -2963,6 +2979,7 @@ export default function BuilderIsland({
               rows={exportRows}
               labels={labels}
               title={shareTitle}
+              {...(shareGlobalRow !== undefined ? { globalRow: shareGlobalRow } : {})}
               onClose={() => setShareOpen(false)}
             />
           )}

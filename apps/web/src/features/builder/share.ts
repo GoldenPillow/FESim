@@ -158,8 +158,9 @@ const statCell = (s: ExportStat, p: SharePalette): string => {
 };
 
 /** 캡션 + 값 한 칸(전투력 행·장비 행 공용) — 캡션은 상속색(muted), 값만 ink로 올린다. */
-const captionCell = (p: SharePalette, caption: string, value: string, icon?: string): string =>
-  `<td>${esc(caption)}<br>${icon === undefined ? "" : `${img(icon, 18, 18)} `}<b style="color:${p.ink}">${esc(value)}</b></td>`;
+/** 캡션 + 값 셀. `fill`은 전투력 델타 색(맨손 대비 상승 블루·하락 레드) — 미지정이면 본문색. */
+const captionCell = (p: SharePalette, caption: string, value: string, icon?: string, fill?: string): string =>
+  `<td>${esc(caption)}<br>${icon === undefined ? "" : `${img(icon, 18, 18)} `}<b style="color:${fill ?? p.ink}">${esc(value)}</b></td>`;
 
 interface EquipItem {
   caption: string;
@@ -202,7 +203,9 @@ const combatCells = (row: ExportRow, ctx: Ctx): string => {
     }
     if (key === "bld") return captionCell(ctx.p, L.weight, row.weight ?? DASH);
     const ck = COMBAT_COL[key];
-    return ck === undefined ? "<td></td>" : captionCell(ctx.p, L.combat[ck], row.combat[ck]);
+    if (ck === undefined) return "<td></td>";
+    const cv = row.combat[ck];
+    return captionCell(ctx.p, L.combat[ck], cv.text, undefined, toneColor(ctx.p, cv.tone));
   }).join("");
 };
 

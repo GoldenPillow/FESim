@@ -606,13 +606,15 @@ export interface ExportRow {
   face?: string;
   /** 스냅샷 직업명 — 없음 = 직업 미선택(합류 상태). */
   job?: string;
-  /** 표시 내부 레벨(1기점 — 표의 classRowUi와 같은 값). */
+  /** 표시 내부 레벨(1기점). ☠**잠금 스냅샷의 목표값**이다 — 표의 클래스 행(`(lockEntry.internal ?? 0) + 1`)과
+      같은 소스여야 한다. `BuilderRow.internal`(도달값)을 쓰면 합류 상태 행에서 표는 40, 산출물은 16을 말한다. */
   internal: number;
   /** 전용직 대상 밖 — 합류 상태 값이라는 표식. */
   ineligible: boolean;
   stats: ExportStat[];
-  /** 전투력 6종 표시 문자열(fmtCombat 경유). */
-  combat: Record<CombatKey, string>;
+  /** 전투력 6종 — 표시 문자열 + 색조. ★색조는 표의 `deltaCls`와 같은 판정이다:
+      맨손 대비 오르면 블루(buffed) · 내리면 레드(down) · 같으면 기본. 장비·스킬 효과가 눈에 보이는 자리다. */
+  combat: Record<CombatKey, { text: string; tone: ExportTone }>;
   /** 장착 무기의 실효 위력·무게(강화·각인 반영). 맨손이면 없음. */
   might?: string;
   weight?: string;
@@ -662,9 +664,15 @@ export function entryExportRows(
       const s = inheritBySid.get(sid);
       return s === undefined ? [] : [s.row];
     });
+    // 색조 판정은 표(CombatCells.deltaCls)와 같은 대조다 — 맨손값 대비 올랐나 내렸나.
+    const bare = combatOf(row);
     const combatRaw = combatOf(row, equipped, skillRows);
-    const combat = {} as Record<CombatKey, string>;
-    for (const key of COMBAT_KEYS) combat[key] = fmtCombat(combatRaw[key]);
+    const combat = {} as Record<CombatKey, { text: string; tone: ExportTone }>;
+    for (const key of COMBAT_KEYS) {
+      const v = combatRaw[key];
+      const tone: ExportTone = v > bare[key] + 1e-9 ? "buffed" : v < bare[key] - 1e-9 ? "down" : "ink";
+      combat[key] = { text: fmtCombat(v), tone };
+    }
 
     const penalty = weightPenalty(row, equipped);
     const growth = ctx.showGrowth === true ? charByPid.get(row.pid)?.personGrowth : undefined;
@@ -689,7 +697,7 @@ export function entryExportRows(
       name: row.name,
       ...(row.face !== undefined ? { face: row.face } : {}),
       ...(job !== undefined ? { job: job.name } : {}),
-      internal: row.internal + 1,
+      internal: (entry?.internal ?? row.internal) + 1,
       ineligible: row.ineligible,
       stats,
       combat,
