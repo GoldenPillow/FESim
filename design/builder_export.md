@@ -69,7 +69,7 @@ target: apps/web/src/features/builder/ (내보내기 UI·직렬화) + wrangler.b
 - [x] 조사 1차 — 클립보드 기전 · 게시판 sanitizer · CF 무료티어 산입 · 저장소 에셋 실측 (2026-09-06)
 - [x] 조사 2차 — 디코 메시지 표면 · 디코 앱 플랫폼 · og 언퍼링 전 채널 · 디시 심층 · 미제안 대안·타 도구 벤치마크 (2026-09-06)
 - [x] 준비 완료 — 아이콘·삽입점·HTML/이미지 규격 (2026-09-07, §6-a)
-- [x] ★**CF 경로 선행 조치 (a)** — `run_worker_first` 배열화 (2026-09-07 커밋 `6312973`, ☠미배포)
+- [x] ★**CF 경로 선행 조치 (a)** — `run_worker_first` 배열화 (2026-09-07 커밋 `6312973` · **정식판 반영 완료**)
 - [x] **구현 1** 표시 규약 상수 순수 이동(`STAT_EN`·`COMBAT_COL`·`fmtCombat`·`fmtStat` → `lib.ts`) (2026-09-07)
 - [x] **구현 2·3** `entryExportRows` + `ExportRow` — 테스트 9건(★관통 2건 포함) 그린 (2026-09-07 커밋 `85acb08`)
 - [x] **구현 4** i18n `share` 블록 3로케일 (타입이 누락을 기계로 강제 — 별도 테스트 불필요)
@@ -77,7 +77,7 @@ target: apps/web/src/features/builder/ (내보내기 UI·직렬화) + wrangler.b
 - [x] **구현 7** 산출물 생성기 — `share.ts`(HTML 900) · `card/`(이미지 840)
 - [x] **구현 6** 소스 텍스트 이음매 테스트 3건(캡처 리스너 · `lockedRows` 소비 · non-sticky)
 - [x] **구현 8** 헤드리스 3뷰포트 실측 (2026-09-07 — §6-b)
-- [ ] ☠**게시 대기** — `./dev builder:publish`(정식판) 지시 필요. CF `run_worker_first` 수정도 이 게시로 반영된다
+- [x] ★**정식판 게시** (2026-09-07 `builder:publish` · 버전 `6ebd9622` · 워터마크 `Latest bc398a0`) — 라이브 실측 §6-c
 - [ ] 실측 (§6) — ☠디시 항목은 자동 접근 금지(§5-a). **3판 동시 게시 1회**로 span·아이콘·리사이즈가 한꺼번에 갈린다
 - [ ] 남은 미결 — 아이콘 origin 고정 · 301 스텁의 `/fe17/assets/*` 통과 · Q3(호스팅) · Q4(코드 병기)
 - [ ] CF 경로 (b) `_headers` 캐시 규칙 — ☠쿼터 문제는 (a)로 해소됐고 이제 **체감 속도** 사안이다.
@@ -515,6 +515,26 @@ A로 시작해도 카드에 인쇄한 코드가 **나중에 B로 확장할 접�
 - `ranks`(무기 적성)를 HTML 산출물에서 뺐다 — `ExportRow.ranks`에 무기군 **이름 문자열이 없고**
   아이콘이 비ASCII 자산이다. 실으려면 (a) 무기군 이름 사전을 `ExportContext`에 추가 (b) weapontypes
   아이콘 파일명 확인 중 하나가 선행
+
+---
+
+## 6-c. 정식판 라이브 실측 (2026-09-07 게시 직후)
+
+`https://builder-engage.gpdev.workers.dev/ko/fe17/builder/` · 버전 `6ebd9622` · 워터마크 **`Latest bc398a0`**
+
+| 항목 | 결과 |
+|---|---|
+| 경로 가드 | ☠막혀야 하는 것 전부 404 — `/ko/fe17/maps/m002` · `/fe17/assets/mapicons/` · `/fe17/assets/manifest.json` · `/ko/fe17/fidelity` |
+| 홈 링크 제거 | 0건(가드 규약대로) |
+| 에셋 7종 | faces·items·weapontypes·engraves·efficacy·rings·skills **전부 200** |
+| 공유 피쳐 | HTML 13,016자 · 이미지 클립보드 · 다운로드 `실측.png` — 전부 성공, 콘솔 에러 0 |
+| 카드 | **840x1787 · 438,330B — 로컬과 바이트 단위로 동일** ⇒ 렌더러가 환경에 무관하게 결정적이다 |
+
+★**`run_worker_first` 배열화가 가드를 헐겁게 만들지 않았다** — 부정 패턴에 넣은 7종만 통과하고
+`mapicons`·`manifest.json`은 그대로 404다. 이것이 `!/fe17/assets/*`로 뭉뚱그리지 않은 이유였다.
+
+⚠기록해 둘 것: 첫 실측에서 아이콘이 404로 보였는데 **테스트가 틀린 파일명**(`PID_リュール.webp`)을 쓴 탓이었다 —
+실제 자산명은 ASCII다(`Alfred.webp`). 자산 경로를 손으로 지어내지 말고 `dist/client`에서 읽을 것.
 
 ---
 
