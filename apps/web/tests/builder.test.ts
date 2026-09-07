@@ -19,6 +19,7 @@ import {
   lockedDisplayRows,
   moveLock,
   nextSort,
+  PALETTES,
   patchCardClass,
   penalizedText,
   rankValue,
@@ -735,6 +736,17 @@ describe("엔트리 공유 UI 이음매", () => {
    * ☠왜 위험한가: 펼침 모드 규약(rules/feature-ui.md)은 "표 헤더만 top 0 고정"이다. 공유 바에 sticky를
    * 주면 상단에 눌어붙어 그 규약이 깨진다 — 실브라우저에서만 보이는 종류의 회귀다.
    */
+  /**
+   * ☠왜 위험한가: 생성기가 `theme`을 받아도 **호출부가 안 넘기면** 기본값(다크)으로 굳는다.
+   * 라이트 사용자가 다크 산출물을 받고, 그 사실은 그림을 눈으로 봐야만 드러난다.
+   * 판별 정본 = `documentElement.dataset.theme`(ThemeToggle.astro가 쓰는 그 값).
+   */
+  it("★내보내기가 현재 테마를 넘긴다(HTML·카드 둘 다)", () => {
+    expect(ISLAND).toMatch(/dataset\.theme === "light" \? "light" : "dark"/);
+    const panel = ISLAND.slice(ISLAND.indexOf("function SharePanel"), ISLAND.indexOf("인연 레벨 드롭다운"));
+    expect(panel.match(/theme: themeNow\(\)/g)?.length).toBe(2); // renderShareHtml · renderCard
+  });
+
   it("공유 바는 sticky가 아니다(펼침 모드 규약)", () => {
     const i = ISLAND.indexOf("공유 바 — 엔트리 목록(표) 우측 상단");
     expect(i).toBeGreaterThan(0);
@@ -1087,17 +1099,21 @@ describe("게시판 공유 HTML (renderShareHtml·shareHtmlBudget)", () => {
     expect(cells).toEqual(["Character", ...STAT_KEYS.map((key) => STAT_EN[key])]);
   });
 
-  /** 왜 위험한가: 디시 본문 상한은 65,535이고 안전선이 55,000이다. 아이콘판이 예산을 넘으면
-      글이 등록 단계에서 잘려 나가므로 회귀를 여기서 잡는다(설계 실측 = 12엔트리 아이콘판 20,823자). */
-  it("예산 — 12엔트리 아이콘판이 안전선(55,000) 아래", () => {
-    const rows = Array.from({ length: 12 }, (_v, i) => shareRow({ pid: `PID_${i}` }));
-    const html = renderShareHtml(rows, { ...shareOpts, icons: true, origin: "https://builder.example" });
+  /** 왜 위험한가: 디시 본문 상한은 65,535이고 안전선이 55,000이다. ★아이콘이 기본 활성이 되면서
+      (2026-09-07) 문자 수가 늘었다 — 여기가 그 증가분을 재는 유일한 자리다. 기본 옵션 그대로 쓰는 것이
+      핵심: 실제로 나가는 산출물이 예산 안이어야 한다(고유 성장률 행까지 켠 최악 조합으로 잰다). */
+  it("예산 — 12엔트리 아이콘 기본판(성장률 포함)이 안전선(55,000) 아래", () => {
+    const stats = STAT_KEYS.map((key) => ({ key, text: "41.7", tone: "ink" as const, growth: 45 }));
+    const rows = Array.from({ length: 12 }, (_v, i) => shareRow({ pid: `PID_${i}`, stats }));
+    const html = renderShareHtml(rows, shareOpts);
     const budget = shareHtmlBudget(html);
     expect(budget.chars).toBeLessThan(55_000);
     expect(budget.overSafe).toBe(false);
     expect(budget.overHard).toBe(false);
     // 바이트가 글자보다 크다(한글 3바이트) — 단위 미확정이라 판정은 둘 중 큰 쪽으로 간다.
     expect(budget.bytes).toBeGreaterThan(budget.chars);
+    // 라이트도 같은 예산 안 — 팔레트가 색 표기 길이를 바꾸면(예: rgba) 여기가 먼저 운다.
+    expect(shareHtmlBudget(renderShareHtml(rows, { ...shareOpts, theme: "light" })).overSafe).toBe(false);
   });
 
   it("예산 — 안전선을 넘기면 overSafe가 선다", () => {
@@ -1106,12 +1122,63 @@ describe("게시판 공유 HTML (renderShareHtml·shareHtmlBudget)", () => {
     expect(shareHtmlBudget("a".repeat(70_000)).overHard).toBe(true);
   });
 
-  /** 왜 위험한가: 상대경로 아이콘은 게시판에서 죽는다(우리 도메인이 아니다) — origin 없이 icons를 켜면
-      깨진 이미지 12장이 나가는 대신 텍스트로 물러선다. */
-  it("origin 없는 icons는 img를 내지 않는다(텍스트로 물러선다)", () => {
-    const html = renderShareHtml([shareRow()], { ...shareOpts, icons: true });
+  /** 왜 위험한가: 상대경로 아이콘은 게시판에서 죽는다(우리 도메인이 아니다) — 호스트를 비우면
+      깨진 이미지 12장이 나가는 대신 텍스트로 물러선다(오프라인 판·자산 미배포 채널의 탈출구). */
+  it("origin이 빈 문자열이면 img를 내지 않는다(텍스트로 물러선다)", () => {
+    const html = renderShareHtml([shareRow()], { ...shareOpts, origin: "" });
     expect(html).not.toContain("<img");
+    expect(html).not.toContain("<a href");
     expect(html).toContain("은의 창");
+  });
+
+  /** 왜 위험한가: ☠호스트를 런타임(`location.origin`)에서 읽으면 베타·프리뷰에서 복사한 순간
+      **죽을 주소가 게시물에 영구히 박힌다**(프리뷰 URL은 버전 해시라 며칠이면 사라진다).
+      기본값은 정식판 절대 URL이어야 하고, 상대경로는 게시판에서 우리 도메인이 아니라 100% 깨진다. */
+  it("아이콘이 기본 활성이고 호스트는 정식판 절대 URL이다", () => {
+    const html = renderShareHtml([shareRow()], shareOpts);
+    expect(html).toContain('<img src="https://builder-engage.gpdev.workers.dev/fe17/assets/faces/Alfred.webp"');
+    expect(html).toContain("https://builder-engage.gpdev.workers.dev/fe17/assets/items/SilverLance.webp");
+    expect(html).toContain("https://builder-engage.gpdev.workers.dev/fe17/assets/rings/Siglud.webp");
+    // 상대경로·베타 주소가 섞이면 게시물에서 조용히 깨진다(오류도 경고도 없다).
+    expect(html).not.toMatch(/src="\/|src="https:\/\/beta-|localhost/);
+  });
+
+  /** 왜 위험한가: ☠☠**이번 결함의 재발 방지** — background는 상속되지 않는다. 컨테이너에만 배경을 주면
+      행 사이로 게시판 테마가 그대로 비쳐(디시 다크) 어두운 글자가 어두운 바탕에 얹힌다.
+      2026-09-07 실게시에서 실제로 발생했다: 색이 깨지고 표가 안 읽혔다. */
+  it("모든 tr이 자기 배경을 소유한다 — 두 테마 모두 게시판 테마가 비치지 않는다", () => {
+    for (const theme of ["dark", "light"] as const) {
+      const opts = { ...shareOpts, theme };
+      const html = renderShareHtml([shareRow(), shareRow({ pid: "PID_2" })], opts);
+      const trs = html.match(/<tr[^>]*>/g) ?? [];
+      expect(trs.length).toBeGreaterThan(1);
+      for (const tr of trs) expect(tr).toMatch(/style="[^"]*background:#[0-9a-f]{6}/);
+      // 최상위 컨테이너도 배경을 깐다(첫 겹) — 표 바깥 여백까지 우리 색이어야 경계가 선다.
+      expect(html).toMatch(new RegExp(`^<div style="width:\\d+px;background:${PALETTES[theme].ground};padding:10px`));
+      // span 판도 같은 계약(보험용 옵션이라고 배경이 빠지면 그쪽만 조용히 깨진다).
+      for (const tr of renderShareHtml([shareRow()], { ...opts, spanFree: false }).match(/<tr[^>]*>/g) ?? []) {
+        expect(tr).toMatch(/style="[^"]*background:#[0-9a-f]{6}/);
+      }
+    }
+  });
+
+  /** 왜 위험한가: ☠색을 **모듈 상수로 구우면** `theme`을 넘겨도 다크가 그대로 나간다 — 옵션은 받았는데
+      산출물이 안 바뀌는 조용한 실패다(2026-09-07: 라이트 화면에서 내보낸 HTML이 다크로 나왔다).
+      두 팔레트는 값이 하나도 겹치지 않으므로 **"상대 테마 색이 0건"**이 테마 반영의 완전한 판정이 된다.
+      한 항목만 굽혀 있어도(예: 아웃라인 engage) 그 색 하나가 상대 테마 산출물에 남아 여기서 걸린다. */
+  it("테마 — 라이트 산출물에 다크 팔레트 색이 0건이고, 그 반대도 참이다", () => {
+    const dark = renderShareHtml([shareRow()], shareOpts);
+    const light = renderShareHtml([shareRow()], { ...shareOpts, theme: "light" });
+    // 대표값 교차 — panel(행 배경)이 통째로 갈려야 테마가 실제로 반영된 것이다.
+    expect(dark).toContain("#1a2028");
+    expect(dark).not.toContain("#ffffff");
+    expect(light).toContain("#ffffff");
+    expect(light).not.toContain("#1a2028");
+    // 전 항목 교차(ground·sunken·rule·ink·muted·gold·cap·pgrow·danger·engage까지).
+    for (const v of Object.values(PALETTES.dark)) expect(light).not.toContain(v);
+    for (const v of Object.values(PALETTES.light)) expect(dark).not.toContain(v);
+    // ★기본값은 다크 — 옵션을 안 넘기는 호출부·기존 저장분이 받던 색과 같아야 한다.
+    expect(renderShareHtml([shareRow()], { ...shareOpts, theme: "dark" })).toBe(dark);
   });
 
   /** 왜 위험한가: skills·efficacy·weapontypes 자산은 파일명이 일본어라 URL 인코딩에서 1자가 9자로 부푼다
@@ -1136,7 +1203,7 @@ describe("게시판 공유 HTML (renderShareHtml·shareHtmlBudget)", () => {
   it("스탯·전투력 문자열을 그대로 옮긴다(색조만 인라인 style로)", () => {
     const stats = STAT_KEYS.map((key) => ({ key, text: key === "spd" ? "25.8" : "41.7", tone: key === "spd" ? ("down" as const) : ("ink" as const) }));
     const html = renderShareHtml([shareRow({ stats })], shareOpts);
-    expect(html).toContain('<td style="color:#c62f35">25.8</td>');
+    expect(html).toContain('<td style="color:#f2555c">25.8</td>');
     expect(html).toContain("<td>41.7</td>");
     expect(html).toContain("135.6");
   });

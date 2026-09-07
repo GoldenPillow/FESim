@@ -36,9 +36,10 @@ import {
   type CardClass,
   type EquippedWeapon,
   type ExportRow,
+  type ShareTheme,
 } from "./lib";
 import { renderShareHtml } from "./share";
-import { renderCard } from "./card/render";
+import { renderCard, type RenderCardOptions } from "./card/render";
 import type {
   BuilderEmblemProp,
   BuilderEngraveProp,
@@ -677,7 +678,10 @@ function SharePanel({
   const onOverflow = (notes: readonly { field: string }[]): void => {
     if (notes.length > 0) setNote(labels.share.clipped.replace("{n}", String(notes.length)));
   };
-  const cardOpts = { labels, title, identityLabel: "Character", onOverflow };
+  /** ★내보내기 시점의 테마를 산출물에 반영한다(2026-09-07 사용자 지시) — 토글 정본은
+      `documentElement.dataset.theme`(ThemeToggle.astro가 쓰고 `fesim-theme`에 저장). 미지정 = 다크(기본 테마). */
+  const themeNow = (): ShareTheme => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
+  const cardOpts = (): RenderCardOptions => ({ labels, title, identityLabel: "Character", theme: themeNow(), onOverflow });
 
   const run = (fn: () => Promise<void>, done = labels.share.done): void => {
     setBusy(true);
@@ -690,19 +694,19 @@ function SharePanel({
 
   const copyHtml = (): void =>
     run(async () => {
-      const html = renderShareHtml(rows, { title, statLabels: STAT_EN, labels });
+      const html = renderShareHtml(rows, { title, statLabels: STAT_EN, labels, theme: themeNow() });
       await navigator.clipboard.writeText(html);
     });
   const copyImage = (): void =>
     run(async () => {
-      const blob = await renderCard(rows, cardOpts);
+      const blob = await renderCard(rows, cardOpts());
       // ☠html과 png를 한 ClipboardItem에 같이 담으면 어느 쪽이 붙을지 저자가 통제 못 한다
       //   (Chromium은 저자 순서를 무시하고 image를 html 앞에 고정) — 그래서 버튼을 나눴다.
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     });
   const saveImage = (): void =>
     run(async () => {
-      const blob = await renderCard(rows, cardOpts);
+      const blob = await renderCard(rows, cardOpts());
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

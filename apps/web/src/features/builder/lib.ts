@@ -539,6 +539,37 @@ export const fmtStat = (n: number): string => {
   return c % 100 === 0 ? String(c / 100) : (Math.round(c / 10) / 10).toFixed(1);
 };
 
+/* ── 공유 산출물 팔레트 — ☠**두 산출물(HTML·카드)이 같은 값을 읽어야** 한 쪽만 낡지 않는다.
+   값의 정본은 `styles/global.css`(`:root` = 다크 · `[data-theme="light"]` = 라이트)이고 여기는 그 사본이다.
+   ☠런타임 `getComputedStyle`로 읽지 않는 이유 = (1) HTML 산출물은 **남의 페이지에서 자기완결**로 살아야 하고
+   (2) 카드는 같은 입력이 같은 픽셀이어야 회귀 테스트가 선다. 사본이므로 global.css를 고치면 여기도 고친다. ── */
+
+export type ShareTheme = "dark" | "light";
+
+export interface SharePalette {
+  ground: string; panel: string; sunken: string; rule: string;
+  ink: string; muted: string; gold: string;
+  cap: string; pgrow: string; danger: string; engage: string;
+}
+
+/** ★빌더 기본 테마는 다크다(라이트가 `[data-theme="light"]` 옵트인) — 그래서 dark가 앞이고 기본값이다. */
+export const PALETTES: Record<ShareTheme, SharePalette> = {
+  dark: {
+    ground: "#12161b", panel: "#1a2028", sunken: "#151a21", rule: "#2b333d",
+    ink: "#e3e9ef", muted: "#909dab", gold: "#d9b878",
+    cap: "#3fd873", pgrow: "#5b9dff", danger: "#f2555c", engage: "#3b96ee",
+  },
+  light: {
+    ground: "#e9ecf0", panel: "#ffffff", sunken: "#f2f5f8", rule: "#d3dae2",
+    ink: "#171d24", muted: "#5b6773", gold: "#96712c",
+    cap: "#1e9e50", pgrow: "#1f5fd0", danger: "#c62f35", engage: "#0060c8",
+  },
+};
+
+/** 색조 → 색. 표의 판정(絆 상승=블루 · 무게 하락=레드 · 캡 도달=그린)을 그대로 옮긴다. */
+export const toneColor = (p: SharePalette, tone: ExportTone): string =>
+  tone === "cap" ? p.cap : tone === "buffed" ? p.pgrow : tone === "down" ? p.danger : p.ink;
+
 /* ── 공유 산출물 사영 — HTML 생성기와 카드 렌더러가 **둘 다 이것만** 읽는다.
    ★이 층이 존재하는 이유 = 표와 산출물이 갈리는 조용한 실패를 구조로 막는 것(rules/seams.md).
    ☠여기에 계산을 새로 쓰지 마라 — 값은 전부 표가 쓰는 함수(builderRow·combatOf·weaponAt·

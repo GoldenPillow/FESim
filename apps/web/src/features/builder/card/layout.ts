@@ -1,5 +1,5 @@
 import { STAT_KEYS } from "@fesim/engine";
-import { COMBAT_COL, STAT_EN, type CombatKey, type ExportRow, type ExportTone } from "../lib";
+import { COMBAT_COL, PALETTES, STAT_EN, toneColor, type CombatKey, type ExportRow, type SharePalette, type ShareTheme } from "../lib";
 
 /**
  * 엔트리 카드(PNG) 레이아웃 — ☠순수 함수. canvas·DOM을 만지지 않고, 텍스트 폭은 주입된 measure로만 잰다.
@@ -10,23 +10,10 @@ import { COMBAT_COL, STAT_EN, type CombatKey, type ExportRow, type ExportTone } 
  *   디시가 리사이즈를 안 타도(840 < 850) 그 회색은 그대로 남는다.
  */
 
-/* ── 고정 팔레트 — global.css의 **라이트 테마 값**을 상수로 박제한다(2026-09-07).
+/* ── 고정 팔레트 — global.css `:root`의 **다크 테마 값**을 상수로 박제한다(빌더 기본 테마 = 다크, 2026-09-07 개정).
    ☠런타임 getComputedStyle 금지: 게시판 배경이 무엇일지 모르므로 카드는 테마를 안 따라가고,
    읽어 쓰면 같은 입력이 기기·테마마다 다른 그림이 되어 회귀 테스트가 성립하지 않는다. ── */
-const C = {
-  panel: "#ffffff",
-  sunken: "#f2f5f8",
-  rule: "#d3dae2",
-  ink: "#171d24",
-  muted: "#5b6773",
-  cap: "#1e9e50",
-  pgrow: "#1f5fd0",
-  danger: "#c62f35",
-  engage: "#0060c8",
-} as const;
-
-/** 셀 색조 — 표의 판정(lib.ExportTone)을 그대로 색으로 옮긴다. */
-const TONE: Record<ExportTone, string> = { ink: C.ink, cap: C.cap, buffed: C.pgrow, down: C.danger };
+/* 팔레트·색조는 `../lib`가 소유한다 — ☠HTML 산출물과 같은 값을 읽어야 한 쪽만 낡지 않는다. */
 
 const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans KR", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, "Cascadia Mono", monospace';
@@ -86,6 +73,8 @@ export interface CardLabels {
 }
 
 export interface CardLayoutOptions {
+  /** 산출 테마 — 기본 다크(빌더 기본 테마가 다크다). 내보내기 시점의 `data-theme`를 그대로 넘긴다. */
+  theme?: ShareTheme;
   labels: CardLabels;
   /** 카드 제목(프리셋 이름 등) — 없으면 제목 줄이 서지 않는다. */
   title?: string;
@@ -128,7 +117,7 @@ interface Chip {
 const icon = (src: string | undefined): { icon?: string } => (src !== undefined ? { icon: src } : {});
 
 /** 장비·스킬 띠 — 표의 칩들과 같은 순서(무기 → 각인 → 반지 → 계승 → 고유 → 적성 → 특효). */
-function chipsOf(row: ExportRow): Chip[] {
+function chipsOf(row: ExportRow, C: SharePalette): Chip[] {
   const out: Chip[] = [];
   if (row.weapon !== undefined) {
     const plus = row.weapon.plus > 0 ? ` +${row.weapon.plus}` : "";
@@ -155,6 +144,8 @@ function chipsOf(row: ExportRow): Chip[] {
  * 12엔트리는 세로로 늘려 담는다(§6-a(5): 위험 축은 가로 하나뿐이라 세로는 공짜다).
  */
 export function layoutCard(rows: readonly ExportRow[], opts: CardLayoutOptions, measure: Measure): CardLayout {
+  // ★테마 반영(2026-09-07 사용자 지시) — 내보내는 시점의 테마를 따라간다. 기본은 빌더 기본 테마(다크).
+  const C = PALETTES[opts.theme ?? "dark"];
   const ops: PaintOp[] = [];
   const overflow: OverflowNote[] = [];
   const L = opts.labels;
@@ -227,10 +218,11 @@ export function layoutCard(rows: readonly ExportRow[], opts: CardLayoutOptions, 
       // ☠숫자는 자르지 않는다 — "12…"는 거짓말이다. 넘치면 그대로 그리고 보고만 한다.
       const w = measure(s.text, "stat");
       if (w > STAT_W - 6) overflow.push({ pid: row.pid, field: `stat:${s.key}`, text: s.text, width: Math.ceil(w), max: STAT_W - 6 });
-      text(colX + Math.round((STAT_W - w) / 2), statBase, s.text, "stat", TONE[s.tone]);
+      text(colX + Math.round((STAT_W - w) / 2), statBase, s.text, "stat", toneColor(C, s.tone));
       if (s.growth !== undefined) {
         const g = `${s.growth}%`;
-        text(centerX(g, "growth", colX), statBase + 15, g, "growth", C.pgrow);
+        // 고유 성장률 — 표(BuilderIsland text-gold)와 같은 색. pgrow(블루)는 tone "buffed" 전용이다.
+        text(centerX(g, "growth", colX), statBase + 15, g, "growth", C.gold);
       }
     });
 
@@ -259,7 +251,7 @@ export function layoutCard(rows: readonly ExportRow[], opts: CardLayoutOptions, 
 
     /* 장비·스킬 띠 — 신분 열 아래까지 콘텐츠 폭 전체를 쓰고 넘치면 줄바꿈(세로는 공짜다). */
     let cy = Math.max(idBottom, combatTop + COMBAT_H);
-    const chips = chipsOf(row);
+    const chips = chipsOf(row, C);
     if (chips.length > 0) {
       cy += 2;
       let cx = PAD;
