@@ -10,8 +10,11 @@ import {
   canEquip,
   carriedEquip,
   combatOf,
+  COMBAT_KEYS,
   dropCardKeys,
   effectiveWeaponRanks,
+  entryExportRows,
+  fmtCombat,
   inheritOptions,
   lockedDisplayRows,
   moveLock,
@@ -800,5 +803,135 @@ describe("엔트리 프리셋 이음매", () => {
     expect(Object.keys(back.cardClass)).toEqual([]);
     expect(Object.keys(back.rings)).toEqual([]);
     expect(Object.keys(back.inherits)).toEqual([]);
+  });
+});
+
+/**
+ * 엔트리 공유(내보내기) — 표와 산출물 사이의 이음매.
+ *
+ * ☠**왜 위험한가**: 산출물(HTML·카드 이미지)이 값을 스스로 계산하면 표와 다른 숫자를 말하는데
+ * **오류도 경고도 안 난다**. 사용자는 자기 화면을 믿고 남에게 공유하므로, 갈림이 발견되는 것은
+ * 남이 그 표를 보고 "이거 틀렸는데"라고 말할 때뿐이다.
+ * 그래서 `entryExportRows`가 **표가 쓰는 함수를 그대로 통과**시키는지를 여기서 박제한다
+ * (설계 = design/builder_export.md §6-a, 규약 = rules/seams.md).
+ */
+describe("엔트리 공유(내보내기) — entryExportRows", () => {
+  const roster = [
+    char("a", {
+      name: "알파",
+      personOffset: block({ dex: 10, spd: 7, lck: 5 }),
+      personLimit: block({ dex: 40, spd: 40, lck: 40 }),
+    }),
+    char("b", { name: "베타" }),
+  ];
+  const iron: BuilderWeaponProp = {
+    iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+    weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+    refine: [{ power: 2, weight: 0, hit: 0, crit: 0 }],
+  };
+  const ctx = { chars: roster, emblems: [] as BuilderEmblemProp[] };
+
+  it("열 순서 = STAT_KEYS — ☠순서가 정본이라 표와 산출물이 같은 축을 써야 한다", () => {
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], [{ pid: "a", internal: 11, jid: "JID_high" }]);
+    const out = entryExportRows(display, [{ pid: "a", internal: 11, jid: "JID_high" }], ctx);
+    expect(out[0]!.stats.map((s) => s.key)).toEqual([...STAT_KEYS]);
+  });
+
+  it("스탯 문자열은 표의 셀 텍스트 그대로 — 계산을 다시 하지 않는다", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high" }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked);
+    const out = entryExportRows(display, locked, ctx)[0]!;
+    for (const s of out.stats) expect(s.text).toBe(display[0]!.row.cells[s.key].text);
+  });
+
+  /** 왜 위험한가: 무게 페널티는 인게임 상태 화면이 실제로 빼는 값이다(2026-09-05 사용자 관측).
+      산출물이 원본 SPD를 그대로 실으면 공유받은 사람이 더 빠른 유닛으로 오해한다. */
+  it("무게 페널티가 SPD 표기에 반영되고 tone이 down이 된다", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high", iid: "IID_鉄の剣" }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked, undefined, [iron]);
+    const out = entryExportRows(display, locked, ctx)[0]!;
+    const spd = out.stats.find((s) => s.key === "spd")!;
+    const row = display[0]!.row;
+    const penalty = weightPenalty(row, display[0]!.equipped);
+    expect(penalty).toBeGreaterThan(0);
+    expect(spd.text).toBe(penalizedText(row.cells.spd, penalty));
+    expect(spd.tone).toBe("down");
+  });
+
+  /**
+   * ★★관통 테스트 — 이 피쳐의 핵심 1건.
+   * 표(CombatCells)와 산출물이 **같은 함수·같은 포맷터**를 지나는지 자릿수까지 대조한다.
+   * ☠갈리면 화면과 공유물이 다른 숫자를 말하고, 오류도 경고도 없다.
+   */
+  it("★관통 — 산출물의 전투력 = combatOf(row, equipped, skills)와 자릿수까지 같다", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high", iid: "IID_鉄の剣", plus: 1 }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked, undefined, [iron]);
+    const out = entryExportRows(display, locked, ctx)[0]!;
+    const expected = combatOf(display[0]!.row, display[0]!.equipped, []);
+    for (const key of COMBAT_KEYS) expect(out.combat[key]).toBe(fmtCombat(expected[key]));
+    // 소수 1자리 표기가 실제로 걸렸는지(포맷터를 안 지나면 "10.5"가 아니라 "10.5000001"류가 샌다)
+    expect(out.combat.patk).toMatch(/^\d+\.\d$/);
+  });
+
+  /** 왜 위험한가: 계승 스킬의 전투 보정은 식 평가 안에서 걸린다 — 산출물이 skills를 안 넘기면
+      명중 +10 같은 층이 조용히 빠진 채 "정상적으로" 렌더된다. */
+  it("★관통 — 계승 스킬이 전투력에 실린다(skills 인자를 넘기는지)", () => {
+    // 전투 보정은 식 평가 안에서 걸린다(Timing 3 + ActNames) — 정적 EnhanceValue 층과 다른 경로다.
+    const skill: SkillRow = {
+      Sid: "SID_命中＋１０", Timing: 3, ActNames: ["命中値"], ActOperations: ["+"], ActValues: ["10"],
+    } as SkillRow;
+    const emblems: BuilderEmblemProp[] = [
+      {
+        gid: "GID_M", name: "마르스", bonuses: [], levels: [],
+        inherits: [{ sid: "SID_命中＋１０", name: "명중+10", bond: 1, row: skill } as never],
+      },
+    ];
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high", skills: ["SID_命中＋１０", ""] as [string, string] }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked);
+    const out = entryExportRows(display, locked, { chars: roster, emblems })[0]!;
+    const withSkill = combatOf(display[0]!.row, undefined, [skill]);
+    const without = combatOf(display[0]!.row, undefined, []);
+    expect(withSkill.hit).not.toBe(without.hit); // 전제: 이 스킬이 실제로 명중을 움직인다
+    expect(out.combat.hit).toBe(fmtCombat(withSkill.hit));
+    expect(out.inherits.map((s) => s.name)).toEqual(["명중+10"]);
+  });
+
+  /** 왜 위험한가: 사용자 지시(2026-09-07) = "쉐어의 기준은 현재 엔트리에 포함된 부분".
+      대기 목록이 섞이면 공유물이 사용자가 고르지 않은 캐릭터를 싣는다. */
+  it("범위 — 잠긴 엔트리만, 순서 그대로. 대기 목록은 섞이지 않는다", () => {
+    const locked = [{ pid: "b", internal: 0 }, { pid: "a", internal: 0 }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked);
+    const out = entryExportRows(display, locked, ctx);
+    expect(out.map((r) => r.pid)).toEqual(["b", "a"]);
+    expect(entryExportRows([], [], ctx)).toEqual([]);
+  });
+
+  /** 왜 위험한가: 絆·계승 보너스는 표시층(applyEmblemBonus·applyStatBonus)이 얹는다.
+      산출물이 원시 lockedDisplayRows를 소비하면 보너스가 통째로 빠진다. */
+  it("보너스가 얹힌 행을 소비한다 — buffed tone이 산출물에 전달된다", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high" }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked);
+    const boosted = display.map((d) => ({ ...d, row: applyEmblemBonus(d.row, { str: 3 }) }));
+    const out = entryExportRows(boosted, locked, ctx)[0]!;
+    const str = out.stats.find((s) => s.key === "str")!;
+    expect(str.tone).toBe("buffed");
+    expect(str.text).toBe(boosted[0]!.row.cells.str.text);
+  });
+
+  it("표시 내부 레벨은 1기점 — 표의 클래스 행과 같은 값", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high" }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked);
+    expect(entryExportRows(display, locked, ctx)[0]!.internal).toBe(display[0]!.row.internal + 1);
+  });
+
+  /** 왜 위험한가: 특효 표기는 로케일 사전을 지난다(표 = labels.efficacyNames[kind] ?? kind).
+      산출물이 사전을 안 지나면 공유물에만 일본어 IconLabel 원문이 뜬다. */
+  it("특효 명칭은 표와 같은 폴백 규칙(사전 우선, 없으면 kind 원문)", () => {
+    const eff: BuilderWeaponProp = { ...iron, efficacies: [{ kind: "Dragon", help: "" }] };
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high", iid: "IID_鉄の剣" }];
+    const display = lockedDisplayRows(propsOf(roster), [HIGH], locked, undefined, [eff]);
+    expect(entryExportRows(display, locked, ctx)[0]!.efficacies[0]!.name).toBe("Dragon");
+    const named = entryExportRows(display, locked, { ...ctx, efficacyNames: { Dragon: "용 특효" } });
+    expect(named[0]!.efficacies[0]!.name).toBe("용 특효");
   });
 });

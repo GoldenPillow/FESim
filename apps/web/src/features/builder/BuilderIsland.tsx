@@ -9,9 +9,12 @@ import {
   canEquip,
   carriedEquip,
   combatOf,
+  COMBAT_COL,
   COMBAT_KEYS,
   dropCardKeys,
   effectiveWeaponRanks,
+  fmtCombat,
+  fmtStat,
   inheritOptions,
   lockedDisplayRows,
   moveLock,
@@ -20,6 +23,7 @@ import {
   penalizedText,
   resetEntryLock,
   skillStatDelta,
+  STAT_EN,
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
@@ -78,17 +82,8 @@ export interface BuilderIslandProps extends BuilderProps {
   labels: BuilderLabels;
 }
 
-const STAT_EN: Record<StatKey, string> = {
-  hp: "HP", str: "STR", mag: "MAG", dex: "DEX", spd: "SPD", lck: "LCK", def: "DEF", res: "RES", bld: "BLD",
-};
-
-/** 전투력 → 스탯 열 배정(그리드 정렬용 — 의미는 캡션이 말한다). HP 열은 비움, RES·BLD 열 = 무기군 아이콘. */
-const COMBAT_COL: Partial<Record<StatKey, (typeof COMBAT_KEYS)[number]>> = {
-  str: "patk", mag: "matk", dex: "hit", spd: "avoid", lck: "crit", def: "ddg",
-};
-
-/** 전투력 표시 — 스탯과 같은 소수 1자리(☠toFixed 단독 금지 규약과 같은 이유로 반올림을 먼저 정수화). */
-const fmtCombat = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
+/* ☠STAT_EN·COMBAT_COL·fmtCombat·fmtStat은 lib.ts가 소유한다(2026-09-07 이사) —
+   공유 산출물(HTML·카드)이 표와 같은 라벨·같은 포맷터를 쓰게 하려면 컴포넌트 밖이어야 한다. */
 
 /** 무게 페널티(실효 무게 > 체격) — SPD 스탯 숫자를 감산해 레드(2026-08-31 레드 지시 + 2026-09-05 감산 관측). */
 const spdPenalty = (row: BuilderRow, equipped: EquippedWeapon | undefined): boolean => weightPenalty(row, equipped) > 0;
@@ -2315,12 +2310,7 @@ export default function BuilderIsland({
   };
 
   /** 스탯 셀 합산 오버레이(2026-09-02) — 층(parts)이 있을 때만: 기본 → 문장사 ±N → 스킬 ±N. 호버 전용(CSS .cell-pop).
-      마지막 두 열(RES·BLD)은 표 밖으로 새지 않게 우측 앵커. */
-  // ☠toFixed 단독 금지(13.35 → "13.3") — 소수 2자리 정수화 후 1자리로 half-up(셀 텍스트의 누적기 반올림과 일치).
-  const fmtStat = (n: number): string => {
-    const c = Math.round(n * 100);
-    return c % 100 === 0 ? String(c / 100) : (Math.round(c / 10) / 10).toFixed(1);
-  };
+      마지막 두 열(RES·BLD)은 표 밖으로 새지 않게 우측 앵커. ☠fmtStat은 lib.ts 소유(2026-09-07 이사). */
   /** 스탯 합산 오버레이 — 기본 → 문장사 ±N → 스킬 ±N → 무게 −N → 합계, 층이 하나라도 있을 때만(2026-09-05 사용자 지시: 여러 줄 정확히). */
   const statPop = (cell: BuilderCell, key: StatKey, penalty = 0): React.JSX.Element | null => {
     const parts = cell.parts ?? [];
