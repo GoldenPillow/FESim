@@ -679,11 +679,11 @@ function SharePanel({
   };
   const cardOpts = { labels, title, identityLabel: "Character", onOverflow };
 
-  const run = (fn: () => Promise<void>): void => {
+  const run = (fn: () => Promise<void>, done = labels.share.done): void => {
     setBusy(true);
     setNote(null);
     void fn()
-      .then(() => setNote((n) => n ?? labels.share.done))
+      .then(() => setNote((n) => n ?? done))
       .catch(() => setNote(labels.share.failed))
       .finally(() => setBusy(false));
   };
@@ -709,7 +709,7 @@ function SharePanel({
       a.download = `${title.replace(/[^\w가-힣.-]+/g, "_")}.png`;
       a.click();
       URL.revokeObjectURL(url);
-    });
+    }, labels.share.saved);
 
   const act = (onClick: () => void, glyph: string, label: string): React.JSX.Element => (
     <button
@@ -2939,7 +2939,10 @@ export default function BuilderIsland({
       {/* 공유 바 — 엔트리 목록(표) 우측 상단(2026-09-07 사용자 지시). ☠sticky를 주지 않는다:
           "표 헤더만 top 0 고정"이 펼침 모드 규약이라, 여기가 고정되면 그 규약이 깨진다.
           우측 정렬이 표 우측 모서리와 맞는 근거 = 라우트의 w-fit(main 폭 = 표 폭). */}
-      <div className="relative mb-1 flex w-fit max-w-full justify-end">
+      {/* ☠`w-fit`을 주지 않는다 — 주면 바가 버튼 폭으로 줄어 justify-end가 무의미해지고 좌측에 붙는다
+          (2026-09-07 헤드리스 실측: 패널이 left:-192로 화면 밖까지 샜다). 기본 stretch가 정답 —
+          부모(아일랜드 루트)가 표 폭이라 이 바의 우측이 표 우측 모서리와 맞는다. */}
+      <div className="relative mb-1 flex max-w-full justify-end">
         <span className="relative">
           <button
             type="button"

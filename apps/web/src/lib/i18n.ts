@@ -253,8 +253,10 @@ export interface BuilderLabels {
     discord: string;
     /** 원형 버튼 3 = 이미지 파일 저장. */
     download: string;
-    /** 복사·저장 직후 1회 인라인 확인. */
+    /** 클립보드 복사 직후 1회 인라인 확인. */
     done: string;
+    /** 파일 저장 직후 — ☠복사와 문구를 나눈다(다운로드에 "복사했습니다"가 뜨면 무엇이 일어났는지 거짓말이다). */
+    saved: string;
     /** 엔트리가 0건일 때 — 공유 대상이 없다는 안내(버튼은 비활성). */
     empty: string;
     /** 팝업 하단 각주 — 공유 범위가 잠긴 엔트리라는 것. */
@@ -514,6 +516,7 @@ export const UI: Record<Locale, Strings> = {
         discord: "Discord",
         download: "Save image",
         done: "Copied",
+        saved: "Saved",
         empty: "Lock an entry first — sharing covers the entry list.",
         scope: "Shares the entries currently locked, in order.",
         hint: "Uploading on DCInside mobile? Set image size to original, or the text goes blurry.",
@@ -749,6 +752,7 @@ export const UI: Record<Locale, Strings> = {
         discord: "Discord",
         download: "画像を保存",
         done: "コピーしました",
+        saved: "保存しました",
         empty: "先にエントリーを固定してください — 共有はエントリー一覧が対象です。",
         scope: "現在固定しているエントリーを、その順番で共有します。",
         hint: "DCインサイドのモバイル投稿では画像サイズを「原本」にしてください。既定の850pxで文字がつぶれます。",
@@ -982,6 +986,7 @@ export const UI: Record<Locale, Strings> = {
         discord: "디스코드",
         download: "이미지 저장",
         done: "복사했습니다",
+        saved: "저장했습니다",
         empty: "엔트리를 먼저 잠가주세요 — 공유는 엔트리 목록이 대상입니다.",
         scope: "현재 잠긴 엔트리를 그 순서 그대로 공유합니다.",
         hint: "디시 모바일 글쓰기는 이미지를 가로 850으로 줄입니다 — 이미지 크기를 원본으로 두세요.",
