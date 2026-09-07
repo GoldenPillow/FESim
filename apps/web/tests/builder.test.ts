@@ -25,11 +25,15 @@ import {
   resetEntryLock,
   skillStatDelta,
   sortRowGroups,
+  STAT_EN,
   upgradeTargets,
   waitingRowGroups,
   weaponAt,
   weightPenalty,
+  type ExportRow,
 } from "../src/features/builder/lib";
+import { layoutCard, type Measure, type PaintOp } from "../src/features/builder/card/layout";
+import { renderShareHtml, shareHtmlBudget, type ShareLabels } from "../src/features/builder/share";
 import { emptySnapshot, readPreset, writePreset, type BuilderSnapshot } from "../src/lib/guestSave";
 import { memoryStorage, use } from "./fixtures";
 import type { BuilderCharProp, BuilderEmblemProp, BuilderEngraveProp, BuilderJobProp, BuilderWeaponProp, JoinJobProp } from "../src/lib/fe17";
@@ -701,6 +705,46 @@ describe("계승 스킬 (applyStatBonus·skillStatDelta·combatOf skills·inheri
  * ☠아일랜드를 렌더하는 수단이 이 저장소에 없다(jsdom·testing-library 부재) — 하이드레이션 게이트와
  *   자동 저장 의존성은 **소스 텍스트**로만 박제하고, 실동작은 헤드리스 실측이 본다.
  */
+/**
+ * 공유 UI 이음매 — ☠아일랜드를 렌더할 수단이 없어(jsdom 부재) **소스 텍스트로** 박제한다.
+ * 여기 걸린 셋은 전부 "실동작에서만 드러나고, 드러날 때는 이미 늦은" 종류다.
+ */
+describe("엔트리 공유 UI 이음매", () => {
+  const ISLAND = readFileSync(join(__dirname, "..", "src", "features", "builder", "BuilderIsland.tsx"), "utf8");
+
+  /**
+   * ☠왜 위험한가: 드롭다운 루트마다 onPointerDown 전파를 끊는다(행 잠금 오발 방지). 그래서 **버블**
+   * 리스너는 바깥 클릭을 영영 못 본다 — 팝업이 안 닫히는 실사고가 2026-08-31에 있었다.
+   * 캡처 단계(세 번째 인자 true)만이 그 위를 지난다.
+   */
+  it("☠SharePanel의 바깥클릭은 캡처 단계다", () => {
+    const panel = ISLAND.slice(ISLAND.indexOf("function SharePanel"), ISLAND.indexOf("인연 레벨 드롭다운"));
+    expect(panel).toMatch(/addEventListener\("pointerdown",\s*onDoc,\s*true\)/);
+  });
+
+  /**
+   * ☠왜 위험한가: 원시 `locked`에는 문장사 絆·계승 스킬 보너스가 안 얹혀 있다. 그것을 공유에 넘기면
+   * 화면보다 낮은 스탯이 공유물에만 나가고, 오류도 경고도 없다.
+   */
+  it("★공유 입력은 lockedRows(보너스 얹힌 표시행)를 소비한다", () => {
+    const call = ISLAND.slice(ISLAND.indexOf("entryExportRows("), ISLAND.indexOf("entryExportRows(") + 200);
+    expect(call).toContain("lockedRows");
+  });
+
+  /**
+   * ☠왜 위험한가: 펼침 모드 규약(rules/feature-ui.md)은 "표 헤더만 top 0 고정"이다. 공유 바에 sticky를
+   * 주면 상단에 눌어붙어 그 규약이 깨진다 — 실브라우저에서만 보이는 종류의 회귀다.
+   */
+  it("공유 바는 sticky가 아니다(펼침 모드 규약)", () => {
+    const i = ISLAND.indexOf("공유 바 — 엔트리 목록(표) 우측 상단");
+    expect(i).toBeGreaterThan(0);
+    // 주석에는 "sticky를 주지 않는다"가 적혀 있다 — 검사 대상은 주석 뒤 JSX다(*/ 이후).
+    const bar = ISLAND.slice(ISLAND.indexOf("*/", i), ISLAND.indexOf("builder-scroll", i));
+    expect(bar).not.toMatch(/\bsticky\b/);
+    expect(bar).toContain("justify-end");
+  });
+});
+
 describe("엔트리 프리셋 이음매", () => {
   const ISLAND = readFileSync(join(__dirname, "..", "src", "features", "builder", "BuilderIsland.tsx"), "utf8");
   const BODY = ISLAND.slice(ISLAND.indexOf("export default function BuilderIsland"));
@@ -723,6 +767,7 @@ describe("엔트리 프리셋 이음매", () => {
     saveFailed: "저장 실패 표식(파생)", undo: "삭제 되돌리기(세션 한정)",
     notice: "첫 저장 안내 1회(표시 취향 — fesim:ui:presetnotice가 소유)",
     slotEl: "포털 대상 DOM 참조",
+    shareOpen: "팝업",
   };
 
   it("☠빌더의 모든 useState는 프리셋에 담기거나 제외 사유가 적히거나 — 둘 중 하나다", () => {
@@ -933,5 +978,274 @@ describe("엔트리 공유(내보내기) — entryExportRows", () => {
     expect(entryExportRows(display, locked, ctx)[0]!.efficacies[0]!.name).toBe("Dragon");
     const named = entryExportRows(display, locked, { ...ctx, efficacyNames: { Dragon: "용 특효" } });
     expect(named[0]!.efficacies[0]!.name).toBe("용 특효");
+  });
+});
+
+/* ── 게시판 붙여넣기 HTML (share.ts) — 제약의 근거는 design/builder_export.md §2-1(디시 실측)이고,
+   여기 테스트는 그 제약이 **산출물에 실제로 걸렸는지**를 박제한다. 생성기는 순수 문자열 함수라
+   DOM 없이 소스 텍스트로만 검증한다. ── */
+
+const SHARE_LABELS: ShareLabels = {
+  combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
+  might: "위력",
+  weight: "무게",
+  efficacy: "특효",
+  item: "무기",
+  engrave: "각인",
+  ring: "반지",
+  inherit: "계승",
+  personalSkill: "고유",
+};
+
+const shareRow = (over: Partial<ExportRow> = {}): ExportRow => ({
+  pid: "PID_alfred",
+  name: "알프레드",
+  face: "/fe17/assets/faces/Alfred.webp",
+  job: "로열 나이트",
+  internal: 21,
+  ineligible: false,
+  stats: STAT_KEYS.map((key) => ({ key, text: "41.7", tone: "ink" as const })),
+  combat: { patk: "41.3", matk: "6.0", hit: "135.6", avoid: "51.6", crit: "21.4", ddg: "22.6" },
+  might: "17",
+  weight: "11",
+  weapon: { name: "은의 창", plus: 3, icon: "/fe17/assets/items/SilverLance.webp" },
+  engrave: { name: "마르스", icon: "/fe17/assets/engraves/Marth.webp" },
+  ring: { name: "시구르드", bond: 20, icon: "/fe17/assets/rings/Siglud.webp" },
+  inherits: [{ name: "속도+4" }, { name: "회피+20" }],
+  ownSkill: { name: "왕자의 자질" },
+  ranks: [],
+  efficacies: [{ name: "중갑" }],
+  ...over,
+});
+
+const shareOpts = { title: "엔트리 12인 — 하드 클래식", statLabels: STAT_EN, labels: SHARE_LABELS };
+
+/** 엔티티 되돌리기 — ☠`&amp;`를 **마지막에** 푼다(먼저 풀면 `&amp;lt;`가 `<`로 접혀 이중 이스케이프를 못 본다). */
+const decode = (s: string): string =>
+  s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+
+describe("게시판 공유 HTML (renderShareHtml·shareHtmlBudget)", () => {
+  /** 왜 위험한가: ko 이름표에 `<` `>`가 42종, en에 `'` 292종·`"` 20종·`&` 3종 실재한다.
+      ☠`&`를 먼저 치환하지 않으면 방금 만든 `&lt;`가 `&amp;lt;`가 되어 본문에 엔티티가 글자로 뜬다. */
+  it("이스케이프 — < > & \" 가 원문 텍스트로 살아남고 이중 이스케이프가 없다", () => {
+    const name = '지도<전> & "특"';
+    const html = renderShareHtml([shareRow({ name, job: "용맥<호>" })], shareOpts);
+    expect(html).toContain("&lt;전&gt;");
+    expect(html).toContain("&amp;");
+    expect(html).not.toContain("&amp;lt;");
+    expect(html).not.toContain("&amp;amp;");
+    expect(decode(html)).toContain(name);
+    expect(decode(html)).toContain("용맥<호>");
+  });
+
+  /** 왜 위험한가: 속성 자리에서 `"`가 안 막히면 속성이 조기 종료돼 **뒷부분이 통째로 사라진다**
+      (본문 자리와 달리 브라우저가 관대하지 않다 — 설계 문서의 alt 실증). */
+  it("속성 자리는 \" 까지 치환한다 — href가 조기 종료되지 않는다", () => {
+    const html = renderShareHtml([], { ...shareOpts, origin: 'https://x.example/a"b' });
+    expect(html).toContain("&quot;");
+    expect(html).not.toContain('href="https://x.example/a"b"');
+  });
+
+  /** 왜 위험한가: h1~h3·hr·pre는 모바일 렌더에서 **태그째 소실**되고, `<style>`은 에디터가 등록 전에
+      태그만 벗겨 CSS를 본문에 글자로 남긴다. title·bgcolor·cellspacing·cellpadding·face는 모바일 속성
+      화이트리스트 밖이라 조용히 사라진다. */
+  it("금지 태그·속성이 0건 — 모바일에서 살아남는 것만 쓴다", () => {
+    const html = renderShareHtml([shareRow()], { ...shareOpts, icons: true, origin: "https://x.example" });
+    for (const banned of [/<h[1-3][\s>]/i, /<hr[\s/>]/i, /<pre[\s>]/i, /<style[\s>]/i, /<script[\s>]/i]) {
+      expect(html).not.toMatch(banned);
+    }
+    for (const attr of [/\stitle=/i, /\sbgcolor=/i, /\scellspacing=/i, /\scellpadding=/i, /\sface=/i]) {
+      expect(html).not.toMatch(attr);
+    }
+  });
+
+  /** 왜 위험한가: colspan/rowspan은 모바일 생존 속성 목록에 없다. 죽으면 2·3줄이 한 칸씩 밀려
+      ☠**스탯 열이 틀어진 채 그럴듯하게** 렌더된다 — 오류도 경고도 없는 조용한 실패다. */
+  it("spanFree 기본값에서 colspan·rowspan이 0건이고, 세 줄이 모두 10칸이다", () => {
+    const html = renderShareHtml([shareRow()], shareOpts);
+    expect(html).not.toMatch(/colspan/i);
+    expect(html).not.toMatch(/rowspan/i);
+    for (const tr of html.match(/<tr[^>]*>.*?<\/tr>/g) ?? []) {
+      expect(tr.match(/<td/g)?.length).toBe(STAT_KEYS.length + 1);
+    }
+  });
+
+  /** 왜 위험한가: span 판을 옵션으로만 남기기로 했는데(설계 §6-a-4) 옵션이 죽어 있으면
+      모바일 판정 왕복 자체가 불가능해진다. */
+  it("spanFree: false는 span 판을 낸다(판정용 보험 — 정본이 아니다)", () => {
+    const html = renderShareHtml([shareRow()], { ...shareOpts, spanFree: false });
+    expect(html).toMatch(/rowspan="3"/);
+    expect(html).toMatch(/colspan="9"/);
+  });
+
+  /** 왜 위험한가: 열 순서가 표와 갈리면 숫자는 다 맞는데 **어느 칸이 무엇인지가 틀린다**.
+      헤더 라벨은 statLabels(STAT_EN)를 지나야 한다 — 안 지나면 키 원문이 그대로 뜬다. */
+  it("열 순서 = STAT_KEYS, 헤더 라벨 = STAT_EN", () => {
+    const html = renderShareHtml([shareRow()], shareOpts);
+    const head = html.slice(html.indexOf("<tr"), html.indexOf("</tr>"));
+    const cells = [...head.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
+    expect(cells).toEqual(["Character", ...STAT_KEYS.map((key) => STAT_EN[key])]);
+  });
+
+  /** 왜 위험한가: 디시 본문 상한은 65,535이고 안전선이 55,000이다. 아이콘판이 예산을 넘으면
+      글이 등록 단계에서 잘려 나가므로 회귀를 여기서 잡는다(설계 실측 = 12엔트리 아이콘판 20,823자). */
+  it("예산 — 12엔트리 아이콘판이 안전선(55,000) 아래", () => {
+    const rows = Array.from({ length: 12 }, (_v, i) => shareRow({ pid: `PID_${i}` }));
+    const html = renderShareHtml(rows, { ...shareOpts, icons: true, origin: "https://builder.example" });
+    const budget = shareHtmlBudget(html);
+    expect(budget.chars).toBeLessThan(55_000);
+    expect(budget.overSafe).toBe(false);
+    expect(budget.overHard).toBe(false);
+    // 바이트가 글자보다 크다(한글 3바이트) — 단위 미확정이라 판정은 둘 중 큰 쪽으로 간다.
+    expect(budget.bytes).toBeGreaterThan(budget.chars);
+  });
+
+  it("예산 — 안전선을 넘기면 overSafe가 선다", () => {
+    expect(shareHtmlBudget("가".repeat(60_000)).overSafe).toBe(true);
+    expect(shareHtmlBudget("a".repeat(56_000)).overHard).toBe(false);
+    expect(shareHtmlBudget("a".repeat(70_000)).overHard).toBe(true);
+  });
+
+  /** 왜 위험한가: 상대경로 아이콘은 게시판에서 죽는다(우리 도메인이 아니다) — origin 없이 icons를 켜면
+      깨진 이미지 12장이 나가는 대신 텍스트로 물러선다. */
+  it("origin 없는 icons는 img를 내지 않는다(텍스트로 물러선다)", () => {
+    const html = renderShareHtml([shareRow()], { ...shareOpts, icons: true });
+    expect(html).not.toContain("<img");
+    expect(html).toContain("은의 창");
+  });
+
+  /** 왜 위험한가: skills·efficacy·weapontypes 자산은 파일명이 일본어라 URL 인코딩에서 1자가 9자로 부푼다
+      — 아이콘 몇 장이 65,535 예산을 혼자 태운다. ASCII 파일명만 통과시킨다. */
+  it("비ASCII 파일명 자산은 아이콘으로 나가지 않는다", () => {
+    const row = shareRow({ weapon: { name: "철의 검", plus: 0, icon: "/fe17/assets/skills/速さ＋４.webp" } });
+    const html = renderShareHtml([row], { ...shareOpts, icons: true, origin: "https://x.example" });
+    expect(html).not.toContain("速さ");
+    expect(html).toContain("철의 검");
+    expect(html).not.toMatch(/<img[^>]*items|<img[^>]*skills/);
+  });
+
+  /** 왜 위험한가: 전용직 대상 밖 행의 값은 **합류 상태 값**이다 — 목표 직업이 적용된 것처럼 그리면
+      공유받은 사람이 갈 수 없는 빌드를 읽는다(표는 흐림·괄호로 구분한다). */
+  it("ineligible 엔트리의 직업명은 괄호로 감싼다", () => {
+    const html = renderShareHtml([shareRow({ ineligible: true })], shareOpts);
+    expect(html).toContain("(로열 나이트)");
+    expect(renderShareHtml([shareRow()], shareOpts)).not.toContain("(로열 나이트)");
+  });
+
+  /** 왜 위험한가: 스탯 문자열은 표시 규약을 이미 지난 값이다 — 생성기가 손대면 표와 산출물이 갈린다. */
+  it("스탯·전투력 문자열을 그대로 옮긴다(색조만 인라인 style로)", () => {
+    const stats = STAT_KEYS.map((key) => ({ key, text: key === "spd" ? "25.8" : "41.7", tone: key === "spd" ? ("down" as const) : ("ink" as const) }));
+    const html = renderShareHtml([shareRow({ stats })], shareOpts);
+    expect(html).toContain('<td style="color:#c62f35">25.8</td>');
+    expect(html).toContain("<td>41.7</td>");
+    expect(html).toContain("135.6");
+  });
+});
+
+/**
+ * 카드 이미지(PNG) 레이아웃 — `layoutCard`는 canvas·DOM 없이 좌표만 낸다.
+ *
+ * ☠**왜 순수 함수로 갈랐나**: 카드는 게시판에 박히면 되돌릴 수 없는 산출물인데 이 저장소엔
+ * jsdom·canvas가 없어 실렌더를 못 돈다. 그래서 규격(폭 840·정수 좌표·열 순서)과 **넘침 보고**를
+ * 좌표 층에서 박제한다 — 여기가 무너지면 흐릿하거나 글자가 잘린 그림이 조용히 나간다
+ * (설계 = design/builder_export.md §2-1b·§6-a(5)).
+ */
+describe("카드 이미지 레이아웃 (layoutCard)", () => {
+  /** 고정 measure — 결정성 판정의 전제(실폰트를 쓰면 CI 폰트에 따라 값이 흔들린다).
+      CJK를 라틴의 2배로 치는 것은 실측이 아니라 재현성 장치다. */
+  const measure: Measure = (text) => [...text].reduce((n, ch) => n + ((ch.codePointAt(0) ?? 0) > 0x2000 ? 14 : 7), 0);
+
+  const LABELS = {
+    combat: { patk: "물공", matk: "마공", hit: "명중", avoid: "회피", crit: "필살", ddg: "필살회피" },
+    might: "위력",
+    weight: "무게",
+    internalShort: "In.lv",
+    jobNone: "미선택",
+    unavailable: "전용직 불가",
+  };
+  const opts = { labels: LABELS };
+
+  const IRON: BuilderWeaponProp = {
+    iid: "IID_鉄の剣", name: "철의 검", kind: 1, might: 5, hit: 90, crit: 0,
+    weight: 5, avoid: 0, dodge: 0, magic: false, rank: "D",
+  };
+
+  /** n엔트리 산출물 — 표가 쓰는 경로(lockedDisplayRows → entryExportRows)를 그대로 지난다. */
+  const cardRows = (n: number, jobName = "상급직"): ExportRow[] => {
+    const roster = Array.from({ length: n }, (_, i) => char(`p${i}`, { name: `캐릭${i}`, face: `/f${i}.webp` }));
+    const job = { ...HIGH, name: jobName };
+    const locked = roster.map((c) => ({ pid: c.pid, internal: 11, jid: "JID_high", iid: "IID_鉄の剣" }));
+    const display = lockedDisplayRows(propsOf(roster), [job], locked, undefined, [IRON]);
+    return entryExportRows(display, locked, { chars: roster, emblems: [] });
+  };
+
+  const nums = (op: PaintOp): number[] => (op.op === "text" ? [op.x, op.y] : [op.x, op.y, op.w, op.h]);
+
+  /**
+   * ☠왜 위험한가: 840은 디시 기본 리사이즈 폭 850의 **경계 아래**라 리샘플 분기를 아예 안 탄다
+   * (§0-b). 폭이 한 번이라도 851이 되면 0.44~0.53배 축소가 걸려 12px 글자가 5~6px로 죽는데,
+   * 그림은 "그럴듯하게" 나오므로 아무도 못 잡는다.
+   * 좌표가 정수여야 하는 것도 같은 축이다 — 반픽셀에 걸린 1px 괘선은 2px 회색이 된다.
+   */
+  it("폭은 항상 840이고 모든 op 좌표·크기가 정수다", () => {
+    for (const n of [0, 1, 12]) {
+      const layout = layoutCard(cardRows(n), opts, measure);
+      expect(layout.width).toBe(840);
+      expect(layout.ops.length).toBeGreaterThan(0);
+      for (const op of layout.ops) for (const v of nums(op)) expect(Number.isInteger(v)).toBe(true);
+      expect(Number.isInteger(layout.height)).toBe(true);
+    }
+  });
+
+  /** 왜 위험한가: 12엔트리를 열 선별·분할로 담으려 들면 정보가 빠진다 — 위험 축은 가로 하나뿐이라
+      세로는 공짜다(§6-a(5)). 폭이 따라 늘면 무손실 전제가 그 자리에서 깨진다. */
+  it("12엔트리는 세로로만 늘어난다 — 폭은 불변", () => {
+    const one = layoutCard(cardRows(1), opts, measure);
+    const many = layoutCard(cardRows(12), opts, measure);
+    expect(many.width).toBe(one.width);
+    expect(many.height).toBeGreaterThan(one.height * 6);
+  });
+
+  /**
+   * ★☠왜 위험한가: 신분 열 150px은 en 클래스명 최악값(125.7px)이 정한 폭이다. 그보다 긴 이름이
+   * 들어오면 **말없이 `…`로 자르는 것이 가장 나쁜 실패**다 — 공유받은 사람은 잘렸다는 사실 자체를
+   * 모르고, 결손 목록에도 안 잡힌다. 그래서 자르되 반드시 overflow로 보고한다("못 찾으면 드러내라").
+   */
+  it("★긴 클래스명은 잘리되 overflow에 보고된다 — 조용히 사라지지 않는다", () => {
+    const plain = layoutCard(cardRows(1), opts, measure);
+    expect(plain.overflow.filter((o) => o.field === "job")).toEqual([]);
+
+    const longName = "Wolf Knight of the Eastern Kingdom";
+    const over = layoutCard(cardRows(1, longName), opts, measure);
+    const note = over.overflow.find((o) => o.field === "job");
+    expect(note).toBeDefined();
+    expect(note!.pid).toBe("p0");
+    expect(note!.text).toBe(longName);
+    expect(note!.width).toBeGreaterThan(note!.max);
+    // 자른 결과가 실제로 칸 안에 들어갔는지 — 보고만 하고 넘치게 그리면 스탯 열을 침범한다.
+    const drawn = over.ops.find((op) => op.op === "text" && op.text.startsWith("Wolf"));
+    expect(drawn).toBeDefined();
+    expect((drawn as { text: string }).text.endsWith("…")).toBe(true);
+    expect(measure((drawn as { text: string }).text, "meta")).toBeLessThanOrEqual(note!.max);
+  });
+
+  /** ☠왜 위험한가: 열 순서가 표(STAT_KEYS)와 갈리면 숫자는 전부 맞는데 **다른 스탯 밑에** 선다.
+      값 검증만 하는 테스트는 이 어긋남을 영원히 못 본다. */
+  it("스탯 열 x좌표가 STAT_KEYS 순서와 같다", () => {
+    const layout = layoutCard(cardRows(1), opts, measure);
+    const heads = layout.ops.flatMap((op) => (op.op === "text" && op.font === "colHead" ? [op] : []));
+    expect(heads.map((h) => h.text)).toEqual(STAT_KEYS.map((k) => STAT_EN[k]));
+    // 신분 열 150 + 스탯 열 74 x 9 = 콘텐츠 816(패딩 12) — 규격이 어긋나면 layoutCard가 스스로 보고한다.
+    expect(layout.overflow.filter((o) => o.field === "columns")).toEqual([]);
+    heads.forEach((h, i) => {
+      expect(h.x).toBe(12 + 150 + i * 74 + Math.round((74 - measure(h.text, "colHead")) / 2));
+    });
+  });
+
+  /** 왜 위험한가: 결정적이지 않으면 회귀 테스트가 성립하지 않는다 — 카드가 언제 어떻게 달라졌는지
+      아무도 증명 못 한다. 그래서 layoutCard는 시각·난수·getComputedStyle을 안 만진다. */
+  it("결정성 — 같은 입력·같은 measure면 같은 ops", () => {
+    const rows = cardRows(3);
+    expect(JSON.stringify(layoutCard(rows, opts, measure))).toBe(JSON.stringify(layoutCard(rows, opts, measure)));
   });
 });

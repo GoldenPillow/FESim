@@ -243,6 +243,29 @@ export interface BuilderLabels {
     /** 저장 실패 = 트리거 ! title + 각주 레드 승격 문구. */
     failed: string;
   };
+  /** 엔트리 공유(내보내기) — 표 우측 상단 버튼과 팝업(2026-09-07 사용자 지시). */
+  share: {
+    /** 버튼 라벨 겸 팝업 제목 — 화살표 아이콘 옆. */
+    label: string;
+    /** 원형 버튼 1 = 게시판용 HTML 소스 복사(범용성이 높아 1순위). */
+    html: string;
+    /** 원형 버튼 2 = 이미지를 클립보드로(디스코드는 표·HTML이 전부 증발한다). */
+    discord: string;
+    /** 원형 버튼 3 = 이미지 파일 저장. */
+    download: string;
+    /** 복사·저장 직후 1회 인라인 확인. */
+    done: string;
+    /** 엔트리가 0건일 때 — 공유 대상이 없다는 안내(버튼은 비활성). */
+    empty: string;
+    /** 팝업 하단 각주 — 공유 범위가 잠긴 엔트리라는 것. */
+    scope: string;
+    /** ☠디시 모바일 글쓰기의 기본 리사이즈(가로 850)가 이미지를 뭉갠다 — 원본 크기 선택 안내. */
+    hint: string;
+    /** 실패 시 문구(클립보드 거부·렌더 실패). */
+    failed: string;
+    /** ☠칸을 넘쳐 잘린 항목이 있을 때 — {n}에 개수. 말없이 자르면 결손 목록에도 안 잡힌다. */
+    clipped: string;
+  };
 }
 
 /** 메인 랜딩(허브) 라벨 — 섹션·링크는 정적 페이지가 그대로 편다. */
@@ -485,6 +508,18 @@ export const UI: Record<Locale, Strings> = {
           "Saved — to this browser only. Clear your browser data or open FESim on another device and this list will be empty.",
         failed: "Could not save — storage is full or this is a private window.",
       },
+      share: {
+        label: "Share",
+        html: "HTML",
+        discord: "Discord",
+        download: "Save image",
+        done: "Copied",
+        empty: "Lock an entry first — sharing covers the entry list.",
+        scope: "Shares the entries currently locked, in order.",
+        hint: "Uploading on DCInside mobile? Set image size to original, or the text goes blurry.",
+        failed: "Could not copy — try saving the image instead.",
+        clipped: "{n} labels were too long and got trimmed in the image.",
+      },
     },
     home: {
       intro:
@@ -708,6 +743,18 @@ export const UI: Record<Locale, Strings> = {
           "保存しました — このブラウザにのみ残ります。ブラウザのデータを消すか、別の端末で開くとこの一覧は空です。",
         failed: "保存できませんでした — 保存容量がいっぱいか、プライベートウィンドウです。",
       },
+      share: {
+        label: "共有",
+        html: "HTML",
+        discord: "Discord",
+        download: "画像を保存",
+        done: "コピーしました",
+        empty: "先にエントリーを固定してください — 共有はエントリー一覧が対象です。",
+        scope: "現在固定しているエントリーを、その順番で共有します。",
+        hint: "DCインサイドのモバイル投稿では画像サイズを「原本」にしてください。既定の850pxで文字がつぶれます。",
+        failed: "コピーできませんでした — 画像の保存をお試しください。",
+        clipped: "長すぎるラベル {n} 件が画像内で切り詰められました。",
+      },
     },
     home: {
       intro: "ファイアーエムブレム エンゲージの戦略シミュレーター・攻略ハブ。ファンメイド・広告なし・任天堂/インテリジェントシステムズとは無関係です。",
@@ -928,6 +975,18 @@ export const UI: Record<Locale, Strings> = {
         firstSave:
           "저장했습니다 — 이 브라우저에만 남습니다. 브라우저 데이터를 지우거나 다른 기기에서 열면 이 목록은 비어 있습니다.",
         failed: "저장하지 못했습니다 — 저장소가 가득 찼거나 시크릿 창입니다.",
+      },
+      share: {
+        label: "공유",
+        html: "HTML",
+        discord: "디스코드",
+        download: "이미지 저장",
+        done: "복사했습니다",
+        empty: "엔트리를 먼저 잠가주세요 — 공유는 엔트리 목록이 대상입니다.",
+        scope: "현재 잠긴 엔트리를 그 순서 그대로 공유합니다.",
+        hint: "디시 모바일 글쓰기는 이미지를 가로 850으로 줄입니다 — 이미지 크기를 원본으로 두세요.",
+        failed: "복사하지 못했습니다 — 이미지 저장을 써보세요.",
+        clipped: "이름이 길어 이미지에서 잘린 항목이 {n}건 있습니다.",
       },
     },
     home: {

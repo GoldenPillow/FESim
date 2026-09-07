@@ -13,6 +13,7 @@ import {
   COMBAT_KEYS,
   dropCardKeys,
   effectiveWeaponRanks,
+  entryExportRows,
   fmtCombat,
   fmtStat,
   inheritOptions,
@@ -34,7 +35,10 @@ import {
   type BuilderSort,
   type CardClass,
   type EquippedWeapon,
+  type ExportRow,
 } from "./lib";
+import { renderShareHtml } from "./share";
+import { renderCard } from "./card/render";
 import type {
   BuilderEmblemProp,
   BuilderEngraveProp,
@@ -244,6 +248,16 @@ const PENCIL = (
   <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M11.2 2.3a1.4 1.4 0 0 1 2 2L5.6 11.9l-2.7.8.8-2.7 7.5-7.7Z" />
     <path d="M10.1 3.4 12.1 5.4" />
+  </svg>
+);
+
+/** 공유 버튼 화살표 — Lucide "forward"(ISC, 라이선스 원문 = apps/web/THIRD_PARTY_LICENSES.md).
+    ☠노드형(●-●-●) share 아이콘은 안드로이드 클래식 공유, 상자+위 화살표는 애플 공유시트 실루엣이라
+    배제했다 — "코너를 돌아 나가는 곡선 화살표"가 사용자가 지목한 형태다(2026-09-07). 순수 기하 도형. */
+const SHARE = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 17 20 12 15 7" />
+    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
   </svg>
 );
 
@@ -625,6 +639,109 @@ function EmblemPanel({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <EmblemDetail emblem={emblem} bond={bond} labels={labels} />
+    </span>
+  );
+}
+
+/**
+ * 엔트리 공유 팝업 — 표 우측 상단 Share 버튼이 연다(2026-09-07 사용자 지시).
+ * 세트 = [HTML] [Discord] [다운로드] · HTML이 1순위(범용성) · 다운로드는 디코 옆.
+ * ☠디스코드는 표·HTML이 전부 증발하는 채널이라 **이미지**를 클립보드에 넣는다(design/builder_export.md §2-2).
+ * ☠바깥클릭은 캡처 단계여야 한다 — 드롭다운 루트마다 전파를 끊어 버블 리스너는 바깥 클릭을 못 본다.
+ */
+function SharePanel({
+  rows,
+  labels,
+  title,
+  onClose,
+}: {
+  rows: readonly ExportRow[];
+  labels: BuilderLabels;
+  title: string;
+  onClose: () => void;
+}): React.JSX.Element {
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const onDoc = (e: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("pointerdown", onDoc, true);
+    return () => document.removeEventListener("pointerdown", onDoc, true);
+    // onClose는 렌더마다 새 함수 — 열림 동안 재구독 방지(EmblemPanel과 같은 이유).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ★넘친 칸은 말없이 자르지 않고 사용자에게 드러낸다(카드 렌더러가 overflow로 보고한다).
+  const onOverflow = (notes: readonly { field: string }[]): void => {
+    if (notes.length > 0) setNote(labels.share.clipped.replace("{n}", String(notes.length)));
+  };
+  const cardOpts = { labels, title, identityLabel: "Character", onOverflow };
+
+  const run = (fn: () => Promise<void>): void => {
+    setBusy(true);
+    setNote(null);
+    void fn()
+      .then(() => setNote((n) => n ?? labels.share.done))
+      .catch(() => setNote(labels.share.failed))
+      .finally(() => setBusy(false));
+  };
+
+  const copyHtml = (): void =>
+    run(async () => {
+      const html = renderShareHtml(rows, { title, statLabels: STAT_EN, labels });
+      await navigator.clipboard.writeText(html);
+    });
+  const copyImage = (): void =>
+    run(async () => {
+      const blob = await renderCard(rows, cardOpts);
+      // ☠html과 png를 한 ClipboardItem에 같이 담으면 어느 쪽이 붙을지 저자가 통제 못 한다
+      //   (Chromium은 저자 순서를 무시하고 image를 html 앞에 고정) — 그래서 버튼을 나눴다.
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    });
+  const saveImage = (): void =>
+    run(async () => {
+      const blob = await renderCard(rows, cardOpts);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^\w가-힣.-]+/g, "_")}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+  const act = (onClick: () => void, glyph: string, label: string): React.JSX.Element => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="flex w-16 flex-col items-center gap-1 text-[12px] text-muted disabled:opacity-40"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-rule bg-sunken text-[15px] font-bold text-ink">
+        {glyph}
+      </span>
+      {label}
+    </button>
+  );
+
+  return (
+    <span
+      ref={rootRef}
+      className="absolute right-0 top-full z-50 mt-1 w-max rounded border border-rule bg-panel p-3 shadow-lg"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <span className="flex gap-2">
+        {/* ★HTML이 앞 — 범용성이 높다(2026-09-07 사용자 지시). 다운로드는 디코 옆. */}
+        {act(copyHtml, "</>", labels.share.html)}
+        {act(copyImage, "D", labels.share.discord)}
+        {act(saveImage, "↓", labels.share.download)}
+      </span>
+      <span className="mt-2 block max-w-[16rem] text-[12px] leading-snug text-muted">{labels.share.scope}</span>
+      {/* ☠디시 모바일 글쓰기 기본값(가로 850)이 이미지를 뭉갠다 — 폭 설계로 못 막는 잔여 위험이라 안내로 푼다. */}
+      <span className="mt-1 block max-w-[16rem] text-[12px] leading-snug text-muted opacity-80">{labels.share.hint}</span>
+      {note !== null && <span className="mt-2 block text-[12px] font-semibold text-gold">{note}</span>}
     </span>
   );
 }
@@ -1419,6 +1536,8 @@ export default function BuilderIsland({
   const [saveFailed, setSaveFailed] = useState(false);
   /** 삭제 되돌리기 1단(세션) — 삭제는 사용자 실데이터의 유일한 영구 소실 경로다. */
   const [undo, setUndo] = useState<{ at: number; sum: PresetSummary; snap: BuilderSnapshot } | null>(null);
+  /** 공유 팝업 열림(2026-09-07) — 열린 팝업이라 프리셋에 안 담는다. */
+  const [shareOpen, setShareOpen] = useState(false);
   /** 첫 저장 1회 안내(브라우저 저장의 한계 고지) — 닫으면 다시 뜨지 않는다. */
   const [notice, setNotice] = useState(false);
   const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
@@ -2009,6 +2128,26 @@ export default function BuilderIsland({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleChars, joinJobs, targetJobs, locked, starsphere, weapons, visibleEngraves, emblemByGid, bondPreview, inherits, inheritBySid]);
+
+  /**
+   * 공유 산출물 입력 — ★표에 그려지는 `lockedRows`를 그대로 소비한다(원시 `locked`가 아니다).
+   * ☠원시 배열에는 絆·계승 보너스가 안 얹혀 있어, 그것을 넘기면 공유물만 조용히 낮은 스탯을 말한다.
+   * 대기 목록은 여기 안 들어온다 — 공유 범위 = 잠긴 엔트리(2026-09-07 사용자 지시).
+   */
+  const exportRows = useMemo(
+    () =>
+      entryExportRows(lockedRows, locked, {
+        chars: visibleChars,
+        emblems: visibleEmblems,
+        kindIcons,
+        efficacyNames: labels.efficacyNames,
+        showGrowth,
+      }),
+    [lockedRows, locked, visibleChars, visibleEmblems, kindIcons, labels, showGrowth],
+  );
+  /** 카드·파일 제목 = 활성 프리셋 이름(없으면 기본 이름을 presetName이 답한다). */
+  const shareTitle =
+    presets === null ? "" : presetName(presets.list.find((p) => p.n === presets.active) ?? presets.list[0]!);
 
   /** 카드 표시 장비 — 개인 오버라이드가 있으면 그것(게이트 재검), 없으면 글로벌 슬롯 장비. */
   const cardEquip = (pid: string, li: number, ghost = false): EquippedWeapon | undefined => {
@@ -2797,6 +2936,32 @@ export default function BuilderIsland({
 
       {/* 펼침 모드 = 전 뷰포트 기본(2026-09-02 사용자 지시): 안쪽 스크롤박스 없이 페이지 스크롤 하나,
           표 헤더(1행 + 성장률 행)만 최상단 고정. ☠overflow-auto를 되살리면 엔트리가 안쪽 상자로 들어간다. */}
+      {/* 공유 바 — 엔트리 목록(표) 우측 상단(2026-09-07 사용자 지시). ☠sticky를 주지 않는다:
+          "표 헤더만 top 0 고정"이 펼침 모드 규약이라, 여기가 고정되면 그 규약이 깨진다.
+          우측 정렬이 표 우측 모서리와 맞는 근거 = 라우트의 w-fit(main 폭 = 표 폭). */}
+      <div className="relative mb-1 flex w-fit max-w-full justify-end">
+        <span className="relative">
+          <button
+            type="button"
+            onClick={() => setShareOpen((v) => !v)}
+            disabled={exportRows.length === 0}
+            title={exportRows.length === 0 ? labels.share.empty : labels.share.label}
+            className={`${DROP_TRIGGER} font-semibold text-ink disabled:opacity-40`}
+          >
+            {SHARE}
+            {labels.share.label}
+          </button>
+          {shareOpen && (
+            <SharePanel
+              rows={exportRows}
+              labels={labels}
+              title={shareTitle}
+              onClose={() => setShareOpen(false)}
+            />
+          )}
+        </span>
+      </div>
+
       <div className="builder-scroll w-fit max-w-full rounded border border-rule bg-panel">
         {/* ☠border-collapse 금지 — collapse 모델에서는 sticky 헤더 셀의 배경 페인트가 스크롤에 뒤처져
             본문 글자가 헤더를 뚫고 비친다(가로폰 실측, Chromium). 구분선은 셀이 소유한다. */}
