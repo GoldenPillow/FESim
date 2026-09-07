@@ -1,6 +1,13 @@
 {
   // builder-engage — 빌더 단독 공개 채널(릴리즈 처우 — 유저 배포 주소, 본체 흡수 시 301 스텁 격하. rules/deploy.md §빌더 채널·§피쳐 채널 원칙).
   // 같은 빌드 산출물을 쓰고 workers/builder.js가 경로를 가드한다(run_worker_first = 가드가 에셋보다 먼저).
+  // ☠2026-09-07 `true` → 배열: `true`는 **아이콘 요청까지 워커 호출**이라 무료 10만 req/일(계정 공유)에 산입되고
+  //   초과 시 정적 폴백 없이 429다(공식: run_worker_first 경로는 "429 instead of falling back to static asset serving").
+  //   실측 계산 = 고유 아이콘 72개면 하루 1,389 조회에서 계정 전체가 죽는다. 부정 패턴이면 워커 미경유 = 무료·무제한
+  //   ("Requests to static assets are free and unlimited" — 판정 기준은 워커 호출 여부 하나다).
+  // ★부정 패턴은 ALLOW의 에셋 7종만 적는다 — `!/fe17/assets/*`로 뭉뚱그리면 빌더가 안 쓰는 mapicons(1,180개)·
+  //   manifest.json까지 이 채널에서 열려 가드가 헐거워진다. ☠에셋 디렉터리를 늘리면 ALLOW와 **여기 둘 다** 갱신한다.
+  // ☠`assets.cache.enabled`를 켜지 말 것 — 켜는 순간 정적 에셋 요청까지 표준 요율로 과금된다(공식 pricing 각주).
   "name": "builder-engage",
   "account_id": "0d2796e950b4298cb27c3079d5081eae",
   "main": "./workers/builder.js",
@@ -8,6 +15,16 @@
   "assets": {
     "directory": "./apps/web/dist/client",
     "binding": "ASSETS",
-    "run_worker_first": true
+    "run_worker_first": [
+      "/*",
+      "!/_astro/*",
+      "!/fe17/assets/faces/*",
+      "!/fe17/assets/items/*",
+      "!/fe17/assets/weapontypes/*",
+      "!/fe17/assets/engraves/*",
+      "!/fe17/assets/efficacy/*",
+      "!/fe17/assets/rings/*",
+      "!/fe17/assets/skills/*"
+    ]
   }
 }
