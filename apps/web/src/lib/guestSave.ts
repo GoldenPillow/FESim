@@ -223,9 +223,9 @@ export const savePresetNoticeSeen = (): void => savePref(PRESET_NOTICE_KEY, true
 /** 잠금 스냅샷 — 잠근 순간의 (직업, 내부 레벨, 성옥 체커, 무기)를 박제한다(2026-08-31: 잠김은 당시 값으로 고정). */
 export interface EntryLock {
   pid: string;
-  /** 목표 내부 레벨(0기점). 직업 미선택 잠금은 0(합류 상태라 소비되지 않는다). */
+  /** 목표 내부 레벨(0기점). 합류 하한 미만(구 저장분·리셋의 0)은 표시·편집이 하한으로 올려 읽는다(lockClassOf). */
   internal: number;
-  /** 잠금 당시 직업(jid). 없음 = 직업 미선택(합류 상태) 잠금. */
+  /** 잠금 당시 직업(jid). 없음 = 영입 시점 직업(합류 jid — lockClassOf가 해석, 2026-09-07). */
   jid?: string;
   /** 잠금 당시 성옥의 가호 체커 — 현재 체커와 무관하게 이 값만 반영한다. */
   star?: boolean;

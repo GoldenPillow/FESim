@@ -75,9 +75,15 @@ const withPersonCap = (job: GrowthPathJob, personLimit: StatBlock): GrowthPathJo
   limit: mergeStatCap(job.limit, personLimit),
 });
 
+/** In.Lv 하한(0기점) = clamp(내부 base + 합류 레벨 − 1, 0, 50) — 엔진 growthPath의 joinInternal과 같은 식.
+    ☠식을 복제하지 말 것: 층마다 다르면 한 층은 "In.lv 24", 다른 층은 합류 직업 스탯을 말한다(2026-09-07 시작 레벨 불변). */
+export const joinInternalOf = (c: Pick<BuilderCharProp, "internalOffset" | "joinLevel">): number =>
+  Math.min(Math.max(c.internalOffset + c.joinLevel - 1, 0), 50);
+
 /**
  * 한 캐릭터의 표시행 — growthPath 호출 1회.
- * 미선택(job === undefined)과 전용직 불가 행은 **합류 상태**로 낸다(같은 직업·같은 내부 레벨을 목표로 준다).
+ * 미선택(job === undefined)과 전용직 불가·여성 전용 불가 행은 **합류 상태**로 낸다(같은 직업·같은 내부 레벨을 목표로 준다).
+ * 목표 내부는 합류 하한으로 올린다(하한 밑 목표 = 목표 직업 @ 합류 레벨, 2026-09-07).
  */
 export function builderRow(
   char: BuilderCharProp,
@@ -86,12 +92,15 @@ export function builderRow(
   targetInternal: number,
   extraSkills?: readonly SkillRow[],
 ): BuilderRow {
-  const ineligible = job !== undefined && job.uniquePid !== undefined && job.uniquePid !== char.pid;
+  const ineligible =
+    job !== undefined &&
+    ((job.uniquePid !== undefined && job.uniquePid !== char.pid) || (job.female === true && char.female !== true));
   const asJoined = job === undefined || ineligible;
   const join = withPersonCap(joinJob, char.personLimit);
   const target = asJoined ? join : withPersonCap(job, char.personLimit);
-  // 합류 내부(0기점) = base + 레벨 − 1 — growthPath의 산식과 같은 값을 목표로 줘야 "합류 상태"가 된다.
-  const goal = asJoined ? char.internalOffset + char.joinLevel - 1 : targetInternal;
+  // 합류 상태 = 목표를 하한에 둔다(growthPath의 joinInternal과 같은 값 = 성장 0회).
+  const floor = joinInternalOf(char);
+  const goal = asJoined ? floor : Math.max(targetInternal, floor);
   const path = growthPath({
     joinJob: join,
     targetJob: target,
@@ -122,7 +131,8 @@ export function builderRow(
     name: char.name,
     ...(char.face !== undefined ? { face: char.face } : {}),
     internal: path.internal,
-    projected: !asJoined && path.promoted,
+    // 합류 직업 자체가 목표면 승급이 필요 없다 — 리셋 상태(영입 시점 @ 시작 레벨)를 "미적용"으로 위장하지 않는다.
+    projected: job !== undefined && !ineligible && (path.promoted || job.jid === char.joinJid),
     ineligible,
     cells,
   };
@@ -170,7 +180,7 @@ export function builderRowGroups(
  * 표시 순서 — 전용직 가능자가 항상 위, 그 안에서 정렬(미지정이면 입력 순서).
  * 기준은 **첫 직업 라인**(비교 라인은 따라간다). Array.sort는 안정 정렬이라 동값은 합류순을 지킨다.
  */
-/** 카드 개별 클래스·In.Lv(세션) — jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 In.Lv 추종. */
+/** 카드 개별 클래스·In.Lv(세션) — jid 없음 = 글로벌 직업(없으면 영입 시점 직업) · internal 미지정 = 글로벌 In.Lv 추종(직업이 없으면 시작 레벨). */
 export interface CardClass {
   jid?: string;
   internal?: number;
@@ -192,10 +202,16 @@ export function patchCardClass(
   return { ...(jid !== undefined ? { jid } : {}), ...(internal !== undefined ? { internal } : {}) };
 }
 
-/** 잠금 카드 리셋(2026-09-05 사용자 지시) — 영입 시점(직업 미선택·내부 0)으로, 장비·반지·계승 스킬 전부 제거.
-    성옥 체커 스냅샷만 남긴다(카드 편집값이 아니라 글로벌 체커의 박제). */
+/** 잠금 카드 리셋(2026-09-05 사용자 지시) — 영입 시점(jid 없음 = 합류 직업 · 내부 0 = 시작 레벨, lockClassOf가 하한으로
+    읽는다)으로, 장비·반지·계승 스킬 전부 제거. 성옥 체커 스냅샷만 남긴다(카드 편집값이 아니라 글로벌 체커의 박제). */
 export function resetEntryLock(e: EntryLock): EntryLock {
   return { pid: e.pid, internal: 0, ...(e.star === true ? { star: true } : {}) };
+}
+
+/** 잠금 스냅샷의 실효 (직업, 내부) — jid 없음 = 영입 시점 직업, 내부는 합류 하한으로 올려 읽는다(구 저장분 `internal 0`
+    = 시작 레벨). 표시(lockedDisplayRows)·편집(patchLockClass)이 같은 답변자를 쓴다(2026-09-07). */
+export function lockClassOf(e: EntryLock, c: BuilderCharProp): { jid: string; internal: number } {
+  return { jid: e.jid ?? c.joinJid, internal: Math.max(e.internal, joinInternalOf(c)) };
 }
 
 /** `${pid}:${li}` 키 맵(카드 개인 장비 오버라이드)에서 그 카드 것만 걷는다 — 잠금·리셋·글로벌 추종 복귀 공용. */
@@ -323,8 +339,8 @@ export interface LockedDisplay {
 
 /**
  * 잠금 스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 (직업, 내부 레벨, 성옥, 무기)만 소비한다("고정"의 실체).
- * 로스터에 없는 pid(스포일러 숨김·이물 저장값)는 건너뛰고, 사라진 jid는 합류 상태로 강하한다
- * (괄호·흐림 표시가 강하를 드러낸다 — 조용히 다른 직업 수치를 파는 것보다 낫다).
+ * jid 없음 = 영입 시점 직업(lockClassOf). 로스터에 없는 pid(스포일러 숨김·이물 저장값)는 건너뛰고, 사라진 jid는
+ * 합류 상태로 강하한다(괄호·흐림 표시가 강하를 드러낸다 — 조용히 다른 직업 수치를 파는 것보다 낫다).
  */
 export function lockedDisplayRows(
   props: Pick<BuilderProps, "chars" | "joinJobs">,
@@ -341,9 +357,10 @@ export function lockedDisplayRows(
     if (char === undefined) continue;
     const joinJob = props.joinJobs[char.joinJid];
     if (joinJob === undefined) continue;
-    const job = entry.jid === undefined ? undefined : jobs.find((j) => j.jid === entry.jid);
+    const cls = lockClassOf(entry, char);
+    const job = jobs.find((j) => j.jid === cls.jid);
     const extra = entry.star === true && starsphere !== undefined ? [starsphere] : undefined;
-    const row = builderRow(char, joinJob, job, entry.internal, extra);
+    const row = builderRow(char, joinJob, job, cls.internal, extra);
     const weapon = entry.iid === undefined ? undefined : weapons.find((w) => w.iid === entry.iid);
     // 각인도 무기처럼 강하 — 목록 밖 gid(체커 숨김·이물)는 무각인으로(괄호 표시는 없지만 값 오염보다 낫다).
     // ☠반지(gid·bond)는 여기서 합산하지 않는다 — 본스탯 행은 순수값, 최종스탯은 반지 행이 소유
@@ -606,8 +623,8 @@ export interface ExportRow {
   face?: string;
   /** 스냅샷 직업명 — 없음 = 직업 미선택(합류 상태). */
   job?: string;
-  /** 표시 내부 레벨(1기점). ☠**잠금 스냅샷의 목표값**이다 — 표의 클래스 행(`(lockEntry.internal ?? 0) + 1`)과
-      같은 소스여야 한다. `BuilderRow.internal`(도달값)을 쓰면 합류 상태 행에서 표는 40, 산출물은 16을 말한다. */
+  /** 표시 내부 레벨(1기점) = 도달값 `row.internal + 1` — 표의 카드 In.Lv와 같은 소스. 하한 통일(2026-09-07) 뒤
+      도달값 = max(선택, 합류)라 선택값과 어긋나지 않는다(그 전엔 합류 상태 행에서 표 40 / 산출 16이 갈렸다). */
   internal: number;
   /** 전용직 대상 밖 — 합류 상태 값이라는 표식. */
   ineligible: boolean;
@@ -697,7 +714,7 @@ export function entryExportRows(
       name: row.name,
       ...(row.face !== undefined ? { face: row.face } : {}),
       ...(job !== undefined ? { job: job.name } : {}),
-      internal: (entry?.internal ?? row.internal) + 1,
+      internal: row.internal + 1,
       ineligible: row.ineligible,
       stats,
       combat,

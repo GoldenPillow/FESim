@@ -16,6 +16,8 @@ import {
   entryExportRows,
   fmtCombat,
   inheritOptions,
+  joinInternalOf,
+  lockClassOf,
   lockedDisplayRows,
   moveLock,
   nextSort,
@@ -70,6 +72,9 @@ const HIGH: BuilderJobProp = {
   weaponRanks: {},
 };
 
+/** 기본직을 목표 직업으로 — 합류 직업이 목록에 실재할 때(2026-09-07 기본직 포함)의 해석을 박제한다. */
+const LOW_JOB: BuilderJobProp = { ...LOW, jid: "JID_low", name: "기본직" };
+
 const char = (pid: string, over: Partial<BuilderCharProp> = {}): BuilderCharProp => ({
   pid,
   name: pid,
@@ -108,11 +113,22 @@ describe("표시치 — 정수 스탯 + 누적기/100", () => {
     expect(row?.cells.str.text).toBe("13.4");
   });
 
-  it("합류 내부 레벨이 목표보다 높으면 합류 상태 그대로(강등 없음)", () => {
-    const late = char("late", { internalOffset: 20, joinLevel: 5 });
-    const [row] = builderRows(propsOf([late]), HIGH, 10);
-    expect(row?.internal).toBe(24); // 20 + 5 - 1
-    expect(row?.projected).toBe(false);
+  /**
+   * 왜 위험한가: 시작 레벨은 시스템상 불변이다(2026-09-07 사용자). 카드 목록은 하한 밑을 못 내지만 글로벌 In.Lv는
+   * 모든 카드에 한 값으로 들어온다 — 하한을 여기서 안 올리면 카드는 "세이지 In.lv 24"를 말하고 스탯은 합류 직업값을
+   * 말한다(표시 ≠ 산출, 오류 없음 = 조용한 실패). 하한 통일 = 목표 직업 @ 합류 레벨.
+   */
+  it("목표가 합류 내부 레벨보다 낮으면 하한으로 올려 목표 직업을 적용한다(강등 없음·강등 위장도 없음)", () => {
+    // 상급직으로 늦게 합류(모브형) — 전직 게이트(기본직 Lv10)와 무관하게 하한에서 바로 목표 직업이 선다.
+    const late = char("late", { internalOffset: 20, joinLevel: 5, joinJid: "JID_adv" });
+    const props = { chars: [late], joinJobs: { JID_adv: { ...HIGH, base: block({ hp: 22, str: 6 }) } } };
+    const [row] = builderRows(props, HIGH, 10);
+    expect(row?.internal).toBe(24); // 20 + 5 - 1 = joinInternalOf
+    expect(row?.projected).toBe(true);
+    // 목표 직업 base(24) + 합류 그릇 — 레벨업 0회. 합류 직업 base(22)가 아니다.
+    expect(row?.cells.hp.value).toBeGreaterThanOrEqual(24);
+    const [same] = builderRows(props, HIGH, 24);
+    expect(row?.cells.hp.text).toBe(same?.cells.hp.text);
   });
 });
 
@@ -183,8 +199,8 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     expect(out.map((g) => g.ghost)).toEqual([false, true, false]);
   });
 
-  it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다", () => {
-    const rows = lockedDisplayRows(propsOf(roster), [HIGH], [
+  it("스냅샷 표시행 — 잠근 순서 그대로, 잠금 당시 직업·레벨을 박제한다 · jid 없음 = 영입 시점 직업", () => {
+    const rows = lockedDisplayRows(propsOf(roster), [LOW_JOB, HIGH], [
       { pid: "c", internal: 11, jid: "JID_high" },
       { pid: "a", internal: 0 },
     ]);
@@ -192,8 +208,11 @@ describe("잠금 — 엔트리 스냅샷 (waitingRowGroups·lockedDisplayRows)",
     expect(rows[0]!.job?.name).toBe("상급직");
     expect(rows[0]!.row.projected).toBe(true);
     expect(rows[0]!.row.internal).toBe(11);
-    expect(rows[1]!.job).toBeUndefined(); // 직업 미선택 잠금 = 합류 상태
-    expect(rows[1]!.row.projected).toBe(false);
+    // 구 저장분(jid 없음·internal 0)은 합류 직업 @ 시작 레벨로 읽힌다 — "직업 미선택"은 더 이상 카드 상태가 아니다(2026-09-07).
+    expect(rows[1]!.job?.jid).toBe("JID_low");
+    expect(rows[1]!.row.projected).toBe(true);
+    expect(rows[1]!.row.internal).toBe(0);
+    expect(rows[1]!.row.cells.hp.text).toBe("20.6"); // 합류 시점 값 그대로
   });
 
   it("로스터에 없는 pid는 건너뛰고, 사라진 jid는 합류 상태로 강하한다", () => {
@@ -272,6 +291,60 @@ describe("잠금 재정렬 (moveLock)", () => {
     expect(moveLock(locked, 0, 2).map((e) => e.pid)).toEqual(["b", "c", "a"]);
     expect(moveLock(locked, 2, 0).map((e) => e.pid)).toEqual(["c", "a", "b"]);
     expect(locked.map((e) => e.pid)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("In.Lv 하한 = 합류 내부 레벨 (joinInternalOf·lockClassOf, 2026-09-07)", () => {
+  /**
+   * 왜 위험한가: 디폴트 클래스와 시작 레벨은 시스템상 불변이다. 하한이 층마다 다르게 계산되면(엔진 clamp vs 표시 ±1)
+   * 한 층은 "In.lv 24", 다른 층은 합류 직업 스탯을 말한다. 식은 엔진 growthPath의 joinInternal과 같아야 한다.
+   */
+  it("joinInternalOf = clamp(offset + 합류 레벨 − 1, 0, 50) — 0기점", () => {
+    expect(joinInternalOf(char("a"))).toBe(0);
+    expect(joinInternalOf(char("late", { internalOffset: 20, joinLevel: 5 }))).toBe(24);
+    expect(joinInternalOf(char("neg", { internalOffset: 0, joinLevel: 0 }))).toBe(0);
+    expect(joinInternalOf(char("cap", { internalOffset: 40, joinLevel: 20 }))).toBe(50);
+  });
+
+  it("lockClassOf — jid 없음은 합류 직업, 하한 미만 internal은 하한으로, 명시값은 유지", () => {
+    const late = char("late", { internalOffset: 20, joinLevel: 5 });
+    expect(lockClassOf({ pid: "late", internal: 0 }, late)).toEqual({ jid: "JID_low", internal: 24 });
+    expect(lockClassOf({ pid: "late", internal: 10, jid: "JID_high" }, late)).toEqual({ jid: "JID_high", internal: 24 });
+    expect(lockClassOf({ pid: "late", internal: 30, jid: "JID_high" }, late)).toEqual({ jid: "JID_high", internal: 30 });
+  });
+
+  /**
+   * 왜 위험한가: 카드의 In.Lv 표시와 산출물(공유)의 In.Lv는 같은 소스(row.internal + 1)를 읽는다. 그 값이
+   * max(선택, 하한)이라는 불변식이 깨지면 카드가 고른 숫자와 표가 말하는 숫자가 갈린다.
+   */
+  it("도달 내부 = max(선택, 하한) — 미만·같음·초과 3점", () => {
+    const late = char("late", { internalOffset: 20, joinLevel: 5 });
+    for (const [target, want] of [[10, 24], [24, 24], [30, 30]] as const) {
+      const [row] = builderRows(propsOf([late]), HIGH, target);
+      expect(row?.internal).toBe(want);
+    }
+  });
+
+  it("합류 직업 자체가 목표면 승급 없이도 projected(합류 상태 위장이 아니다)", () => {
+    const [row] = builderRows(propsOf([char("a")]), LOW_JOB, 0);
+    expect(row?.projected).toBe(true);
+    expect(row?.cells.hp.text).toBe("20.6");
+    const [grown] = builderRows(propsOf([char("a")]), LOW_JOB, 5);
+    expect(grown?.internal).toBe(5);
+    expect(grown?.projected).toBe(true);
+  });
+
+  /**
+   * 왜 위험한가: 페가수스 기본직은 여성 전용(job Flag 비트 4)이다. 게이트 없이 목록에 넣으면 남성 카드가
+   * 페가수스 수치를 "가능한 빌드"로 판다 — 전용직 불가 행과 같은 처우(합류 상태 + 표식).
+   */
+  it("여성 전용 직업 — 남성 카드는 ineligible(합류 상태), 여성 카드는 적용", () => {
+    const PEG: BuilderJobProp = { ...HIGH, jid: "JID_peg", female: true };
+    const rows = builderRowGroups(propsOf([char("m"), char("f", { female: true })]), [{ job: PEG, internal: 11 }]).map((g) => g[0]!);
+    expect(rows[0]?.ineligible).toBe(true);
+    expect(rows[0]?.internal).toBe(0);
+    expect(rows[1]?.ineligible).toBe(false);
+    expect(rows[1]?.internal).toBe(11);
   });
 });
 

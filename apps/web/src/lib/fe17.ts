@@ -1854,6 +1854,8 @@ export interface BuilderCharProp {
   spoiler?: true;
   /** DLC 사룡의 장 5인 — DLC 체커 소관(스포일러와 분리, 2026-08-31 사용자 지시). */
   dlc?: true;
+  /** person.Gender === 2 — 여성 전용 직업 게이트 입력(2026-09-07). */
+  female?: true;
   /** 합류 초기 무기(chart.xml 加入 로드아웃의 첫 공격 무기). 카드 기본값 소비는 2026-09-04 철회
       (기본 = 미장착) — 사영만 유지, 현재 빌더 미소비. chart에 없는 DLC 5인 등은 없음. */
   joinIid?: string;
@@ -1875,6 +1877,8 @@ export interface BuilderJobProp extends GrowthPathJob {
   name: string;
   /** 전용직의 가능 캐릭터(정확히 1명 — Q3: 가능자 상단 표시) — 범용은 undefined. */
   uniquePid?: string;
+  /** 여성 전용(job Flag 비트 4 — 페가수스 기본직 3종). 실데이터 귀납(그 직업 유닛 전원 Gender 2), il2cpp 미판독(2026-09-07). */
+  female?: true;
   /** 착용 가능 무기군 → 최대 랭크(job Weapon*=1 && MaxWeaponLevel* != N). 키 = Kind(지팡이 7 포함). */
   weaponRanks: Record<number, string>;
 }
@@ -2390,6 +2394,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       ...(workSkills.length > 0 ? { workSkills } : {}),
       ...(SPOILER_PIDS.has(pid) ? { spoiler: true as const } : {}),
       ...(DLC_PIDS.has(pid) ? { dlc: true as const } : {}),
+      ...(Number(person["Gender"] ?? 0) === 2 ? { female: true as const } : {}),
       ...(() => {
         const iid = (joinItems[pid] ?? []).find((i) => weaponIids.has(i));
         return iid !== undefined ? { joinIid: iid } : {};
@@ -2430,13 +2435,15 @@ export function builderPropsFor(locale: Locale): BuilderProps {
     // 특수직(시프·댄서·사룡 계열) = Rank 0 + MaxLevel 40 시그니처 — 승급망 밖이라 랭크 1 필터가
     // 놓친다(2026-08-31 사용자 지적). 전직 게이트는 엔진 growthPath가 랭크 무관으로 이미 다룬다.
     const special = rank === 0 && Number(r["MaxLevel"] ?? 0) === 40;
-    if (rank !== 1 && !special) continue;
+    // 기본직(Rank 0 + MaxLevel 20)도 선다(2026-09-07: 리셋 = 영입 시점 직업이라 합류 직업이 실재 옵션이어야 한다).
+    const base = rank === 0 && Number(r["MaxLevel"] ?? 0) === 20;
+    if (rank !== 1 && !special && !base) continue;
     const flag = Number(r["Flag"] ?? 0);
     const low = reachedBy.get(jid);
-    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌·시프 포함) · 전용 = Flag 1 + 가능자
-    // (승급망 기본직 합류 || 그 직업 직접 합류 — 댄서=세아다스, 사룡 계열) · Flag 0 = 적 전용 변형.
+    // 범용 = Flag 11(승급망 밖 인챈트·메이지캐넌·시프 포함) · Flag 15 = 범용 + 여성 전용(페가수스 기본직) ·
+    // 전용 = Flag 1 + 가능자(승급망 기본직 합류 || 그 직업 직접 합류 — 댄서=세아다스, 사룡 계열, 왕족 하급) · Flag 0 = 적 전용 변형.
     const uniquePid = flag === 1 ? chars.find((c) => c.joinJid === low || c.joinJid === jid)?.pid : undefined;
-    if (!(flag === 11 || uniquePid !== undefined)) continue;
+    if (!(flag === 11 || flag === 15 || uniquePid !== undefined)) continue;
     const path = pathJobOf(jid);
     if (path === undefined) continue;
     targetJobs.push({
@@ -2444,6 +2451,7 @@ export function builderPropsFor(locale: Locale): BuilderProps {
       name: label(locale, String(r["Name"])) ?? jid,
       ...path,
       ...(uniquePid !== undefined ? { uniquePid } : {}),
+      ...((flag & 4) !== 0 ? { female: true as const } : {}),
       weaponRanks: jobWeaponRanks(r),
       sort: Number(r["Sort"] ?? 0),
     });

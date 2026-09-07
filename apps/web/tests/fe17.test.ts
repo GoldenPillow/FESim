@@ -1012,6 +1012,9 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     for (const c of props.chars) {
       expect(c.name).not.toMatch(/^PID_/);
       expect(props.joinJobs[c.joinJid]).toBeDefined();
+      // 영입 시점 직업은 카드 목록의 실재 옵션이어야 한다(2026-09-07: 리셋 = 합류 직업 @ 시작 레벨) — 빠지면 그 카드는
+      // "직업 없음"으로 조용히 강하한다.
+      expect(props.targetJobs.some((j) => j.jid === c.joinJid), `${c.pid} ${c.joinJid}`).toBe(true);
     }
     // 얼굴 전원 보유 — 라팔 결손은 베이크 필터(챕터 출현 유닛 한정)가 원인이었고
     // bake_roster_faces 보강으로 해소됐다(스프라이트 Rafale는 번들에 실재). 재발 = 파이프라인 회귀.
@@ -1024,17 +1027,22 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(props.chars.filter((c) => c.workSkills !== undefined)).toHaveLength(1);
   });
 
-  it("직업 드롭다운 = 범용 21 + 전용 14 (인챈트·메이지캐넌·특수직 시프 + 전용 특수직 5 포함, 2026-08-31)", () => {
-    expect(props.targetJobs).toHaveLength(35);
+  it("직업 드롭다운 = 범용 36 + 전용 23 (상급 21+14 · 기본직 12+페가수스 3+왕족 하급 9, 2026-09-07 기본직 포함)", () => {
+    expect(props.targetJobs).toHaveLength(59);
     const jids = props.targetJobs.map((j) => j.jid);
     expect(jids).toContain("JID_セイジ");
     expect(jids).toContain("JID_エンチャント");
     expect(jids).toContain("JID_マージカノン");
+    expect(jids).toContain("JID_ソードファイター");
+    expect(jids).not.toContain("JID_不明"); // Flag 0 = 적·더미는 계속 밖
     const dragonKing = props.targetJobs.find((j) => j.jid === "JID_神竜ノ王")!;
     expect(dragonKing.uniquePid).toBe("PID_リュール");
     expect(dragonKing.name).toBe("신룡의 왕");
     const uniques = props.targetJobs.filter((j) => j.uniquePid !== undefined);
-    expect(uniques).toHaveLength(14);
+    expect(uniques).toHaveLength(23);
+    // 왕족 하급 = 그 직업으로 합류하는 왕족이 가능자.
+    expect(props.targetJobs.find((j) => j.jid === "JID_アヴニール下級")?.uniquePid).toBe("PID_アルフレッド");
+    expect(props.targetJobs.find((j) => j.jid === "JID_神竜ノ子")?.uniquePid).toBe("PID_リュール");
     const sage = props.targetJobs.find((j) => j.jid === "JID_セイジ")!;
     expect(sage.uniquePid).toBeUndefined();
     expect(sage.name).toBe("세이지"); // 헤더 성장률 행 직업명의 데이터 정본(로케일명)
@@ -1244,5 +1252,19 @@ describe("builderPropsFor.targetJobs — 특수직(2026-08-31)", () => {
     // 사룡 계열 전용(베일·DLC)도 가능자 판정으로 선다 — 적 변형(Flag 0)은 계속 밖.
     expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘")).toBe(true);
     expect(targetJobs.some((j) => j.jid === "JID_邪竜ノ娘_敵")).toBe(false);
+  });
+
+  /**
+   * 왜 위험한가: 페가수스 기본직 3종은 Flag 15(11 + 비트 4)라 "Flag 11 = 범용" 필터가 떨어뜨린다 — 클로에의 합류
+   * 직업이 목록에서 사라진다. 비트 4는 여성 전용(실데이터 귀납: 그 직업 유닛 전원 Gender 2)으로 사영해 남성 카드를 막는다.
+   */
+  it("페가수스 기본직 = 범용 + 여성 전용 표식, 상급 비행직은 표식 없음 · 캐릭터 female = Gender 2", () => {
+    const { targetJobs, chars } = builderPropsFor("ko");
+    const peg = targetJobs.find((j) => j.jid === "JID_ランスペガサス");
+    expect(peg?.uniquePid).toBeUndefined();
+    expect(peg?.female).toBe(true);
+    expect(targetJobs.find((j) => j.jid === "JID_グリフォンナイト")?.female).toBeUndefined();
+    expect(chars.find((c) => c.pid === "PID_クロエ")?.female).toBe(true);
+    expect(chars.find((c) => c.pid === "PID_アルフレッド")?.female).toBeUndefined();
   });
 });

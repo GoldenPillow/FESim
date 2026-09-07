@@ -17,6 +17,7 @@ import {
   fmtCombat,
   fmtStat,
   inheritOptions,
+  joinInternalOf,
   lockedDisplayRows,
   moveLock,
   nextSort,
@@ -354,7 +355,17 @@ const BOND_OPTIONS: EquipOption[] = Array.from({ length: 20 }, (_, i) => ({
 
 /** 카드 개별 In.Lv 드롭다운 옵션 — 상단 글로벌 선택기와 같은 단계, "In.lv" 접두(2026-09-02 사용자 지시 —
     IN.LV 열을 SKILL 열로 넘기면서 카드가 내부 레벨 표기를 단독으로 맡는다). */
-const INLV_OPTIONS: EquipOption[] = INTERNAL_LEVELS.map((n) => ({ value: String(n), label: `In.lv ${n}` }));
+/** 카드 In.Lv 후보 — 하한(합류 내부 + 1)부터 50까지(2026-09-07: 시작 레벨 불변, 그 밑은 목록에서 뺀다). 하한별 캐시. */
+const inlvOptionsCache = new Map<number, EquipOption[]>();
+const inlvOptionsFrom = (min: number): EquipOption[] => {
+  const lo = Math.min(Math.max(min, 1), 50);
+  let out = inlvOptionsCache.get(lo);
+  if (out === undefined) {
+    out = Array.from({ length: 51 - lo }, (_, i) => ({ value: String(lo + i), label: `In.lv ${lo + i}` }));
+    inlvOptionsCache.set(lo, out);
+  }
+  return out;
+};
 
 /** 모든 무기군 적성 비트(Sword 2 … Special 512) — 글로벌 슬롯 장비는 캐릭터 미정이라 최대 허용으로 두고,
     카드 단계(cardEquip)에서 캐릭터 고유 적성으로 재게이트한다. */
@@ -1527,7 +1538,7 @@ export default function BuilderIsland({
       잠금 순간 스냅샷으로 이관되고 해제 시 되돌아온다(잠금 중 정본 = EntryLock.gid/bond). */
   const [rings, setRings] = useState<Record<string, { gid: string; bond: number }>>({});
   /** 카드 개별 클래스·내부 레벨(2026-08-31: 포트레이트 아래 드롭다운) — 라인 0(메인 슬롯)을 대체.
-      세션 상태. jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 추종. */
+      세션 상태. jid 없음 = 글로벌 직업(없으면 영입 시점 직업) · internal 미지정 = 글로벌 추종(직업이 없으면 시작 레벨). */
   const [cardClass, setCardClass] = useState<Record<string, CardClass>>({});
   /** 문장사 레벨 상세 팝업이 열린 카드 pid(세로폰 폴딩 전용 — 데스크톱은 인연 드롭다운이 상세를 겸한다). */
   const [emblemOpen, setEmblemOpen] = useState<string | null>(null);
@@ -1591,7 +1602,7 @@ export default function BuilderIsland({
     snapshotFlip();
     let next: EntryLock[];
     if (on) {
-      // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 직업 미선택이면 합류 상태 잠금.
+      // 고유 성장 라인(li = -1)에서 잠그면 메인 슬롯 기준. 글로벌 직업이 없으면 영입 시점 직업 @ 시작 레벨 잠금.
       // 라인 0은 카드 개별 클래스(cardClass)가 글로벌을 대체한다(2026-08-31).
       const c = cardCompareOf(pid, li >= 0 ? li : 0);
       const eq = cardEquip(pid, li >= 0 ? li : 0);
@@ -1964,7 +1975,7 @@ export default function BuilderIsland({
     setRings(({ [pid]: _r, ...rest }) => rest);
     setInherits(({ [pid]: _i, ...rest }) => rest);
   };
-  /** 잠금 카드 리셋 — 영입 시점(직업 미선택)으로, 장비·반지·계승 스킬 제거. 즉시 저장(잠금 편집 규약). */
+  /** 잠금 카드 리셋 — 영입 시점(합류 직업 @ 시작 레벨)으로, 장비·반지·계승 스킬 제거. 즉시 저장(잠금 편집 규약). */
   const resetLock = (pid: string): void => {
     const next = locked.map((e) => (e.pid === pid ? resetEntryLock(e) : e));
     setLocked(next);
@@ -2002,14 +2013,24 @@ export default function BuilderIsland({
   const charPropByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c])), [chars]);
   const aptitudeOf = (pid: string): number => charPropByPid.get(pid)?.aptitude ?? 0;
 
-  /** 라인 li의 실효 (직업, 내부 레벨) — 라인 0은 카드 개별 편집(cardClass)이 글로벌 슬롯을 대체한다. */
-  const cardCompareOf = (pid: string, li: number): BuilderCompare | undefined => {
+  /** 라인 li의 실효 (직업, 내부 레벨) — 라인 0은 카드 개별 편집(cardClass)이 글로벌 슬롯을 대체한다.
+      해석 = 카드 jid → 글로벌 jid → 합류 jid(영입 시점 직업, 2026-09-07). In.Lv = 카드 값 → (직업이 골라져 있으면) 글로벌
+      → 시작 레벨. 결과는 합류 하한으로 클램프. plain = 카드 개별값 무시(유령 카드 = 글로벌 세팅만). */
+  const cardCompareOf = (pid: string, li: number, plain = false): BuilderCompare | undefined => {
     if (li !== 0) return compares[li];
-    const ov = cardClass[pid];
-    if (ov === undefined) return compares[0];
-    const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
-    if (job === undefined) return undefined; // 직업 미선택 = 합류 상태(장비 게이트도 직업 없음).
-    return { job, internal: (ov.internal ?? internal) - 1 };
+    const c = charPropByPid.get(pid);
+    const ov = plain ? undefined : cardClass[pid];
+    const jid = ov?.jid ?? compares[0]?.job.jid ?? c?.joinJid;
+    const job = jid === undefined ? undefined : jobByJid.get(jid);
+    if (job === undefined) return undefined; // 목록 밖 합류 직업(이물 데이터) — 장비 게이트도 직업 없음.
+    const floor = c === undefined ? 0 : joinInternalOf(c);
+    const picked = ov?.internal ?? (ov?.jid !== undefined || compares[0] !== undefined ? internal : floor + 1);
+    return { job, internal: Math.max(picked - 1, floor) };
+  };
+  /** 카드 In.Lv 목록의 첫 항목(1기점) = 합류 내부 + 1. */
+  const inlvMinOf = (pid: string): number => {
+    const c = charPropByPid.get(pid);
+    return c === undefined ? 1 : joinInternalOf(c) + 1;
   };
 
   const compares: (BuilderCompare & { slot: number })[] = useMemo(
@@ -2097,14 +2118,12 @@ export default function BuilderIsland({
     const lockByPid = new Map(locked.map((e) => [e.pid, e]));
     const personalized = base.map((g) => {
       const pid = g[0]!.pid;
-      const ov = cardClass[pid];
-      if (ov === undefined || lockByPid.has(pid)) return g;
+      if (cardClass[pid] === undefined || lockByPid.has(pid)) return g;
       const char = charByPid.get(pid);
       const joinJob = char === undefined ? undefined : joinJobs[char.joinJid];
       if (char === undefined || joinJob === undefined) return g;
-      const job = ov.jid === undefined ? undefined : jobByJid.get(ov.jid);
-      const target = job === undefined ? 0 : (ov.internal ?? internal) - 1;
-      return [builderRow(char, joinJob, job, target, extraSkills), ...g.slice(1)];
+      const cmp = cardCompareOf(pid, 0);
+      return [builderRow(char, joinJob, cmp?.job, cmp?.internal ?? 0, extraSkills), ...g.slice(1)];
     });
     const boosted = personalized.map((g) => {
       const pid = g[0]!.pid;
@@ -2279,18 +2298,28 @@ export default function BuilderIsland({
     setCardClass((prev) => ({ ...prev, [pid]: patchCardClass(prev[pid], compares[0]?.job.jid, patch) }));
 
   /** 잠금 카드 클래스·In.Lv 변경 — 스냅샷 직접 갱신·즉시 저장. 새 직업이 못 드는 무기는
-      명시적으로 미착용 복귀(강화·각인 동반 제거 — 2026-08-31 "되돌린다"). */
+      명시적으로 미착용 복귀(강화·각인 동반 제거 — 2026-08-31 "되돌린다"). 내부는 합류 하한 밑으로 안 내려간다(2026-09-07). */
   const patchLockClass = (pid: string, patch: { jid?: string; internal?: number }): void => {
+    const c = charPropByPid.get(pid);
+    const floor = c === undefined ? 0 : joinInternalOf(c);
     const next = locked.map((e) => {
       if (e.pid !== pid) return e;
       let out: EntryLock = { ...e };
       if (patch.jid !== undefined) {
-        const { jid: _j, ...rest } = out;
-        // 미선택(내부 0) 잠금에서 클래스를 고르면 글로벌 In.Lv를 기본으로(대기 카드와 같은 추종).
-        out = patch.jid === "" ? { ...rest, internal: 0 } : { ...rest, jid: patch.jid, internal: out.internal || internal - 1 };
+        // 시작 레벨(하한) 상태에서 클래스를 고르면 글로벌 In.Lv를 기본으로(대기 카드와 같은 추종) — 그 위는 유지.
+        const atStart = out.internal <= floor;
+        out = { ...out, jid: patch.jid, internal: atStart ? Math.max(internal - 1, floor) : out.internal };
       }
-      if (patch.internal !== undefined) out = { ...out, internal: patch.internal - 1 };
-      const job = out.jid === undefined ? undefined : jobByJid.get(out.jid);
+      // In.Lv만 고쳐도 jid를 박는다(영입 시점 직업을 자기서술로 — 무기 게이트가 합류 직업으로 판정).
+      if (patch.internal !== undefined) {
+        out = {
+          ...out,
+          ...(out.jid === undefined && c !== undefined ? { jid: c.joinJid } : {}),
+          internal: Math.max(patch.internal - 1, floor),
+        };
+      }
+      const jid = out.jid ?? c?.joinJid;
+      const job = jid === undefined ? undefined : jobByJid.get(jid);
       const weapon = out.iid === undefined ? undefined : weapons.find((w) => w.iid === out.iid);
       if (weapon !== undefined && (job === undefined || !canEquip(job, weapon, aptitudeOf(pid)))) {
         const { iid: _i, plus: _p, engrave: _g, ...bare } = out;
@@ -2304,16 +2333,17 @@ export default function BuilderIsland({
   // 고유 성장 라인의 데이터 — 행(BuilderRow)은 계산 결과만 들므로 pid로 원본 개인 성장률을 찾는다.
   const growthByPid = useMemo(() => new Map(chars.map((c) => [c.pid, c.personGrowth])), [chars]);
 
-  /** 클래스 드롭다운 옵션 — 미선택 + 전 목표 직업. 전용직(uniquePid)은 가능자 외 회색 비활성
+  /** 클래스 드롭다운 옵션 — 전 목표 직업(기본직 포함, 2026-09-07: "직업 미선택"은 카드 상태가 아니다 — 리셋 = 영입 시점 직업).
+      전용직(uniquePid)은 가능자 외, 여성 전용(female)은 남성 카드에서 회색 비활성
       (2026-09-01 사용자 지시: 댄서 = 세아다스 외 사용 불가 — 클릭 무반응, disabled 옵션 규약). */
-  const classOptionsFor = (pid: string): EquipOption[] => [
-    { value: "", label: labels.jobNone },
-    ...visibleTargetJobs.map((j) => ({
+  const classOptionsFor = (pid: string): EquipOption[] => {
+    const female = charPropByPid.get(pid)?.female === true;
+    return visibleTargetJobs.map((j) => ({
       value: j.jid,
       label: j.name,
-      ...(j.uniquePid !== undefined && j.uniquePid !== pid ? { disabled: true as const } : {}),
-    })),
-  ];
+      ...((j.uniquePid !== undefined && j.uniquePid !== pid) || (j.female === true && !female) ? { disabled: true as const } : {}),
+    }));
+  };
 
   /** 카드 클래스·In.Lv 드롭다운 행 — 카드(이름 포함) 열 전체 폭에 [클래스 flex-1(긴 직업명 여유)]
       [In.Lv 38px]. 카드 th 하단 절대배치 = 우측 반지 행 드롭다운들과 같은 밴드·h-7·하단 정렬
@@ -2352,7 +2382,7 @@ export default function BuilderIsland({
       <EquipDropdown
         ariaLabel={labels.internal}
         value={String(internalDisplay)}
-        options={INLV_OPTIONS}
+        options={inlvOptionsFrom(inlvMinOf(pid))}
         onChange={(v) => onPatch({ internal: Number(v) })}
         onOpenChange={(o) => setClassDrop(o ? pid : null)}
         labels={labels}
@@ -3090,9 +3120,9 @@ export default function BuilderIsland({
                 {/* 스냅샷 클래스·In.Lv 드롭다운(2026-08-31 개별 편집) — 변경 = 즉시 저장·부적합 무기 미착용 복귀. */}
                 {classRowUi(
                   row.pid,
-                  lockEntry?.jid ?? "",
+                  job?.jid ?? "",
                   job?.name,
-                  (lockEntry?.internal ?? 0) + 1,
+                  row.internal + 1,
                   (p) => patchLockClass(row.pid, p),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
@@ -3223,7 +3253,7 @@ export default function BuilderIsland({
             // 유령 카드 = 반지 없음(비교용 기본값 — 잠금 스냅샷의 반지는 엔트리 블록만, 2026-09-02).
             const ringSrc = ghost ? undefined : rings[first.pid];
             /** 라인 li의 실효 비교 — 유령 카드는 카드 개별 클래스를 무시하고 글로벌 슬롯만. */
-            const cmpOf = (li: number): BuilderCompare | undefined => (ghost ? compares[li] : cardCompareOf(first.pid, li));
+            const cmpOf = (li: number): BuilderCompare | undefined => cardCompareOf(first.pid, li, ghost);
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
             const thRaised =
               !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid || skillPop === first.pid);
@@ -3257,9 +3287,9 @@ export default function BuilderIsland({
                 {/* 카드 개별 클래스·In.Lv(2026-08-31) — 포트레이트 아래, 포트레이트 폭 정합. */}
                 {classRowUi(
                   first.pid,
-                  !ghost && cardClass[first.pid] !== undefined ? (cardClass[first.pid]!.jid ?? "") : (compares[0]?.job.jid ?? ""),
+                  cmpOf(0)?.job.jid ?? "",
                   cmpOf(0)?.job.name,
-                  (ghost ? undefined : cardClass[first.pid]?.internal) ?? (compares[0] !== undefined ? compares[0].internal + 1 : internal),
+                  first.internal + 1,
                   (p) => patchCard(first.pid, p),
                 )}
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
