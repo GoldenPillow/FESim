@@ -212,6 +212,7 @@ export interface BuilderLabels {
   aptitude: string;
   /** 네임카드 아랫줄(고유 스킬 칩) 접근성 title. */
   personalSkill: string;
+  jobSkill: string;
   /** 엔트리 프리셋(2026-09-05 사용자 지시) — 상단바 언어 선택 왼쪽 드롭다운. 빌더 화면 한 벌의 저장 슬롯. */
   preset: {
     /** 캐럿 버튼·목록 접근성 라벨. */
@@ -486,6 +487,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownWeapon: "Weapon",
       aptitude: "Weapon proficiency",
       personalSkill: "Personal skill",
+      jobSkill: "Class skill",
       preset: {
         label: "Preset",
         rename: "Rename",
@@ -718,6 +720,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownWeapon: "武器",
       aptitude: "武器適性",
       personalSkill: "個人スキル",
+      jobSkill: "兵種スキル",
       stats: {
         hp: "HP", str: "力", mag: "魔力", dex: "技", spd: "速さ",
         lck: "幸運", def: "守備", res: "魔防", bld: "体格",
@@ -952,6 +955,7 @@ export const UI: Record<Locale, Strings> = {
       breakdownWeapon: "무기",
       aptitude: "무기 적성",
       personalSkill: "고유 스킬",
+      jobSkill: "직업 스킬",
       stats: {
         hp: "HP", str: "힘", mag: "마력", dex: "기술", spd: "속도",
         lck: "행운", def: "수비", res: "마방", bld: "체격",

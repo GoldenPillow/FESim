@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|replay:verify|opening|saves|promote|link:put|perf|size
+# FESim 단일 러너 — ./dev done|gate|check:web|web|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|replay:verify|opening|saves|promote|link:put|perf|size
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -10,7 +10,69 @@ PY="$ROOT/tools/pipeline/.venv/bin/python"
 # 워크스페이스에 고정된 wrangler(어댑터 peer와 같은 버전)를 쓴다 — npx 즉석 다운로드 금지.
 WRANGLER="$ROOT/apps/web/node_modules/.bin/wrangler"
 
+# 로컬 dev 서버 기동/복구 — 정지 → .vite 삭제 → 재기동(첫 기동이 종종 죽어 최대 3회) → 200 확인.
+# ☠vite optimizeDeps.exclude / ssr.* / environments.ssr.* 셋 다 어댑터가 덮어써서 안 먹는다(2026-09-08 실측)
+#   — 근본 차단이 없으므로 복구 절차를 명령으로 박았다.
+web_restart() {
+  pnpm -C apps/web exec astro dev stop >/dev/null 2>&1 || true
+  rm -rf apps/web/node_modules/.vite
+  for _ in 1 2 3; do
+    pnpm -C apps/web exec astro dev --background 2>&1 | tail -1 | grep -q "running at" && break
+  done
+  local code=""
+  for _ in $(seq 45); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4321/ko/fe17/builder)"
+    [ "$code" = "200" ] && break
+    sleep 2
+  done
+  [ "$code" = "200" ] || { echo "== ./dev web: 기동 실패(HTTP $code) — pnpm -C apps/web exec astro dev logs =="; return 1; }
+  # ☠SSR 200만으로는 부족하다 — **클라이언트** 사전번들은 브라우저가 처음 열 때 비로소 돌고,
+  #   그 첫 로드가 최적화와 경합하면 /@id/@astrojs/react/client.js가 404 나면서 아일랜드
+  #   하이드레이션이 통째로 죽는다(증상 = 커스텀 드롭다운이 전부 무반응, 네이티브 select만 동작.
+  #   에러 배너도 없다). 여기서 미리 당겨 최적화를 끝내 둔다(2026-09-08 실측).
+  local cli=""
+  for _ in $(seq 20); do
+    cli="$(curl -s -o /dev/null -w '%{http_code}' 'http://localhost:4321/@id/@astrojs/react/client.js')"
+    [ "$cli" = "200" ] && break
+    sleep 1
+  done
+  [ "$cli" = "200" ] || echo "  ☠ 클라이언트 모듈 예열 실패(HTTP $cli) — 첫 로드에서 하이드레이션이 죽을 수 있다"
+  echo "== ./dev web: http://localhost:4321 (빌더 = /ko/fe17/builder) =="
+}
+
+# 로컬 dev 서버가 떠 있나 — 포트 응답으로 본다(pid 파일보다 정확하다: 죽은 pid가 남는다).
+web_up() { [ -n "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:4321/ 2>/dev/null | grep -E '^[2345]')" ]; }
 check() { pnpm -r --if-present run typecheck; }
+
+# ☠**게이트가 로컬 dev 서버를 깨뜨린다**(2026-09-08 실측). apps/web의 vite 캐시를 지우는 단계가 둘이다:
+#   · astro check(typecheck) → deps_ssr 382 → 2  ⇒ 페이지 전체 500
+#     ("The file does not exist at .vite/deps_ssr/@astrojs_cloudflare_entrypoints_server.js?v=…")
+#   · tools/rulebook/build.mjs → deps(클라이언트) 48 → 2  ⇒ 다음 로드에서 /@id/@astrojs/react/client.js
+#     404 → **아일랜드 하이드레이션이 통째로 죽는다**(커스텀 드롭다운 전부 무반응, 네이티브 select만
+#     동작, 에러 배너 없음 — 코드 결함으로 오진하기 딱 좋다. 실제로 그렇게 보고됐다)
+#   둘 다 자기 Astro/Vite 인스턴스를 띄우면서 node_modules/.vite를 자기 것으로 갈아엎는다.
+#   ⇒ 단계마다 막지 않고 **게이트 전체를 감싸** 끝나면 되살린다.
+run_guarded() {
+  local up=0 rc=0
+  if web_up; then up=1; fi
+  "$@" || rc=$?
+  if [ "$up" = "1" ]; then
+    echo "  · 로컬 dev 서버 vite 캐시가 게이트로 지워졌다 — 되살린다"
+    web_restart || true
+  fi
+  return "$rc"
+}
+
+gate_all() { check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN =="; }
+
+# 웹 작업 내부 루프(2026-09-08 사용자 지시 "fesim과의 분리 중요") — apps/web만 본다.
+# ★핵심 = **로컬 dev 서버를 안 깨뜨린다**: astro check가 아니라 tsc를 쓰고(실측: .vite 무변화),
+#   기보·룰북·doccheck(빌더와 무관한 축, 그중 rulebook이 클라이언트 캐시를 깬다)를 안 돈다.
+#   ⇒ 편집 중에는 이것만, ./dev gate는 커밋 직전 1회. 실측 10.5초(게이트 20.5초 + 서버 복구 15초 대비).
+check_web() {
+  pnpm -C apps/web exec tsc --noEmit && pnpm -C apps/web exec vitest run \
+    && echo "== ./dev check:web: GREEN (dev 서버 무해) =="
+}
 test_all() { pnpm -r --if-present run test; }
 doccheck() { pnpm -C tools/doccheck run test; }
 
@@ -139,13 +201,15 @@ replay_check() {
 }
 
 case "$cmd" in
-  check)    check ;;
+  check)    run_guarded check ;;
+  check:web) check_web ;;
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
-  gate)     check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN ==" ;;
+  gate)     run_guarded gate_all ;;
   done)     shift; publish_done "$@" ;;
   clear-check) clear_report "$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)" ;;
+  web)      shift; web_restart || exit 1 ;;
   fuzz)     shift
             # 속성 테스트 대케이스(무작위 시드) — 소케이스는 done이 상시 돌린다. 실패 시 출력된 seed로 재현.
             RUNS="${1:-2000}"

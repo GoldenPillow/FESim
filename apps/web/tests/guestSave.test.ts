@@ -335,7 +335,8 @@ describe("엔트리 프리셋", () => {
   /** ☠전 필드가 기본값과 달라야 한다 — 기본값으로 채운 픽스처는 파서가 값을 떨어뜨려도 통과한다. */
   const FULL: Required<BuilderSnapshot> = {
     slots: [
-      { jid: "JID_hero", iid: "IID_鉄の剣", plus: 3, engrave: "GID_マルス" },
+      // 글로벌 반지·계승도 슬롯이 소유한다(2026-09-08) — 코덱이 빠지면 프리셋 왕복에서 조용히 증발한다.
+      { jid: "JID_hero", iid: "IID_鉄の剣", plus: 3, engrave: "GID_マルス", gid: "GID_マルス", bond: 14, skills: ["SID_g1", "SID_g2"] },
       { jid: "JID_sage", internal: 22 },
     ],
     internal: 25,

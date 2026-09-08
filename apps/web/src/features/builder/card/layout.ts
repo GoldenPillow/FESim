@@ -365,12 +365,17 @@ export function layoutCard(rows: readonly ExportRow[], opts: CardLayoutOptions, 
       if (h > 0) ry = body + h + ROW_PAD;
     }
 
-    /* ── 2행 = 스탯 · 슬롯[고유 스킬 / 적성] ── */
+    /* ── 2행 = 스탯 · 슬롯[개인 고유 / 직업 고유 / 적성] ── */
     {
       const body = ry;
       let slotH = 0;
       if (row.ownSkill !== undefined) {
         slotH += drawChip(SLOT_X, body, { text: row.ownSkill.name, ...icon(row.ownSkill.icon), fill: C.ink, field: "ownSkill" }, row.pid);
+      }
+      // 직업 고유(兵種) 스킬 — 표의 밴드1 장비 열과 같은 자리(2026-09-08). 기본직은 없어 건너뛴다.
+      if (row.jobSkill !== undefined) {
+        if (slotH > 0) slotH += CHIP_GAP;
+        slotH += drawChip(SLOT_X, body + slotH, { text: row.jobSkill.name, ...icon(row.jobSkill.icon), fill: C.ink, field: "jobSkill" }, row.pid);
       }
       if (row.ranks.length > 0) {
         if (slotH > 0) slotH += CHIP_GAP;

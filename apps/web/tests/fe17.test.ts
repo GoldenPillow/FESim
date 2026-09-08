@@ -1048,6 +1048,24 @@ describe("builderPropsFor — 캐릭터 빌더 사영", () => {
     expect(sage.name).toBe("세이지"); // 헤더 성장률 행 직업명의 데이터 정본(로케일명)
   });
 
+  /**
+   * 왜 위험한가: 직업 고유(兵種) 스킬은 카드 스킬 4슬롯의 2번째다(2026-09-08). 사영이 빠지면
+   * 슬롯이 **전부 빈 칸**으로 보이는데 오류도 경고도 없다 — 기본직이 원래 빈 칸이라 결손이 정상으로
+   * 위장된다. 상급직 하나(있음)와 기본직 하나(없음) 양끝을 박아 그 위장을 깬다.
+   */
+  it("직업 고유 스킬 = job.LearningSkill — 상급직만, 기본직은 없음", () => {
+    const master = props.targetJobs.find((j) => j.jid === "JID_ソードマスター")!;
+    expect(master.jobSkill?.sid).toBe("SID_切り抜け");
+    expect(master.jobSkill?.name).not.toBe("");
+    // 기본직(Rank 0 / MaxLevel 20)은 兵種스킬이 없다 — 빈 슬롯이 정상 표시다.
+    expect(props.targetJobs.find((j) => j.jid === "JID_ソードファイター")!.jobSkill).toBeUndefined();
+    // 합류 직업 단면도 같은 사영을 쓴다(직업 미선택 카드의 폴백 — 적성과 같은 축).
+    const alear = props.chars.find((c) => c.pid === "PID_リュール")!;
+    expect(props.joinJobs[alear.joinJid]!.jobSkill).toBeUndefined();
+    // 목표 직업 59종 중 兵種스킬 보유 35종 — 라벨 없어 탈락하는 것은 0(전수 확인 2026-09-08).
+    expect(props.targetJobs.filter((j) => j.jobSkill !== undefined)).toHaveLength(35);
+  });
+
   it("내부 레벨 base = person → job 폴백 (사용자 앵커: 모브 = 20 + 12 − 1 = 31)", () => {
     const mauvier = props.chars.find((c) => c.pid === "PID_モーヴ")!;
     expect(mauvier.joinLevel).toBe(12);

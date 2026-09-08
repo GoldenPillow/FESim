@@ -12,6 +12,9 @@ import {
   COMBAT_COL,
   COMBAT_KEYS,
   dropCardKeys,
+  dropKey,
+  effectiveRing,
+  effectiveSkills,
   effectiveWeaponRanks,
   entryExportRows,
   fmtCombat,
@@ -48,6 +51,7 @@ import type {
   BuilderJobProp,
   BuilderProps,
   BuilderWeaponProp,
+  EmblemSkillProp,
 } from "../../lib/fe17";
 import {
   dropPreset,
@@ -61,12 +65,18 @@ import {
   writePreset,
   writePresetIndex,
   type BuilderSlot,
+  type CardRing,
   type BuilderSnapshot,
   type EntryLock,
   type PresetIndex,
   type PresetSummary,
 } from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
+
+/** 이 카드가 스킬 설명 팝오버를 들고 있나 — 키는 pid(개인 고유) 또는 `pid:job:라인`(직업 고유).
+    ☠단순 동치 비교로는 직업 고유 팝오버에서 카드 th의 z가 안 올라 목록이 다음 카드에 덮인다. */
+const popOnCard = (pop: string | null, pid: string): boolean =>
+  pop !== null && (pop === pid || pop.startsWith(`${pid}:`));
 
 /**
  * 엔트리 빌더 — "상급직 xN x 전 캐릭터" 비교표(design/avg_stats_builder.md §4).
@@ -901,14 +911,21 @@ interface CombatCellsProps {
   labels: BuilderLabels;
   /** 캐릭터 고유 적성 비트마스크 — 무기 목록의 랭크 게이트(effectiveWeaponRanks) 입력. */
   aptitude: number;
-  /** 스킬 열(skill-col) 셀 — 카드 옆 스킬 3칸의 3번째(계승 2)가 전투력 행에 산다(2026-09-02). */
+  /** 밴드3 스킬 열 셀 = 커스텀 1(호출부가 만든다 — 비교 라인은 빈 칸). */
   lead: React.ReactNode;
+  /** 밴드4 스킬 열 셀 = 커스텀 2(2026-09-08 4슬롯 세로 일렬). */
+  lead2: React.ReactNode;
   /** 계승 스킬 행(엔진 평가용) — 전투 보정(命中値 + 10 등)은 combatOf가 combatEnv(skills)로 건다. */
   skills: readonly SkillRow[];
   /** 카드 장비 변경 — iid/plus/engrave 부분 갱신("" = 해제). undefined 필드는 불변. */
   onEquip: (patch: { iid?: string; plus?: number; engrave?: string }) => void;
   /** 마지막 셀(BLD) 우측 호버 바 — 카드 리셋(2026-09-05). 스탯 행의 잠금 바와 같은 자리. */
   bar?: React.ReactNode;
+  /** 두 행(밴드3·4) 공통 tr 클래스·속성 — 잠금·대기가 다르게 준다(호버·잠금 토글·포커스). */
+  rowClass?: string;
+  rowProps?: React.HTMLAttributes<HTMLTableRowElement>;
+  /** 밴드4 장비 열 — 비교 라인(멀티클래스)의 적성. 단일 라인은 카드 th의 적성 줄이 맡아 undefined다. */
+  apt?: React.ReactNode;
 }
 
 /**
@@ -929,9 +946,13 @@ function CombatCells({
   labels,
   aptitude,
   lead,
+  lead2,
   skills,
   onEquip,
   bar,
+  rowClass = "",
+  rowProps,
+  apt,
 }: CombatCellsProps): React.JSX.Element {
   const bare = combatOf(row);
   const armed = equipped !== undefined ? combatOf(row, equipped) : bare;
@@ -1041,93 +1062,108 @@ function CombatCells({
       </span>
     ) : null;
 
+  /** 실효 무기(강화·각인 반영) — 무게 라벨(밴드3)과 값(밴드4)이 같은 소스를 읽는다. */
+  const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
+
+  /* ── 밴드3 = 슬롯(커스텀2·무기·강화·각인) + 전투력 **라벨** / 밴드4 = 적성 + 전투력 **값**.
+     종전에는 한 셀 안 2단(라벨 20 + 값 20)이었다 — 그 2단을 두 밴드로 펴서 4밴드 격자를 만든다
+     (2026-09-08 사용자 지시). 세로폰 흐름 배치(combat-flow)는 **밴드4**에 산다:
+     ☠잠금 블록 하단 테두리가 `tbody > tr:last-child`라 마지막 행이 폰에서 보여야 한다. */
   return (
     <>
-      {lead}
-      <td className="inlv-col px-[3px] pb-[10px] pt-[3px] text-center align-top">
-        {/* 개인 장비는 좌정렬(2026-08-31 사용자 지시). */}
-        {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
-      </td>
-      {STAT_KEYS.map((key) => {
-        // HP 하단 = 강화·각인 슬롯(빈 칸 활용, 2026-08-31 지시) · RES = 클래스 적성(무기군) 아이콘 ·
-        // BLD = 실효 무기 무게(2026-08-31 배치 지시).
-        if (key === "hp") {
+      <tr className={`combat-slots ${rowClass}`} {...rowProps}>
+        {lead}
+        <td className="inlv-col px-[3px] pb-[3px] pt-[3px] text-left align-middle">
+          {/* 개인 장비는 좌정렬(2026-08-31 사용자 지시). */}
+          {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
+        </td>
+        {STAT_KEYS.map((key) => {
+          // HP 하단 = 강화(+N)·각인 슬롯(2026-08-31 지시) · RES = 빈 칸 · 그 외 = 전투력 라벨 · BLD = 무게 라벨.
+          if (key === "hp") {
+            return (
+              <td key={key} className="combat-grid stat-col min-w-[3.7rem] pl-[3px] pr-1 pb-[3px] pt-[3px] align-middle md:min-w-[5.5rem] md:pr-2">
+                {weapon !== undefined && (
+                  <span className="relative flex items-center justify-start gap-1.5">
+                    {plusChip()}
+                    {engraveChip()}
+                    {specPop}
+                  </span>
+                )}
+              </td>
+            );
+          }
+          if (key === "res") return <td key={key} className="combat-grid stat-col px-1 md:px-2" />;
+          const label =
+            key === "bld" ? (eff !== undefined ? labels.weight : undefined) : COMBAT_COL[key] !== undefined ? labels.combat[COMBAT_COL[key]!] : undefined;
           return (
-            <td key={key} className="combat-grid stat-col min-w-[3.7rem] pl-[3px] pr-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:pr-2">
-              {weapon !== undefined && (
-                <span className="relative flex items-center justify-start gap-1.5">
-                  {plusChip()}
-                  {engraveChip()}
-                  {specPop}
-                </span>
+            <td
+              key={key}
+              className={`combat-grid stat-col${key === "bld" ? " stat-col-last" : ""} min-w-[3.7rem] px-1 pb-[3px] pt-[3px] text-center align-middle md:min-w-[5.5rem] md:px-2`}
+            >
+              {label !== undefined && (
+                <span className="block text-[14px] font-semibold leading-5 text-ink opacity-70">{label}</span>
               )}
             </td>
           );
-        }
-        if (key === "res") {
-          // 클래스 무기군 아이콘은 장비 열 스탯 행(적성 + 실효 랭크)으로 옮겼다(2026-09-02 사용자 지시) — 빈 칸 유지.
-          return <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-[2px] md:px-2" />;
-        }
-        if (key === "bld") {
-          const eff = equipped === undefined ? undefined : weaponAt(equipped.weapon, equipped.plus, equipped.engrave);
-          return (
-            <td key={key} className="combat-grid stat-col stat-col-last relative min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2">
-              {bar}
-              {eff !== undefined && (
-                <>
-                  <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
-                    {labels.weight}
-                  </span>
-                  <span
-                    className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}`}
-                  >
+        })}
+      </tr>
+      <tr className={`combat-values ${rowClass}`} {...rowProps}>
+        {lead2}
+        <td className="inlv-col px-[3px] pb-[10px] pt-0 text-left align-top">{apt}</td>
+        {STAT_KEYS.map((key) => {
+          if (key === "hp" || key === "res") {
+            return <td key={key} className="combat-grid stat-col px-1 pb-[10px] pt-0 md:px-2" />;
+          }
+          if (key === "bld") {
+            return (
+              <td key={key} className="combat-grid stat-col stat-col-last relative min-w-[3.7rem] px-1 pb-[10px] pt-0 text-center align-top md:min-w-[5.5rem] md:px-2">
+                {bar}
+                {eff !== undefined && (
+                  <span className={`block text-[14px] font-bold leading-5 ${spdPenalty(row, equipped) ? "text-danger" : "text-ink"}`}>
                     {eff.weight}
                   </span>
+                )}
+              </td>
+            );
+          }
+          const ck = COMBAT_COL[key];
+          return (
+            <td
+              key={key}
+              className="combat-grid stat-col relative min-w-[3.7rem] px-1 pb-[10px] pt-0 text-center align-top md:min-w-[5.5rem] md:px-2"
+            >
+              {ck !== undefined && (
+                <>
+                  <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
+                  {combatPop(ck)}
                 </>
               )}
             </td>
           );
-        }
-        const ck = COMBAT_COL[key];
-        return (
-          <td
-            key={key}
-            className="combat-grid stat-col relative min-w-[3.7rem] px-1 pb-[10px] pt-[3px] text-center align-top md:min-w-[5.5rem] md:px-2"
-          >
-            {ck !== undefined && (
-              <>
-                <span className={`block text-[14px] font-semibold leading-5 text-ink opacity-70`}>
-                  {labels.combat[ck]}
-                </span>
-                <span className={`block text-[14px] font-bold leading-5 ${deltaCls(ck)}`}>{fmtCombat(c[ck])}</span>
-                {combatPop(ck)}
-              </>
-            )}
-          </td>
-        );
-      })}
-      <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
-        <span className={`relative flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink`}>
-          {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
-          {plusChip()}
-          {engraveChip()}
-          {COMBAT_KEYS.map((key) => (
-            <span key={key} className="whitespace-nowrap">
-              <span className="font-semibold opacity-70">{labels.combat[key]}</span>{" "}
-              <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
-            </span>
-          ))}
-          {equipped !== undefined && (
-            <span className="whitespace-nowrap">
-              <span className="font-semibold opacity-70">{labels.weight}</span>{" "}
-              <span className={spdPenalty(row, equipped) ? "text-danger" : ""}>
-                {weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight}
+        })}
+        <td colSpan={STAT_KEYS.length} className="combat-flow px-2 pb-[10px] pt-[2px] text-left">
+          <span className={`relative flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[14px] font-bold leading-tight text-ink`}>
+            {(job !== undefined || weapon !== undefined) && weaponPicker("justify-start")}
+            {plusChip()}
+            {engraveChip()}
+            {COMBAT_KEYS.map((key) => (
+              <span key={key} className="whitespace-nowrap">
+                <span className="font-semibold opacity-70">{labels.combat[key]}</span>{" "}
+                <span className={deltaCls(key)}>{fmtCombat(c[key])}</span>
               </span>
-            </span>
-          )}
-          {specPop}
-        </span>
-      </td>
+            ))}
+            {equipped !== undefined && (
+              <span className="whitespace-nowrap">
+                <span className="font-semibold opacity-70">{labels.weight}</span>{" "}
+                <span className={spdPenalty(row, equipped) ? "text-danger" : ""}>
+                  {weaponAt(equipped.weapon, equipped.plus, equipped.engrave).weight}
+                </span>
+              </span>
+            )}
+            {specPop}
+          </span>
+        </td>
+      </tr>
     </>
   );
 }
@@ -1607,7 +1643,11 @@ export default function BuilderIsland({
       const c = cardCompareOf(pid, li >= 0 ? li : 0);
       const eq = cardEquip(pid, li >= 0 ? li : 0);
       // 대기 반지는 스냅샷으로 이관(2026-08-31: 구분 없는 편집의 왕복) — 세션 쪽은 걷는다.
-      const ring = rings[pid];
+      // ☠**실효값**을 박제한다(카드 개별 → 글로벌 슬롯) — 세션 맵만 보면 글로벌로 낀 반지가
+      //   잠그는 순간 조용히 사라진다(2026-09-08 글로벌 도입).
+      const ring = ringOf(pid, li >= 0 ? li : 0);
+      const sids = inheritSidsOf(pid, "wait", li >= 0 ? li : 0);
+      const hasSids = sids[0] !== "" || sids[1] !== "";
       next = [
         ...locked,
         {
@@ -1624,11 +1664,11 @@ export default function BuilderIsland({
             : {}),
           ...(ring !== undefined ? { gid: ring.gid, bond: ring.bond } : {}),
           // 계승 스킬도 반지와 같은 왕복(2026-09-02).
-          ...(inherits[pid] !== undefined ? { skills: inherits[pid] } : {}),
+          ...(hasSids ? { skills: sids } : {}),
         },
       ];
-      if (ring !== undefined) setRings(({ [pid]: _moved, ...rest }) => rest);
-      if (inherits[pid] !== undefined) setInherits(({ [pid]: _moved, ...rest }) => rest);
+      setRings((prev) => (prev[pid] === undefined ? prev : dropKey(prev, pid)));
+      setInherits((prev) => (prev[pid] === undefined ? prev : dropKey(prev, pid)));
       // 클래스·개인 장비는 스냅샷이 가져갔다 — 세션에 남기면 해제 뒤 대기 카드가 글로벌을 못 따른다(2026-09-05 사용자 지시).
       setCardClass(({ [pid]: _moved, ...rest }) => rest);
       setOverrides((prev) => dropCardKeys(prev, pid));
@@ -2101,11 +2141,23 @@ export default function BuilderIsland({
   /** 카드의 계승 슬롯 값 — 잠금 블록("lock") = 스냅샷 EntryLock.skills, 대기 카드("wait") = 세션 inherits.
       ☠유령 카드는 "wait"로 읽어야 한다 — 잠금 시 세션이 비워져 유령 = 스킬 없음(비교용 기본값, 2026-09-02). */
   type InheritScope = "lock" | "wait";
-  const inheritSidsOf = (pid: string, scope: InheritScope): [string, string] =>
-    (scope === "lock" ? locked.find((e) => e.pid === pid)?.skills : inherits[pid]) ?? ["", ""];
+  /** 라인 li가 읽는 글로벌 슬롯 — ☠`compares`는 jid가 있는 슬롯만 라인을 만들어 `slots[li]`와 어긋난다.
+      직업 미선택(compares 비어 있음)이면 1라인 = 메인 슬롯이다(2026-09-08). */
+  const slotOf = (li: number): BuilderSlot | undefined => slots[compares[li]?.slot ?? 0];
+
+  /** 카드의 실효 반지 — 카드 개별 → **글로벌 슬롯**(2026-09-08) → 없음.
+      plain(유령 카드) = 카드 개별을 건너뛰고 글로벌만 받는다(장비·클래스와 같은 처우). */
+  const ringOf = (pid: string, li: number, plain = false): CardRing | undefined =>
+    effectiveRing(rings[pid], slotOf(li), plain);
+
+  /** 계승 2칸 — 잠금은 스냅샷, 대기는 카드 개별 → **글로벌 슬롯** → 빈 칸(2026-09-08). */
+  const inheritSidsOf = (pid: string, scope: InheritScope, li = 0, plain = false): [string, string] =>
+    scope === "lock"
+      ? (locked.find((e) => e.pid === pid)?.skills ?? ["", ""])
+      : effectiveSkills(inherits[pid], slotOf(li), plain);
   /** 선택 sid → 엔진 평가용 행(목록 밖 sid는 미적용 — 선택 UI가 만들 수 없는 값). */
-  const inheritRowsOf = (pid: string, scope: InheritScope): SkillRow[] =>
-    inheritSidsOf(pid, scope).flatMap((sid) => {
+  const inheritRowsOf = (pid: string, scope: InheritScope, li = 0, plain = false): SkillRow[] =>
+    inheritSidsOf(pid, scope, li, plain).flatMap((sid) => {
       const s = inheritBySid.get(sid);
       return s === undefined ? [] : [s.row];
     });
@@ -2125,24 +2177,34 @@ export default function BuilderIsland({
       const cmp = cardCompareOf(pid, 0);
       return [builderRow(char, joinJob, cmp?.job, cmp?.internal ?? 0, extraSkills), ...g.slice(1)];
     });
+    // 반지 絆 보너스 — 카드 개별 → 글로벌 슬롯(2026-09-08). ☠글로벌이 슬롯별이라 **라인마다 다를 수 있다**.
+    //   유령 카드(잠긴 pid의 사본)는 카드 개별을 건너뛰고 글로벌만 받는다(personalized와 같은 판정).
     const boosted = personalized.map((g) => {
       const pid = g[0]!.pid;
-      // 세션 반지만(잠금 스냅샷의 반지는 유령 카드에 안 실린다 — 잠금 시 세션이 비워지므로 유령 = 반지 없음).
-      const src = rings[pid];
-      if (src === undefined) return g;
-      // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
-      const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
-      const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
-      return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
+      const plain = lockByPid.has(pid);
+      return g.map((r, li) => {
+        const src = ringOf(pid, li, plain);
+        if (src === undefined) return r;
+        // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
+        const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
+        const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
+        return delta === undefined || Object.keys(delta).length === 0 ? r : applyEmblemBonus(r, delta);
+      });
     });
     // 계승 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
+    // ★계산에 드는 스킬 = **계승(커스텀) 2칸뿐**이다(2026-09-08 사용자 지시) — 스탯·전투력에 걸리는
+    //   패시브가 많은 층이 여기다. 개인 고유·직업 고유는 "무엇을 가졌는지" 보여주는 표시 슬롯이다.
     const skilled = boosted.map((g) => {
-      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid, "wait"));
-      return Object.keys(sd).length === 0 ? g : g.map((r) => applyStatBonus(r, sd, "skill"));
+      const pid = g[0]!.pid;
+      const plain = lockByPid.has(pid);
+      return g.map((r, li) => {
+        const sd = skillStatDelta(inheritRowsOf(pid, "wait", li, plain));
+        return Object.keys(sd).length === 0 ? r : applyStatBonus(r, sd, "skill");
+      });
     });
     return waitingRowGroups(skilled, locked, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal, inherits, inheritBySid]);
+  }, [visibleChars, joinJobs, compares, slots, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal, inherits, inheritBySid]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
   const lockedRows = useMemo(() => {
@@ -2251,19 +2313,21 @@ export default function BuilderIsland({
   };
 
   /** 대기 카드 반지 변경(2026-08-31: 구분 없는 편집) — patchRing과 같은 규약, 저장만 세션. */
-  const patchWaitRing = (pid: string, patch: { gid?: string; bond?: number }): void =>
+  const patchWaitRing = (pid: string, patch: { gid?: string; bond?: number }): void => {
+    // ☠기준은 **실효값**(카드 개별 → 글로벌)이다 — 카드 키가 없을 때 prev[pid]만 보면 글로벌에서 온
+    //   반지의 絆 변경이 조용히 무시된다(2026-09-08 글로벌 도입).
+    const eff = ringOf(pid, 0);
+    const hasGlobal = ringOf(pid, 0, true) !== undefined;
     setRings((prev) => {
-      const cur = prev[pid];
       if (patch.gid !== undefined) {
-        if (patch.gid === "") {
-          const { [pid]: _drop, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [pid]: { gid: patch.gid, bond: cur?.gid === patch.gid ? cur.bond : 20 } };
+        // 글로벌이 있으면 "없음"도 값이다(gid "") — 없으면 키를 지워 저장분을 깨끗이 둔다.
+        if (patch.gid === "") return hasGlobal ? { ...prev, [pid]: { gid: "", bond: 20 } } : dropKey(prev, pid);
+        return { ...prev, [pid]: { gid: patch.gid, bond: eff?.gid === patch.gid ? eff.bond : 20 } };
       }
-      if (patch.bond !== undefined && cur !== undefined) return { ...prev, [pid]: { ...cur, bond: patch.bond } };
+      if (patch.bond !== undefined && eff !== undefined) return { ...prev, [pid]: { ...eff, bond: patch.bond } };
       return prev;
     });
+  };
 
   /** 계승 슬롯 변경(2026-09-02) — 잠금이면 스냅샷 즉시 저장(patchRing 규약), 대기면 세션. 두 칸 다 비면 필드째 걷는다. */
   const patchInherit = (pid: string, i: 0 | 1, sid: string, scope: InheritScope): void => {
@@ -2282,12 +2346,14 @@ export default function BuilderIsland({
       setLocked(next);
       return;
     }
+    // ☠씨드는 **실효값**이다 — 글로벌에서 온 2칸 중 하나만 바꿀 때 카드 키가 없다고 빈 칸에서 시작하면
+    //   나머지 한 칸이 조용히 지워진다(2026-09-08 글로벌 도입).
+    const eff = inheritSidsOf(pid, "wait");
+    const hasGlobal = (slotOf(0)?.skills ?? ["", ""]).some((v) => v !== "");
     setInherits((prev) => {
-      const cur = setSlot(prev[pid]);
-      if (cur[0] === "" && cur[1] === "") {
-        const { [pid]: _drop, ...rest } = prev;
-        return rest;
-      }
+      const cur = setSlot(prev[pid] ?? eff);
+      // 글로벌이 있으면 "빈 2칸"도 값이다 — 키를 지우면 글로벌로 되돌아가 지우기가 안 먹는다.
+      if (cur[0] === "" && cur[1] === "" && !hasGlobal) return dropKey(prev, pid);
       return { ...prev, [pid]: cur };
     });
   };
@@ -2356,10 +2422,10 @@ export default function BuilderIsland({
     onPatch: (patch: { jid?: string; internal?: number }) => void,
   ): React.JSX.Element => (
     <span
-      // bottom 22px = 전투력 행(pt 3 + 라벨 2줄 40 + pb 10 = 53) 상단 정렬 무기 슬롯과 일치(2026-09-02: 칩 간격 6 통일,
-      // 전투력 라벨은 아래로 여유 — 사용자: "답답해 보인다"). 슬롯 아래 빈 22px는 라벨 줄의 자리다.
+      // bottom 33px = 밴드3(슬롯·라벨 행: pt 3 + h-7 28 + pb 3 = 34) 상단 정렬 무기 슬롯과 일치.
+      // 그 아래 33px = 밴드4(값 행) — 카드 쪽은 적성 줄(.entry-aptrow)이 쓴다(2026-09-08 4밴드).
       // 카드(entry-wrap)는 그 위 공간을 절대배치로 채운다(builder.css) — 포트레이트 여유.
-      className="entry-classrow absolute inset-x-[6px] bottom-[22px] flex items-center gap-[6px]"
+      className="entry-classrow absolute inset-x-[6px] bottom-[33px] flex items-center gap-[6px]"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -2424,25 +2490,25 @@ export default function BuilderIsland({
     );
   };
 
-  /** 네임카드 아랫줄 — 고유 스킬 칩(아이콘 + 이름). 호버 = 설명 오버레이, 탭 = 토글(터치 — 호버가 없다).
-      로스터 전원 고유 스킬은 1개(2026-09-02 데이터 확인)라 첫 항목만 그린다. */
-  const personalSkillUi = (pid: string): React.JSX.Element => {
-    const s = charPropByPid.get(pid)?.personalSkills[0];
-    const open = skillPop === pid;
+  /** 읽기 전용 스킬 칩 — 개인 고유·직업 고유 공용. 호버 = 설명 오버레이,
+      탭 = 토글(터치 — 호버가 없다). 커스텀(계승) 드롭다운과 같은 규격(9rem·h-7)이되 캐럿이 없고
+      배경이 한 단계 낮다(.entry-skill-fixed) — 눌리는 슬롯과 갈린다(2026-09-08). */
+  const fixedSkillUi = (key: string, s: EmblemSkillProp | undefined, title: string): React.JSX.Element => {
+    const open = skillPop === key;
     return (
       <span
         className="entry-skill entry-slotw relative block"
-        onMouseEnter={() => setSkillPop(pid)}
-        onMouseLeave={() => setSkillPop((p) => (p === pid ? null : p))}
+        onMouseEnter={() => setSkillPop(key)}
+        onMouseLeave={() => setSkillPop((p) => (p === key ? null : p))}
         onClick={(e) => {
           e.stopPropagation();
-          setSkillPop((p) => (p === pid ? null : pid));
+          setSkillPop((p) => (p === key ? null : key));
         }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <span
-          className={`flex h-7 w-full items-center gap-1 rounded border border-rule bg-sunken px-1.5 text-[14px] font-semibold leading-tight ${s === undefined ? "text-muted opacity-40" : "text-ink"}`}
-          title={labels.personalSkill}
+          className={`entry-skill-fixed flex h-7 w-full items-center gap-1 rounded border border-rule px-1.5 text-[14px] font-semibold leading-tight ${s === undefined ? "text-muted opacity-40" : "text-ink"}`}
+          title={title}
         >
           {s?.icon !== undefined && <img src={s.icon} alt="" className="h-5 w-5 shrink-0 object-contain" loading="lazy" />}
           <span className="truncate">{s?.name ?? labels.skillNone}</span>
@@ -2457,13 +2523,42 @@ export default function BuilderIsland({
     );
   };
 
-  /** 스킬 열(skill-col, 2026-09-02 사용자 지시) — 카드 th 바로 옆 실제 표 셀 3칸: 스탯 행 = 고유, 반지 행 = 계승 1,
-      전투력 행 = 계승 2. 표 행이라 우측 장비 열(적성·반지·무기)과 세로 줄이 구조적으로 맞는다. 셀 패딩은 같은 행의
-      장비 열 셀과 동일. 세로폰은 열째 숨김(builder.css .skill-col — 헤더·본문 함께). */
-  const skillCell = (pid: string, slot: 0 | 1 | 2, scope: InheritScope, extra = ""): React.JSX.Element => (
-    // 스탯 행 상단 10px = 전투력 행 하단 10px과 대칭(2026-09-02 사용자 지시) — 같은 행의 스탯 셀도 같은 패딩.
-    <td className={`skill-col pl-0 pr-[3px] ${slot === 0 ? "pb-[3px] pt-[10px] align-middle" : slot === 1 ? "pb-[3px] pt-[3px] align-middle" : "pb-[10px] pt-[3px] align-top"} ${extra}`}>
-      {slot === 0 ? personalSkillUi(pid) : inheritSlotUi(pid, slot === 1 ? 0 : 1, scope)}
+  /** 개인 고유 스킬 — 로스터 전원 1개(2026-09-02 데이터 확인)라 첫 항목만 그린다. */
+  const personalSkillUi = (pid: string): React.JSX.Element =>
+    fixedSkillUi(pid, charPropByPid.get(pid)?.personalSkills[0], labels.personalSkill);
+
+  /** 직업 고유(兵種) 스킬 — 직업 미선택이면 합류 직업 것(적성과 같은 폴백).
+      기본직은 LearningSkill이 없어 빈 슬롯이 정상이다(2026-09-08). */
+  const jobSkillUi = (pid: string, job: BuilderJobProp | undefined, li: number): React.JSX.Element => {
+    const c = charPropByPid.get(pid);
+    const s = job?.jobSkill ?? (c === undefined ? undefined : joinJobs[c.joinJid]?.jobSkill);
+    // 비교 라인마다 직업이 다르다 — 팝오버 키에 라인을 넣어야 한 칩만 열린다(잠금 = -1).
+    return fixedSkillUi(`${pid}:job:${li}`, s, labels.jobSkill);
+  };
+
+  /** 스킬 열(skill-col) 셀 — 4밴드에 스킬 4슬롯이 **세로 일렬**로 선다(2026-09-08 사용자 지시):
+      밴드1 개인 고유 · 밴드2 직업 고유 · 밴드3 커스텀 1 · 밴드4 커스텀 2.
+      위 둘 = 읽기 전용(캐럿 없음·배경 한 단계 낮음) / 아래 둘 = 드롭다운.
+      오른쪽 장비 열은 밴드2 반지 · 밴드3 무기만 쓴다(밴드1·4는 비교 라인용 여백).
+      세로폰은 열째 숨김(builder.css .skill-col — 헤더·본문 함께). */
+  const skillCell = (
+    pid: string,
+    slot: 0 | 1 | 2 | 3,
+    scope: InheritScope,
+    job?: BuilderJobProp | undefined,
+    li = -1,
+    extra = "",
+  ): React.JSX.Element => (
+    // 밴드1 상단 10px = 블록 상단 여백(카드 프레임 top 10과 대칭) — 같은 행의 스탯 셀도 같은 패딩.
+    // 밴드4는 값 행이라 하단 패딩이 3px다(값 20 + pb 10 = 30 vs 칩 28 + pb 3 = 31 — 밑선이 맞는다).
+    <td
+      className={`skill-col pl-0 pr-[3px] align-middle ${slot === 0 ? "pb-[3px] pt-[10px]" : slot === 3 ? "pb-[3px] pt-0" : "pb-[3px] pt-[3px]"} ${extra}`}
+    >
+      {slot === 0
+        ? personalSkillUi(pid)
+        : slot === 1
+          ? jobSkillUi(pid, job, li)
+          : inheritSlotUi(pid, slot === 2 ? 0 : 1, scope)}
     </td>
   );
 
@@ -2633,7 +2728,9 @@ export default function BuilderIsland({
     followGlobal();
   };
   /** 글로벌 변경 = 대기 카드 전부 추종(2026-09-05 사용자 지시: 엔트리(잠금) 카드만 불변) — 카드 개별 클래스·In.Lv는
-      전부 걷고, 개인 장비는 바뀐 슬롯 인덱스 것만(미지정 = 전 슬롯) 걷는다. 반지·계승 스킬은 글로벌 짝이 없어 남긴다. */
+      전부 걷고, 개인 장비는 바뀐 슬롯 인덱스 것만(미지정 = 전 슬롯) 걷는다.
+      ★반지·계승은 **다른 축**이라 여기서 안 걷는다(2026-09-08 사용자 결정 Q5) — 각각 setSlotRing·setSlotSkill이
+      자기 축만 걷는다. 클래스를 바꿨다고 반지가 풀리면 안 된다. */
   const followGlobal = (slotIdx?: readonly number[]): void => {
     setCardClass({});
     setOverrides((prev) =>
@@ -2685,6 +2782,37 @@ export default function BuilderIsland({
       return s.map((v, idx) => (t.has(idx) ? { ...v, plus } : v));
     });
   };
+  /** 글로벌 반지(상단 컨트롤, 2026-09-08) — 카드 반지와 같은 규약(선택 시 絆 20, 같은 반지면 絆 유지).
+      ★전파는 **축별**(사용자 결정 Q5): 카드 개별 **반지만** 걷는다 — 클래스·장비·계승은 그대로 둔다. */
+  const setSlotRing = (i: number, patch: { gid?: string; bond?: number }): void => {
+    setSlots((s) =>
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        if (patch.gid !== undefined) {
+          const { gid: _g, bond: _b, ...rest } = v;
+          return patch.gid === "" ? rest : { ...rest, gid: patch.gid, bond: v.gid === patch.gid ? (v.bond ?? 20) : 20 };
+        }
+        return patch.bond !== undefined && v.gid !== undefined ? { ...v, bond: patch.bond } : v;
+      }),
+    );
+    setRings({});
+  };
+
+  /** 글로벌 계승 2칸(상단 컨트롤, 2026-09-08) — 두 칸 다 비면 필드째 걷는다(카드 규약과 동형).
+      ★전파는 축별: 카드 개별 **계승만** 걷는다. */
+  const setSlotSkill = (i: number, idx: 0 | 1, sid: string): void => {
+    setSlots((s) =>
+      s.map((v, k) => {
+        if (k !== i) return v;
+        const cur: [string, string] = [v.skills?.[0] ?? "", v.skills?.[1] ?? ""];
+        cur[idx] = sid;
+        const { skills: _s, ...rest } = v;
+        return cur[0] === "" && cur[1] === "" ? rest : { ...rest, skills: cur };
+      }),
+    );
+    setInherits({});
+  };
+
   /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립.
       메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
   const setSlotEngrave = (i: number, gid: string): void => {
@@ -2739,6 +2867,9 @@ export default function BuilderIsland({
     const weapon = job === undefined ? undefined : options.find((w) => w.iid === slot?.iid && canEquip(job, w));
     const plus = slot?.plus ?? 0;
     const engrave = visibleEngraves.find((g) => g.gid === slot?.engrave);
+    // 글로벌 반지·계승(2026-09-08) — 체커에 숨은 gid/sid는 목록 밖이라 "없음"으로 강하한다(visibleEmblems가 게이트).
+    const slotEmblem = visibleEmblems.find((e) => e.gid === slot?.gid);
+    const slotSids: [string, string] = slot?.skills ?? ["", ""];
     return (
       <>
         <span className="flex flex-col gap-1">
@@ -2798,6 +2929,65 @@ export default function BuilderIsland({
             }
           />
         )}
+        {/* 글로벌 반지 + 絆(2026-09-08 사용자 지시) — 카드 반지 슬롯과 **같은 목록·같은 게이트**(ringOptionsOf,
+            visibleEmblems)라 스포일러·DLC 체커 준수가 한 곳이다. */}
+        <span className="flex flex-col gap-1">
+          {i === 0 && <span className={legendClass}>{labels.ring}</span>}
+          <EquipDropdown
+            ariaLabel={labels.ring}
+            value={slotEmblem?.gid ?? ""}
+            options={ringOptionsOf(visibleEmblems, labels)}
+            onChange={(gid) => setSlotRing(i, { gid })}
+            labels={labels}
+            triggerClass={`${dropTriggerClass} ${slotEmblem !== undefined ? "text-engage" : "text-muted"}`}
+            trigger={
+              <>
+                <span className="max-w-[8rem] truncate">{slotEmblem?.name ?? labels.ringNone}</span>
+                {CARET}
+              </>
+            }
+          />
+        </span>
+        {slotEmblem !== undefined && (
+          <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
+            {/* 미리보기(onPreview)는 카드 pid 축이라 글로벌에는 없다 — 글로벌은 고르는 즉시 표 전체가 움직인다. */}
+            <BondDropdown
+              emblem={slotEmblem}
+              bond={slot?.bond ?? 20}
+              labels={labels}
+              onChange={(n) => setSlotRing(i, { bond: n })}
+              onPreview={() => undefined}
+            />
+          </span>
+        )}
+        {/* 글로벌 계승 2칸 — 카드 계승 슬롯과 같은 목록(inheritOptions)·같은 "다른 칸 sid 비활성" 규칙. */}
+        <span className="flex flex-col gap-1">
+          {i === 0 && <span className={legendClass}>{labels.inherit}</span>}
+          <span className="flex items-center gap-1">
+            {([0, 1] as const).map((k) => {
+              const chosen = slotSids[k] === "" ? undefined : inheritBySid.get(slotSids[k]);
+              const other = slotSids[k === 0 ? 1 : 0];
+              return (
+                <EquipDropdown
+                  key={k}
+                  ariaLabel={`${labels.inherit} ${k + 1}`}
+                  value={slotSids[k]}
+                  options={inheritOptions(visibleEmblems, labels.skillNone, other === "" ? undefined : other)}
+                  onChange={(v) => setSlotSkill(i, k, v)}
+                  labels={labels}
+                  tall
+                  triggerClass={`${dropTriggerClass} ${chosen !== undefined ? "text-ink" : "text-muted"}`}
+                  trigger={
+                    <>
+                      <span className="max-w-[8rem] truncate">{chosen?.name ?? labels.skillNone}</span>
+                      {CARET}
+                    </>
+                  }
+                />
+              );
+            })}
+          </span>
+        </span>
         {/* pb는 1행 전용 — items-end(레전드 행)에서 박스 중앙 보정. 2행은 items-center라 넣으면 뜬다. */}
         {weapon !== undefined && (
           <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
@@ -3081,7 +3271,11 @@ export default function BuilderIsland({
             const lockRing = lockRingOf(row.pid);
             const lockEntry = locked.find((e) => e.pid === row.pid);
             const lockEmblem = lockRing === undefined ? undefined : emblemByGid.get(lockRing.gid);
-            const thRaised = emblemOpen === row.pid || foldPid === row.pid || classDrop === row.pid || skillPop === row.pid;
+            const thRaised =
+              emblemOpen === row.pid ||
+              foldPid === row.pid ||
+              classDrop === row.pid ||
+              popOnCard(skillPop, row.pid);
             // ☠행·배경 클릭으로는 안 풀린다(부주의 방지, 2026-08-31) — 마우스 해제 = 호버 자물쇠 버튼만.
             // 터치(세로폰)는 자물쇠 슬롯이 숨어 있어 탭 = 해제를 유지한다.
             const touchUnlock = (e: React.MouseEvent): void => {
@@ -3094,7 +3288,7 @@ export default function BuilderIsland({
             const lockTh = (
               <th
                 scope="row"
-                rowSpan={3 + (showGrowth ? 1 : 0)}
+                rowSpan={4 + (showGrowth ? 1 : 0)}
                 className={`entry-th sticky left-0 px-[6px] py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
@@ -3125,6 +3319,9 @@ export default function BuilderIsland({
                   row.internal + 1,
                   (p) => patchLockClass(row.pid, p),
                 )}
+                {/* 적성 줄(2026-09-08) — 클래스 드롭다운 **아래** 신설 칸. 카드 폭 전체를 써서
+                    무기군 4종이라도 랭크가 안 잘린다(종전 장비 열 9rem에서는 빠듯했다). */}
+                <span className="entry-aptrow absolute inset-x-[6px] flex items-center">{aptitudeUi(row.pid, job)}</span>
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css). */}
                 <RingSlot
                   emblem={lockEmblem}
@@ -3171,8 +3368,9 @@ export default function BuilderIsland({
                 )}
                 <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock}>
                   {!showGrowth && lockTh}
-                  {skillCell(row.pid, 0, "lock", showGrowth ? "" : sep)}
-                  <td className={`inlv-col px-[3px] pb-[3px] pt-[10px] text-left align-middle ${showGrowth ? "" : sep}`}>{aptitudeUi(row.pid, job)}</td>
+                  {skillCell(row.pid, 0, "lock", job, -1, showGrowth ? "" : sep)}
+                  {/* 밴드1 장비 열 = 빈 칸(스킬 4칸이 왼쪽 열에 세로로 서면서 비었다, 2026-09-08). */}
+                  <td className={`inlv-col ${showGrowth ? "" : sep}`} />
                   {STAT_KEYS.map((key) => {
                     const cell = row.cells[key];
                     const penalty = key === "spd" ? weightPenalty(row, equipped) : 0;
@@ -3207,24 +3405,25 @@ export default function BuilderIsland({
                   })}
                 </tr>
                 {/* 반지 행 — 무기 슬롯 바로 위(2026-08-31 배치 확정). 스냅샷 반지 소스, 즉시 저장. */}
-                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1, "lock"))}
+                {ringRow(row.pid, lockRing, (p) => patchRing(row.pid, p), skillCell(row.pid, 1, "lock", job, -1))}
                 {/* 전투력 행 — 잠금은 상시 표시 + 카드 장비 변경(스냅샷 직접 갱신·즉시 저장, 2026-08-31). */}
-                <tr className="cursor-grab hover:bg-sunken" onClick={touchUnlock} {...focusActs(row.pid, -1)}>
-                  <CombatCells
-                    row={row}
-                    job={job}
-                    equipped={equipped}
-                    specOpen={focusRow !== null && focusRow.pid === row.pid && focusRow.li === -1}
-                    weapons={weapons}
-                    engraves={visibleEngraves}
-                    labels={labels}
-                    aptitude={aptitudeOf(row.pid)}
-                    lead={skillCell(row.pid, 2, "lock")}
-                    skills={inheritRowsOf(row.pid, "lock")}
-                    onEquip={(p) => patchLock(row.pid, p)}
-                    bar={lockHover === row.pid ? resetBar(() => resetLock(row.pid)) : undefined}
-                  />
-                </tr>
+                <CombatCells
+                  row={row}
+                  job={job}
+                  equipped={equipped}
+                  specOpen={focusRow !== null && focusRow.pid === row.pid && focusRow.li === -1}
+                  weapons={weapons}
+                  engraves={visibleEngraves}
+                  labels={labels}
+                  aptitude={aptitudeOf(row.pid)}
+                  lead={skillCell(row.pid, 2, "lock")}
+                  lead2={skillCell(row.pid, 3, "lock")}
+                  skills={inheritRowsOf(row.pid, "lock")}
+                  onEquip={(p) => patchLock(row.pid, p)}
+                  bar={lockHover === row.pid ? resetBar(() => resetLock(row.pid)) : undefined}
+                  rowClass="cursor-grab hover:bg-sunken"
+                  rowProps={{ onClick: touchUnlock, ...focusActs(row.pid, -1) }}
+                />
               </tbody>
             );
           })}
@@ -3250,19 +3449,21 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
-            // 유령 카드 = 반지 없음(비교용 기본값 — 잠금 스냅샷의 반지는 엔트리 블록만, 2026-09-02).
-            const ringSrc = ghost ? undefined : rings[first.pid];
+            // 유령 카드 = 카드 개별을 건너뛰고 **글로벌만** 받는다(2026-09-08 — 종전에는 반지가 늘 비어
+            // 비교 기준이 어긋났다). 잠금 스냅샷의 반지는 엔트리 블록만(2026-09-02).
+            const ringSrc = ringOf(first.pid, 0, ghost);
             /** 라인 li의 실효 비교 — 유령 카드는 카드 개별 클래스를 무시하고 글로벌 슬롯만. */
             const cmpOf = (li: number): BuilderCompare | undefined => cardCompareOf(first.pid, li, ghost);
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);
             const thRaised =
-              !ghost && (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid || skillPop === first.pid);
+              !ghost &&
+              (emblemOpen === first.pid || foldPid === first.pid || classDrop === first.pid || popOnCard(skillPop, first.pid));
             const nameTh = (
               <th
                 scope="row"
                 // 카드 th = [고유성장?]+스탯0+반지+전투력0 행까지 — 하단(무기 슬롯 밴드)에 클래스 행이
                 // 절대배치로 앉아 무기·강화·각인과 하단 정렬된다(2026-09-01 정정). 이후 행은 필러 th.
-                rowSpan={(showGrowth ? 1 : 0) + 3}
+                rowSpan={(showGrowth ? 1 : 0) + 4}
                 className={`entry-th sticky left-0 px-[6px] py-[3px] text-left align-top font-normal ${thRaised ? "z-20" : "z-10"} ${sep}`}
               >
                 <span className="entry-wrap flex items-center">
@@ -3292,6 +3493,9 @@ export default function BuilderIsland({
                   first.internal + 1,
                   (p) => patchCard(first.pid, p),
                 )}
+                {/* 적성 줄(2026-09-08) — 카드 직업(라인 0) 기준. 비교 라인이 여럿이면 각 라인의 적성은
+                    그 라인 값 행(밴드4) 장비 열이 맡는다(정보 손실 없음). */}
+                <span className="entry-aptrow absolute inset-x-[6px] flex items-center">{aptitudeUi(first.pid, cmpOf(0)?.job)}</span>
                 {/* 세로폰 폴딩 클러스터 — 데스크톱은 반지 행이 대신하므로 상시 숨김(builder.css).
                     카드 하단 문장사 이름은 삭제(2026-08-31 지시 — 상세는 인연 드롭다운이 겸한다). */}
                 <RingSlot
@@ -3360,12 +3564,14 @@ export default function BuilderIsland({
                       {li === 0 && !showGrowth && nameTh}
                       {/* 필러 th — 카드 th가 전투력0 행까지만 덮으므로 남은 라인의 이름 열을 잇는다. */}
                       {li === 1 && (
-                        <th scope="row" rowSpan={g.length * 2 - 2} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
+                        <th scope="row" rowSpan={g.length * 3 - 3} aria-hidden="true" className="sticky left-0 z-10 bg-panel" />
                       )}
-                      {li === 0 ? skillCell(first.pid, 0, "wait", showGrowth ? "" : sep) : <td className="skill-col" />}
-                      <td className={`inlv-col px-[3px] ${li === 0 ? roomyTop : roomy} text-left align-middle ${li === 0 && !showGrowth ? sep : ""}`}>
-                        {aptitudeUi(first.pid, cmpOf(li)?.job)}
-                      </td>
+                      {/* 밴드1 스킬 열 — 라인 0 = 개인 고유(카드 소유). 비교 라인은 그 라인의 **직업 고유**가
+                          여기 선다(그 라인엔 반지 행이 없어 밴드2가 없다 — 안 그러면 조용히 사라진다). */}
+                      {li === 0
+                        ? skillCell(first.pid, 0, "wait", undefined, li, showGrowth ? "" : sep)
+                        : skillCell(first.pid, 1, "wait", cmpOf(li)?.job, li)}
+                      <td className={`inlv-col ${li === 0 && !showGrowth ? sep : ""}`} />
                       {STAT_KEYS.map((key) => {
                         const cell = row.cells[key];
                         const penalty = key === "spd" ? weightPenalty(row, eq) : 0;
@@ -3405,28 +3611,27 @@ export default function BuilderIsland({
                   return [
                     line,
                     // 반지 행 — 첫 라인의 스탯과 무기 슬롯(전투력 행) 사이(2026-08-31 배치 확정).
-                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1, "wait"))] : []),
-                    <tr
+                    ...(li === 0 ? [ringRow(first.pid, ringSrc, (p) => patchWaitRing(first.pid, p), skillCell(first.pid, 1, "wait", cmpOf(0)?.job, 0))] : []),
+                    <CombatCells
                       key={`combat-${li}`}
-                      className={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
-                      {...rowActs(inert, li)}
-                      {...(inert ? {} : focusActs(first.pid, li))}
-                    >
-                      <CombatCells
-                        row={row}
-                        job={cmpOf(li)?.job}
-                        equipped={eq}
-                        specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
-                        weapons={weapons}
-                        engraves={visibleEngraves}
-                        labels={labels}
-                        aptitude={aptitudeOf(first.pid)}
-                        lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
-                        skills={inheritRowsOf(first.pid, "wait")}
-                        onEquip={(p) => applyCard(first.pid, li, p)}
-                        bar={!inert && hovered && hoverRow.li === li ? resetBar(() => resetCard(first.pid)) : undefined}
-                      />
-                    </tr>,
+                      row={row}
+                      job={cmpOf(li)?.job}
+                      equipped={eq}
+                      specOpen={focusRow !== null && focusRow.pid === first.pid && focusRow.li === li}
+                      weapons={weapons}
+                      engraves={visibleEngraves}
+                      labels={labels}
+                      aptitude={aptitudeOf(first.pid)}
+                      lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
+                      lead2={li === 0 ? skillCell(first.pid, 3, "wait") : <td className="skill-col" />}
+                      skills={inheritRowsOf(first.pid, "wait")}
+                      onEquip={(p) => applyCard(first.pid, li, p)}
+                      bar={!inert && hovered && hoverRow.li === li ? resetBar(() => resetCard(first.pid)) : undefined}
+                      rowClass={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
+                      rowProps={{ ...rowActs(inert, li), ...(inert ? {} : focusActs(first.pid, li)) }}
+                      // 카드 th의 적성 줄은 라인 0만 덮는다 — 비교 라인은 자기 값 행에 자기 적성을 단다.
+                      {...(li > 0 ? { apt: aptitudeUi(first.pid, cmpOf(li)?.job) } : {})}
+                    />,
                   ];
                 })}
               </tbody>

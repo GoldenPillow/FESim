@@ -273,13 +273,21 @@ export function loadEntryLocks(): EntryLock[] {
    ☠인덱스 + 슬롯 2축인 이유 = 자동 저장이 활성 슬롯 하나만 쓰고, 한 슬롯이 깨져도 목록은 살아
    사용자가 스스로 다른 프리셋으로 빠져나간다(단일 키였다면 파싱 1회 실패 = 전 빌드 소멸). */
 
-/** 글로벌 비교 슬롯 — [0] = 메인. internal 미지정 = 메인 추종. 저장 형태를 소유하는 층이 타입도 소유한다. */
+/** 글로벌 비교 슬롯 — [0] = 메인. internal 미지정 = 메인 추종. 저장 형태를 소유하는 층이 타입도 소유한다.
+    ★반지·계승 스킬도 여기 산다(2026-09-08) — 슬롯 밖에 두면 "슬롯 밖 글로벌"이라는 세 번째 층이 생겨
+    우선순위 규칙이 두 벌이 된다. 카드 개별(rings/inherits)은 pid 단위 그대로이고 이것을 이긴다. */
 export interface BuilderSlot {
   jid: string;
   internal?: number;
   iid?: string;
   plus?: number;
   engrave?: string;
+  /** 글로벌 문장사 반지(GID) — 없음 = 반지 없음. */
+  gid?: string;
+  /** 絆 1~20 — gid 없이 단독으로는 무의미(카드와 같은 규약, 선택 시 기본 20). */
+  bond?: number;
+  /** 글로벌 계승 스킬 2칸(sid, "" = 빈 칸). */
+  skills?: [string, string];
 }
 
 /** 카드 개별 클래스 — jid 없음 = 직업 미선택(합류 상태) · internal 미지정 = 글로벌 추종. */
@@ -457,7 +465,16 @@ const parseSlots = (v: unknown): BuilderSlot[] | undefined => {
   if (!Array.isArray(v)) return undefined;
   const list = v.flatMap((s): BuilderSlot[] =>
     isObj(s) && typeof s.jid === "string"
-      ? [{ jid: s.jid, ...(inLv(s.internal) !== undefined ? { internal: inLv(s.internal) as number } : {}), ...equipFields(s) }]
+      ? [
+          {
+            jid: s.jid,
+            ...(inLv(s.internal) !== undefined ? { internal: inLv(s.internal) as number } : {}),
+            ...equipFields(s),
+            // 반지·계승은 카드 개별과 같은 파서를 쓴다 — 형식이 갈리면 글로벌만 조용히 다른 값이 된다.
+            ...(str(s.gid) !== undefined ? { gid: s.gid as string, bond: bondOf(s.bond) ?? 20 } : {}),
+            ...(parsePair(s.skills) !== undefined ? { skills: parsePair(s.skills) as [string, string] } : {}),
+          },
+        ]
       : [],
   );
   // ☠최소 1칸 — 0칸이면 비교 라인이 사라지고 되돌릴 UI가 없다.
