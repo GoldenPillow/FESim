@@ -21,7 +21,7 @@ import type {
   BuilderWeaponProp,
 } from "../../lib/fe17";
 import { rankValue } from "../../lib/weaponRank";
-import type { EntryLock } from "../../lib/guestSave";
+import type { BuilderSlot, CardRing, EntryLock } from "../../lib/guestSave";
 
 /**
  * 엔트리 빌더 표시층 — 클라이언트 안전 순수 함수(☠fe17.ts는 타입만 참조한다).
@@ -212,6 +212,41 @@ export function resetEntryLock(e: EntryLock): EntryLock {
     = 시작 레벨). 표시(lockedDisplayRows)·편집(patchLockClass)이 같은 답변자를 쓴다(2026-09-07). */
 export function lockClassOf(e: EntryLock, c: BuilderCharProp): { jid: string; internal: number } {
   return { jid: e.jid ?? c.joinJid, internal: Math.max(e.internal, joinInternalOf(c)) };
+}
+
+/* ── 글로벌 ↔ 카드 개별 해석(2026-09-08) — ☠컴포넌트 밖 순수 함수다. 세 층(글로벌 슬롯 · 카드 개별 ·
+   잠금 스냅샷)의 우선순위는 **규칙**이고, 규칙은 렌더 안에 흩어지면 층마다 다르게 적힌다. ── */
+
+/**
+ * 카드의 실효 반지 — 카드 개별 → 글로벌 슬롯 → 없음.
+ * ☠`card.gid === ""` = **명시적 "반지 없음"**이고 글로벌을 이긴다. 이 표현이 없으면 카드에서 반지를
+ * 지우는 순간 글로벌로 되돌아가 "지우기가 안 먹는" 상태가 된다(오류도 경고도 없다).
+ * `plain` = 유령 카드(잠긴 pid의 대기 사본) — 카드 개별을 건너뛰고 글로벌만 받는다.
+ */
+export function effectiveRing(
+  card: CardRing | undefined,
+  slot: BuilderSlot | undefined,
+  plain = false,
+): CardRing | undefined {
+  if (!plain && card !== undefined) return card.gid === "" ? undefined : card;
+  return slot?.gid !== undefined && slot.gid !== "" ? { gid: slot.gid, bond: slot.bond ?? 20 } : undefined;
+}
+
+/** 계승 2칸의 실효값 — 카드 개별 → 글로벌 슬롯 → 빈 칸. 카드의 `["",""]`는 명시적 "둘 다 없음"이다. */
+export function effectiveSkills(
+  card: readonly [string, string] | undefined,
+  slot: BuilderSlot | undefined,
+  plain = false,
+): [string, string] {
+  if (!plain && card !== undefined) return [card[0], card[1]];
+  const g = slot?.skills;
+  return g === undefined ? ["", ""] : [g[0], g[1]];
+}
+
+/** pid 키 하나만 걷는다(반지·계승 세션 맵) — 걷으면 글로벌로 되돌아간다(2026-09-08). */
+export function dropKey<T>(map: Record<string, T>, pid: string): Record<string, T> {
+  const { [pid]: _drop, ...rest } = map;
+  return rest;
 }
 
 /** `${pid}:${li}` 키 맵(카드 개인 장비 오버라이드)에서 그 카드 것만 걷는다 — 잠금·리셋·글로벌 추종 복귀 공용. */

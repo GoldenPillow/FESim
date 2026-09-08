@@ -12,6 +12,9 @@ import {
   COMBAT_COL,
   COMBAT_KEYS,
   dropCardKeys,
+  dropKey,
+  effectiveRing,
+  effectiveSkills,
   effectiveWeaponRanks,
   entryExportRows,
   fmtCombat,
@@ -62,6 +65,7 @@ import {
   writePreset,
   writePresetIndex,
   type BuilderSlot,
+  type CardRing,
   type BuilderSnapshot,
   type EntryLock,
   type PresetIndex,
@@ -1639,7 +1643,11 @@ export default function BuilderIsland({
       const c = cardCompareOf(pid, li >= 0 ? li : 0);
       const eq = cardEquip(pid, li >= 0 ? li : 0);
       // 대기 반지는 스냅샷으로 이관(2026-08-31: 구분 없는 편집의 왕복) — 세션 쪽은 걷는다.
-      const ring = rings[pid];
+      // ☠**실효값**을 박제한다(카드 개별 → 글로벌 슬롯) — 세션 맵만 보면 글로벌로 낀 반지가
+      //   잠그는 순간 조용히 사라진다(2026-09-08 글로벌 도입).
+      const ring = ringOf(pid, li >= 0 ? li : 0);
+      const sids = inheritSidsOf(pid, "wait", li >= 0 ? li : 0);
+      const hasSids = sids[0] !== "" || sids[1] !== "";
       next = [
         ...locked,
         {
@@ -1656,11 +1664,11 @@ export default function BuilderIsland({
             : {}),
           ...(ring !== undefined ? { gid: ring.gid, bond: ring.bond } : {}),
           // 계승 스킬도 반지와 같은 왕복(2026-09-02).
-          ...(inherits[pid] !== undefined ? { skills: inherits[pid] } : {}),
+          ...(hasSids ? { skills: sids } : {}),
         },
       ];
-      if (ring !== undefined) setRings(({ [pid]: _moved, ...rest }) => rest);
-      if (inherits[pid] !== undefined) setInherits(({ [pid]: _moved, ...rest }) => rest);
+      setRings((prev) => (prev[pid] === undefined ? prev : dropKey(prev, pid)));
+      setInherits((prev) => (prev[pid] === undefined ? prev : dropKey(prev, pid)));
       // 클래스·개인 장비는 스냅샷이 가져갔다 — 세션에 남기면 해제 뒤 대기 카드가 글로벌을 못 따른다(2026-09-05 사용자 지시).
       setCardClass(({ [pid]: _moved, ...rest }) => rest);
       setOverrides((prev) => dropCardKeys(prev, pid));
@@ -2133,11 +2141,23 @@ export default function BuilderIsland({
   /** 카드의 계승 슬롯 값 — 잠금 블록("lock") = 스냅샷 EntryLock.skills, 대기 카드("wait") = 세션 inherits.
       ☠유령 카드는 "wait"로 읽어야 한다 — 잠금 시 세션이 비워져 유령 = 스킬 없음(비교용 기본값, 2026-09-02). */
   type InheritScope = "lock" | "wait";
-  const inheritSidsOf = (pid: string, scope: InheritScope): [string, string] =>
-    (scope === "lock" ? locked.find((e) => e.pid === pid)?.skills : inherits[pid]) ?? ["", ""];
+  /** 라인 li가 읽는 글로벌 슬롯 — ☠`compares`는 jid가 있는 슬롯만 라인을 만들어 `slots[li]`와 어긋난다.
+      직업 미선택(compares 비어 있음)이면 1라인 = 메인 슬롯이다(2026-09-08). */
+  const slotOf = (li: number): BuilderSlot | undefined => slots[compares[li]?.slot ?? 0];
+
+  /** 카드의 실효 반지 — 카드 개별 → **글로벌 슬롯**(2026-09-08) → 없음.
+      plain(유령 카드) = 카드 개별을 건너뛰고 글로벌만 받는다(장비·클래스와 같은 처우). */
+  const ringOf = (pid: string, li: number, plain = false): CardRing | undefined =>
+    effectiveRing(rings[pid], slotOf(li), plain);
+
+  /** 계승 2칸 — 잠금은 스냅샷, 대기는 카드 개별 → **글로벌 슬롯** → 빈 칸(2026-09-08). */
+  const inheritSidsOf = (pid: string, scope: InheritScope, li = 0, plain = false): [string, string] =>
+    scope === "lock"
+      ? (locked.find((e) => e.pid === pid)?.skills ?? ["", ""])
+      : effectiveSkills(inherits[pid], slotOf(li), plain);
   /** 선택 sid → 엔진 평가용 행(목록 밖 sid는 미적용 — 선택 UI가 만들 수 없는 값). */
-  const inheritRowsOf = (pid: string, scope: InheritScope): SkillRow[] =>
-    inheritSidsOf(pid, scope).flatMap((sid) => {
+  const inheritRowsOf = (pid: string, scope: InheritScope, li = 0, plain = false): SkillRow[] =>
+    inheritSidsOf(pid, scope, li, plain).flatMap((sid) => {
       const s = inheritBySid.get(sid);
       return s === undefined ? [] : [s.row];
     });
@@ -2157,26 +2177,34 @@ export default function BuilderIsland({
       const cmp = cardCompareOf(pid, 0);
       return [builderRow(char, joinJob, cmp?.job, cmp?.internal ?? 0, extraSkills), ...g.slice(1)];
     });
+    // 반지 絆 보너스 — 카드 개별 → 글로벌 슬롯(2026-09-08). ☠글로벌이 슬롯별이라 **라인마다 다를 수 있다**.
+    //   유령 카드(잠긴 pid의 사본)는 카드 개별을 건너뛰고 글로벌만 받는다(personalized와 같은 판정).
     const boosted = personalized.map((g) => {
       const pid = g[0]!.pid;
-      // 세션 반지만(잠금 스냅샷의 반지는 유령 카드에 안 실린다 — 잠금 시 세션이 비워지므로 유령 = 반지 없음).
-      const src = rings[pid];
-      if (src === undefined) return g;
-      // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
-      const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
-      const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
-      return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
+      const plain = lockByPid.has(pid);
+      return g.map((r, li) => {
+        const src = ringOf(pid, li, plain);
+        if (src === undefined) return r;
+        // 인연 옵션 호버 중이면 그 레벨로 미리보기 — 합산·정렬·+N이 함께 움직인다.
+        const bond = bondPreview !== null && bondPreview.pid === pid ? bondPreview.bond : src.bond;
+        const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
+        return delta === undefined || Object.keys(delta).length === 0 ? r : applyEmblemBonus(r, delta);
+      });
     });
     // 계승 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
     // ★계산에 드는 스킬 = **계승(커스텀) 2칸뿐**이다(2026-09-08 사용자 지시) — 스탯·전투력에 걸리는
     //   패시브가 많은 층이 여기다. 개인 고유·직업 고유는 "무엇을 가졌는지" 보여주는 표시 슬롯이다.
     const skilled = boosted.map((g) => {
-      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid, "wait"));
-      return Object.keys(sd).length === 0 ? g : g.map((r) => applyStatBonus(r, sd, "skill"));
+      const pid = g[0]!.pid;
+      const plain = lockByPid.has(pid);
+      return g.map((r, li) => {
+        const sd = skillStatDelta(inheritRowsOf(pid, "wait", li, plain));
+        return Object.keys(sd).length === 0 ? r : applyStatBonus(r, sd, "skill");
+      });
     });
     return waitingRowGroups(skilled, locked, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleChars, joinJobs, compares, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal, inherits, inheritBySid]);
+  }, [visibleChars, joinJobs, compares, slots, sort, extraSkills, locked, rings, emblemByGid, bondPreview, cardClass, charByPid, jobByJid, internal, inherits, inheritBySid]);
   // 잠금 스냅샷 표시행 — 현재 슬롯·정렬·성옥 체커와 무관하다(잠금 당시 값만 소비 = "고정"의 실체).
   // 스냅샷 반지의 絆 보너스도 본스탯 행에 합산(블루) — 반지 행은 추가분(+N)만(2026-08-31 최종).
   const lockedRows = useMemo(() => {
@@ -2285,19 +2313,21 @@ export default function BuilderIsland({
   };
 
   /** 대기 카드 반지 변경(2026-08-31: 구분 없는 편집) — patchRing과 같은 규약, 저장만 세션. */
-  const patchWaitRing = (pid: string, patch: { gid?: string; bond?: number }): void =>
+  const patchWaitRing = (pid: string, patch: { gid?: string; bond?: number }): void => {
+    // ☠기준은 **실효값**(카드 개별 → 글로벌)이다 — 카드 키가 없을 때 prev[pid]만 보면 글로벌에서 온
+    //   반지의 絆 변경이 조용히 무시된다(2026-09-08 글로벌 도입).
+    const eff = ringOf(pid, 0);
+    const hasGlobal = ringOf(pid, 0, true) !== undefined;
     setRings((prev) => {
-      const cur = prev[pid];
       if (patch.gid !== undefined) {
-        if (patch.gid === "") {
-          const { [pid]: _drop, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [pid]: { gid: patch.gid, bond: cur?.gid === patch.gid ? cur.bond : 20 } };
+        // 글로벌이 있으면 "없음"도 값이다(gid "") — 없으면 키를 지워 저장분을 깨끗이 둔다.
+        if (patch.gid === "") return hasGlobal ? { ...prev, [pid]: { gid: "", bond: 20 } } : dropKey(prev, pid);
+        return { ...prev, [pid]: { gid: patch.gid, bond: eff?.gid === patch.gid ? eff.bond : 20 } };
       }
-      if (patch.bond !== undefined && cur !== undefined) return { ...prev, [pid]: { ...cur, bond: patch.bond } };
+      if (patch.bond !== undefined && eff !== undefined) return { ...prev, [pid]: { ...eff, bond: patch.bond } };
       return prev;
     });
+  };
 
   /** 계승 슬롯 변경(2026-09-02) — 잠금이면 스냅샷 즉시 저장(patchRing 규약), 대기면 세션. 두 칸 다 비면 필드째 걷는다. */
   const patchInherit = (pid: string, i: 0 | 1, sid: string, scope: InheritScope): void => {
@@ -2316,12 +2346,14 @@ export default function BuilderIsland({
       setLocked(next);
       return;
     }
+    // ☠씨드는 **실효값**이다 — 글로벌에서 온 2칸 중 하나만 바꿀 때 카드 키가 없다고 빈 칸에서 시작하면
+    //   나머지 한 칸이 조용히 지워진다(2026-09-08 글로벌 도입).
+    const eff = inheritSidsOf(pid, "wait");
+    const hasGlobal = (slotOf(0)?.skills ?? ["", ""]).some((v) => v !== "");
     setInherits((prev) => {
-      const cur = setSlot(prev[pid]);
-      if (cur[0] === "" && cur[1] === "") {
-        const { [pid]: _drop, ...rest } = prev;
-        return rest;
-      }
+      const cur = setSlot(prev[pid] ?? eff);
+      // 글로벌이 있으면 "빈 2칸"도 값이다 — 키를 지우면 글로벌로 되돌아가 지우기가 안 먹는다.
+      if (cur[0] === "" && cur[1] === "" && !hasGlobal) return dropKey(prev, pid);
       return { ...prev, [pid]: cur };
     });
   };
@@ -2696,7 +2728,9 @@ export default function BuilderIsland({
     followGlobal();
   };
   /** 글로벌 변경 = 대기 카드 전부 추종(2026-09-05 사용자 지시: 엔트리(잠금) 카드만 불변) — 카드 개별 클래스·In.Lv는
-      전부 걷고, 개인 장비는 바뀐 슬롯 인덱스 것만(미지정 = 전 슬롯) 걷는다. 반지·계승 스킬은 글로벌 짝이 없어 남긴다. */
+      전부 걷고, 개인 장비는 바뀐 슬롯 인덱스 것만(미지정 = 전 슬롯) 걷는다.
+      ★반지·계승은 **다른 축**이라 여기서 안 걷는다(2026-09-08 사용자 결정 Q5) — 각각 setSlotRing·setSlotSkill이
+      자기 축만 걷는다. 클래스를 바꿨다고 반지가 풀리면 안 된다. */
   const followGlobal = (slotIdx?: readonly number[]): void => {
     setCardClass({});
     setOverrides((prev) =>
@@ -2748,6 +2782,37 @@ export default function BuilderIsland({
       return s.map((v, idx) => (t.has(idx) ? { ...v, plus } : v));
     });
   };
+  /** 글로벌 반지(상단 컨트롤, 2026-09-08) — 카드 반지와 같은 규약(선택 시 絆 20, 같은 반지면 絆 유지).
+      ★전파는 **축별**(사용자 결정 Q5): 카드 개별 **반지만** 걷는다 — 클래스·장비·계승은 그대로 둔다. */
+  const setSlotRing = (i: number, patch: { gid?: string; bond?: number }): void => {
+    setSlots((s) =>
+      s.map((v, idx) => {
+        if (idx !== i) return v;
+        if (patch.gid !== undefined) {
+          const { gid: _g, bond: _b, ...rest } = v;
+          return patch.gid === "" ? rest : { ...rest, gid: patch.gid, bond: v.gid === patch.gid ? (v.bond ?? 20) : 20 };
+        }
+        return patch.bond !== undefined && v.gid !== undefined ? { ...v, bond: patch.bond } : v;
+      }),
+    );
+    setRings({});
+  };
+
+  /** 글로벌 계승 2칸(상단 컨트롤, 2026-09-08) — 두 칸 다 비면 필드째 걷는다(카드 규약과 동형).
+      ★전파는 축별: 카드 개별 **계승만** 걷는다. */
+  const setSlotSkill = (i: number, idx: 0 | 1, sid: string): void => {
+    setSlots((s) =>
+      s.map((v, k) => {
+        if (k !== i) return v;
+        const cur: [string, string] = [v.skills?.[0] ?? "", v.skills?.[1] ?? ""];
+        cur[idx] = sid;
+        const { skills: _s, ...rest } = v;
+        return cur[0] === "" && cur[1] === "" ? rest : { ...rest, skills: cur };
+      }),
+    );
+    setInherits({});
+  };
+
   /** 글로벌 각인 선택(상단 컨트롤, 2026-08-31 사용자 설계) — "" = 무각인. 무기와 독립.
       메인(1번)에서 바꾸면 같은 무기를 든 비교 슬롯에도 따라 적용(2026-09-01 사용자 지시). */
   const setSlotEngrave = (i: number, gid: string): void => {
@@ -2802,6 +2867,9 @@ export default function BuilderIsland({
     const weapon = job === undefined ? undefined : options.find((w) => w.iid === slot?.iid && canEquip(job, w));
     const plus = slot?.plus ?? 0;
     const engrave = visibleEngraves.find((g) => g.gid === slot?.engrave);
+    // 글로벌 반지·계승(2026-09-08) — 체커에 숨은 gid/sid는 목록 밖이라 "없음"으로 강하한다(visibleEmblems가 게이트).
+    const slotEmblem = visibleEmblems.find((e) => e.gid === slot?.gid);
+    const slotSids: [string, string] = slot?.skills ?? ["", ""];
     return (
       <>
         <span className="flex flex-col gap-1">
@@ -2861,6 +2929,65 @@ export default function BuilderIsland({
             }
           />
         )}
+        {/* 글로벌 반지 + 絆(2026-09-08 사용자 지시) — 카드 반지 슬롯과 **같은 목록·같은 게이트**(ringOptionsOf,
+            visibleEmblems)라 스포일러·DLC 체커 준수가 한 곳이다. */}
+        <span className="flex flex-col gap-1">
+          {i === 0 && <span className={legendClass}>{labels.ring}</span>}
+          <EquipDropdown
+            ariaLabel={labels.ring}
+            value={slotEmblem?.gid ?? ""}
+            options={ringOptionsOf(visibleEmblems, labels)}
+            onChange={(gid) => setSlotRing(i, { gid })}
+            labels={labels}
+            triggerClass={`${dropTriggerClass} ${slotEmblem !== undefined ? "text-engage" : "text-muted"}`}
+            trigger={
+              <>
+                <span className="max-w-[8rem] truncate">{slotEmblem?.name ?? labels.ringNone}</span>
+                {CARET}
+              </>
+            }
+          />
+        </span>
+        {slotEmblem !== undefined && (
+          <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
+            {/* 미리보기(onPreview)는 카드 pid 축이라 글로벌에는 없다 — 글로벌은 고르는 즉시 표 전체가 움직인다. */}
+            <BondDropdown
+              emblem={slotEmblem}
+              bond={slot?.bond ?? 20}
+              labels={labels}
+              onChange={(n) => setSlotRing(i, { bond: n })}
+              onPreview={() => undefined}
+            />
+          </span>
+        )}
+        {/* 글로벌 계승 2칸 — 카드 계승 슬롯과 같은 목록(inheritOptions)·같은 "다른 칸 sid 비활성" 규칙. */}
+        <span className="flex flex-col gap-1">
+          {i === 0 && <span className={legendClass}>{labels.inherit}</span>}
+          <span className="flex items-center gap-1">
+            {([0, 1] as const).map((k) => {
+              const chosen = slotSids[k] === "" ? undefined : inheritBySid.get(slotSids[k]);
+              const other = slotSids[k === 0 ? 1 : 0];
+              return (
+                <EquipDropdown
+                  key={k}
+                  ariaLabel={`${labels.inherit} ${k + 1}`}
+                  value={slotSids[k]}
+                  options={inheritOptions(visibleEmblems, labels.skillNone, other === "" ? undefined : other)}
+                  onChange={(v) => setSlotSkill(i, k, v)}
+                  labels={labels}
+                  tall
+                  triggerClass={`${dropTriggerClass} ${chosen !== undefined ? "text-ink" : "text-muted"}`}
+                  trigger={
+                    <>
+                      <span className="max-w-[8rem] truncate">{chosen?.name ?? labels.skillNone}</span>
+                      {CARET}
+                    </>
+                  }
+                />
+              );
+            })}
+          </span>
+        </span>
         {/* pb는 1행 전용 — items-end(레전드 행)에서 박스 중앙 보정. 2행은 items-center라 넣으면 뜬다. */}
         {weapon !== undefined && (
           <span className={`flex items-center${i === 0 ? " pb-[6px]" : ""}`}>
@@ -3322,8 +3449,9 @@ export default function BuilderIsland({
                     onMouseLeave: () => setHoverRow(null),
                     onClick: () => toggleLock(first.pid, li),
                   };
-            // 유령 카드 = 반지 없음(비교용 기본값 — 잠금 스냅샷의 반지는 엔트리 블록만, 2026-09-02).
-            const ringSrc = ghost ? undefined : rings[first.pid];
+            // 유령 카드 = 카드 개별을 건너뛰고 **글로벌만** 받는다(2026-09-08 — 종전에는 반지가 늘 비어
+            // 비교 기준이 어긋났다). 잠금 스냅샷의 반지는 엔트리 블록만(2026-09-02).
+            const ringSrc = ringOf(first.pid, 0, ghost);
             /** 라인 li의 실효 비교 — 유령 카드는 카드 개별 클래스를 무시하고 글로벌 슬롯만. */
             const cmpOf = (li: number): BuilderCompare | undefined => cardCompareOf(first.pid, li, ghost);
             const wEmblem = ringSrc === undefined ? undefined : emblemByGid.get(ringSrc.gid);

@@ -12,6 +12,8 @@ import {
   combatOf,
   COMBAT_KEYS,
   dropCardKeys,
+  effectiveRing,
+  effectiveSkills,
   effectiveWeaponRanks,
   entryExportRows,
   fmtCombat,
@@ -705,6 +707,38 @@ describe("고유 적성 실효 랭크 (effectiveWeaponRanks·canEquip aptitude)"
     expect(canEquip(jobOf({ 1: "B" }), braveA, SWORD)).toBe(false);
     expect(carriedEquip(jobOf({ 1: "B+" }), { iid: braveA.iid }, [braveA], SWORD)).toEqual({ iid: braveA.iid });
     expect(carriedEquip(jobOf({ 1: "B+" }), { iid: braveA.iid }, [braveA])).toBeUndefined();
+  });
+});
+
+/* ── 글로벌 ↔ 카드 개별 해석(2026-09-08) — 세 층의 우선순위는 규칙이고, 규칙이 렌더 안에 흩어지면
+   층마다 다르게 적힌다. 순수 함수로 뽑았으니 경계를 여기서 박는다. ── */
+describe("글로벌 슬롯 폴백 (effectiveRing·effectiveSkills)", () => {
+  /** 왜 위험한가: "카드에서 반지를 지웠다"를 키 삭제로 표현하면 글로벌로 되돌아간다 —
+      지우기가 **안 먹는데 오류도 경고도 없다**. gid ""가 그 명시적 없음의 표현이다. */
+  it("반지 = 카드 개별 > 글로벌 > 없음 · gid \"\"는 명시적 없음(글로벌을 이긴다)", () => {
+    const slot = { jid: "JID_high", gid: "GID_M", bond: 12 };
+    expect(effectiveRing(undefined, slot)).toEqual({ gid: "GID_M", bond: 12 });
+    expect(effectiveRing({ gid: "GID_S", bond: 5 }, slot)).toEqual({ gid: "GID_S", bond: 5 });
+    expect(effectiveRing({ gid: "", bond: 20 }, slot)).toBeUndefined();
+    expect(effectiveRing(undefined, { jid: "JID_high" })).toBeUndefined();
+    // 글로벌 bond 미지정 = 카드와 같은 기본 20(사용자 결정 Q3).
+    expect(effectiveRing(undefined, { jid: "JID_high", gid: "GID_M" })?.bond).toBe(20);
+  });
+
+  /** 왜 위험한가: 유령 카드(잠긴 pid의 대기 사본)는 카드 개별을 전부 무시하고 글로벌만 받는다 —
+      이 규칙이 빠지면 유령이 잠그기 전 개인 세팅을 들고 다녀 비교 기준이 어긋난다. */
+  it("plain(유령 카드)은 카드 개별을 건너뛰고 글로벌만 받는다", () => {
+    const slot = { jid: "JID_high", gid: "GID_M", bond: 12, skills: ["SID_a", ""] as [string, string] };
+    expect(effectiveRing({ gid: "GID_S", bond: 5 }, slot, true)).toEqual({ gid: "GID_M", bond: 12 });
+    expect(effectiveSkills(["SID_z", "SID_y"], slot, true)).toEqual(["SID_a", ""]);
+  });
+
+  it("계승 2칸 = 카드 개별 > 글로벌 > 빈 칸 · 카드의 빈 2칸은 명시적 없음", () => {
+    const slot = { jid: "JID_high", skills: ["SID_a", "SID_b"] as [string, string] };
+    expect(effectiveSkills(undefined, slot)).toEqual(["SID_a", "SID_b"]);
+    expect(effectiveSkills(["SID_c", ""], slot)).toEqual(["SID_c", ""]);
+    expect(effectiveSkills(["", ""], slot)).toEqual(["", ""]);
+    expect(effectiveSkills(undefined, { jid: "JID_high" })).toEqual(["", ""]);
   });
 });
 
