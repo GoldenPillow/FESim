@@ -146,6 +146,25 @@ case "$cmd" in
   gate)     check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN ==" ;;
   done)     shift; publish_done "$@" ;;
   clear-check) clear_report "$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)" ;;
+  web)      shift
+            # 로컬 dev 서버 기동(확인 루프용) — ☠**vite SSR 사전번들 재최적화 함정의 정본 복구 절차**다.
+            # 증상 = 페이지 전체가 500 + "The file does not exist at .vite/deps_ssr/
+            # @astrojs_cloudflare_entrypoints_server.js?v=…". 코드와 무관하고(같은 커밋이 방금 200이었다)
+            # 서버가 옛 해시를 붙든 채 살아 있어 재기동만으로도 종종 안 풀린다 ⇒ .vite를 지우고 다시 띄운다.
+            # ☠vite optimizeDeps.exclude로 막으려 했으나 어댑터가 자기 환경 설정을 덮어 안 먹었다(2026-09-08 실측).
+            # 첫 기동이 종종 죽으므로 최대 3회 시도한다(astro dev --background의 알려진 거동).
+            pnpm -C apps/web exec astro dev stop >/dev/null 2>&1 || true
+            rm -rf apps/web/node_modules/.vite
+            for _ in 1 2 3; do
+              pnpm -C apps/web exec astro dev --background 2>&1 | tail -1 | grep -q "running at" && break
+            done
+            for _ in $(seq 45); do
+              [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4321/ko/fe17/builder)" = "200" ] && break
+              sleep 2
+            done
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4321/ko/fe17/builder)
+            [ "$code" = "200" ] || { echo "== ./dev web: 기동 실패(HTTP $code) — pnpm -C apps/web exec astro dev logs =="; exit 1; }
+            echo "== ./dev web: http://localhost:4321 (빌더 = /ko/fe17/builder) ==" ;;
   fuzz)     shift
             # 속성 테스트 대케이스(무작위 시드) — 소케이스는 done이 상시 돌린다. 실패 시 출력된 seed로 재현.
             RUNS="${1:-2000}"
