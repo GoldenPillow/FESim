@@ -73,6 +73,18 @@ import {
 } from "../../lib/guestSave";
 import type { BuilderLabels } from "../../lib/i18n";
 
+/**
+ * ★비계(2026-09-08 사용자 지시 *"정적 자산을 먹지않게 html 퍼가기는 임시 중단"*) —
+ * HTML 퍼가기는 아이콘을 정식판 오리진으로 **핫링크**한다: 게시글이 읽힐 때마다 우리 정적 자산
+ * 요청이 발생해 CF 무료 티어 예산을 먹는다(그 글이 얼마나 읽힐지는 우리가 통제할 수 없다).
+ * 이미지 2종(디스코드 클립보드·이미지 저장)은 외부 요청이 0이라 그대로 둔다.
+ * ☠제거 조건 = (a) 아이콘을 data URI로 인라인해 외부 요청을 0으로 만들거나
+ *   (☠디시 본문 65,535 예산 안에 드는지가 관문 — archive/builder_export.md §2-1)
+ *   (b) 실제 자산 요청량을 실측해 감당 가능하다고 판단될 때.
+ * 되살리는 법 = 이 상수를 true로. 생성기(share.ts)와 그 테스트는 그대로 살아 있다.
+ */
+const HTML_SHARE_ENABLED = false;
+
 /** 이 카드가 스킬 설명 팝오버를 들고 있나 — 키는 pid(개인 고유) 또는 `pid:job:라인`(직업 고유).
     ☠단순 동치 비교로는 직업 고유 팝오버에서 카드 th의 z가 안 올라 목록이 다음 카드에 덮인다. */
 const popOnCard = (pop: string | null, pid: string): boolean =>
@@ -769,8 +781,9 @@ function SharePanel({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <span className="flex gap-2">
-        {/* ★HTML이 앞 — 범용성이 높다(2026-09-07 사용자 지시). 다운로드는 디코 옆. */}
-        {act(copyHtml, "</>", labels.share.html)}
+        {/* ★HTML이 앞 — 범용성이 높다(2026-09-07 사용자 지시). 다운로드는 디코 옆.
+            현재 HTML은 비계로 꺼져 있다(HTML_SHARE_ENABLED) — 이유·제거 조건은 그 상수에. */}
+        {HTML_SHARE_ENABLED && act(copyHtml, "</>", labels.share.html)}
         {act(copyImage, "D", labels.share.discord)}
         {act(saveImage, "↓", labels.share.download)}
       </span>
