@@ -1,5 +1,5 @@
 ---
-status: building
+status: done
 target: apps/web/src/lib/fe17.ts (BuilderJobProp 직업 스킬 사영) + apps/web/src/features/builder/BuilderIsland.tsx·builder.css (4밴드 격자) + card/layout.ts·share.ts (칩·캡션)
 ---
 
@@ -131,7 +131,7 @@ target: apps/web/src/lib/fe17.ts (BuilderJobProp 직업 스킬 사영) + apps/we
 - [x] 헤드리스 실측 — PC 4밴드(34/41/34/30, 표폭 1341 불변) · 멀티클래스 2라인(rowSpan 4+3, 라인별
       직업스킬·적성) · 잠금 블록 테두리 4면(PC ::after / 세로폰 셀 조각) · 세로폰 무스크롤(380 ≤ 390) ·
       가로폰 PC 풀피쳐 복원 · 카드 이미지(개인고유 + 직업고유 + 적성 스택) 840x479
-- [ ] ★사용자 실화면 확인 -> 통과 시 decisions 1줄 + `status: done` + `./dev gc`
+- [x] ★사용자 실화면 확인 통과(2026-09-08 "정식 빌드" 지시) -> decisions 등재 + gc
 
 ## 5. 남은 관찰 (확인 요망)
 

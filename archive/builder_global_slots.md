@@ -1,5 +1,5 @@
 ---
-status: building
+status: done
 target: apps/web/src/lib/guestSave.ts (BuilderSlot 확장 + 코덱) + apps/web/src/features/builder/BuilderIsland.tsx (상단 컨트롤·해석·전파) + builder.css (상단 바 배치)
 ---
 
@@ -185,4 +185,4 @@ export interface BuilderSlot {
       SPD 7.5→12.5 · **카드에서 지우기가 글로벌을 이긴다**(DEX 9.5→5.5) · 유령 카드가 글로벌 반지를
       받는다(종전엔 항상 비었다) · 슬롯별 = 슬롯 2에만 반지 → 세이지 라인만 보너스(기본 31.4 → 35.4) ·
       상단 바 1행 유지(1500px), 2슬롯이면 컬럼 정렬 유지
-- [ ] ★사용자 실화면 확인 -> 통과 시 decisions 1줄 + `status: done` + `./dev gc`
+- [x] ★사용자 실화면 확인 통과(2026-09-08 "정식 빌드" 지시) -> decisions 등재 + gc
