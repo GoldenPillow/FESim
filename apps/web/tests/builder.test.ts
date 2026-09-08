@@ -75,14 +75,8 @@ const HIGH: BuilderJobProp = {
 /** 기본직을 목표 직업으로 — 합류 직업이 목록에 실재할 때(2026-09-07 기본직 포함)의 해석을 박제한다. */
 const LOW_JOB: BuilderJobProp = { ...LOW, jid: "JID_low", name: "기본직" };
 
-/** 직업 고유(兵種) 스킬을 가진 상급직 — 명중 +10은 식(Act*) 층이라 정적 EnhanceValue와 경로가 다르다. */
-const JOB_HIT10: SkillRow = {
-  Sid: "SID_兵種命中＋１０", Timing: 3, ActNames: ["命中値"], ActOperations: ["+"], ActValues: ["10"],
-} as SkillRow;
-const HIGH_SKILLED: BuilderJobProp = {
-  ...HIGH,
-  jobSkill: { sid: "SID_兵種命中＋１０", name: "베어넘기기", row: JOB_HIT10 },
-};
+/** 직업 고유(兵種) 스킬을 가진 상급직 — 표기 단면만 실린다(계산에 드는 것은 계승 2칸뿐). */
+const HIGH_SKILLED: BuilderJobProp = { ...HIGH, jobSkill: { sid: "SID_兵種命中＋１０", name: "베어넘기기" } };
 
 const char = (pid: string, over: Partial<BuilderCharProp> = {}): BuilderCharProp => ({
   pid,
@@ -1095,17 +1089,15 @@ describe("엔트리 공유(내보내기) — entryExportRows", () => {
     expect(entryExportRows(lowDisplay, lowLock, ctx)[0]!.jobSkill).toBeUndefined();
   });
 
-  /** 왜 위험한가: 직업 고유는 표시만 하기 쉽다 — 슬롯에 이름이 뜨니 배선이 빠져도 정상으로 보인다.
-      ☠산출물이 표(combatSkillsOf)와 **다른 묶음**을 넘기면 공유물만 조용히 다른 전투력을 말한다.
-      레벨 게이트는 없다(2026-09-08 사용자 지시: "레벨이 부족해도 있다고 가정한다") — 잠금 내부 레벨과 무관. */
-  it("★관통 — 직업 고유 스킬이 전투력에 실린다(레벨 무관)", () => {
-    const locked = [{ pid: "a", internal: 0, jid: "JID_high" }];
+  /** 왜 위험한가: 스킬 4슬롯 중 **계산에 드는 것은 계승(커스텀) 2칸뿐**이다(2026-09-08 사용자 지시:
+      개인·직업 고유는 "무엇을 가졌는지 보여주는" 자리). 슬롯이 나란히 서 있어 나중에 전부 엔진에
+      넣고 싶어지는데, 그러면 표시값이 조용히 움직인다 — 경계를 여기 박아 둔다. */
+  it("직업 고유는 표시 전용 — 전투력은 계승 2칸만 반영한다", () => {
+    const locked = [{ pid: "a", internal: 11, jid: "JID_high" }];
     const display = lockedDisplayRows(propsOf(roster), [HIGH_SKILLED, LOW_JOB], locked);
     const out = entryExportRows(display, locked, ctx)[0]!;
-    const withSkill = combatOf(display[0]!.row, undefined, [JOB_HIT10]);
-    expect(withSkill.hit).not.toBe(combatOf(display[0]!.row).hit); // 전제: 이 스킬이 명중을 움직인다
-    expect(out.combat.hit.text).toBe(fmtCombat(withSkill.hit));
-    expect(out.combat.hit.tone).toBe("buffed");
+    expect(out.jobSkill?.name).toBe("베어넘기기"); // 슬롯에는 뜨고
+    expect(out.combat.hit.text).toBe(fmtCombat(combatOf(display[0]!.row).hit)); // 값은 안 움직인다
   });
 });
 

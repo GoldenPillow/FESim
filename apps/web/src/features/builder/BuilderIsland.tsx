@@ -2142,14 +2142,6 @@ export default function BuilderIsland({
       return s === undefined ? [] : [s.row];
     });
 
-  /** 전투력·스탯 평가에 들어가는 스킬 행 = 커스텀(계승) 2칸 + **직업 고유**(2026-09-08 사용자 지시
-      "직업스킬도 이제 정확히 넣어"). 레벨 게이트는 없다 — 그 직업이면 있다고 본다.
-      ☠개인 고유는 아직 표시 전용이다(미배선 — design/builder_skill_slots.md §5). */
-  const combatSkillsOf = (pid: string, scope: InheritScope, job: BuilderJobProp | undefined): SkillRow[] => {
-    const rows = inheritRowsOf(pid, scope);
-    return job?.jobSkill === undefined ? rows : [...rows, job.jobSkill.row];
-  };
-
   const groups = useMemo(() => {
     const base = builderRowGroups({ chars: visibleChars, joinJobs }, compares, extraSkills);
     // 카드 개별 클래스·In.Lv(2026-08-31) — 라인 0을 카드 값으로 재계산(글로벌 슬롯 대체).
@@ -2175,18 +2167,12 @@ export default function BuilderIsland({
       const delta = emblemByGid.get(src.gid)?.bonuses[bond - 1];
       return delta === undefined || Object.keys(delta).length === 0 ? g : g.map((r) => applyEmblemBonus(r, delta));
     });
-    // 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
-    // ☠직업 고유는 **라인마다 직업이 다르다** — 그룹 단위로 한 번 걸면 라인 2 이상이 라인 0의 스킬을 받는다.
+    // 계승 스킬 정적 스탯(EnhanceValue) — 문장사 층 뒤에 얹는다(오버레이 순서 = 문장사 → 스킬).
+    // ★계산에 드는 스킬 = **계승(커스텀) 2칸뿐**이다(2026-09-08 사용자 지시) — 스탯·전투력에 걸리는
+    //   패시브가 많은 층이 여기다. 개인 고유·직업 고유는 "무엇을 가졌는지" 보여주는 표시 슬롯이다.
     const skilled = boosted.map((g) => {
-      const pid = g[0]!.pid;
-      // 유령 카드(잠긴 pid의 사본)는 카드 개별값을 무시한다 — personalized 단계와 같은 판정.
-      const plain = lockByPid.has(pid);
-      const inh = inheritRowsOf(pid, "wait");
-      return g.map((r, li) => {
-        const js = cardCompareOf(pid, li, plain)?.job.jobSkill?.row;
-        const sd = skillStatDelta(js === undefined ? inh : [...inh, js]);
-        return Object.keys(sd).length === 0 ? r : applyStatBonus(r, sd, "skill");
-      });
+      const sd = skillStatDelta(inheritRowsOf(g[0]!.pid, "wait"));
+      return Object.keys(sd).length === 0 ? g : g.map((r) => applyStatBonus(r, sd, "skill"));
     });
     return waitingRowGroups(skilled, locked, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2204,7 +2190,7 @@ export default function BuilderIsland({
         const delta = emblemByGid.get(entry.gid)?.bonuses[bond - 1];
         if (delta !== undefined && Object.keys(delta).length > 0) row = applyEmblemBonus(row, delta);
       }
-      const sd = skillStatDelta(combatSkillsOf(d.row.pid, "lock", d.job));
+      const sd = skillStatDelta(inheritRowsOf(d.row.pid, "lock"));
       if (Object.keys(sd).length > 0) row = applyStatBonus(row, sd, "skill");
       return row === d.row ? d : { ...d, row };
     });
@@ -2472,7 +2458,7 @@ export default function BuilderIsland({
     );
   };
 
-  /** 읽기 전용 스킬 칩 — 개인 고유(스킬 열)·직업 고유(장비 열) 공용. 호버 = 설명 오버레이,
+  /** 읽기 전용 스킬 칩 — 개인 고유·직업 고유 공용. 호버 = 설명 오버레이,
       탭 = 토글(터치 — 호버가 없다). 커스텀(계승) 드롭다운과 같은 규격(9rem·h-7)이되 캐럿이 없고
       배경이 한 단계 낮다(.entry-skill-fixed) — 눌리는 슬롯과 갈린다(2026-09-08). */
   const fixedSkillUi = (key: string, s: EmblemSkillProp | undefined, title: string): React.JSX.Element => {
@@ -3305,7 +3291,7 @@ export default function BuilderIsland({
                   aptitude={aptitudeOf(row.pid)}
                   lead={skillCell(row.pid, 2, "lock")}
                   lead2={skillCell(row.pid, 3, "lock")}
-                  skills={combatSkillsOf(row.pid, "lock", job)}
+                  skills={inheritRowsOf(row.pid, "lock")}
                   onEquip={(p) => patchLock(row.pid, p)}
                   bar={lockHover === row.pid ? resetBar(() => resetLock(row.pid)) : undefined}
                   rowClass="cursor-grab hover:bg-sunken"
@@ -3510,7 +3496,7 @@ export default function BuilderIsland({
                       aptitude={aptitudeOf(first.pid)}
                       lead={li === 0 ? skillCell(first.pid, 2, "wait") : <td className="skill-col" />}
                       lead2={li === 0 ? skillCell(first.pid, 3, "wait") : <td className="skill-col" />}
-                      skills={combatSkillsOf(first.pid, "wait", cmpOf(li)?.job)}
+                      skills={inheritRowsOf(first.pid, "wait")}
                       onEquip={(p) => applyCard(first.pid, li, p)}
                       bar={!inert && hovered && hoverRow.li === li ? resetBar(() => resetCard(first.pid)) : undefined}
                       rowClass={`combat-ghost${inert ? "" : " cursor-pointer hover:bg-sunken"}`}
