@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FESim 단일 러너 — ./dev done|gate|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|replay:verify|opening|saves|promote|link:put|perf|size
+# FESim 단일 러너 — ./dev done|gate|check:web|web|clear-check|test|check|doccheck|gc|fuzz|extract|transform|notes|verify-m002|verify-all|bake|replay|replay:verify|opening|saves|promote|link:put|perf|size
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -64,6 +64,15 @@ run_guarded() {
 }
 
 gate_all() { check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN =="; }
+
+# 웹 작업 내부 루프(2026-09-08 사용자 지시 "fesim과의 분리 중요") — apps/web만 본다.
+# ★핵심 = **로컬 dev 서버를 안 깨뜨린다**: astro check가 아니라 tsc를 쓰고(실측: .vite 무변화),
+#   기보·룰북·doccheck(빌더와 무관한 축, 그중 rulebook이 클라이언트 캐시를 깬다)를 안 돈다.
+#   ⇒ 편집 중에는 이것만, ./dev gate는 커밋 직전 1회. 실측 10.5초(게이트 20.5초 + 서버 복구 15초 대비).
+check_web() {
+  pnpm -C apps/web exec tsc --noEmit && pnpm -C apps/web exec vitest run \
+    && echo "== ./dev check:web: GREEN (dev 서버 무해) =="
+}
 test_all() { pnpm -r --if-present run test; }
 doccheck() { pnpm -C tools/doccheck run test; }
 
@@ -193,6 +202,7 @@ replay_check() {
 
 case "$cmd" in
   check)    run_guarded check ;;
+  check:web) check_web ;;
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
