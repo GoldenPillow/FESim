@@ -26,22 +26,44 @@ web_restart() {
     sleep 2
   done
   [ "$code" = "200" ] || { echo "== ./dev web: 기동 실패(HTTP $code) — pnpm -C apps/web exec astro dev logs =="; return 1; }
+  # ☠SSR 200만으로는 부족하다 — **클라이언트** 사전번들은 브라우저가 처음 열 때 비로소 돌고,
+  #   그 첫 로드가 최적화와 경합하면 /@id/@astrojs/react/client.js가 404 나면서 아일랜드
+  #   하이드레이션이 통째로 죽는다(증상 = 커스텀 드롭다운이 전부 무반응, 네이티브 select만 동작.
+  #   에러 배너도 없다). 여기서 미리 당겨 최적화를 끝내 둔다(2026-09-08 실측).
+  local cli=""
+  for _ in $(seq 20); do
+    cli="$(curl -s -o /dev/null -w '%{http_code}' 'http://localhost:4321/@id/@astrojs/react/client.js')"
+    [ "$cli" = "200" ] && break
+    sleep 1
+  done
+  [ "$cli" = "200" ] || echo "  ☠ 클라이언트 모듈 예열 실패(HTTP $cli) — 첫 로드에서 하이드레이션이 죽을 수 있다"
   echo "== ./dev web: http://localhost:4321 (빌더 = /ko/fe17/builder) =="
 }
 
 # 로컬 dev 서버가 떠 있나 — 포트 응답으로 본다(pid 파일보다 정확하다: 죽은 pid가 남는다).
 web_up() { [ -n "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:4321/ 2>/dev/null | grep -E '^[2345]')" ]; }
-# ☠**astro check가 dev 서버의 SSR 사전번들 캐시를 지운다**(2026-09-08 실측: deps_ssr 382 → 2).
-#   지워지면 워커 러너는 옛 해시를 계속 요구해 페이지 전체가 500이 된다
-#   ("The file does not exist at .vite/deps_ssr/@astrojs_cloudflare_entrypoints_server.js?v=…").
-#   코드와 무관한 증상이라 오진하기 쉽다 — 하루에 4번 재발했다. 그래서 check가 스스로 되살린다.
-check() {
-  local up=0
-  web_up && up=1
-  pnpm -r --if-present run typecheck || return 1
-  [ "$up" = "1" ] && { echo "  · dev 서버 SSR 캐시가 astro check로 지워졌다 — 되살린다"; web_restart; }
-  return 0
+check() { pnpm -r --if-present run typecheck; }
+
+# ☠**게이트가 로컬 dev 서버를 깨뜨린다**(2026-09-08 실측). apps/web의 vite 캐시를 지우는 단계가 둘이다:
+#   · astro check(typecheck) → deps_ssr 382 → 2  ⇒ 페이지 전체 500
+#     ("The file does not exist at .vite/deps_ssr/@astrojs_cloudflare_entrypoints_server.js?v=…")
+#   · tools/rulebook/build.mjs → deps(클라이언트) 48 → 2  ⇒ 다음 로드에서 /@id/@astrojs/react/client.js
+#     404 → **아일랜드 하이드레이션이 통째로 죽는다**(커스텀 드롭다운 전부 무반응, 네이티브 select만
+#     동작, 에러 배너 없음 — 코드 결함으로 오진하기 딱 좋다. 실제로 그렇게 보고됐다)
+#   둘 다 자기 Astro/Vite 인스턴스를 띄우면서 node_modules/.vite를 자기 것으로 갈아엎는다.
+#   ⇒ 단계마다 막지 않고 **게이트 전체를 감싸** 끝나면 되살린다.
+run_guarded() {
+  local up=0 rc=0
+  if web_up; then up=1; fi
+  "$@" || rc=$?
+  if [ "$up" = "1" ]; then
+    echo "  · 로컬 dev 서버 vite 캐시가 게이트로 지워졌다 — 되살린다"
+    web_restart || true
+  fi
+  return "$rc"
 }
+
+gate_all() { check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN =="; }
 test_all() { pnpm -r --if-present run test; }
 doccheck() { pnpm -C tools/doccheck run test; }
 
@@ -170,11 +192,11 @@ replay_check() {
 }
 
 case "$cmd" in
-  check)    check ;;
+  check)    run_guarded check ;;
   test)     test_all ;;
   doccheck) doccheck ;;
   gc)       gc ;;
-  gate)     check && test_all && doccheck && rulebook_check && replay_check && echo "== ./dev gate: ALL GREEN ==" ;;
+  gate)     run_guarded gate_all ;;
   done)     shift; publish_done "$@" ;;
   clear-check) clear_report "$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)" ;;
   web)      shift; web_restart || exit 1 ;;
